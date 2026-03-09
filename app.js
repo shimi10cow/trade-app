@@ -45,6 +45,21 @@ function updateNetworkStatus(isOnline) {
 }
 
 // ==========================================
+// UI Helpers
+// ==========================================
+function showLoader() {
+  document.getElementById('app-loader').classList.add('active');
+}
+
+function hideLoader() {
+  document.getElementById('app-loader').classList.remove('active');
+}
+
+function goToHistory() {
+  switchTab('analysis');
+}
+
+// ==========================================
 // Navigation
 // ==========================================
 function setupEventListeners() {
