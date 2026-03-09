@@ -209,7 +209,7 @@ function renderPairs() {
   flags.forEach(f => groups[f] = []);
   
   App.data.pairs.forEach(p => {
-    let flag = p['フラグ'] || '様子見';
+    let flag = p['フラグ'] || p['Flag'] || '様子見';
     if(!groups[flag]) flag = 'その他';
     groups[flag].push(p);
   });
@@ -246,7 +246,6 @@ function renderPairs() {
 
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
-  // Filter for winning or high score trades
   const galleryTrades = App.data.entries.filter(t => {
     const score = parseInt(t['エントリースコア']) || 0;
     const isWin = parseFloat(t['実取得pips']) > 0;
