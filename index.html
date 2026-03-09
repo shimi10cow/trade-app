@@ -545,26 +545,36 @@ const App = {
 // 初期化
 // =============================================
 document.addEventListener('DOMContentLoaded', async () => {
-  showLoading('データを読み込み中...');
+  showLoading('通貨データを取得中...');
+  try {
+    const resPairs = await gasGet('getPairs');
+    if (!resPairs.success) throw new Error(resPairs.error || 'Failed to fetch pairs');
+    App.pairs = resPairs.data;
+    
+    renderPairDropdown();
+    hideLoading(); // ユーザーがすぐ操作できるようにする
+    
+    // 履歴データの読み込みはバックグラウンドで行う
+    loadEntriesInBackground();
+  } catch (err) {
+    hideLoading();
+    showToast('読み込みエラー: ' + err.message);
+  }
+});
+
+async function loadEntriesInBackground() {
   try {
     const resEntries = await gasGet('getEntries');
     if (!resEntries.success) throw new Error(resEntries.error || 'Failed to fetch entries');
     App.entries = resEntries.data;
     document.getElementById('entry-count').textContent = App.entries.length + '件';
     
-    const resPairs = await gasGet('getPairs');
-    if (!resPairs.success) throw new Error(resPairs.error || 'Failed to fetch pairs');
-    App.pairs = resPairs.data;
-    
-    renderPairDropdown();
     renderAnalysis();
     renderHistory();
-    hideLoading();
   } catch (err) {
-    hideLoading();
-    showToast('読み込みエラー: ' + err.message);
+    showToast('履歴データ取得エラー: ' + err.message);
   }
-});
+}
 
 // =============================================
 // タブ
@@ -604,8 +614,41 @@ function onPairChanged() {
     const flag = pair['フラグ'] || '';
     badge.textContent = flag;
     badge.className = 'pair-ctx-badge ' + (flag === '狙い目' ? 'aim' : 'watch');
+    
+    autoFillConditions(pair);
   }
   triggerAnalysis();
+}
+
+function autoFillConditions(pair) {
+  // 時間足の矢印自動入力
+  ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(tf => {
+    const val = pair[tf];
+    if (val) {
+      const group = document.querySelector(`.arrow-group[data-tf="${tf}"]`);
+      if (group) {
+        group.querySelectorAll('.arrow-btn').forEach(btn => {
+          if (btn.textContent === val) selectArrow(btn);
+        });
+      }
+    }
+  });
+
+  // MA条件の自動入力
+  const conds = [
+    { key: 'H4MA乖離', val: pair['H4MA乖離'] },
+    { key: 'H4MA480.1200', val: pair['H4MA480.1200'] }
+  ];
+  conds.forEach(c => {
+    if (c.val) {
+      const group = document.querySelector(`.cond-group[data-cond="${c.key}"]`);
+      if (group) {
+        group.querySelectorAll('.cond-btn').forEach(btn => {
+          if (btn.textContent === c.val) selectCond(btn);
+        });
+      }
+    }
+  });
 }
 
 function selectDir(el, dir) {
