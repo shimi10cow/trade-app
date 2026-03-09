@@ -209,7 +209,8 @@ function renderPairs() {
   flags.forEach(f => groups[f] = []);
   
   App.data.pairs.forEach(p => {
-    let flag = p['フラグ'] || p['Flag'] || '様子見';
+    let flag = p['フラグ'] || p['Flag'];
+    if(!flag) flag = '様子見';
     if(!groups[flag]) flag = 'その他';
     groups[flag].push(p);
   });
@@ -219,23 +220,32 @@ function renderPairs() {
     if(groups[f].length === 0) return;
     
     // Assign color based on flag
-    let color = '#94a3b8';
+    let color = '#94a3b8'; // default grey
     if(f === '待機') color = '#ef4444'; // Red
-    if(f === '狙い目') color = '#f59e0b'; // Orange
-    if(f === '注目') color = '#38bdf8'; // Blue
+    if(f === '狙い目') color = '#10b981'; // Green
+    if(f === '注目') color = '#3b82f6'; // Blue
+    if(f === '様子見') color = '#e2e8f0'; // White/LightGrey
     
-    html += `<div style="font-size:11px; font-weight:700; color:${color}; margin: 12px 0 6px 0;">■ ${f}</div>`;
+    html += `<div style="font-size:12px; font-weight:700; color:${color}; margin: 16px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;">■ ${f}</div>`;
     
     groups[f].forEach(p => {
       const pairName = p['PairName（元）'] || p['PairName'] || '';
-      // Show MAs, arrows or simply Pair Name. Simplistic view for now.
+      
+      // Extract arrow from D1, H4, or H1
+      const dirs = [p['D1'], p['H4'], p['H1']].join('');
+      let arrowHtml = '';
+      if(dirs.includes('↑') || dirs.includes('↗') || dirs.includes('Buy')) {
+         arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↗</span>`;
+      } else if(dirs.includes('↓') || dirs.includes('↘') || dirs.includes('Sell')) {
+         arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↘</span>`;
+      }
+
       html += `
-        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer;">
-          <div style="font-weight:700; font-size:14px; display:flex; gap:8px; align-items:center;">
-            ${pairName} 
-            <span style="font-size:10px; color:#94a3b8;">H4:${p['H4']||'-'} H1:${p['H1']||'-'}</span>
+        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:4px; border-radius:8px; border:1px solid #1e293b;">
+          <div style="font-weight:700; font-size:15px; display:flex; align-items:center; color:${color};">
+            ${pairName} ${arrowHtml}
           </div>
-          <div style="color:#94a3b8; font-size:16px;">›</div>
+          <div style="color:#64748b; font-size:18px;">›</div>
         </div>
       `;
     });
