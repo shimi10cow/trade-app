@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="トレード記録">
 <title>トレード記録</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192x192.png">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f0f2f5; color: #222; }
@@ -513,6 +515,14 @@ textarea.memo-input:focus { outline: none; border-color: #4fc3f7; background: #f
 </div>
 
 <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW setup successful'))
+      .catch(err => console.log('SW setup failed', err));
+  });
+}
+
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwT_eZRcvQf0LOfE_TLv8_8DVzvoaAFQ4mPd6idw9DXEBUno5Poh2rCjwCsF21ynzIE/exec';
 
 // GET系
