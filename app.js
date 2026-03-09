@@ -166,7 +166,7 @@ function renderPositions() {
   const container = document.getElementById('positions-list');
   
   // Filter for active positions (保有中 or 保有中（見逃し）)
-  const activeTrades = App.data.entries.filter(t => t.Status === '保有中' || t.Status === '保有中（見逃し）');
+  const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
   
   if (activeTrades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">現在保有中のポジションはありません</div>';
@@ -176,7 +176,7 @@ function renderPositions() {
   container.innerHTML = activeTrades.map((t) => {
     // Find absolute index in full array since we filtered
     const index = App.data.entries.indexOf(t);
-    const isMissed = t.Status === '保有中（見逃し）';
+    const isMissed = t['ステータス'] === '保有中（見逃し）';
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
     
@@ -184,11 +184,11 @@ function renderPositions() {
       <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#3b82f6'}">
         <div>
           <div style="font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
-            ${t.Pair || 'ペア不明'} 
+            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'} 
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
           </div>
-          <div style="font-size:11px; color:#94a3b8;">${t.Date || ''} ${t.Time || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
+          <div style="font-size:11px; color:#94a3b8;">${t.EntryDate ? t.EntryDate.split('T')[0] : t.Date || ''} ${t.Time || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
         <div style="color:#94a3b8; font-size:16px;">›</div>
       </div>
@@ -276,7 +276,7 @@ function renderGallery() {
           </div>
         </div>
         <div style="padding:8px;">
-          <div style="font-weight:700; font-size:12px;">${t.Pair} ${t.Direction}</div>
+          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}</div>
           <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${t.Date || ''}</div>
         </div>
       </div>
@@ -303,7 +303,7 @@ function applyAnalysisFilters() {
   const dTo = document.getElementById('flt-date-to').value;
   
   // 1. Base filter: Closed trades only
-  let filtered = App.data.entries.filter(t => t.Status === '決済' || t.Status === '決済（見逃し）');
+  let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   
   // 2. Apply advanced filters
   const now = new Date();
@@ -314,14 +314,14 @@ function applyAnalysisFilters() {
 
   filtered = filtered.filter(t => {
     // Status
-    if (fStatus === 'entry' && t.Status.includes('見逃し')) return false;
-    if (fStatus === 'missed' && !t.Status.includes('見逃し')) return false;
+    if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
+    if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
     
     // Pair
-    if (fPair !== 'all' && t.Pair !== fPair) return false;
+    if (fPair !== 'all' && (t['PairName（元）'] || t.PairName || t.Pair) !== fPair) return false;
     
     // Timezone
-    if (fTimezone !== 'all' && t.Timezone !== fTimezone) return false;
+    if (fTimezone !== 'all' && t['時間帯'] !== fTimezone) return false;
     
     // DowRule
     if (fRule !== 'all' && t.DowRule != fRule) return false;
@@ -332,7 +332,7 @@ function applyAnalysisFilters() {
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     
     // Period
-    const dateStr = t.Date || ''; // assuming YYYY/MM/DD
+    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : t.Date || ''; // assuming YYYY/MM/DD
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
     if (fPeriod === 'custom') {
@@ -471,7 +471,7 @@ function applyAnalysisFilters() {
     const last = filtered[filtered.length - 1]; // Given natural order, or we can sort
     const lastPip = parseFloat(last['実取得pips']) || 0;
     if (lastPip < 0) {
-      biasAlert.innerHTML = `<span style="font-size:24px;">⚠️</span><div><strong style="color:#f8fafc; font-size:14px;">リベンジトレード警告</strong><br><span style="font-size:11px;">直近のトレード(${last.Pair})で損失が出ています。焦って取り返そうとせず、冷静にルールを見直してください。</span></div>`;
+      biasAlert.innerHTML = `<span style="font-size:24px;">⚠️</span><div><strong style="color:#f8fafc; font-size:14px;">リベンジトレード警告</strong><br><span style="font-size:11px;">直近のトレード(${t['PairName（元）'] || t.PairName || t.Pair})で損失が出ています。焦って取り返そうとせず、冷静にルールを見直してください。</span></div>`;
       biasAlert.style.display = 'flex';
     } else {
       biasAlert.style.display = 'none';
@@ -866,8 +866,8 @@ function openTradeDetail(index) {
   if(!t) return;
   
   document.getElementById('td-index').value = index;
-  document.getElementById('td-title').textContent = `${t.Pair} ${t.Direction}`;
-  document.getElementById('td-status').value = t.Status || '保有中';
+  document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
+  document.getElementById('td-status').value = t['ステータス'] || '保有中';
   
   // existing values if partial save
   document.getElementById('td-pips').value = t['実取得pips'] || '';
@@ -916,7 +916,7 @@ async function saveTradeDetail() {
     // const res = await gasPost('updateTrade', payload);
     
     // Optimistic update locally
-    t.Status = payload.Status;
+    t['ステータス'] = payload.Status;
     t['実取得pips'] = payload.Pips;
     t['純損益'] = payload.Profit;
     t['エントリー振り返り'] = payload.EntryRef;
