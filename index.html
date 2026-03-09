@@ -46,13 +46,14 @@
         <div id="positions-list"></div>
       </div>
       
-      <!-- List for closed trades menu can go here -->
-      <div style="text-align: center; margin-top: 20px;">
-        <button onclick="goToHistory()" style="background:#1e293b; color:#38bdf8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴を見る</button>
+      <div style="text-align: center; margin-top: 10px; margin-bottom: 20px;">
+        <button class="action-btn" onclick="openEntryModal()" style="font-size: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);">✨ 新規エントリーを記録</button>
       </div>
-
-      <!-- FAB for New Entry -->
-      <div class="fab" onclick="openEntryModal()">+</div>
+      
+      <!-- List for closed trades menu can go here -->
+      <div style="text-align: center; margin-bottom: 20px;">
+        <button onclick="goToHistory()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴</button>
+      </div>
     </div>
 
     <!-- Screen: Pairs -->
@@ -72,18 +73,24 @@
 
       <!-- Filter Panel -->
       <div class="filter-panel">
-        <select id="flt-period">
+        <select id="flt-period" onchange="toggleCustomDate()">
           <option value="all">全期間</option>
           <option value="this_month">今月</option>
           <option value="last_month">先月</option>
+          <option value="custom">カスタム（期間指定）</option>
         </select>
+        <div id="flt-custom-date" style="display:none; gap:4px; align-items:center; margin-top:4px; margin-bottom:4px;">
+          <input type="date" id="flt-date-from" class="form-input" style="padding:6px; flex:1;">
+          <span style="color:#94a3b8;">〜</span>
+          <input type="date" id="flt-date-to" class="form-input" style="padding:6px; flex:1;">
+        </div>
         <select id="flt-pair">
           <option value="all">全ペア</option>
           <!-- populated dynamically -->
         </select>
         <select id="flt-status">
           <option value="all">全ステータス</option>
-          <option value="entry">エントリーのみ（見逃し除く）</option>
+          <option value="entry">実エントリーのみ</option>
           <option value="missed">見逃しのみ</option>
         </select>
         <select id="flt-timezone">
@@ -102,11 +109,22 @@
           <option value="5">5</option>
           <option value="6">6</option>
           <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
         </select>
         <select id="flt-score">
-          <option value="all">エントリスコア指定なし</option>
-          <option value="high">高スコア (6以上)</option>
-          <option value="low">低スコア (5以下)</option>
+          <option value="all">スコア指定なし</option>
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="high">高スコア (5以上)</option>
         </select>
         <button class="filter-btn" onclick="applyAnalysisFilters()">📊 この条件で分析</button>
       </div>
@@ -144,7 +162,7 @@
 
     <!-- Screen: Gallery -->
     <div id="screen-gallery" class="screen">
-      <div style="text-align:center; padding:10px; color:#94a3b8; font-size:12px;">✅ スコア6以上 または 勝率の高いトレード画像集</div>
+      <div style="text-align:center; padding:10px; color:#94a3b8; font-size:12px;">✅ スコア5以上 または 勝率の高いトレード画像集</div>
       <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:10px;">
         <!-- Images dynamically inserted here -->
       </div>
@@ -189,11 +207,14 @@
             <select class="form-input" id="ne-dow-rule">
               <option value="1">1: D1〇H4〇 H4出入口</option>
               <option value="2">2: D1〇H4〇 H4砦</option>
-              <option value="3">3: D1〇H4〇 H1出入口</option>
+              <option value="3">3: D1〇H4〇 H4砦形成M15</option>
               <option value="4">4: D1〇H4✕ D1砦</option>
               <option value="5">5: D1〇H4✕ H4出入口</option>
               <option value="6">6: D1✕H4〇 H4出入口</option>
               <option value="7">7: D1✕H4〇 H4砦</option>
+              <option value="8">8: D1✕H4〇 H4砦形成M15</option>
+              <option value="9">9: D1✕H4✕ H4出入口</option>
+              <option value="10">10: D1✕H4✕ D1出入口</option>
             </select>
           </div>
         </div>
@@ -266,18 +287,18 @@
         <!-- TP / SL / Lot -->
         <div class="section">
           <div class="section-title">TP / SL / Lot</div>
-          <div class="grid-2col" style="grid-template-columns: 1fr 1fr 1fr;">
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
             <div class="grid-item">
               <span class="grid-label">TP(pips)</span>
-              <input type="number" class="form-input" id="ne-tp" oninput="calculateRR()" style="text-align:center;">
+              <input type="number" class="form-input" id="ne-tp" oninput="calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;">
             </div>
             <div class="grid-item">
               <span class="grid-label">SL(pips)</span>
-              <input type="number" class="form-input" id="ne-sl" oninput="calculateRR()" style="text-align:center;">
+              <input type="number" class="form-input" id="ne-sl" oninput="calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;">
             </div>
             <div class="grid-item">
               <span class="grid-label">Lot</span>
-              <input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center;">
+              <input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center; min-width:0; padding:10px 4px;">
             </div>
           </div>
           <div class="calc-info" id="ne-rr-display">予想RR: --</div>
@@ -286,16 +307,13 @@
         <!-- Chart & Memo -->
         <div class="section">
           <div class="section-title">チャート画像 / メモ</div>
-          <div style="display:flex; gap:8px;">
-            <input type="text" class="form-input" id="ne-tv-url" placeholder="TradingView URL入力..." oninput="previewTVImage()">
-            <label class="action-btn" style="width:auto; padding:10px 16px; font-size:12px; margin:0; display:flex; align-items:center; box-shadow:none;">
-              📷
-              <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
-            </label>
-          </div>
+          <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
+            📷 端末から画像を選択 (ライブラリ/撮影)
+            <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
+          </label>
           <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
             <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
-            <button onclick="openCanvasEditor()" style="position:absolute; bottom:8px; right:8px; background:rgba(15,23,42,0.8); color:#38bdf8; border:1px solid #38bdf8; padding:6px 12px; border-radius:6px; cursor:pointer;">🖌 編集</button>
+            <button onclick="openCanvasEditor()" style="position:absolute; bottom:8px; right:8px; background:rgba(15,23,42,0.9); color:#38bdf8; border:1px solid #38bdf8; padding:6px 16px; border-radius:8px; cursor:pointer; font-weight:bold;">🖌 画像にお絵かき</button>
           </div>
           <textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリーの根拠や事前の感情..." style="width:100%; margin-top:8px;"></textarea>
         </div>
