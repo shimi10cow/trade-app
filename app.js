@@ -188,7 +188,7 @@ function renderPositions() {
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
           </div>
-          <div style="font-size:11px; color:#94a3b8;">${t.EntryDate ? t.EntryDate.split('T')[0] : t.Date || ''} ${t.Time || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
+          <div style="font-size:11px; color:#94a3b8;">${t.EntryDate ? t.EntryDate.split('T')[0] : ''} ${t.EntryTime || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
         <div style="color:#94a3b8; font-size:16px;">›</div>
       </div>
@@ -261,8 +261,8 @@ function renderGallery() {
   // For demo, we just render boxes with details.
   let html = '';
   galleryTrades.forEach(t => {
-    const imgUrl = t['チャート画像'] || t['画像'] || t['Image'];
-    const profit = parseFloat(t['純損益']) || 0;
+    const imgUrl = t['ChartImage'] || t['画像'] || t['Image'];
+    const profit = parseFloat(t['損益']) || 0;
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 0;
     const color = isWin ? '#10b981' : '#ef4444';
@@ -277,7 +277,7 @@ function renderGallery() {
         </div>
         <div style="padding:8px;">
           <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}</div>
-          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${t.Date || ''}</div>
+          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${t.EntryDate || ''}</div>
         </div>
       </div>
     `;
@@ -332,7 +332,7 @@ function applyAnalysisFilters() {
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     
     // Period
-    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : t.Date || ''; // assuming YYYY/MM/DD
+    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : ''; // assuming YYYY/MM/DD
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
     if (fPeriod === 'custom') {
@@ -358,7 +358,7 @@ function applyAnalysisFilters() {
   filtered.forEach(t => {
     totalTrades++;
     const pips = parseFloat(t['実取得pips']) || 0;
-    const profit = parseFloat(t['純損益']) || 0;
+    const profit = parseFloat(t['損益']) || 0;
     const lot = parseFloat(t['Lot']) || 0;
     
     totalPips += pips;
@@ -378,7 +378,7 @@ function applyAnalysisFilters() {
     }
     
     // RR
-    const sl = parseFloat(t['SL']) || 0;
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
     if(sl > 0) {
       avgRRSum += (pips / sl);
       validRRCount++;
@@ -471,7 +471,7 @@ function applyAnalysisFilters() {
     const last = filtered[filtered.length - 1]; // Given natural order, or we can sort
     const lastPip = parseFloat(last['実取得pips']) || 0;
     if (lastPip < 0) {
-      biasAlert.innerHTML = `<span style="font-size:24px;">⚠️</span><div><strong style="color:#f8fafc; font-size:14px;">リベンジトレード警告</strong><br><span style="font-size:11px;">直近のトレード(${t['PairName（元）'] || t.PairName || t.Pair})で損失が出ています。焦って取り返そうとせず、冷静にルールを見直してください。</span></div>`;
+      biasAlert.innerHTML = `<span style="font-size:24px;">⚠️</span><div><strong style="color:#f8fafc; font-size:14px;">リベンジトレード警告</strong><br><span style="font-size:11px;">直近のトレード(${last['PairName（元）'] || last.PairName || last.Pair})で損失が出ています。焦って取り返そうとせず、冷静にルールを見直してください。</span></div>`;
       biasAlert.style.display = 'flex';
     } else {
       biasAlert.style.display = 'none';
@@ -871,7 +871,7 @@ function openTradeDetail(index) {
   
   // existing values if partial save
   document.getElementById('td-pips').value = t['実取得pips'] || '';
-  document.getElementById('td-profit').value = t['純損益'] || '';
+  document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
@@ -918,7 +918,7 @@ async function saveTradeDetail() {
     // Optimistic update locally
     t['ステータス'] = payload.Status;
     t['実取得pips'] = payload.Pips;
-    t['純損益'] = payload.Profit;
+    t['損益'] = payload.Profit;
     t['エントリー振り返り'] = payload.EntryRef;
     t['決済振り返り'] = payload.ExitRef;
     t['決済メモ'] = payload.ExitMemo;
