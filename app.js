@@ -1,4 +1,4 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxfkuxaqMnItSxSgk_ctckZY4tPpqJ6np1JlfltAIH3AAIal4woithlfEZVuoHMUYBe/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxLTCiyCf2mHi1Sd-iqTSmMypnN6b9MvGmFoHPgspH1tMUkytG1xWhXdAK2xn1IGwg8/exec';
 
 const App = {
   data: {
@@ -149,6 +149,16 @@ function populateFilterPairs() {
   });
 }
 
+function toggleCustomDate() {
+  const period = document.getElementById('flt-period').value;
+  const customDiv = document.getElementById('flt-custom-date');
+  if (period === 'custom') {
+    customDiv.style.display = 'flex';
+  } else {
+    customDiv.style.display = 'none';
+  }
+}
+
 // ==========================================
 // Renders
 // ==========================================
@@ -240,7 +250,7 @@ function renderGallery() {
   const galleryTrades = App.data.entries.filter(t => {
     const score = parseInt(t['エントリースコア']) || 0;
     const isWin = parseFloat(t['実取得pips']) > 0;
-    return score >= 6 || isWin;
+    return score >= 5 || isWin;
   });
   
   if(galleryTrades.length === 0) {
@@ -290,6 +300,8 @@ function applyAnalysisFilters() {
   const fTimezone = document.getElementById('flt-timezone').value;
   const fRule = document.getElementById('flt-rule').value;
   const fScore = document.getElementById('flt-score').value;
+  const dFrom = document.getElementById('flt-date-from').value;
+  const dTo = document.getElementById('flt-date-to').value;
   
   // 1. Base filter: Closed trades only
   let filtered = App.data.entries.filter(t => t.Status === '決済' || t.Status === '決済（見逃し）');
@@ -317,13 +329,18 @@ function applyAnalysisFilters() {
     
     // Score
     const score = parseInt(t['エントリースコア']) || 0;
-    if (fScore === 'high' && score < 6) return false;
-    if (fScore === 'low' && score > 5) return false;
+    if (fScore === 'high' && score < 5) return false;
+    if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     
     // Period
     const dateStr = t.Date || ''; // assuming YYYY/MM/DD
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
+    if (fPeriod === 'custom') {
+      const tDate = new Date(dateStr);
+      if (dFrom && tDate < new Date(dFrom)) return false;
+      if (dTo && tDate > new Date(dTo + "T23:59:59")) return false;
+    }
     
     return true;
   });
@@ -700,19 +717,6 @@ async function submitEntryData() {
 // ==========================================
 // Chart Image & Canvas Markup
 // ==========================================
-function previewTVImage() {
-  const url = document.getElementById('ne-tv-url').value;
-  const container = document.getElementById('image-preview-container');
-  const img = document.getElementById('ne-image-preview');
-  
-  if (url.includes('tradingview.com/x/')) {
-    img.src = url;
-    container.style.display = 'block';
-  } else if (!url) {
-    container.style.display = 'none';
-  }
-}
-
 function previewUploadImage(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
