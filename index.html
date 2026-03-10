@@ -42,17 +42,17 @@
     <!-- Screen: Positions -->
     <div id="screen-positions" class="screen active">
       <div class="section">
-        <div class="section-title">保有中 / 見逃し中</div>
+        <div class="section-title">保有中ポジション</div>
         <div id="positions-list"></div>
       </div>
       
-      <div style="text-align: center; margin-top: 10px; margin-bottom: 20px;">
-        <button class="action-btn" onclick="openEntryModal()" style="font-size: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);">✨ 新規エントリーを記録</button>
+      <div style="text-align: center; margin-top: 10px; margin-bottom: 20px; display:flex; flex-direction:column; gap:10px; padding: 0 16px;">
+        <button class="action-btn" onclick="openEntryModal(false)" style="font-size: 15px; padding: 14px; box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);">✨ 新規エントリーを記録</button>
+        <button class="action-btn" onclick="openEntryModal(true)" style="background: linear-gradient(135deg, #f59e0b, #d97706); font-size: 15px; padding: 14px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">👀 見逃しエントリーを記録</button>
       </div>
       
-      <!-- List for closed trades menu can go here -->
       <div style="text-align: center; margin-bottom: 20px;">
-        <button onclick="goToHistory()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴</button>
+        <button onclick="openHistoryModal()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴</button>
       </div>
     </div>
 
@@ -194,13 +194,12 @@
             </div>
           </div>
           <div class="form-row">
+            <span class="form-label">日付</span>
+            <input type="date" class="form-input" id="ne-date">
+          </div>
+          <div class="form-row">
             <span class="form-label">時間帯</span>
-            <select class="form-input" id="ne-timezone">
-              <option value="T2-9">T2-9（東京外）</option>
-              <option value="T9-12" selected>T9-12（東京）</option>
-              <option value="T15-18">T15-18（ロンドン前）</option>
-              <option value="T18-2">T18-2（NY）</option>
-            </select>
+            <input type="time" class="form-input" id="ne-time">
           </div>
           <div class="form-row">
             <span class="form-label">DowRule</span>
@@ -218,29 +217,35 @@
             </select>
           </div>
         </div>
+        
+        <!-- Entry Judgement -->
+        <div class="section" id="ne-judgement-section" style="background:#1e293b; border:1px solid #38bdf8; text-align:center; padding:16px; margin-bottom:16px; border-radius:8px;">
+           <div style="color:#94a3b8; font-size:12px; margin-bottom:8px;">エントリー判定</div>
+           <div id="ne-judgement-text" style="font-size:18px; font-weight:bold; color:#f8fafc;">--</div>
+        </div>
 
         <!-- Trend Direction -->
         <div class="section">
           <div class="section-title">トレンド方向</div>
           <div class="grid-2col">
             <div class="grid-item">
-              <span class="grid-label">M1 (月)</span>
+              <span class="grid-label">M1</span>
               <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
             </div>
             <div class="grid-item">
-              <span class="grid-label">W1 (週)</span>
+              <span class="grid-label">W1</span>
               <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
             </div>
             <div class="grid-item">
-              <span class="grid-label">D1 (日)</span>
+              <span class="grid-label">D1</span>
               <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
             </div>
             <div class="grid-item">
-              <span class="grid-label">H4 (4時)</span>
+              <span class="grid-label">H4</span>
               <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
             </div>
             <div class="grid-item">
-              <span class="grid-label">H1 (1時)</span>
+              <span class="grid-label">H1</span>
               <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
             </div>
           </div>
@@ -271,7 +276,7 @@
 
         <!-- Entry Basis (Scoring) -->
         <div class="section" onmouseup="setTimeout(calculateEntryScore, 50)" ontouchend="setTimeout(calculateEntryScore, 50)">
-          <div class="section-title">エントリー根拠 (自動採点)</div>
+          <div class="section-title">エントリー根拠</div>
           <div class="grid-2col">
             <div class="grid-item"><span class="grid-label">水平線D1.H4</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">H1MAエリア</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
@@ -279,9 +284,26 @@
             <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4の5波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4の7波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
           </div>
+        </div>
+
+        <!-- Analysis & Mentality Section -->
+        <div class="section" id="ne-analysis-section" style="background:#1e293b; border-left:4px solid #f59e0b; padding:12px; margin-bottom:16px; border-radius:4px;">
+           <div class="section-title" style="color:#f59e0b; font-size:13px; margin-bottom:8px;"><span style="font-size:16px;">🧠</span> メンタル分析と類似エントリー分析</div>
+           
+           <!-- Mental Bias Alert -->
+           <div id="ne-mental-alert" style="display:none; color:#fca5a5; font-size:13px; margin-bottom:12px; font-weight:bold; background:rgba(220, 38, 38, 0.2); padding:8px; border-radius:4px; border:1px solid #ef4444;">
+             ⚠️現在連敗中です。リベンジトレードになっていませんか？冷静になりましょう。
+           </div>
+           
+           <!-- Similar Trades Text -->
+           <div id="ne-similar-summary" style="font-size:12px; color:#cbd5e1; margin-bottom:8px; line-height:1.5;">
+             類似トレードを計算中...
+           </div>
+           <!-- Top 5 List -->
+           <div id="ne-similar-list"></div>
         </div>
 
         <!-- TP / SL / Lot -->
@@ -308,26 +330,36 @@
         <div class="section">
           <div class="section-title">チャート画像 / メモ</div>
           <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
-            📷 端末から画像を選択 (ライブラリ/撮影)
+            📷 画像
             <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
           </label>
           <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
             <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
-            <button onclick="openCanvasEditor()" style="position:absolute; bottom:8px; right:8px; background:rgba(15,23,42,0.9); color:#38bdf8; border:1px solid #38bdf8; padding:6px 16px; border-radius:8px; cursor:pointer; font-weight:bold;">🖌 画像にお絵かき</button>
           </div>
-          <textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリーの根拠や事前の感情..." style="width:100%; margin-top:8px;"></textarea>
+          
+          <div class="form-row" style="margin-top:12px;">
+            <span class="form-label" style="font-size:11px;">事前メモ</span>
+            <div id="ne-pre-memo" style="font-size:12px; color:#94a3b8; background:#0f172a; padding:8px; border-radius:4px; min-height:40px; width:100%;">
+              (ペアを選択すると表示されます)
+            </div>
+          </div>
+          
+          <div class="form-row" style="align-items:flex-start;">
+            <span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span>
+            <textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリーの根拠や事前の感情..." style="width:100%;"></textarea>
+          </div>
         </div>
 
         <!-- Checker Status & Submit -->
         <div class="checker-box" id="checker-status">
           <div>
-            <div style="font-weight:700; color:#f8fafc;" id="checker-title">エントリー判定</div>
+            <div style="font-weight:700; color:#f8fafc;" id="checker-title">エントリースコア</div>
             <div class="checker-text" id="checker-msg">条件を入力してください</div>
           </div>
           <div class="checker-score" id="checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
         </div>
 
-        <button class="action-btn" id="btn-submit-entry" onclick="startSubmitCooldown()">
+        <button class="action-btn" id="btn-submit-entry" onclick="openChecklistModal()">
           📝 エントリー開始
         </button>
 
@@ -393,10 +425,148 @@
       <div class="modal-body">
         
         <input type="hidden" id="td-index">
+        <img id="td-image-preview" crossorigin="anonymous" style="width:100%; border-radius:8px; border:1px solid #334155; margin-bottom:16px; display:none;">
+
+        <!-- Basic Info -->
+        <div class="section">
+          <div class="form-row"><span class="form-label">日付</span><input type="date" class="form-input" id="td-date"></div>
+          <div class="form-row"><span class="form-label">時間帯</span><input type="time" class="form-input" id="td-time"></div>
+          <div class="form-row">
+            <span class="form-label">ペア</span>
+            <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
+          </div>
+          <div class="form-row">
+            <span class="form-label">方向</span>
+            <div class="btn-group" id="td-dir">
+              <button class="toggle-btn dir-up" onclick="toggleBtn(this, '#td-dir .dir-up, #td-dir .dir-down')">▲ Buy</button>
+              <button class="toggle-btn dir-down" onclick="toggleBtn(this, '#td-dir .dir-up, #td-dir .dir-down')">▼ Sell</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <span class="form-label">DowRule</span>
+            <select class="form-input" id="td-dow-rule">
+              <option value="1">1: D1〇H4〇　H4出入口</option>
+              <option value="2">2: D1〇H4〇　H4砦</option>
+              <option value="3">3: D1〇H4〇　H4砦形成M15</option>
+              <option value="4">4: D1〇H4✕　D1砦</option>
+              <option value="5">5: D1〇H4✕　H4出入口</option>
+              <option value="6">6: D1✕H4〇　H4出入口</option>
+              <option value="7">7: D1✕H4〇　H4砦</option>
+              <option value="8">8: D1✕H4〇　H4砦形成M15</option>
+              <option value="9">9: D1✕H4✕　H4出入口</option>
+              <option value="10">10: D1✕H4✕　D1出入口</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Trend Direction -->
+        <div class="section">
+          <div class="section-title">トレンド方向</div>
+          <div class="grid-2col">
+            <div class="grid-item"><span class="grid-label">M1</span><div class="btn-group tf-group" id="td-tf-m1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
+            <div class="grid-item"><span class="grid-label">W1</span><div class="btn-group tf-group" id="td-tf-w1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
+            <div class="grid-item"><span class="grid-label">D1</span><div class="btn-group tf-group" id="td-tf-d1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4</span><div class="btn-group tf-group" id="td-tf-h4"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
+            <div class="grid-item"><span class="grid-label">H1</span><div class="btn-group tf-group" id="td-tf-h1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
+          </div>
+        </div>
+
+        <!-- MA Conditions -->
+        <div class="section">
+          <div class="section-title">MA 条件</div>
+          <div class="grid-2col">
+            <div class="grid-item"><span class="grid-label">H4MA480.1200</span><div class="btn-group ma-group" id="td-ma-480"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4MA乖離</span><div class="btn-group ma-group" id="td-ma-kairi"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H1MA20.80</span><div class="btn-group ma-group" id="td-ma-h1-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4MA20.80</span><div class="btn-group ma-group" id="td-ma-h4-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+          </div>
+        </div>
+
+        <div class="section" onmouseup="setTimeout(calculateEntryScoreTD, 50)" ontouchend="setTimeout(calculateEntryScoreTD, 50)">
+          <div class="section-title">エントリー根拠</div>
+          <div class="grid-2col">
+            <div class="grid-item"><span class="grid-label">水平線D1.H4</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H1MAエリア</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL推進</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4の7波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
+          </div>
+        </div>
+        
+        <div class="checker-box" id="td-checker-status" style="margin-bottom:16px;">
+          <div><div style="font-weight:700; color:#f8fafc;">エントリースコア</div><div class="checker-text" id="td-checker-msg">--</div></div>
+          <div class="checker-score" id="td-checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">TP / SL / Lot & 損益</div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
+            <div class="grid-item"><span class="grid-label">TP</span><input type="number" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
+            <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1"></div>
+            <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#94a3b8;">
+            <span id="td-rule-pips">ルール準拠Pips: --</span>
+            <span id="td-rule-profit">ルール準拠損益: --</span>
+          </div>
+        </div>
+
+        <!-- Closing fields -->
+        <div class="section">
+          <div class="section-title">詳細振り返り</div>
+          <div class="form-row">
+            <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
+            <select class="form-input" id="td-entry-ref">
+              <option value="">選択...</option>
+              <option value="完璧！">完璧！</option>
+              <option value="ルール外">ルール外</option>
+              <option value="トレンドライン認識甘い">トレンドライン認識甘い</option>
+              <option value="ダウ認識ミス">ダウ認識ミス</option>
+              <option value="アーリー">アーリー</option>
+              <option value="レイト">レイト</option>
+              <option value="上位足リスク">上位足リスク</option>
+              <option value="損切り設定ミス">損切り設定ミス</option>
+              <option value="Lotミス">Lotミス</option>
+              <option value="指標">指標</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
+            <select class="form-input" id="td-exit-ref">
+              <option value="">選択...</option>
+              <option value="完璧利確">完璧利確</option>
+              <option value="ビビり決済">ビビり決済</option>
+              <option value="利確逃し">利確逃し</option>
+              <option value="エントリー過ち">エントリー過ち</option>
+              <option value="適切損切り">適切損切り</option>
+              <option value="損切り設定ミス">損切り設定ミス</option>
+            </select>
+          </div>
+          <div class="form-row" style="align-items:flex-start;">
+            <span class="form-label">決済反省</span>
+            <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
+          </div>
+          <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none; margin-top:12px;">
+            📷 決済チャート画像
+            <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
+          </label>
+          <div id="td-exit-image-container" style="display:none; margin-top:8px;">
+            <img id="td-exit-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
+          </div>
+        </div>
+
         <div class="section">
           <div class="form-row">
             <span class="form-label">ステータス</span>
-            <select class="form-input" id="td-status" onchange="onStatusChange()">
+            <select class="form-input" id="td-status">
               <option value="保有中">保有中</option>
               <option value="保有中（見逃し）">保有中（見逃し）</option>
               <option value="決済">決済</option>
@@ -405,79 +575,74 @@
           </div>
         </div>
 
-        <!-- Closing fields (only visible when Status is 決済 or 決済（見逃し） -->
-        <div id="closing-fields" class="hidden">
-          <div class="section">
-            <div class="section-title">決済情報</div>
-            <div class="form-row">
-              <span class="form-label">実取得pips</span>
-              <input type="number" class="form-input" id="td-pips" placeholder="-40.5" step="0.1">
-            </div>
-            <div class="form-row">
-              <span class="form-label">純損益(¥)</span>
-              <input type="number" class="form-input" id="td-profit" placeholder="-12000">
-            </div>
-          </div>
-          
-          <div class="section">
-            <div class="section-title">振り返り</div>
-            <div class="form-row">
-              <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
-              <select class="form-input" id="td-entry-ref">
-                <option value="">選択...</option>
-                <option value="完璧！">完璧！</option>
-                <option value="ルール外">ルール外</option>
-                <option value="トレンドライン認識甘い">トレンドライン認識甘い</option>
-                <option value="ダウ認識ミス">ダウ認識ミス</option>
-                <option value="アーリー">アーリー</option>
-                <option value="レイト">レイト</option>
-                <option value="上位足リスク">上位足リスク</option>
-                <option value="損切り設定ミス">損切り設定ミス</option>
-                <option value="Lotミス">Lotミス</option>
-                <option value="指標">指標</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
-              <select class="form-input" id="td-exit-ref">
-                <option value="">選択...</option>
-                <option value="完璧利確">完璧利確</option>
-                <option value="ビビり決済">ビビり決済</option>
-                <option value="利確逃し">利確逃し</option>
-                <option value="エントリー過ち">エントリー過ち</option>
-                <option value="適切損切り">適切損切り</option>
-                <option value="損切り設定ミス">損切り設定ミス</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <span class="form-label">決済メモ</span>
-              <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
-            </div>
-          </div>
-        </div>
-
-        <button onclick="saveTradeDetail()" style="width:100%; padding:14px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:16px; margin-top:10px; cursor:pointer;">💾 更新内容を保存</button>
+        <button onclick="saveTradeDetail()" style="width:100%; padding:14px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:16px; margin-top:10px; cursor:pointer;">💾 変更内容を保存</button>
 
       </div>
     </div>
   </div>
 
-  <!-- Canvas Editor Modal -->
-  <div id="modal-canvas-editor" class="modal-overlay" style="z-index: 300;">
-    <div class="modal-content" style="max-width: 90vw;">
+  <!-- Checklist Modal -->
+  <div id="modal-checklist" class="modal-overlay" style="z-index: 400;">
+    <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">画像マークアップ</div>
-        <div class="modal-close" onclick="closeCanvasEditor()">✕</div>
+        <div class="modal-title">最終チェック</div>
+        <div class="modal-close" onclick="closeChecklistModal()">✕</div>
       </div>
-      <div class="modal-body" style="text-align:center;">
-        <canvas id="markup-canvas" style="max-width:100%; border:1px solid #334155; background:#0f172a; touch-action:none;"></canvas>
-        <div style="display:flex; gap:8px; margin-top:10px; justify-content:center;">
-          <button onclick="setMarkupColor('#ef4444')" style="background:#ef4444; border:2px solid white; width:30px; height:30px; border-radius:50%; cursor:pointer;"></button>
-          <button onclick="setMarkupColor('#38bdf8')" style="background:#38bdf8; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;"></button>
-          <button onclick="setMarkupColor('#10b981')" style="background:#10b981; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;"></button>
-          <button onclick="clearCanvas()" style="background:#334155; color:white; border:none; padding:0 12px; border-radius:8px; cursor:pointer;">クリア</button>
+      <div class="modal-body">
+        <div style="font-size:13px; color:#cbd5e1; margin-bottom:16px;">エントリー前に以下の項目を自問自答してください。すべてチェックをつけると確定できます。</div>
+        
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">1. ダウに見誤りはないか</span>
+        </label>
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">2. 損切りはM15ローソクルール or 10pipsルールを守れているか</span>
+        </label>
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">3. H1MA80の傾きが追い付きそうか検討したか</span>
+        </label>
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">4. MAや横軸で逆行想定したか</span>
+        </label>
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">5. 1:2や1:3程度で利確目標を決めているか</span>
+        </label>
+        <label class="check-row" style="display:flex; align-items:flex-start; margin-bottom:12px; cursor:pointer;">
+          <input type="checkbox" class="checklist-item" onchange="validateChecklist()" style="margin-top:2px; margin-right:8px; transform:scale(1.2);">
+          <span style="font-size:14px; color:#f8fafc;">6. わざわざリスクあるところで勝負していないか</span>
+        </label>
+        
+        <button id="btn-final-execute" class="action-btn" disabled onclick="executeEntrySubmit()" style="background:#334155; color:#64748b; font-size:16px; padding:14px; margin-top:20px; transition:all 0.3s; pointer-events:none;">✅ すべて確認しました（記録の確定）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div id="modal-history" class="modal-overlay">
+    <div class="modal-content" style="max-height: 90vh;">
+      <div class="modal-header">
+        <div class="modal-title">決済済み・見逃し履歴</div>
+        <div class="modal-close" onclick="closeHistoryModal()">✕</div>
+      </div>
+      <div class="modal-body" style="padding:0; overflow:hidden; display:flex; flex-direction:column; height:calc(90vh - 54px);">
+        <div class="filter-panel" style="margin:0; border-radius:0; border-bottom:1px solid #334155;">
+          <select id="hist-period" onchange="toggleCustomHistDate(); renderHistoryList();" class="form-input">
+            <option value="this_month">今月</option>
+            <option value="last_month">先月</option>
+            <option value="all">全期間</option>
+            <option value="custom">カスタム（期間指定）</option>
+          </select>
+          <div id="hist-custom-date" style="display:none; gap:4px; align-items:center; margin-top:4px;">
+            <input type="date" id="hist-date-from" class="form-input" style="padding:6px; flex:1;" onchange="renderHistoryList()">
+            <span style="color:#94a3b8;">〜</span>
+            <input type="date" id="hist-date-to" class="form-input" style="padding:6px; flex:1;" onchange="renderHistoryList()">
+          </div>
         </div>
-        <button onclick="saveCanvasMarkup()" style="width:100%; padding:14px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:16px; margin-top:16px; cursor:pointer;">💾 上書き保存</button>
+        <div id="history-list" style="padding:16px; overflow-y:auto; flex:1;"></div>
       </div>
     </div>
   </div>
