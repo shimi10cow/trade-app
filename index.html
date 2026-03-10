@@ -284,7 +284,7 @@
             <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4の7波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4の5波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
             <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
           </div>
         </div>
@@ -356,7 +356,7 @@
             <div style="font-weight:700; color:#f8fafc;" id="checker-title">エントリースコア</div>
             <div class="checker-text" id="checker-msg">条件を入力してください</div>
           </div>
-          <div class="checker-score" id="checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
+          <div class="checker-score" id="checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/6</span></div>
         </div>
 
         <button class="action-btn" id="btn-submit-entry" onclick="openChecklistModal()">
@@ -430,7 +430,17 @@
         <!-- Basic Info -->
         <div class="section">
           <div class="form-row"><span class="form-label">日付</span><input type="date" class="form-input" id="td-date"></div>
-          <div class="form-row"><span class="form-label">時間帯</span><input type="time" class="form-input" id="td-time"></div>
+          <div class="form-row"><span class="form-label">エントリー時間</span><input type="time" class="form-input" id="td-time"></div>
+          <div class="form-row">
+            <span class="form-label">時間帯</span>
+            <select class="form-input" id="td-timezone">
+              <option value="">選択...</option>
+              <option value="T2-9">T2-9</option>
+              <option value="T9-12">T9-12</option>
+              <option value="T15-18">T15-18</option>
+              <option value="T18-2">T18-2</option>
+            </select>
+          </div>
           <div class="form-row">
             <span class="form-label">ペア</span>
             <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
@@ -470,13 +480,37 @@
             <div class="grid-item"><span class="grid-label">H1</span><div class="btn-group tf-group" id="td-tf-h1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
           </div>
         </div>
+
+        <!-- MA Conditions -->
+        <div class="section">
+          <div class="section-title">MA 条件</div>
+          <div class="grid-2col">
+            <div class="grid-item">
+              <span class="grid-label">H4MA480.1200</span>
+              <div class="btn-group ma-group" id="td-ma-480"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H4MA乖離</span>
+              <div class="btn-group ma-group" id="td-ma-kairi"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H1MA20.80</span>
+              <div class="btn-group ma-group" id="td-ma-h1-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H4MA20.80</span>
+              <div class="btn-group ma-group" id="td-ma-h4-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
+            </div>
+          </div>
+        </div>
+
           <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
             <div class="grid-item"><span class="grid-label">TP</span><input type="number" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
             <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
             <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
           </div>
 
-          <div id="closing-fields" class="hidden">
+          <div id="closing-fields">
             <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
               <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
               <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
@@ -541,7 +575,7 @@
           <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
           <div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
           <div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng">アリ</button><button class="toggle-btn cond-ok">ナシ</button></div>
-          <div id="td-checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
+          <div id="td-checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/6</span></div>
           <div id="td-checker-status"></div>
           <div id="td-checker-msg">--</div>
         </div>
@@ -625,7 +659,7 @@
             <input type="date" id="hist-date-to" class="form-input" style="padding:6px; flex:1;" onchange="renderHistoryList()">
           </div>
         </div>
-        <div id="history-list" style="padding:16px; overflow-y:auto; flex:1;"></div>
+        <div id="history-list" style="padding:16px; overflow-y:auto; flex:1; min-height:0; -webkit-overflow-scrolling:touch;"></div>
       </div>
     </div>
   </div>

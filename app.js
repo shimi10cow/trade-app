@@ -224,8 +224,11 @@ function autoLoadPairInfo(prefix = 'ne') {
   if (!sel) return;
   const pairName = sel.value;
   const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
-  
+
   if (prefix === 'ne') {
+    // Reset direction buttons when pair is re-selected
+    document.querySelectorAll('#ne-dir button').forEach(b => b.classList.remove('active'));
+
     const preMemoBox = document.getElementById('ne-pre-memo');
     if (!p) {
       preMemoBox.textContent = '(ペアを選択すると表示されます)';
@@ -931,8 +934,17 @@ function calculateSimilarTrades(prefix) {
   const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
   const outSum = prefix === 'ne' ? document.getElementById('ne-similar-summary') : null;
   const outList = prefix === 'ne' ? document.getElementById('ne-similar-list') : null;
-  
+
   if(!outSum || !outList) return;
+
+  // Require pair AND direction to be selected before calculating
+  const pairVal = document.querySelector(`${modalId} select[id$="-pair"]`)?.value;
+  const dirActive = document.querySelector(`${modalId} #ne-dir .active, ${modalId} #td-dir .active`);
+  if (!pairVal || !dirActive) {
+    outSum.textContent = 'ペアと方向を選択すると類似トレードを表示します。';
+    outList.innerHTML = '';
+    return;
+  }
 
   // Extract current input features
   let curDow = document.querySelector(`${modalId} select[id$="-dow-rule"]`)?.value || '';
@@ -1024,11 +1036,12 @@ function calculateSimilarTrades(prefix) {
     const t = s.trade;
     const isWin = s.pips > 0;
     const index = App.data.entries.indexOf(t);
+    const tz = t['時間帯'] ? `<span style="color:#64748b; font-size:10px;"> · ${t['時間帯']}</span>` : '';
     return `
-      <div onclick="openTradeDetail(${index})" style="background:#0f172a; padding:8px 12px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:12px; border:1px solid #334155;">
+      <div onclick="openTradeDetail(${index}, true)" style="background:#0f172a; padding:8px 12px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:12px; border:1px solid #334155;">
         <div>
-           <strong style="color:#38bdf8;">${t['PairName（元）']||t.Pair||'ペア不明'}</strong> 
-           <span style="color:#94a3b8;">(${Math.round(s.score)}点)</span>
+           <strong style="color:#38bdf8;">${t['PairName（元）']||t.Pair||'ペア不明'}</strong>
+           <span style="color:#94a3b8;">(${Math.round(s.score)}点)</span>${tz}
         </div>
         <div style="color:${isWin?'#10b981':'#ef4444'}; font-weight:bold;">
            ${isWin?'+':''}${s.pips.toFixed(1)}p
@@ -1042,28 +1055,33 @@ function calculateEntryScore() {
   let score = 0;
   let conditionsMet = 0;
   const groups = document.querySelectorAll('#modal-entry .score-group');
-  
+
   groups.forEach(group => {
     const active = group.querySelector('.active');
     if(active) {
-      const isOk = active.classList.contains('cond-ok');
-      const isInverse = group.dataset.inverse === "true";
       const val = parseInt(group.dataset.val);
-      
-      if(val === 1 && isOk) score += 1;
-      if(val === -1 && active.textContent === "✕") score += 1; // H4の7波以降=✕ is +1
-      if(val === -1 && active.textContent === "ナシ") score += 1; // 上位足リスク=ナシ is +1
+      const isInverse = group.dataset.inverse === "true";
 
+      if (val === 1) {
+        // Positive condition: +1 if 〇(cond-ok) selected
+        if (active.classList.contains('cond-ok')) score += 1;
+      } else if (val === -1) {
+        // Negative condition: -1 if the "bad" option is selected
+        // H4の5波以降 (no data-inverse): cond-ok(〇) = bad → -1
+        // 上位足リスク (data-inverse=true): cond-ng(アリ) = bad → -1
+        if (!isInverse && active.classList.contains('cond-ok')) score -= 1;
+        if (isInverse && active.classList.contains('cond-ng')) score -= 1;
+      }
       conditionsMet++;
     }
   });
 
-  document.getElementById('checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/8</span>`;
-  
+  document.getElementById('checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
+
   const box = document.getElementById('checker-status');
   const title = document.getElementById('checker-title');
   const msg = document.getElementById('checker-msg');
-  
+
   if (conditionsMet < 8) {
     box.className = 'checker-box';
     title.textContent = '判定待ち';
@@ -1089,15 +1107,18 @@ function calculateEntryScoreTD() {
   groups.forEach(group => {
     const active = group.querySelector('.active');
     if(active) {
-      const isOk = active.classList.contains('cond-ok');
       const val = parseInt(group.dataset.val);
-      if(val === 1 && isOk) score += 1;
-      if(val === -1 && active.textContent === "✕") score += 1;
-      if(val === -1 && active.textContent === "ナシ") score += 1;
+      const isInverse = group.dataset.inverse === "true";
+      if (val === 1) {
+        if (active.classList.contains('cond-ok')) score += 1;
+      } else if (val === -1) {
+        if (!isInverse && active.classList.contains('cond-ok')) score -= 1;
+        if (isInverse && active.classList.contains('cond-ng')) score -= 1;
+      }
     }
   });
 
-  document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/8</span>`;
+  document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
   const box = document.getElementById('td-checker-status');
   const msg = document.getElementById('td-checker-msg');
   if (score >= 4) {
@@ -1398,11 +1419,18 @@ function previewUploadImageTD(input) {
   }
 }
 
-function openTradeDetail(index) {
+function openTradeDetail(index, readOnly = false) {
   const t = App.data.entries[index];
   if(!t) return;
   App.state.activeTradeIndex = index;
-  
+
+  // Reset read-only state before populating
+  const modal = document.getElementById('modal-trade-detail');
+  modal.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = false; });
+  modal.querySelectorAll('button.toggle-btn').forEach(b => { b.disabled = false; });
+  const saveBtn = modal.querySelector('button[onclick="saveTradeDetail()"]');
+  if (saveBtn) saveBtn.style.display = '';
+
   // Set pairs up
   const sel = document.getElementById('td-pair');
   if (sel.options.length <= 1) { // Populate only if not populated
@@ -1419,11 +1447,12 @@ function openTradeDetail(index) {
   document.getElementById('td-index').value = index;
   document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
-  
+
   // Basic info
   const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : '';
   document.getElementById('td-date').value = dateStr.replace(/\//g, '-');
   document.getElementById('td-time').value = t.EntryTime || '';
+  document.getElementById('td-timezone').value = t['時間帯'] || '';
   document.getElementById('td-pair').value = t['PairName（元）'] || t.PairName || t.Pair || '';
   
   // Direction
@@ -1510,7 +1539,15 @@ function openTradeDetail(index) {
   calculateEntryScoreTD(); // update score UI
   calculateRRTD(); // Update RR display
   calculateRuleMetrics(); // Update Rule pips/profit
-  
+
+  // Apply read-only mode if requested (e.g. opened from similar trades)
+  if (readOnly) {
+    modal.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
+    modal.querySelectorAll('button.toggle-btn').forEach(b => { b.disabled = true; });
+    if (saveBtn) saveBtn.style.display = 'none';
+    document.getElementById('td-title').textContent += ' 【参照】';
+  }
+
   document.getElementById('modal-trade-detail').classList.add('active');
 }
 
@@ -1519,13 +1556,7 @@ function closeTradeDetail() {
 }
 
 function onStatusChange() {
-  const status = document.getElementById('td-status').value;
-  const cf = document.getElementById('closing-fields');
-  if(status === '決済' || status === '決済（見逃し）') {
-    cf.classList.remove('hidden');
-  } else {
-    cf.classList.add('hidden');
-  }
+  // closing-fields is always visible regardless of status
 }
 
 async function saveTradeDetail() {
@@ -1543,6 +1574,7 @@ async function saveTradeDetail() {
     t['ステータス'] = payloadStatus;
     t['実取得pips'] = payloadPips;
     t['損益'] = payloadProfit;
+    t['時間帯'] = document.getElementById('td-timezone').value;
     t['エントリー振り返り'] = document.getElementById('td-entry-ref').value;
     t['決済振り返り'] = document.getElementById('td-exit-ref').value;
     t['決済メモ'] = document.getElementById('td-exit-memo').value;
