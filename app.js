@@ -57,6 +57,24 @@ function hideLoader() {
   document.getElementById('app-loader').classList.remove('active');
 }
 
+// Sanitize Excel epoch dates (1899-12-30) that GAS emits for time-only values
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return '';
+  const s = String(dateStr);
+  if (s.startsWith('1899') || s.startsWith('1900-01-0')) return '';
+  return s.split('T')[0];
+}
+
+// Extract HH:MM from ISO string like '1899-12-30T14:30:00.000Z' or return as-is
+function formatTimeDisplay(timeStr) {
+  if (!timeStr) return '';
+  const s = String(timeStr);
+  const match = s.match(/T(\d{2}:\d{2})/);
+  if (match) return match[1];
+  if (/^\d{2}:\d{2}/.test(s)) return s.substring(0, 5);
+  return '';
+}
+
 function openHistoryModal() {
   document.getElementById('modal-history').classList.add('active');
   document.getElementById('hist-period').value = 'this_month';
@@ -80,9 +98,9 @@ function renderHistoryList() {
   const dTo = document.getElementById('hist-date-to').value;
   
   const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthStr = `${lastMonth.getFullYear()}/${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
 
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   
@@ -112,14 +130,14 @@ function renderHistoryList() {
     const pColor = pips >= 0 ? '#10b981' : '#ef4444';
     
     return `
-      <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#334155'}">
+      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#334155'}">
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
-            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'} 
+            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
           </div>
-          <div style="font-size:11px; color:#94a3b8;">${t.EntryDate ? t.EntryDate.split('T')[0] : ''} ${t.EntryTime || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
+          <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
         <div style="color:${pColor}; font-weight:700; font-size:14px; margin-right:8px;">
           ${pips > 0 ? '+' : ''}${pips.toFixed(1)}p
@@ -168,7 +186,7 @@ function openEntryModal(isMissed = false) {
   });
   modal.querySelectorAll('button.toggle-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('ne-dow-rule').value = '1';
-  document.getElementById('ne-rr-display').textContent = '予想RR: --';
+  document.getElementById('ne-rr-display').textContent = 'RR: --';
   document.getElementById('ne-rr-display').className = 'calc-info';
   
   const sel = document.getElementById('ne-pair');
@@ -219,15 +237,17 @@ function closeEntryModal() {
   document.getElementById('modal-entry').classList.remove('active');
 }
 
-function autoLoadPairInfo(prefix = 'ne') {
+function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
   const sel = document.getElementById(`${prefix}-pair`);
   if (!sel) return;
   const pairName = sel.value;
   const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
 
   if (prefix === 'ne') {
-    // Reset direction buttons when pair is re-selected
-    document.querySelectorAll('#ne-dir button').forEach(b => b.classList.remove('active'));
+    // Reset direction buttons only when pair changes (not when direction button is clicked)
+    if (resetDir) {
+      document.querySelectorAll('#ne-dir button').forEach(b => b.classList.remove('active'));
+    }
 
     const preMemoBox = document.getElementById('ne-pre-memo');
     if (!p) {
@@ -377,7 +397,7 @@ function renderPositions() {
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
           </div>
-          <div style="font-size:11px; color:#94a3b8;">${t.EntryDate ? t.EntryDate.split('T')[0] : ''} ${t.EntryTime || ''} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
+          <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
         <div style="color:#94a3b8; font-size:16px;">›</div>
       </div>
@@ -506,10 +526,10 @@ function applyAnalysisFilters() {
   
   // 2. Apply advanced filters
   const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
-  
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthStr = `${lastMonth.getFullYear()}/${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
 
   filtered = filtered.filter(t => {
     // Status
@@ -790,10 +810,10 @@ function toggleBtn(btn, siblingSelector = '') {
     btn.classList.add('active');
   }
   
-  // If direction was changed, automatically update MAs
+  // If direction was changed, automatically update MAs (but do NOT reset direction buttons)
   if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down')) {
-    if (btn.closest('#ne-dir')) autoLoadPairInfo('ne');
-    if (btn.closest('#td-dir')) autoLoadPairInfo('td');
+    if (btn.closest('#ne-dir')) autoLoadPairInfo('ne', false);
+    if (btn.closest('#td-dir')) autoLoadPairInfo('td', false);
   }
 
   // Recalculate score on any click inside entry or detail
@@ -833,8 +853,11 @@ function analyzeMentalMode() {
   }
 
   const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonthTrades = history.filter(t => (t.EntryDate||'').startsWith(currentMonthStr));
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const thisMonthTrades = history.filter(t => {
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0] : '';
+    return d.startsWith(currentMonthStr);
+  });
   let monthlyProfit = 0;
   thisMonthTrades.forEach(t => monthlyProfit += (parseFloat(t['損益']) || 0));
 
@@ -1137,10 +1160,10 @@ function calculateRR() {
   
   if(!isNaN(tp) && !isNaN(sl) && sl > 0) {
     const rr = (tp / sl).toFixed(2);
-    disp.textContent = `予想RR: 1 : ${rr}`;
+    disp.textContent = `RR: 1 : ${rr}`;
     disp.className = rr >= 2.0 ? 'calc-info text-green' : 'calc-info text-red';
   } else {
-    disp.textContent = `予想RR: --`;
+    disp.textContent = `RR: --`;
     disp.className = 'calc-info';
   }
 }
@@ -1151,7 +1174,7 @@ function calculateRRTD() {
   const disp = document.getElementById('td-rr-display');
   
   if(!isNaN(pips) && !isNaN(sl) && sl > 0) {
-    const rr = (pips / sl).toFixed(2);
+    const rr = (pips / sl).toFixed(1);
     disp.textContent = `1 : ${rr}`;
     disp.style.color = rr >= 2.0 ? '#10b981' : (rr >= 0 ? '#f8fafc' : '#ef4444');
   } else {
@@ -1163,39 +1186,13 @@ function calculateRRTD() {
 function calculateRuleMetrics() {
   const pips = parseFloat(document.getElementById('td-pips').value);
   const profit = parseFloat(document.getElementById('td-profit').value);
-  const ref = document.getElementById('td-exit-ref').value;
-  const tp = parseFloat(document.getElementById('td-tp').value);
-  const sl = parseFloat(document.getElementById('td-sl').value);
-
-  let rPips = pips;
-  let rProfit = profit;
-
-  if (ref === 'ビビり決済' || ref === '利確逃し') {
-    if (!isNaN(tp) && tp > 0) {
-      rPips = tp;
-      if (!isNaN(profit) && !isNaN(pips) && pips > 0) {
-        rProfit = Math.round(profit * (tp / pips));
-      }
-    }
-  } else if (ref === '損切り設定ミス') {
-    if (!isNaN(sl) && sl > 0) {
-      rPips = -sl;
-      if (!isNaN(profit) && !isNaN(pips) && pips < 0) {
-        rProfit = Math.round(profit * (sl / Math.abs(pips)));
-      }
-    }
-  }
-
-  const pDisp = document.getElementById('td-rule-pips');
+  const rPipsEl = document.getElementById('td-rule-pips');
+  const rPips = parseFloat(rPipsEl.value);
   const prDisp = document.getElementById('td-rule-profit');
-  
-  if (!isNaN(rPips)) {
-    pDisp.textContent = `ルール準拠Pips: ${rPips.toFixed(1)}`;
-  } else {
-    pDisp.textContent = `ルール準拠Pips: --`;
-  }
-  
-  if (!isNaN(rProfit)) {
+
+  // Formula: ルール準拠損益 = 損益 × (ルール準拠pips / 実取得pips)
+  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(rPips)) {
+    const rProfit = Math.round(profit * (rPips / pips));
     prDisp.textContent = `ルール準拠損益: ¥${rProfit.toLocaleString()}`;
   } else {
     prDisp.textContent = `ルール準拠損益: --`;
@@ -1449,11 +1446,17 @@ function openTradeDetail(index, readOnly = false) {
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
 
   // Basic info
-  const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : '';
+  const dateStr = formatDateDisplay(t.EntryDate);
   document.getElementById('td-date').value = dateStr.replace(/\//g, '-');
-  document.getElementById('td-time').value = t.EntryTime || '';
-  document.getElementById('td-timezone').value = t['時間帯'] || '';
+  document.getElementById('td-time').value = formatTimeDisplay(t.EntryTime);
   document.getElementById('td-pair').value = t['PairName（元）'] || t.PairName || t.Pair || '';
+
+  // Score display
+  const scoreDisp = document.getElementById('td-score-display');
+  if (scoreDisp) {
+    const sc = t['エントリースコア'];
+    scoreDisp.textContent = (sc !== undefined && sc !== '') ? `${sc}/6` : '--';
+  }
   
   // Direction
   const isBuy = t.Direction === 'Buy' || t.Direction === '▲ Buy';
@@ -1490,7 +1493,7 @@ function openTradeDetail(index, readOnly = false) {
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
   
   // Entry Grounds
-  const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の7波以降', '上位足リスク'];
+  const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
   const scoreGrups = document.querySelectorAll('#modal-trade-detail .score-group');
   scoreLabels.forEach((lbl, idx) => {
     const val = t[lbl];
@@ -1505,10 +1508,11 @@ function openTradeDetail(index, readOnly = false) {
   document.getElementById('td-tp').value = t['TP'] || t['StopProfitPips'] || '';
   document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
   document.getElementById('td-lot').value = t['Lot'] || '';
-  
+
   // existing values
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
+  document.getElementById('td-rule-pips').value = t['ルール準拠Pips'] || '';
   
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -1524,7 +1528,7 @@ function openTradeDetail(index, readOnly = false) {
      document.getElementById('td-image-preview').src = '';
   }
   
-  const exitImgURL = t['ExitImage'] || t['決済画像'];
+  const exitImgURL = t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'];
   const exitImgContainer = document.getElementById('td-exit-image-container');
   const exitImgPreview = document.getElementById('td-exit-image-preview');
   if (exitImgURL) {
@@ -1574,10 +1578,10 @@ async function saveTradeDetail() {
     t['ステータス'] = payloadStatus;
     t['実取得pips'] = payloadPips;
     t['損益'] = payloadProfit;
-    t['時間帯'] = document.getElementById('td-timezone').value;
     t['エントリー振り返り'] = document.getElementById('td-entry-ref').value;
     t['決済振り返り'] = document.getElementById('td-exit-ref').value;
     t['決済メモ'] = document.getElementById('td-exit-memo').value;
+    t['ルール準拠Pips'] = document.getElementById('td-rule-pips').value;
     
     // We would also optimistically update the other fields if we want,
     // e.g. M1, W1, MA conditions, etc.

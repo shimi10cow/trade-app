@@ -323,14 +323,14 @@
               <input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center; min-width:0; padding:10px 4px;">
             </div>
           </div>
-          <div class="calc-info" id="ne-rr-display">予想RR: --</div>
+          <div class="calc-info" id="ne-rr-display">RR: --</div>
         </div>
         
         <!-- Chart & Memo -->
         <div class="section">
           <div class="section-title">チャート画像 / メモ</div>
           <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
-            📷 画像
+            📷 エントリー画像
             <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
           </label>
           <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
@@ -430,17 +430,7 @@
         <!-- Basic Info -->
         <div class="section">
           <div class="form-row"><span class="form-label">日付</span><input type="date" class="form-input" id="td-date"></div>
-          <div class="form-row"><span class="form-label">エントリー時間</span><input type="time" class="form-input" id="td-time"></div>
-          <div class="form-row">
-            <span class="form-label">時間帯</span>
-            <select class="form-input" id="td-timezone">
-              <option value="">選択...</option>
-              <option value="T2-9">T2-9</option>
-              <option value="T9-12">T9-12</option>
-              <option value="T15-18">T15-18</option>
-              <option value="T18-2">T18-2</option>
-            </select>
-          </div>
+          <div class="form-row"><span class="form-label">時間</span><input type="time" class="form-input" id="td-time"></div>
           <div class="form-row">
             <span class="form-label">ペア</span>
             <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
@@ -467,6 +457,7 @@
               <option value="10">10: D1✕H4✕　D1出入口</option>
             </select>
           </div>
+          <div class="form-row"><span class="form-label">スコア</span><div class="form-input" id="td-score-display" style="text-align:center; background:#0f172a; color:#38bdf8; font-weight:700;">--</div></div>
         </div>
 
         <!-- Trend Direction -->
@@ -516,9 +507,12 @@
               <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
               <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#94a3b8;">
-              <span id="td-rule-pips">ルール準拠Pips: --</span>
-              <span id="td-rule-profit">ルール準拠損益: --</span>
+            <div style="margin-top:8px;">
+              <div class="form-row" style="margin-bottom:4px;">
+                <span class="form-label" style="font-size:10px;">ルール準拠Pips</span>
+                <input type="number" class="form-input" id="td-rule-pips" step="0.1" style="text-align:center; padding:6px 4px;" oninput="calculateRuleMetrics()">
+              </div>
+              <div style="text-align:right; font-size:11px; color:#94a3b8;"><span id="td-rule-profit">ルール準拠損益: --</span></div>
             </div>
             
             <div style="margin-top:16px;">
@@ -551,13 +545,9 @@
                 </select>
               </div>
               <div class="form-row" style="align-items:flex-start;">
-                <span class="form-label">決済反省</span>
+                <span class="form-label">反省</span>
                 <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
               </div>
-              <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none; margin-top:12px;">
-                📷 決済チャート画像
-                <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
-              </label>
               <div id="td-exit-image-container" style="display:none; margin-top:8px;">
                 <img id="td-exit-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
               </div>
@@ -640,12 +630,12 @@
 
   <!-- History Modal -->
   <div id="modal-history" class="modal-overlay">
-    <div class="modal-content" style="max-height: 90vh;">
+    <div class="modal-content" style="height:100vh; max-height:100vh; border-radius:0;">
       <div class="modal-header">
         <div class="modal-title">決済済み・見逃し履歴</div>
         <div class="modal-close" onclick="closeHistoryModal()">✕</div>
       </div>
-      <div class="modal-body" style="padding:0; overflow:hidden; display:flex; flex-direction:column; height:calc(90vh - 54px);">
+      <div class="modal-body" style="padding:0; overflow:hidden; display:flex; flex-direction:column; height:calc(100vh - 54px);">
         <div class="filter-panel" style="margin:0; border-radius:0; border-bottom:1px solid #334155;">
           <select id="hist-period" onchange="toggleCustomHistDate(); renderHistoryList();" class="form-input">
             <option value="this_month">今月</option>
