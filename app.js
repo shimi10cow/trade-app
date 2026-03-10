@@ -160,6 +160,17 @@ function switchTab(tabId) {
 
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
+  
+  // CLEAR ALL FORM FIELDS
+  const modal = document.getElementById('modal-entry');
+  modal.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(el => {
+    if (el.id !== 'ne-dow-rule') el.value = '';
+  });
+  modal.querySelectorAll('button.toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ne-dow-rule').value = '1';
+  document.getElementById('ne-rr-display').textContent = '予想RR: --';
+  document.getElementById('ne-rr-display').className = 'calc-info';
+  
   const sel = document.getElementById('ne-pair');
   sel.innerHTML = '<option value="">選択...</option>';
   
@@ -182,6 +193,10 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-judgement-text').textContent = '--';
   document.getElementById('ne-judgement-text').style.color = '#f8fafc';
   
+  document.getElementById('ne-image-preview').style.display = 'none';
+  document.getElementById('ne-image-preview').src = '';
+  document.getElementById('image-preview-container').style.display = 'none';
+  
   const titleDiv = document.querySelector('#modal-entry .modal-title');
   if(isMissed) {
     titleDiv.textContent = '見逃しエントリー記録';
@@ -190,6 +205,10 @@ function openEntryModal(isMissed = false) {
     titleDiv.textContent = '新規エントリー記録';
     titleDiv.style.color = '#38bdf8';
   }
+  
+  analyzeMentalMode();
+  document.getElementById('ne-similar-summary').textContent = '類似トレードを計算中...';
+  document.getElementById('ne-similar-list').innerHTML = '';
   
   calculateEntryScore();
   
@@ -212,6 +231,24 @@ function autoLoadPairInfo(prefix = 'ne') {
       preMemoBox.textContent = '(ペアを選択すると表示されます)';
     } else {
       preMemoBox.textContent = p['事前メモ'] || p['環境認識メモ'] || p['メモ'] || '(事前メモなし)';
+    }
+  }
+
+  // --- Auto populate Trend Direction ---
+  if (p) {
+    const tfGroups = document.querySelectorAll(prefix === 'ne' ? '#modal-entry .tf-group' : '#modal-trade-detail .tf-group');
+    if (tfGroups.length >= 5) {
+      const keys = ['M1', 'W1', 'D1', 'H4', 'H1'];
+      tfGroups.forEach((grp, i) => {
+        if (!keys[i]) return;
+        const val = p[keys[i]];
+        if (val) {
+          grp.querySelectorAll('button').forEach(b => {
+             b.classList.remove('active');
+             if(b.textContent.trim() === val) b.classList.add('active');
+          });
+        }
+      });
     }
   }
 
@@ -761,6 +798,75 @@ function toggleBtn(btn, siblingSelector = '') {
   if (btn.closest('#modal-trade-detail')) calculateEntryScoreTD();
 }
 
+function analyzeMentalMode() {
+  const alertBox = document.getElementById('ne-mental-alert');
+  if(!alertBox) return;
+  
+  const history = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）').slice().reverse();
+  if(history.length === 0) {
+    alertBox.style.display = 'none';
+    return;
+  }
+
+  let streak = 0;
+  let isWinStreak = false;
+  let isLossStreak = false;
+  
+  for(let i=0; i<history.length; i++) {
+    const pips = parseFloat(history[i]['実取得pips']) || 0;
+    const isWin = pips >= 0; 
+    const isLoss = pips < 0;
+    
+    if (i === 0) {
+      if(isWin) isWinStreak = true;
+      else if(isLoss) isLossStreak = true;
+      streak = 1;
+      continue;
+    }
+    
+    if (isWinStreak && isWin) streak++;
+    else if (isLossStreak && isLoss) streak++;
+    else break;
+  }
+
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const thisMonthTrades = history.filter(t => (t.EntryDate||'').startsWith(currentMonthStr));
+  let monthlyProfit = 0;
+  thisMonthTrades.forEach(t => monthlyProfit += (parseFloat(t['損益']) || 0));
+
+  let msg = '';
+  let color = '#f8fafc';
+  let bg = '#334155';
+  let border = '#475569';
+
+  if (isLossStreak && streak >= 2) {
+    msg = `⚠️ 現在 ${streak}連敗中 です。焦って取り返そうとするリベンジトレードになっていませんか？深呼吸して、ルールに合致しているか再度確認しましょう。`;
+    color = '#fca5a5'; bg = 'rgba(220, 38, 38, 0.2)'; border = '#ef4444';
+  } else if (isWinStreak && streak >= 3) {
+    msg = `🎉 現在 ${streak}連勝中 です！調子が良さそうですが、気が大きくなってロットを上げたり、雑なエントリーになっていませんか？兜の緒を締めましょう！`;
+    color = '#6ee7b7'; bg = 'rgba(16, 185, 129, 0.2)'; border = '#10b981';
+  } else if (thisMonthTrades.length >= 10) {
+    msg = `💡 今月はすでに ${thisMonthTrades.length}回 のトレードを消化しています。エントリー回数が多すぎないか（ポジポジ病）見直してみてください。優位性のある場所だけを厳選しましょう。`;
+    color = '#fbbf24'; bg = 'rgba(245, 158, 11, 0.2)'; border = '#f59e0b';
+  } else if (monthlyProfit >= 100000) {
+    msg = `💰 今月はすでに +${monthlyProfit.toLocaleString()}円 の利益が出ています！無理なトレードは控え、勝ち逃げを意識しても良いかもしれません。`;
+    color = '#38bdf8'; bg = 'rgba(56, 189, 248, 0.2)'; border = '#0284c7';
+  } else if (thisMonthTrades.length > 0 && thisMonthTrades.length <= 3) {
+    msg = `🎯 今月のエントリーは ${thisMonthTrades.length}回 です。慎重に相場を選別できていて素晴らしいです！その調子で確実なポイントを狙いましょう。`;
+    color = '#cbd5e1'; bg = 'rgba(71, 81, 105, 0.2)'; border = '#64748b';
+  } else {
+    msg = `💡 冷静な分析ができていますか？感情に流されず、あなたの売買ルールを満たしているか丁寧に確認してください。`;
+    color = '#cbd5e1'; bg = 'rgba(71, 81, 105, 0.2)'; border = '#64748b';
+  }
+
+  alertBox.textContent = msg;
+  alertBox.style.color = color;
+  alertBox.style.background = bg;
+  alertBox.style.borderColor = border;
+  alertBox.style.display = 'block';
+}
+
 function updateEntryJudgementText(prefix) {
   const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
   const getAct = (selector) => {
@@ -1015,6 +1121,63 @@ function calculateRR() {
   } else {
     disp.textContent = `予想RR: --`;
     disp.className = 'calc-info';
+  }
+}
+
+function calculateRRTD() {
+  const pips = parseFloat(document.getElementById('td-pips').value);
+  const sl = parseFloat(document.getElementById('td-sl').value);
+  const disp = document.getElementById('td-rr-display');
+  
+  if(!isNaN(pips) && !isNaN(sl) && sl > 0) {
+    const rr = (pips / sl).toFixed(2);
+    disp.textContent = `1 : ${rr}`;
+    disp.style.color = rr >= 2.0 ? '#10b981' : (rr >= 0 ? '#f8fafc' : '#ef4444');
+  } else {
+    disp.textContent = `--`;
+    disp.style.color = '#f8fafc';
+  }
+}
+
+function calculateRuleMetrics() {
+  const pips = parseFloat(document.getElementById('td-pips').value);
+  const profit = parseFloat(document.getElementById('td-profit').value);
+  const ref = document.getElementById('td-exit-ref').value;
+  const tp = parseFloat(document.getElementById('td-tp').value);
+  const sl = parseFloat(document.getElementById('td-sl').value);
+
+  let rPips = pips;
+  let rProfit = profit;
+
+  if (ref === 'ビビり決済' || ref === '利確逃し') {
+    if (!isNaN(tp) && tp > 0) {
+      rPips = tp;
+      if (!isNaN(profit) && !isNaN(pips) && pips > 0) {
+        rProfit = Math.round(profit * (tp / pips));
+      }
+    }
+  } else if (ref === '損切り設定ミス') {
+    if (!isNaN(sl) && sl > 0) {
+      rPips = -sl;
+      if (!isNaN(profit) && !isNaN(pips) && pips < 0) {
+        rProfit = Math.round(profit * (sl / Math.abs(pips)));
+      }
+    }
+  }
+
+  const pDisp = document.getElementById('td-rule-pips');
+  const prDisp = document.getElementById('td-rule-profit');
+  
+  if (!isNaN(rPips)) {
+    pDisp.textContent = `ルール準拠Pips: ${rPips.toFixed(1)}`;
+  } else {
+    pDisp.textContent = `ルール準拠Pips: --`;
+  }
+  
+  if (!isNaN(rProfit)) {
+    prDisp.textContent = `ルール準拠損益: ¥${rProfit.toLocaleString()}`;
+  } else {
+    prDisp.textContent = `ルール準拠損益: --`;
   }
 }
 
@@ -1345,6 +1508,8 @@ function openTradeDetail(index) {
 
   onStatusChange(); // toggle fields
   calculateEntryScoreTD(); // update score UI
+  calculateRRTD(); // Update RR display
+  calculateRuleMetrics(); // Update Rule pips/profit
   
   document.getElementById('modal-trade-detail').classList.add('active');
 }

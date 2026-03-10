@@ -289,20 +289,20 @@
           </div>
         </div>
 
-        <!-- Analysis & Mentality Section -->
-        <div class="section" id="ne-analysis-section" style="background:#1e293b; border-left:4px solid #f59e0b; padding:12px; margin-bottom:16px; border-radius:4px;">
-           <div class="section-title" style="color:#f59e0b; font-size:13px; margin-bottom:8px;"><span style="font-size:16px;">🧠</span> メンタル分析と類似エントリー分析</div>
-           
-           <!-- Mental Bias Alert -->
-           <div id="ne-mental-alert" style="display:none; color:#fca5a5; font-size:13px; margin-bottom:12px; font-weight:bold; background:rgba(220, 38, 38, 0.2); padding:8px; border-radius:4px; border:1px solid #ef4444;">
-             ⚠️現在連敗中です。リベンジトレードになっていませんか？冷静になりましょう。
+        <!-- Mental Analysis Section -->
+        <div class="section" id="ne-mental-section" style="background:#1e293b; border-left:4px solid #ef4444; padding:12px; margin-bottom:16px; border-radius:4px;">
+           <div class="section-title" style="color:#ef4444; font-size:13px; margin-bottom:8px;"><span style="font-size:16px;">🧠</span> メンタル分析</div>
+           <div id="ne-mental-alert" style="display:none; color:#cbd5e1; font-size:13px; font-weight:bold; padding:8px; border-radius:4px;">
+             <!-- Injected by JS -->
            </div>
-           
-           <!-- Similar Trades Text -->
+        </div>
+
+        <!-- Similar Trades Section -->
+        <div class="section" id="ne-similar-section" style="background:#1e293b; border-left:4px solid #38bdf8; padding:12px; margin-bottom:16px; border-radius:4px;">
+           <div class="section-title" style="color:#38bdf8; font-size:13px; margin-bottom:8px;"><span style="font-size:16px;">🔍</span> 過去の類似トレード分析</div>
            <div id="ne-similar-summary" style="font-size:12px; color:#cbd5e1; margin-bottom:8px; line-height:1.5;">
              類似トレードを計算中...
            </div>
-           <!-- Top 5 List -->
            <div id="ne-similar-list"></div>
         </div>
 
@@ -470,103 +470,86 @@
             <div class="grid-item"><span class="grid-label">H1</span><div class="btn-group tf-group" id="td-tf-h1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div></div>
           </div>
         </div>
-
-        <!-- MA Conditions -->
-        <div class="section">
-          <div class="section-title">MA 条件</div>
-          <div class="grid-2col">
-            <div class="grid-item"><span class="grid-label">H4MA480.1200</span><div class="btn-group ma-group" id="td-ma-480"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4MA乖離</span><div class="btn-group ma-group" id="td-ma-kairi"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H1MA20.80</span><div class="btn-group ma-group" id="td-ma-h1-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4MA20.80</span><div class="btn-group ma-group" id="td-ma-h4-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-          </div>
-        </div>
-
-        <div class="section" onmouseup="setTimeout(calculateEntryScoreTD, 50)" ontouchend="setTimeout(calculateEntryScoreTD, 50)">
-          <div class="section-title">エントリー根拠</div>
-          <div class="grid-2col">
-            <div class="grid-item"><span class="grid-label">水平線D1.H4</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H1MAエリア</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL推進</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4の7波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
-          </div>
-        </div>
-        
-        <div class="checker-box" id="td-checker-status" style="margin-bottom:16px;">
-          <div><div style="font-weight:700; color:#f8fafc;">エントリースコア</div><div class="checker-text" id="td-checker-msg">--</div></div>
-          <div class="checker-score" id="td-checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">TP / SL / Lot & 損益</div>
           <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
-            <div class="grid-item"><span class="grid-label">TP</span><input type="number" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">TP</span><input type="number" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
+            <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
             <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
-            <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1"></div>
-            <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
-          </div>
-          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#94a3b8;">
-            <span id="td-rule-pips">ルール準拠Pips: --</span>
-            <span id="td-rule-profit">ルール準拠損益: --</span>
+
+          <div id="closing-fields" class="hidden">
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
+              <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
+              <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
+              <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:11px; color:#94a3b8;">
+              <span id="td-rule-pips">ルール準拠Pips: --</span>
+              <span id="td-rule-profit">ルール準拠損益: --</span>
+            </div>
+            
+            <div style="margin-top:16px;">
+              <div class="form-row">
+                <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
+                <select class="form-input" id="td-entry-ref">
+                  <option value="">選択...</option>
+                  <option value="完璧！">完璧！</option>
+                  <option value="ルール外">ルール外</option>
+                  <option value="トレンドライン認識甘い">トレンドライン認識甘い</option>
+                  <option value="ダウ認識ミス">ダウ認識ミス</option>
+                  <option value="アーリー">アーリー</option>
+                  <option value="レイト">レイト</option>
+                  <option value="上位足リスク">上位足リスク</option>
+                  <option value="損切り設定ミス">損切り設定ミス</option>
+                  <option value="Lotミス">Lotミス</option>
+                  <option value="指標">指標</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
+                <select class="form-input" id="td-exit-ref" onchange="calculateRuleMetrics()">
+                  <option value="">選択...</option>
+                  <option value="完璧利確">完璧利確</option>
+                  <option value="ビビり決済">ビビり決済</option>
+                  <option value="利確逃し">利確逃し</option>
+                  <option value="エントリー過ち">エントリー過ち</option>
+                  <option value="適切損切り">適切損切り</option>
+                  <option value="損切り設定ミス">損切り設定ミス</option>
+                </select>
+              </div>
+              <div class="form-row" style="align-items:flex-start;">
+                <span class="form-label">決済反省</span>
+                <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
+              </div>
+              <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none; margin-top:12px;">
+                📷 決済チャート画像
+                <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
+              </label>
+              <div id="td-exit-image-container" style="display:none; margin-top:8px;">
+                <img id="td-exit-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Closing fields -->
-        <div class="section">
-          <div class="section-title">詳細振り返り</div>
-          <div class="form-row">
-            <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
-            <select class="form-input" id="td-entry-ref">
-              <option value="">選択...</option>
-              <option value="完璧！">完璧！</option>
-              <option value="ルール外">ルール外</option>
-              <option value="トレンドライン認識甘い">トレンドライン認識甘い</option>
-              <option value="ダウ認識ミス">ダウ認識ミス</option>
-              <option value="アーリー">アーリー</option>
-              <option value="レイト">レイト</option>
-              <option value="上位足リスク">上位足リスク</option>
-              <option value="損切り設定ミス">損切り設定ミス</option>
-              <option value="Lotミス">Lotミス</option>
-              <option value="指標">指標</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
-            <select class="form-input" id="td-exit-ref">
-              <option value="">選択...</option>
-              <option value="完璧利確">完璧利確</option>
-              <option value="ビビり決済">ビビり決済</option>
-              <option value="利確逃し">利確逃し</option>
-              <option value="エントリー過ち">エントリー過ち</option>
-              <option value="適切損切り">適切損切り</option>
-              <option value="損切り設定ミス">損切り設定ミス</option>
-            </select>
-          </div>
-          <div class="form-row" style="align-items:flex-start;">
-            <span class="form-label">決済反省</span>
-            <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
-          </div>
-          <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none; margin-top:12px;">
-            📷 決済チャート画像
-            <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
-          </label>
-          <div id="td-exit-image-container" style="display:none; margin-top:8px;">
-            <img id="td-exit-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
-          </div>
+        <div class="section" style="display:none;" id="td-hidden-score-group">
+          <!-- Keeping these hidden to prevent errors if elements are queried by JS -->
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok">〇</button><button class="toggle-btn cond-ng">✕</button></div>
+          <div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng">アリ</button><button class="toggle-btn cond-ok">ナシ</button></div>
+          <div id="td-checker-score-val">--<span style="font-size:12px; color:#94a3b8;">/8</span></div>
+          <div id="td-checker-status"></div>
+          <div id="td-checker-msg">--</div>
         </div>
 
         <div class="section">
           <div class="form-row">
             <span class="form-label">ステータス</span>
-            <select class="form-input" id="td-status">
+            <select class="form-input" id="td-status" onchange="onStatusChange()">
               <option value="保有中">保有中</option>
               <option value="保有中（見逃し）">保有中（見逃し）</option>
               <option value="決済">決済</option>
