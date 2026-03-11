@@ -19,6 +19,7 @@ const App = {
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   setupEventListeners();
+  setupModalInteractions();
   loadData();
 });
 
@@ -157,6 +158,73 @@ function setupEventListeners() {
       const target = e.currentTarget.dataset.tab;
       switchTab(target);
     });
+  });
+}
+
+function setupModalInteractions() {
+  // Close modals when clicking the overlay (outside the content)
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('active');
+      }
+    });
+  });
+
+  // Swipe down to close logic for modal-content
+  let touchStartY = 0;
+  let touchCurrentY = 0;
+  let isDragging = false;
+  let targetModal = null;
+
+  document.addEventListener('touchstart', (e) => {
+    const header = e.target.closest('.modal-header');
+    if (!header) return; // Only allow dragging from header to prevent scrolling issues
+
+    targetModal = e.target.closest('.modal-content');
+    if (!targetModal) return;
+
+    touchStartY = e.touches[0].clientY;
+    isDragging = true;
+    targetModal.style.transition = 'none'; // Remove transition during drag
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!isDragging || !targetModal) return;
+    
+    touchCurrentY = e.touches[0].clientY;
+    const deltaY = touchCurrentY - touchStartY;
+
+    if (deltaY > 0) { // Only allow dragging downwards
+      e.preventDefault(); // Stop natural scrolling
+      targetModal.style.transform = `translateY(${deltaY}px)`;
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchend', (e) => {
+    if (!isDragging || !targetModal) return;
+    
+    isDragging = false;
+    const deltaY = touchCurrentY - touchStartY;
+    
+    targetModal.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'; // Restore transition
+    
+    if (deltaY > 100) { // Threshold to close
+      targetModal.style.transform = `translateY(100%)`;
+      const overlay = targetModal.closest('.modal-overlay');
+      setTimeout(() => {
+        if(overlay) overlay.classList.remove('active');
+        targetModal.style.transform = ''; // reset for next time
+      }, 300);
+    } else {
+      // Snap back
+      targetModal.style.transform = `translateY(0)`;
+      setTimeout(() => {
+        targetModal.style.transform = '';
+      }, 300);
+    }
+    
+    targetModal = null;
   });
 }
 
@@ -463,6 +531,69 @@ function renderPairs() {
   container.innerHTML = html;
 }
 
+function renderHistoryList() {
+  const container = document.getElementById('history-list');
+  if(!container) return;
+  const fPeriod = document.getElementById('hist-period').value;
+  const dFrom = document.getElementById('hist-date-from')?.value;
+  const dTo = document.getElementById('hist-date-to')?.value;
+
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+  let historyTrades = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+
+  historyTrades = historyTrades.filter(t => {
+    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : '';
+    if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
+    if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
+    if (fPeriod === 'custom') {
+      const tDate = new Date(dateStr);
+      if (dFrom && tDate < new Date(dFrom)) return false;
+      if (dTo && tDate > new Date(dTo + "T23:59:59")) return false;
+    }
+    return true;
+  });
+
+  if (historyTrades.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">履歴がありません</div>';
+    return;
+  }
+
+  container.innerHTML = historyTrades.slice().reverse().map((t) => {
+    const isMissed = t['ステータス'] === '決済（見逃し）';
+    const index = App.data.entries.indexOf(t);
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const isWin = pips >= 0;
+    const pipsColor = isWin ? '#10b981' : '#ef4444';
+    const pipsSign = isWin ? '+' : '';
+    const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
+    const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
+
+    return `
+      <div class="list-card" onclick="openTradeDetail(${index}, false)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
+        <div style="flex:1;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
+              ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
+              <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
+              ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
+            </div>
+            <div style="font-weight:700; font-size:15px; color:${pipsColor};">${pipsSign}${pips.toFixed(1)} <span style="font-size:10px;">pips</span></div>
+          </div>
+          <div style="font-size:11px; color:#94a3b8; display:flex; justify-content:space-between;">
+            <span>${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</span>
+            <span>¥${(parseFloat(t['損益']) || 0).toLocaleString()}</span>
+          </div>
+        </div>
+        <div style="color:#94a3b8; font-size:16px; margin-left:12px;">›</div>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const galleryTrades = App.data.entries.filter(t => {
@@ -489,7 +620,7 @@ function renderGallery() {
     html += `
       <div style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155;">
         <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
-          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
+          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" referrerpolicy="no-referrer">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
@@ -568,11 +699,6 @@ function applyAnalysisFilters() {
   let totalProfit = 0, winProfit = 0, lossProfit = 0;
   let totalLot = 0;
   let avgRRSum = 0, validRRCount = 0;
-  
-  // Rule compliance
-  let ruleOutLossPips = 0, ruleOutLossAmt = 0;
-  let ruleInPips = 0, ruleInAmt = 0;
-  let ruleInCount = 0;
 
   filtered.forEach(t => {
     totalTrades++;
@@ -602,23 +728,9 @@ function applyAnalysisFilters() {
       avgRRSum += (pips / sl);
       validRRCount++;
     }
-    
-    // Rules evaluation
-    const isRuleViolation = (t['エントリー振り返り'] === 'ルール外' || t['エントリー振り返り'] === 'ビビり決済' /* add other bad tags */);
-    if (isRuleViolation) {
-      if (pips < 0) {
-        ruleOutLossPips += pips;
-        ruleOutLossAmt += profit;
-      }
-    } else {
-      ruleInCount++;
-      ruleInPips += pips;
-      ruleInAmt += profit;
-    }
   });
 
   const winRate = totalTrades ? (wins / totalTrades * 100).toFixed(1) : 0;
-  const avgLot = totalTrades ? (totalLot / totalTrades).toFixed(2) : 0;
   
   const avgWinPips = wins ? (winPips / wins).toFixed(1) : 0;
   const avgLossPips = losses ? (lossPips / losses).toFixed(1) : 0;
@@ -629,15 +741,20 @@ function applyAnalysisFilters() {
   const avgTradeProfit = totalTrades ? (totalProfit / totalTrades).toFixed(0) : 0;
   
   const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : 0;
-  const ruleRate = totalTrades ? (ruleInCount / totalTrades * 100).toFixed(1) : 0;
 
-  // Theoretical = Total - RuleOutLosses (Assuming rule out losses wouldn't have happened)
-  // Wait, user's formula: 理論損益 = 総収支 - ルール外損失額 (It's actually minus a negative, so +)
-  const theoPips = totalPips - ruleOutLossPips;
-  const theoProfit = totalProfit - ruleOutLossAmt;
-
+  // Update Top Banner (using all filtered data, which is effectively 'current' filter scope)
+  // If user wants this strictly 'This Month' regardless of filter, we must filter separately. 
+  // Let's assume the top banner reflects the Current Filter (so '今月' by default).
   const fmtCurrency = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(val);
   const classForNum = (val) => val > 0 ? 'pos' : (val < 0 ? 'neg' : '');
+
+  document.getElementById('top-profit').textContent = fmtCurrency(totalProfit);
+  document.getElementById('top-profit').className = 'val ' + classForNum(totalProfit);
+  
+  document.getElementById('top-pips').textContent = totalPips.toFixed(1);
+  document.getElementById('top-pips').className = 'val ' + classForNum(totalPips);
+  
+  document.getElementById('top-rr').textContent = avgRR;
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
@@ -646,17 +763,12 @@ function applyAnalysisFilters() {
       <td>${totalTrades} 回</td>
       <td class="${classForNum(totalPips)}">${totalPips.toFixed(1)}</td>
       <td class="${classForNum(totalProfit)}">${fmtCurrency(totalProfit)}</td>
-      <td>[理論] ${theoPips.toFixed(1)} / ${fmtCurrency(theoProfit)}</td>
     </tr>
     <tr>
       <td>勝ち</td>
       <td>${wins} 回</td>
       <td class="${classForNum(winPips)}">${winPips.toFixed(1)}</td>
       <td class="${classForNum(winProfit)}">${fmtCurrency(winProfit)}</td>
-      <td rowspan="2" style="text-align:right">
-        <div style="color:#ef4444;font-size:10px;">ルール外損失</div>
-        <div>${ruleOutLossPips.toFixed(1)} / ${fmtCurrency(ruleOutLossAmt)}</div>
-      </td>
     </tr>
     <tr>
       <td>負け</td>
@@ -669,11 +781,6 @@ function applyAnalysisFilters() {
       <td>勝率 ${winRate}%</td>
       <td>+${avgWinPips} / ${avgLossPips}</td>
       <td>${fmtCurrency(avgWinProfit)} / ${fmtCurrency(avgLossProfit)}</td>
-      <td rowspan="2" style="text-align:right">
-        <div style="color:#10b981;font-size:10px;">ルール準拠総額</div>
-        <div>${ruleInPips.toFixed(1)} / ${fmtCurrency(ruleInAmt)}</div>
-        <div style="font-size:10px;">遵守率: ${ruleRate}%</div>
-      </td>
     </tr>
     <tr>
       <td>期待値</td>
@@ -709,43 +816,127 @@ function renderHeatmap(trades) {
     container.innerHTML = 'データがありません';
     return;
   }
-  // Mock Heatmap Grid
-  let html = '<div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:4px; width:100%; height:100%; text-align:center;">';
+  // Change Heatmap Grid to 24 hours
+  let html = '<div style="display:grid; grid-template-columns: 35px repeat(5, 1fr); gap:2px; width:100%; height:100%; text-align:center;">';
   const days = ['月', '火', '水', '木', '金'];
-  const times = ['T2-9', 'T9-12', 'T15-18', 'T18-2'];
   
   html += '<div></div>'; // top-left corner
-  days.forEach(d => html += `<div style="font-size:10px; color:#94a3b8; align-self:end;">${d}</div>`);
+  days.forEach(d => html += `<div style="font-size:10px; color:#94a3b8; align-self:end; padding-bottom: 4px;">${d}</div>`);
   
-  times.forEach(t => {
-    html += `<div style="font-size:10px; color:#94a3b8; align-self:center;">${t}</div>`;
+  for(let i=0; i<24; i++) {
+    html += `<div style="font-size:9px; color:#64748b; align-self:center; text-align:right; padding-right:4px;">${String(i).padStart(2,'0')}:</div>`;
     days.forEach(d => {
-      // Mock random color intensity for demo
-      const intensity = Math.random();
+      // Mock Data 
+      const intensity = Math.random() * 0.8;
       const isWin = Math.random() > 0.4;
-      const color = isWin ? `rgba(16,185,129,${intensity})` : `rgba(239,68,68,${intensity})`;
-      html += `<div style="background:${color}; border-radius:4px; min-height:30px;"></div>`;
+      let color = 'transparent';
+      if (Math.random() > 0.8) {
+        color = isWin ? `rgba(16,185,129,${intensity + 0.2})` : `rgba(239,68,68,${intensity + 0.2})`;
+      }
+      html += `<div style="background:${color}; border-radius:3px; min-height:8px; border:1px solid #1e293b;"></div>`;
     });
-  });
+  }
   html += '</div>';
   container.innerHTML = html;
+  container.style.height = 'auto'; // allow it to expand
 }
 
-function renderGrowthChart(trades) {
+let activeChartType = 'profit';
+
+function toggleChartType(type) {
+  activeChartType = type;
+  document.querySelectorAll('#chart-type-toggle .toggle-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`#chart-type-toggle .toggle-btn[onclick="toggleChartType('${type}')"]`).classList.add('active');
+  applyAnalysisFilters(); // Re-apply filters which will call renderGrowthChart with filtered data
+}
+
+function renderGrowthChart(allTrades) {
   const container = document.getElementById('chart-growth');
-  if(trades.length === 0) {
+  
+  // Base it on CLOSED trades only for the chart
+  const history = allTrades.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  if(history.length === 0) {
     container.innerHTML = 'データがありません';
     return;
   }
   
-  // Real logic would calculate cumulative pips over time
-  // Here we'll draw a mock SVG
+  // Aggregate by Month
+  const monthly = {}; // { 'YYYY-MM': { profit: 0, pips: 0, rrSum: 0, rrCount: 0 } }
+  history.forEach(t => {
+     const d = t.EntryDate ? String(t.EntryDate).split('T')[0] : '';
+     if (!d) return;
+     const monthKey = d.substring(0, 7); // YYYY-MM
+     if (!monthly[monthKey]) monthly[monthKey] = { profit: 0, pips: 0, rrSum: 0, rrCount: 0 };
+     
+     monthly[monthKey].profit += (parseFloat(t['損益']) || 0);
+     monthly[monthKey].pips += (parseFloat(t['実取得pips']) || 0);
+     
+     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+     const pps = parseFloat(t['実取得pips']) || 0;
+     if (sl > 0) {
+       monthly[monthKey].rrSum += (pps / sl);
+       monthly[monthKey].rrCount++;
+     }
+  });
+  
+  const months = Object.keys(monthly).sort();
+  if (months.length === 0) {
+    container.innerHTML = '日付データがありません';
+    return;
+  }
+  
+  // Extract Data Series
+  const labels = months.map(m => m.substring(5, 7) + '月');
+  let dataPoints = [];
+  
+  if (activeChartType === 'profit') {
+    dataPoints = months.map(m => monthly[m].profit);
+  } else if (activeChartType === 'pips') {
+    dataPoints = months.map(m => monthly[m].pips);
+  } else if (activeChartType === 'rr') {
+    dataPoints = months.map(m => monthly[m].rrCount > 0 ? (monthly[m].rrSum / monthly[m].rrCount) : 0);
+  }
+  
+  const maxVal = Math.max(...dataPoints, 0);
+  const minVal = Math.min(...dataPoints, 0);
+  const range = (maxVal - minVal) || 1;
+  const zeroY = 100 - ((0 - minVal) / range * 80); // Calculate Y position for 0-line in SVG (20-100 range)
+  
+  const barWidth = 100 / Math.max(labels.length, 5); // % width
+  
+  let barsHTML = '';
+  labels.forEach((lbl, i) => {
+    const val = dataPoints[i];
+    const isPos = val >= 0;
+    const heightPct = Math.abs(val) / range * 80;
+    
+    // Y coordinate (SVG 0 is at top)
+    const y = isPos ? (zeroY - heightPct) : zeroY;
+    const color = isPos ? '#10b981' : '#ef4444';
+    const x = (i * (100 / labels.length)) + (50 / labels.length);
+    
+    let dispVal = val;
+    if(activeChartType === 'profit') dispVal = Math.round(val / 1000) + 'k';
+    else if(activeChartType === 'rr') dispVal = val.toFixed(1);
+    else dispVal = val.toFixed(0);
+
+    barsHTML += `
+      <g opacity="0" animation="fadeIn 0.5s forwards" style="animation-delay: ${i*0.05}s">
+        <rect x="${x - (barWidth*0.4)}%" y="${y}%" width="${barWidth*0.8}%" height="${heightPct}%" fill="${color}" rx="2" />
+        <text x="${x}%" y="${isPos ? y - 2 : y + heightPct + 5}%" fill="${color}" font-size="6" text-anchor="middle" font-weight="bold">${dispVal}</text>
+        <text x="${x}%" y="98%" fill="#94a3b8" font-size="6" text-anchor="middle">${lbl}</text>
+      </g>
+    `;
+  });
+
   const svg = `
-    <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none">
-      <path d="M0,150 L50,120 L100,130 L150,80 L200,90 L250,40 L300,20" fill="none" stroke="#3b82f6" stroke-width="2" />
-      <path d="M0,150 L50,110 L100,100 L150,50 L200,60 L250,10 L300,0" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4" />
-      <text x="5" y="15" fill="#3b82f6" font-size="10">実損益</text>
-      <text x="5" y="30" fill="#f59e0b" font-size="10">仮想（見逃し込）</text>
+    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="overflow:visible;">
+      <style>
+        @keyframes fadeIn { to { opacity: 1; } }
+      </style>
+      <!-- Zero Line -->
+      <line x1="0" y1="${zeroY}%" x2="100%" y2="${zeroY}%" stroke="#334155" stroke-width="1" stroke-dasharray="2,2" />
+      ${barsHTML}
     </svg>
   `;
   container.innerHTML = svg;
@@ -834,6 +1025,18 @@ async function savePairEdit() {
 // ==========================================
 function toggleBtn(btn, siblingSelector = '') {
   const parent = btn.parentElement;
+  
+  // If the button is already active, UNSELECT it and return
+  if (btn.classList.contains('active')) {
+    btn.classList.remove('active');
+    
+    // If we are unselecting a direction button, we don't necessarily need to trigger auto MA updates since there is no direction anymore
+    if (btn.closest('#modal-entry')) calculateEntryScore();
+    if (btn.closest('#modal-trade-detail')) calculateEntryScoreTD();
+    return;
+  }
+
+  // Otherwise, behave normally: unselect others and select this one
   if(!siblingSelector) {
     Array.from(parent.children).forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
@@ -843,7 +1046,7 @@ function toggleBtn(btn, siblingSelector = '') {
   }
   
   // If direction was changed, automatically update MAs (but do NOT reset direction buttons)
-  if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down')) {
+  if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down') || btn.textContent.includes('Buy') || btn.textContent.includes('Sell')) {
     if (btn.closest('#ne-dir')) autoLoadPairInfo('ne', false);
     if (btn.closest('#td-dir')) autoLoadPairInfo('td', false);
   }
@@ -1225,9 +1428,11 @@ function calculateRuleMetrics() {
   // Formula: ルール準拠損益 = 損益 × (ルール準拠pips / 実取得pips)
   if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(rPips)) {
     const rProfit = Math.round(profit * (rPips / pips));
-    prDisp.textContent = `ルール準拠損益: ¥${rProfit.toLocaleString()}`;
+    prDisp.textContent = `¥${rProfit.toLocaleString()}`;
+    prDisp.style.color = '#f8fafc';
   } else {
-    prDisp.textContent = `ルール準拠損益: --`;
+    prDisp.textContent = `--`;
+    prDisp.style.color = '#94a3b8';
   }
 }
 
