@@ -68,3 +68,21 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
   border-radius: 50%; animation: spin 1s linear infinite;
 }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Monthly Stats Grid */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; padding: 12px; background: #1e293b; border-radius: 12px; }
+.stat-box { background: #0f172a; border-radius: 8px; padding: 10px 12px; text-align: center; }
+.stat-box .lbl { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.stat-box .val { font-size: 22px; font-weight: 800; color: #f8fafc; }
+.stat-box .val.pos { color: #10b981; }
+.stat-box .val.neg { color: #ef4444; }
+
+/* btn-group for chart type toggle */
+.btn-group { display: flex; gap: 4px; }
+.btn-group .toggle-btn { flex: 1; padding: 8px 4px; background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-group .toggle-btn.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; }
+
+/* analysis-table no horizontal scroll */
+.analysis-table-wrapper { overflow-x: hidden; }
+.analysis-table { table-layout: fixed; }
+.analysis-table th, .analysis-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

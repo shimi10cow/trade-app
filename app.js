@@ -600,40 +600,48 @@ function renderHistoryList() {
   }).join('');
 }
 
+function getImageUrl(rawUrl) {
+  if (!rawUrl) return '';
+  const s = String(rawUrl).trim();
+  // Convert Google Drive view/open URLs to direct embed URLs
+  const m = s.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
+  if (m) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  return s;
+}
+
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const galleryTrades = App.data.entries.filter(t => {
     const score = parseInt(t['エントリースコア']) || 0;
     const isWin = parseFloat(t['実取得pips']) > 0;
-    return score >= 5 || isWin;
+    return score >= 4 || isWin;
   });
-  
+
   if(galleryTrades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">条件に合う画像がありません</div>';
     return;
   }
-  
-  // Note: we assume there represents an Image URL column, e.g. "画像URL" or "Image"
-  // For demo, we just render boxes with details.
+
   let html = '';
   galleryTrades.forEach(t => {
-    const imgUrl = t['ChartImage'] || t['画像'] || t['Image'];
-    const profit = parseFloat(t['損益']) || 0;
+    const index = App.data.entries.indexOf(t);
+    const rawUrl = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
+    const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 0;
     const color = isWin ? '#10b981' : '#ef4444';
-    
+
     html += `
-      <div style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155;">
+      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
         <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
-          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" referrerpolicy="no-referrer">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
+          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=color:#334155;font-size:32px;>📷</span>'">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
         </div>
         <div style="padding:8px;">
-          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}</div>
-          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${t.EntryDate || ''}</div>
+          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''}</div>
+          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${formatDateDisplay(t.EntryDate)}</div>
         </div>
       </div>
     `;
@@ -684,7 +692,7 @@ function applyAnalysisFilters() {
     
     // Score
     const score = parseInt(t['エントリースコア']) || 0;
-    if (fScore === 'high' && score < 5) return false;
+    if (fScore === 'high' && score < 4) return false;
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     
     // Period
@@ -819,32 +827,49 @@ function applyAnalysisFilters() {
 function renderHeatmap(trades) {
   const container = document.getElementById('chart-heatmap');
   if(trades.length === 0) {
-    container.innerHTML = 'データがありません';
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">データがありません</div>';
     return;
   }
-  // Change Heatmap Grid to 24 hours
-  let html = '<div style="display:grid; grid-template-columns: 35px repeat(5, 1fr); gap:2px; width:100%; height:100%; text-align:center;">';
+
+  // Aggregate by hour (0-23) and weekday (0=Mon..4=Fri)
+  const grid = {};
+  for(let h=0; h<24; h++) for(let d=0; d<5; d++) grid[`${h}-${d}`] = { count:0, pips:0 };
+
+  trades.forEach(t => {
+    const timeStr = formatTimeDisplay(t.EntryTime) || formatTimeDisplay(t.EntryDate);
+    const dateStr = formatDateDisplay(t.EntryDate);
+    if (!timeStr || !dateStr) return;
+    const hour = parseInt(timeStr.split(':')[0]);
+    if (isNaN(hour) || hour < 0 || hour > 23) return;
+    const dow = new Date(dateStr).getDay(); // 0=Sun,1=Mon..5=Fri,6=Sat
+    if (dow < 1 || dow > 5) return;
+    const key = `${hour}-${dow - 1}`;
+    grid[key].count++;
+    grid[key].pips += parseFloat(t['実取得pips']) || 0;
+  });
+
+  const maxCount = Math.max(...Object.values(grid).map(c => c.count), 1);
   const days = ['月', '火', '水', '木', '金'];
-  
-  html += '<div></div>'; // top-left corner
-  days.forEach(d => html += `<div style="font-size:10px; color:#94a3b8; align-self:end; padding-bottom: 4px;">${d}</div>`);
-  
-  for(let i=0; i<24; i++) {
-    html += `<div style="font-size:9px; color:#64748b; align-self:center; text-align:right; padding-right:4px;">${String(i).padStart(2,'0')}:</div>`;
-    days.forEach(d => {
-      // Mock Data 
-      const intensity = Math.random() * 0.8;
-      const isWin = Math.random() > 0.4;
+
+  let html = '<div style="display:grid; grid-template-columns: 28px repeat(5, 1fr); gap:2px; width:100%; text-align:center;">';
+  html += '<div></div>';
+  days.forEach(d => html += `<div style="font-size:10px; color:#94a3b8; padding-bottom:4px;">${d}</div>`);
+
+  for(let h=0; h<24; h++) {
+    html += `<div style="font-size:9px; color:#64748b; text-align:right; padding-right:3px; display:flex; align-items:center; justify-content:flex-end;">${String(h).padStart(2,'0')}</div>`;
+    for(let d=0; d<5; d++) {
+      const cell = grid[`${h}-${d}`];
       let color = 'transparent';
-      if (Math.random() > 0.8) {
-        color = isWin ? `rgba(16,185,129,${intensity + 0.2})` : `rgba(239,68,68,${intensity + 0.2})`;
+      if (cell.count > 0) {
+        const intensity = Math.min(cell.count / maxCount, 1) * 0.6 + 0.25;
+        color = cell.pips >= 0 ? `rgba(16,185,129,${intensity})` : `rgba(239,68,68,${intensity})`;
       }
-      html += `<div style="background:${color}; border-radius:3px; min-height:8px; border:1px solid #1e293b;"></div>`;
-    });
+      html += `<div style="background:${color}; border-radius:2px; min-height:7px; border:1px solid #1e293b;"></div>`;
+    }
   }
   html += '</div>';
   container.innerHTML = html;
-  container.style.height = 'auto'; // allow it to expand
+  container.style.height = 'auto';
 }
 
 let activeChartType = 'profit';
@@ -1762,7 +1787,7 @@ function openTradeDetail(index, readOnly = false) {
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   
   // Images
-  const imgURL = t['ChartImage'] || t['画像'] || t['Image'];
+  const imgURL = getImageUrl(t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '');
   if (imgURL) {
      document.getElementById('td-image-preview').src = imgURL;
      document.getElementById('td-image-preview').style.display = 'block';
@@ -1770,8 +1795,8 @@ function openTradeDetail(index, readOnly = false) {
      document.getElementById('td-image-preview').style.display = 'none';
      document.getElementById('td-image-preview').src = '';
   }
-  
-  const exitImgURL = t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'];
+
+  const exitImgURL = getImageUrl(t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'] || '');
   const exitImgContainer = document.getElementById('td-exit-image-container');
   const exitImgPreview = document.getElementById('td-exit-image-preview');
   if (exitImgURL) {
