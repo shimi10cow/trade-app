@@ -603,9 +603,10 @@ function renderHistoryList() {
 function getImageUrl(rawUrl) {
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
-  // Convert Google Drive view/open URLs to direct embed URLs
-  const m = s.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
-  if (m) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  if (!s || s === 'undefined' || s === 'null') return '';
+  // Use thumbnail API (returns actual image, not viewer page)
+  const m = s.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{20,})/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w800`;
   return s;
 }
 
@@ -634,7 +635,7 @@ function renderGallery() {
     html += `
       <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
         <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
-          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=color:#334155;font-size:32px;>📷</span>'">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
+          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='<span style=color:#334155;font-size:32px;>📷</span>'">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
@@ -650,7 +651,35 @@ function renderGallery() {
 }
 
 function renderAnalysis() {
+  updateMonthlyStats();
   applyAnalysisFilters();
+}
+
+// Monthly top stats: current month REAL trades only (独立・見逃し除外)
+function updateMonthlyStats() {
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthTrades = App.data.entries.filter(t => {
+    if (t['ステータス'] !== '決済') return false; // real trades only, not 見逃し
+    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0] : '';
+    return dateStr.startsWith(currentMonthStr);
+  });
+  let totalProfit = 0, totalPips = 0, totalRR = 0;
+  monthTrades.forEach(t => {
+    totalProfit += parseFloat(t['損益']) || 0;
+    totalPips += parseFloat(t['実取得pips']) || 0;
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (sl > 0) totalRR += pips / sl;
+  });
+  const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
+  const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  document.getElementById('top-profit').textContent = fmtCur(totalProfit);
+  document.getElementById('top-profit').className = 'val ' + cls(totalProfit);
+  document.getElementById('top-pips').textContent = totalPips.toFixed(1);
+  document.getElementById('top-pips').className = 'val ' + cls(totalPips);
+  document.getElementById('top-rr').textContent = totalRR.toFixed(2);
+  document.getElementById('top-rr').className = 'val ' + cls(totalRR);
 }
 
 // ==========================================
@@ -756,19 +785,9 @@ function applyAnalysisFilters() {
   
   const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : 0;
 
-  // Update Top Banner (using all filtered data, which is effectively 'current' filter scope)
-  // If user wants this strictly 'This Month' regardless of filter, we must filter separately. 
-  // Let's assume the top banner reflects the Current Filter (so '今月' by default).
+  // Top banner is calculated independently by updateMonthlyStats()
   const fmtCurrency = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(val);
   const classForNum = (val) => val > 0 ? 'pos' : (val < 0 ? 'neg' : '');
-
-  document.getElementById('top-profit').textContent = fmtCurrency(totalProfit);
-  document.getElementById('top-profit').className = 'val ' + classForNum(totalProfit);
-  
-  document.getElementById('top-pips').textContent = totalPips.toFixed(1);
-  document.getElementById('top-pips').className = 'val ' + classForNum(totalPips);
-  
-  document.getElementById('top-rr').textContent = avgRR;
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
@@ -910,22 +929,29 @@ function renderGrowthChart(allTrades) {
      }
   });
   
-  const months = Object.keys(monthly).sort();
-  if (months.length === 0) {
-    container.innerHTML = '日付データがありません';
-    return;
+  // Build last 6 calendar months (fixed range, fills 0 for empty months)
+  const now2 = new Date();
+  const last6 = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+    last6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
-  
+
   // Extract Data Series
-  const labels = months.map(m => m.substring(5, 7) + '月');
+  const labels = last6.map(m => m.substring(5, 7) + '月');
   let dataPoints = [];
-  
+
   if (activeChartType === 'profit') {
-    dataPoints = months.map(m => monthly[m].profit);
+    dataPoints = last6.map(m => monthly[m] ? monthly[m].profit : 0);
   } else if (activeChartType === 'pips') {
-    dataPoints = months.map(m => monthly[m].pips);
+    dataPoints = last6.map(m => monthly[m] ? monthly[m].pips : 0);
   } else if (activeChartType === 'rr') {
-    dataPoints = months.map(m => monthly[m].rrCount > 0 ? (monthly[m].rrSum / monthly[m].rrCount) : 0);
+    dataPoints = last6.map(m => monthly[m] ? monthly[m].rrSum : 0); // Sum of RR
+  }
+
+  if (dataPoints.every(v => v === 0)) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">データがありません</div>';
+    return;
   }
   
   const maxVal = Math.max(...dataPoints, 0);
@@ -1077,7 +1103,9 @@ function toggleBtn(btn, siblingSelector = '') {
   }
   
   // If direction was changed, automatically update MAs (but do NOT reset direction buttons)
-  if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down') || btn.textContent.includes('Buy') || btn.textContent.includes('Sell')) {
+  if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down') ||
+      btn.classList.contains('dir-buy') || btn.classList.contains('dir-sell') ||
+      btn.textContent.includes('Buy') || btn.textContent.includes('Sell')) {
     if (btn.closest('#ne-dir')) autoLoadPairInfo('ne', false);
     if (btn.closest('#td-dir')) autoLoadPairInfo('td', false);
   }
@@ -1730,8 +1758,8 @@ function openTradeDetail(index, readOnly = false) {
   const isBuy = t.Direction === 'Buy' || t.Direction === '▲ Buy';
   const isSell = t.Direction === 'Sell' || t.Direction === '▼ Sell';
   document.querySelectorAll('#td-dir button').forEach(b => b.classList.remove('active'));
-  if (isBuy) document.querySelector('#td-dir .dir-up')?.classList.add('active');
-  if (isSell) document.querySelector('#td-dir .dir-down')?.classList.add('active');
+  if (isBuy) document.querySelector('#td-dir .dir-buy')?.classList.add('active');
+  if (isSell) document.querySelector('#td-dir .dir-sell')?.classList.add('active');
   
   document.getElementById('td-dow-rule').value = t.DowRule || '1';
 

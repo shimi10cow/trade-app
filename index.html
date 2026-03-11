@@ -78,7 +78,7 @@
           <div class="val" id="top-pips">0.0</div>
         </div>
         <div class="stat-box" style="grid-column: span 2;">
-          <div class="lbl">今月 実RR (平均)</div>
+          <div class="lbl">今月 実RR (合計)</div>
           <div class="val" id="top-rr">0.00</div>
         </div>
       </div>
@@ -218,8 +218,8 @@
           <div class="form-row">
             <span class="form-label">方向</span>
             <div class="btn-group" id="ne-dir">
-              <button class="toggle-btn" onclick="toggleBtn(this)">▲ Buy</button>
-              <button class="toggle-btn" onclick="toggleBtn(this)">▼ Sell</button>
+              <button class="toggle-btn dir-buy" onclick="toggleBtn(this)">▲ Buy</button>
+              <button class="toggle-btn dir-sell" onclick="toggleBtn(this)">▼ Sell</button>
             </div>
           </div>
           
@@ -357,7 +357,7 @@
             <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
           </label>
           <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
-            <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;">
+            <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
           </div>
           
           <div class="form-row" style="margin-top:12px;">
@@ -480,7 +480,7 @@
       <div class="modal-body">
         
         <input type="hidden" id="td-index">
-        <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155; margin-bottom:16px; display:none;">
+        <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155; margin-bottom:16px; display:none;" referrerpolicy="no-referrer">
 
         <!-- Basic Info -->
         <div class="section">
@@ -493,8 +493,8 @@
           <div class="form-row">
             <span class="form-label">方向</span>
             <div class="btn-group" id="td-dir">
-              <button class="toggle-btn dir-up" onclick="toggleBtn(this, '#td-dir .dir-up, #td-dir .dir-down')">▲ Buy</button>
-              <button class="toggle-btn dir-down" onclick="toggleBtn(this, '#td-dir .dir-up, #td-dir .dir-down')">▼ Sell</button>
+              <button class="toggle-btn dir-buy" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▲ Buy</button>
+              <button class="toggle-btn dir-sell" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▼ Sell</button>
             </div>
           </div>
           <div class="form-row">
@@ -547,6 +547,21 @@
               <span class="grid-label">H4MA20.80</span>
               <div class="btn-group ma-group" id="td-ma-h4-20"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Entry Basis (Scoring) -->
+        <div class="section" onmouseup="setTimeout(calculateEntryScoreTD, 50)" ontouchend="setTimeout(calculateEntryScoreTD, 50)">
+          <div class="section-title">エントリー根拠</div>
+          <div class="grid-2col">
+            <div class="grid-item"><span class="grid-label">水平線D1.H4</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H1MAエリア</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL推進</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">H4の5波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
+            <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
           </div>
         </div>
 

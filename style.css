@@ -172,5 +172,24 @@ textarea.form-input { resize: vertical; }
 
 /* analysis-table no horizontal scroll */
 .analysis-table-wrapper { overflow-x: hidden; }
-.analysis-table { table-layout: fixed; }
-.analysis-table th, .analysis-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-table { table-layout: fixed; font-size: 13px; }
+.analysis-table th, .analysis-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 9px 6px; }
+
+/* ======== Colored Button States ======== */
+/* ◎/OK = green, ✕/NG = red */
+.toggle-btn.cond-ok.active { background: #10b981; border-color: #10b981; color: white; }
+.toggle-btn.cond-ng.active { background: #ef4444; border-color: #ef4444; color: white; }
+/* Direction arrows: ↑ green, ↓ red, → gray */
+.toggle-btn.dir-up.active { background: #10b981; border-color: #10b981; color: white; }
+.toggle-btn.dir-down.active { background: #ef4444; border-color: #ef4444; color: white; }
+.toggle-btn.dir-flat.active { background: #64748b; border-color: #64748b; color: white; }
+
+/* Buy = red, Sell = blue (wider + colored) */
+.toggle-btn.dir-buy { color: #ef4444; border-color: #ef4444; font-size: 14px; font-weight: 700; padding: 12px 4px; }
+.toggle-btn.dir-buy.active { background: #ef4444; border-color: #ef4444; color: white; }
+.toggle-btn.dir-sell { color: #3b82f6; border-color: #3b82f6; font-size: 14px; font-weight: 700; padding: 12px 4px; }
+.toggle-btn.dir-sell.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+
+/* Badge: Buy = red, Sell = blue */
+.badge.buy { background: rgba(239,68,68,0.2); color: #ef4444; }
+.badge.sell { background: rgba(59,130,246,0.2); color: #3b82f6; }
