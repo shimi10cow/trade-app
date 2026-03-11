@@ -244,6 +244,12 @@ function switchTab(tabId) {
   if (tabId === 'gallery') renderGallery();
 }
 
+function renderAnalysis() {
+  if (typeof applyAnalysisFilters === 'function') {
+    applyAnalysisFilters();
+  }
+}
+
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
   
@@ -573,7 +579,7 @@ function renderHistoryList() {
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
 
     return `
-      <div class="list-card" onclick="openTradeDetail(${index}, false)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
+      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
         <div style="flex:1;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
