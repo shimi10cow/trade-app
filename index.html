@@ -182,27 +182,38 @@
         <!-- Basic Info -->
         <div class="section">
           <div class="section-title">基本情報</div>
-          <div class="form-row">
-            <span class="form-label">ペア</span>
-            <select class="form-input" id="ne-pair" onchange="autoLoadPairInfo()"></select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">方向</span>
-            <div class="btn-group" id="ne-dir">
-              <button class="toggle-btn dir-up" onclick="toggleBtn(this, '.dir-up, .dir-down')">▲ Buy</button>
-              <button class="toggle-btn dir-down" onclick="toggleBtn(this, '.dir-up, .dir-down')">▼ Sell</button>
+          <!-- ROW 1 -->
+          <div class="grid-2col" style="margin-bottom:8px;">
+            <div class="grid-item">
+              <span class="grid-label">日付</span>
+              <input type="date" class="form-input" id="ne-date">
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">時間帯</span>
+              <input type="time" class="form-input" id="ne-time">
             </div>
           </div>
-          <div class="form-row">
-            <span class="form-label">日付</span>
-            <input type="date" class="form-input" id="ne-date">
+          
+          <!-- ROW 2 -->
+          <div class="grid-2col" style="margin-bottom:8px;">
+            <div class="grid-item">
+              <span class="grid-label">ペア</span>
+              <select class="form-input" id="ne-pair" onchange="autoLoadPairInfo('ne')">
+                <option value="">読込中...</option>
+              </select>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">方向</span>
+              <div class="btn-group" id="ne-dir">
+                <button class="toggle-btn buy" onclick="toggleBtn(this); autoLoadPairInfo('ne');">▲ Buy</button>
+                <button class="toggle-btn sell" onclick="toggleBtn(this); autoLoadPairInfo('ne');">▼ Sell</button>
+              </div>
+            </div>
           </div>
+          
+          <!-- ROW 3 -->
           <div class="form-row">
-            <span class="form-label">時間帯</span>
-            <input type="time" class="form-input" id="ne-time">
-          </div>
-          <div class="form-row">
-            <span class="form-label">DowRule</span>
+            <span class="form-label">Dow Rule</span>
             <select class="form-input" id="ne-dow-rule">
               <option value="1">1: D1〇H4〇　H4出入口</option>
               <option value="2">2: D1〇H4〇　H4砦</option>
@@ -377,6 +388,56 @@
       <div class="modal-body">
         <input type="hidden" id="pe-pair-name">
         <div class="section">
+          <!-- Trend Direction -->
+          <div class="section-title">トレンド方向</div>
+          <div class="grid-2col" style="margin-bottom:8px;">
+            <div class="grid-item">
+              <span class="grid-label">M1</span>
+              <div class="btn-group tf-group" id="pe-tf-m1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">W1</span>
+              <div class="btn-group tf-group" id="pe-tf-w1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">D1</span>
+              <div class="btn-group tf-group" id="pe-tf-d1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H4</span>
+              <div class="btn-group tf-group" id="pe-tf-h4"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H1</span>
+              <div class="btn-group tf-group" id="pe-tf-h1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+          </div>
+
+          <!-- MA Conditions -->
+          <div class="section-title">MA 条件</div>
+          <div class="grid-2col" style="margin-bottom:8px;">
+            <div class="grid-item">
+              <span class="grid-label">H4MA乖離</span>
+              <div class="btn-group" id="pe-ma-kairi">
+                <button class="toggle-btn cond-ng" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')">上アリ</button>
+                <button class="toggle-btn cond-ok" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')">下アリ</button>
+              </div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H4MA480.1200</span>
+              <div class="btn-group tf-group" id="pe-ma-480"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H1MA20.80</span>
+              <div class="btn-group tf-group" id="pe-ma-h1-20"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+            <div class="grid-item">
+              <span class="grid-label">H4MA20.80</span>
+              <div class="btn-group tf-group" id="pe-ma-h4-20"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
+            </div>
+          </div>
+
+          <div class="section-title">フラグ＆メモ</div>
           <div class="form-row">
             <span class="form-label">フラグ</span>
             <select class="form-input" id="pe-flag">
@@ -385,24 +446,6 @@
               <option value="注目">注目</option>
               <option value="様子見">様子見</option>
               <option value="その他">その他</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">H4</span>
-            <select class="form-input" id="pe-h4">
-              <option value="↑">↑</option>
-              <option value="→">→</option>
-              <option value="↓">↓</option>
-              <option value="">-</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">H1</span>
-            <select class="form-input" id="pe-h1">
-              <option value="↑">↑</option>
-              <option value="→">→</option>
-              <option value="↓">↓</option>
-              <option value="">-</option>
             </select>
           </div>
           <div class="form-row">
@@ -507,12 +550,15 @@
               <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
               <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
             </div>
-            <div style="margin-top:8px;">
-              <div class="form-row" style="margin-bottom:4px;">
-                <span class="form-label" style="font-size:10px;">ルール準拠Pips</span>
-                <input type="number" class="form-input" id="td-rule-pips" step="0.1" style="text-align:center; padding:6px 4px;" oninput="calculateRuleMetrics()">
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 8px;">
+              <div class="grid-item">
+                <span class="grid-label">ルール準拠Pips</span>
+                <input type="number" class="form-input" id="td-rule-pips" step="0.1" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()">
               </div>
-              <div style="text-align:right; font-size:11px; color:#94a3b8;"><span id="td-rule-profit">ルール準拠損益: --</span></div>
+              <div class="grid-item">
+                <span class="grid-label">ルール準拠損益</span>
+                <div class="form-input" id="td-rule-profit" style="text-align:center; padding:10px 4px; background:#0f172a; color:#94a3b8; font-size:12px;">--</div>
+              </div>
             </div>
             
             <div style="margin-top:16px;">
@@ -549,7 +595,7 @@
                 <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
               </div>
               <div id="td-exit-image-container" style="display:none; margin-top:8px;">
-                <img id="td-exit-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" crossorigin="anonymous">
+                <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;">
               </div>
             </div>
           </div>

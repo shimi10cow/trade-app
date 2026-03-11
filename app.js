@@ -440,12 +440,12 @@ function renderPairs() {
     groups[f].forEach(p => {
       const pairName = p['PairName（元）'] || p['PairName'] || '';
       
-      // Extract arrow from D1, H4, or H1
-      const dirs = [p['D1'], p['H4'], p['H1']].join('');
+      // Extract arrow from matching W1, D1, H4
+      const w1 = p['W1'], d1 = p['D1'], h4 = p['H4'];
       let arrowHtml = '';
-      if(dirs.includes('↑') || dirs.includes('↗') || dirs.includes('Buy')) {
-         arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↗</span>`;
-      } else if(dirs.includes('↓') || dirs.includes('↘') || dirs.includes('Sell')) {
+      if(w1 === '↑' && d1 === '↑' && h4 === '↑') {
+         arrowHtml = `<span style="background:#ef4444; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↗</span>`;
+      } else if(w1 === '↓' && d1 === '↓' && h4 === '↓') {
          arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↘</span>`;
       }
 
@@ -761,10 +761,27 @@ function openPairEdit(pairName) {
   document.getElementById('pe-pair-name').value = pairName;
   document.getElementById('pe-title').textContent = pairName;
   document.getElementById('pe-flag').value = p['フラグ'] || '様子見';
-  document.getElementById('pe-h4').value = p['H4'] || '';
-  document.getElementById('pe-h1').value = p['H1'] || '';
   document.getElementById('pe-memo').value = p['環境認識メモ'] || p['メモ'] || '';
   
+  const setBtn = (groupId, val) => {
+    const btns = document.querySelectorAll(`#${groupId} .toggle-btn`);
+    btns.forEach(b => {
+      b.classList.remove('active');
+      if (val && b.textContent.trim() === val) b.classList.add('active');
+    });
+  };
+
+  setBtn('pe-tf-m1', p['M1']);
+  setBtn('pe-tf-w1', p['W1']);
+  setBtn('pe-tf-d1', p['D1']);
+  setBtn('pe-tf-h4', p['H4']);
+  setBtn('pe-tf-h1', p['H1']);
+
+  setBtn('pe-ma-kairi', p['H4MA乖離']);
+  setBtn('pe-ma-480', p['H4MA480.1200']);
+  setBtn('pe-ma-h1-20', p['H1MA20.80']);
+  setBtn('pe-ma-h4-20', p['H4MA20.80']);
+
   document.getElementById('modal-pair-edit').classList.add('active');
 }
 
@@ -782,10 +799,25 @@ async function savePairEdit() {
     // await gasPost('updatePair', payload);
     
     // Optimistic Update
+    const getBtnVal = (groupId) => {
+      const btn = document.querySelector(`#${groupId} .toggle-btn.active`);
+      return btn ? btn.textContent.trim() : '';
+    };
+
     p['フラグ'] = document.getElementById('pe-flag').value;
-    p['H4'] = document.getElementById('pe-h4').value;
-    p['H1'] = document.getElementById('pe-h1').value;
+    p['環境認識メモ'] = document.getElementById('pe-memo').value;
     p['メモ'] = document.getElementById('pe-memo').value;
+
+    p['M1'] = getBtnVal('pe-tf-m1');
+    p['W1'] = getBtnVal('pe-tf-w1');
+    p['D1'] = getBtnVal('pe-tf-d1');
+    p['H4'] = getBtnVal('pe-tf-h4');
+    p['H1'] = getBtnVal('pe-tf-h1');
+
+    p['H4MA乖離'] = getBtnVal('pe-ma-kairi');
+    p['H4MA480.1200'] = getBtnVal('pe-ma-480');
+    p['H1MA20.80'] = getBtnVal('pe-ma-h1-20');
+    p['H4MA20.80'] = getBtnVal('pe-ma-h4-20');
     
     closePairEdit();
     renderPairs();
