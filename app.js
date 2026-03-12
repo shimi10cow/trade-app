@@ -10,7 +10,8 @@ const App = {
     isOffline: !navigator.onLine,
     isMissedEntry: false,
     detailFromHistory: false,
-    activeTradeIndex: null
+    activeTradeIndex: null,
+    modalOpenedAt: 0
   }
 };
 
@@ -78,6 +79,7 @@ function formatTimeDisplay(timeStr) {
 }
 
 function openHistoryModal() {
+  App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-history').classList.add('active');
   document.getElementById('hist-period').value = 'this_month';
   toggleCustomHistDate();
@@ -164,9 +166,12 @@ function setupEventListeners() {
 
 function setupModalInteractions() {
   // Close modals when clicking the overlay (outside the content)
+  // Guard against ghost clicks on mobile (touch -> click delay ~300ms)
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
+        // Ignore clicks that arrive within 500ms of opening any modal
+        if (Date.now() - (App.state.modalOpenedAt || 0) < 500) return;
         overlay.classList.remove('active');
       }
     });
@@ -305,6 +310,7 @@ function openEntryModal(isMissed = false) {
   
   calculateEntryScore();
   
+  App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-entry').classList.add('active');
 }
 
@@ -573,14 +579,17 @@ function renderHistoryList() {
     const isMissed = t['ステータス'] === '決済（見逃し）';
     const index = App.data.entries.indexOf(t);
     const pips = parseFloat(t['実取得pips']) || 0;
-    const isWin = pips >= 0;
-    const pipsColor = isWin ? '#10b981' : '#ef4444';
-    const pipsSign = isWin ? '+' : '';
+    // 勝敗: AppSheet基準 勝ち>10 / 負け<-5 / 建値
+    const isWin = pips > 10;
+    const isLoss = pips < -5;
+    const pipsColor = isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b');
+    const pipsSign = pips > 0 ? '+' : '';
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
+    const borderColor = isMissed ? '#f59e0b' : (isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b'));
 
     return `
-      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false, true)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
+      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false, true)" style="cursor:pointer; border-left: 4px solid ${borderColor}">
         <div style="flex:1;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
@@ -620,7 +629,7 @@ function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const galleryTrades = App.data.entries.filter(t => {
     const score = parseInt(t['エントリースコア']) || 0;
-    const isWin = parseFloat(t['実取得pips']) > 0;
+    const isWin = parseFloat(t['実取得pips']) > 10;
     return score >= 4 || isWin;
   });
 
@@ -635,8 +644,9 @@ function renderGallery() {
     const rawUrl = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
-    const isWin = pips > 0;
-    const color = isWin ? '#10b981' : '#ef4444';
+    const isWin = pips > 10;
+    const isEven = pips >= -5 && pips <= 10;
+    const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
 
     html += `
       <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
@@ -748,48 +758,96 @@ function applyAnalysisFilters() {
   let totalProfit = 0, winProfit = 0, lossProfit = 0;
   let totalLot = 0;
   let avgRRSum = 0, validRRCount = 0;
+  // Rule metrics (Excelのデータ分析シートと同じロジック)
+  let rulePipsTotal = 0, ruleProfitTotal = 0;
+  // ルール外損失: 実取得pips<0 かつ エントリー振り返り≠"完璧！" のトレードのpips/損益合計
+  // (Excelでは負値として格納、I8列=負値 → 理論式で -I8 で加算)
+  let ruleViolationPips = 0, ruleViolationProfit = 0;
+  // ルール遵守率: "完璧！" のトレード数 / 総トレード数 (Excel: C38/C39)
+  let perfectCount = 0;
 
   filtered.forEach(t => {
     totalTrades++;
     const pips = parseFloat(t['実取得pips']) || 0;
     const profit = parseFloat(t['損益']) || 0;
     const lot = parseFloat(t['Lot']) || 0;
-    
+    const entryRef = t['エントリー振り返り'] || '';
+
     totalPips += pips;
     totalProfit += profit;
     totalLot += lot;
-    
-    if (pips > 0) {
+
+    // 勝敗判定: AppSheet formula準拠
+    // 勝ち: pips > 10 / 負け: pips < -5 / 建値(引き分け): -5 <= pips <= 10
+    if (pips > 10) {
       wins++;
       winPips += pips;
       winProfit += profit;
-    } else if (pips < 0) {
+    } else if (pips < -5) {
       losses++;
       lossPips += pips;
       lossProfit += profit;
     } else {
       evens++;
     }
-    
-    // RR
+
+    // RR: 実取得pips / StopLossPips
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-    if(sl > 0) {
+    if (sl > 0) {
       avgRRSum += (pips / sl);
       validRRCount++;
     }
+
+    // ルール外損失: 実取得pipsが負 かつ エントリー振り返りが"完璧！"でない
+    // Excel Q列: SUM(FILTER(Entries!AQ, AQ<0, AV=category))
+    if (pips < 0 && entryRef !== '完璧！') {
+      ruleViolationPips += pips;   // 負値として蓄積
+      ruleViolationProfit += profit; // 負値として蓄積
+    }
+
+    // ルール準拠総pips: Entries!AS列(ルール準拠pips)の合計
+    // ルール準拠総損益: Entries!AT列(ルール準拠損益)の合計
+    const rawRulePips = t['ルール準拠pips'] ?? t['ルール準拠Pips'];
+    const rawRuleProfit = t['ルール準拠損益'];
+    if (rawRulePips !== undefined && rawRulePips !== '' && rawRulePips !== null) {
+      const rp = parseFloat(rawRulePips);
+      if (!isNaN(rp)) rulePipsTotal += rp;
+    }
+    if (rawRuleProfit !== undefined && rawRuleProfit !== '' && rawRuleProfit !== null) {
+      const rpProfit = parseFloat(rawRuleProfit);
+      if (!isNaN(rpProfit)) {
+        ruleProfitTotal += rpProfit;
+      }
+    } else if (rawRulePips !== undefined && rawRulePips !== '' && pips !== 0) {
+      // AT列がない場合: AppSheet formula = 損益×(ルール準拠pips/実取得pips)
+      const rp = parseFloat(rawRulePips);
+      if (!isNaN(rp)) ruleProfitTotal += Math.round(profit * (rp / pips));
+    }
+
+    // ルール遵守率: エントリー振り返り = "完璧！" の件数
+    if (entryRef === '完璧！') perfectCount++;
   });
 
   const winRate = totalTrades ? (wins / totalTrades * 100).toFixed(1) : 0;
-  
+
   const avgWinPips = wins ? (winPips / wins).toFixed(1) : 0;
   const avgLossPips = losses ? (lossPips / losses).toFixed(1) : 0;
   const avgWinProfit = wins ? (winProfit / wins).toFixed(0) : 0;
   const avgLossProfit = losses ? (lossProfit / losses).toFixed(0) : 0;
-  
+
   const avgTradePips = totalTrades ? (totalPips / totalTrades).toFixed(1) : 0;
   const avgTradeProfit = totalTrades ? (totalProfit / totalTrades).toFixed(0) : 0;
-  
-  const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : 0;
+  const avgLot = totalTrades ? (totalLot / totalTrades).toFixed(2) : '0.00';
+
+  const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : '--';
+  // ルール遵守率 = 完璧！件数 / 総件数 (Excel: C38/C39)
+  const ruleComplianceRate = totalTrades > 0 ? (perfectCount / totalTrades * 100).toFixed(1) : '--';
+
+  // 理論pips / 理論損益: Excel formula K7 = E9 - I8 + E8 + I10
+  // I8(ルール外損失pips) は負値で格納 → -I8 = +|ruleViolationPips|
+  // = lossPips - ruleViolationPips(負) + winPips + rulePipsTotal
+  const theoryPips = winPips + lossPips - ruleViolationPips + rulePipsTotal;
+  const theoryProfit = winProfit + lossProfit - ruleViolationProfit + ruleProfitTotal;
 
   // Top banner is calculated independently by updateMonthlyStats()
   const fmtCurrency = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(val);
@@ -797,35 +855,122 @@ function applyAnalysisFilters() {
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
+    <div class="metrics-section-header">📊 基本統計</div>
     <div class="metric-card">
-      <div class="metric-label">総トレード</div>
+      <div class="metric-label">エントリー数</div>
       <div class="metric-value">${totalTrades}<span class="metric-unit">回</span></div>
-      <div class="metric-sub">勝率 ${winRate}%</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">損益</div>
-      <div class="metric-value ${classForNum(totalProfit)}" style="font-size:16px;">${fmtCurrency(totalProfit)}</div>
-      <div class="metric-sub">平均 ${fmtCurrency(avgTradeProfit)}/回</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">取得値幅</div>
-      <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-      <div class="metric-sub">平均 ${avgTradePips} pips/回</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">実RR (平均)</div>
-      <div class="metric-value ${classForNum(parseFloat(avgRR))}">${avgRR}</div>
-      <div class="metric-sub">対象 ${validRRCount} 件</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">勝ちトレード</div>
+      <div class="metric-label">勝ち数</div>
       <div class="metric-value pos">${wins}<span class="metric-unit">回</span></div>
-      <div class="metric-sub">+${avgWinPips} pips / ${fmtCurrency(avgWinProfit)}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">負けトレード</div>
+      <div class="metric-label">負け数</div>
       <div class="metric-value neg">${losses}<span class="metric-unit">回</span></div>
-      <div class="metric-sub">${avgLossPips} pips / ${fmtCurrency(avgLossProfit)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">建値数</div>
+      <div class="metric-value">${evens}<span class="metric-unit">回</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝率</div>
+      <div class="metric-value ${classForNum(parseFloat(winRate) - 50)}">${winRate}<span class="metric-unit">%</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">平均実RR</div>
+      <div class="metric-value ${classForNum(parseFloat(avgRR))}">${avgRR}</div>
+      <div class="metric-sub">${validRRCount}件で計算</div>
+    </div>
+
+    <div class="metrics-section-header">📈 pips統計</div>
+    <div class="metric-card">
+      <div class="metric-label">総取得pips</div>
+      <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">1トレード平均pips</div>
+      <div class="metric-value ${classForNum(parseFloat(avgTradePips))}">${avgTradePips}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ちpips</div>
+      <div class="metric-value pos">${winPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ち平均pips</div>
+      <div class="metric-value pos">+${avgWinPips}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負けpips</div>
+      <div class="metric-value neg">${lossPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負け平均pips</div>
+      <div class="metric-value neg">${avgLossPips}<span class="metric-unit">pips</span></div>
+    </div>
+
+    <div class="metrics-section-header">💴 収支統計</div>
+    <div class="metric-card">
+      <div class="metric-label">総収支</div>
+      <div class="metric-value ${classForNum(totalProfit)}" style="font-size:16px;">${fmtCurrency(totalProfit)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">1トレード平均損益</div>
+      <div class="metric-value ${classForNum(parseFloat(avgTradeProfit))}" style="font-size:15px;">${fmtCurrency(parseInt(avgTradeProfit))}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ち損益</div>
+      <div class="metric-value pos" style="font-size:15px;">${fmtCurrency(winProfit)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ち平均損益</div>
+      <div class="metric-value pos" style="font-size:15px;">${fmtCurrency(parseInt(avgWinProfit))}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負け損益</div>
+      <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(lossProfit)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負け平均損益</div>
+      <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(parseInt(avgLossProfit))}</div>
+    </div>
+
+    <div class="metrics-section-header">📋 ルール遵守</div>
+    <div class="metric-card">
+      <div class="metric-label">平均Lot</div>
+      <div class="metric-value">${avgLot}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール遵守率</div>
+      <div class="metric-value ${ruleComplianceRate !== '--' ? classForNum(parseFloat(ruleComplianceRate) - 70) : ''}">${ruleComplianceRate}${ruleComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
+      <div class="metric-sub">${ruleDataCount}件で計算</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール外損失pips</div>
+      <div class="metric-value neg">${ruleViolationPips < 0 ? ruleViolationPips.toFixed(1) : '0.0'}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール外損失額</div>
+      <div class="metric-value neg" style="font-size:15px;">${ruleViolationProfit < 0 ? fmtCurrency(ruleViolationProfit) : fmtCurrency(0)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール準拠総pips</div>
+      <div class="metric-value ${classForNum(rulePipsTotal)}">${rulePipsTotal.toFixed(1)}<span class="metric-unit">pips</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール準拠総損益</div>
+      <div class="metric-value ${classForNum(ruleProfitTotal)}" style="font-size:15px;">${fmtCurrency(ruleProfitTotal)}</div>
+    </div>
+
+    <div class="metrics-section-header">🔮 理論値（ルール完全遵守の場合）</div>
+    <div class="metric-card">
+      <div class="metric-label">理論pips</div>
+      <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+      <div class="metric-sub">${ruleDataCount}件のデータ使用</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">理論損益</div>
+      <div class="metric-value ${classForNum(theoryProfit)}" style="font-size:15px;">${fmtCurrency(Math.round(theoryProfit))}</div>
+      <div class="metric-sub">実際比 ${classForNum(theoryProfit - totalProfit) === 'pos' ? '+' : ''}${fmtCurrency(Math.round(theoryProfit - totalProfit))}</div>
     </div>
   `;
   
@@ -979,26 +1124,34 @@ function renderGrowthChart(allTrades) {
     const x = (i * (100 / labels.length)) + (50 / labels.length);
     
     let dispVal = val;
-    if(activeChartType === 'profit') dispVal = Math.round(val / 1000) + 'k';
-    else if(activeChartType === 'rr') dispVal = val.toFixed(1);
-    else dispVal = val.toFixed(0);
+    if (activeChartType === 'profit') {
+      // Show as integers with comma (e.g. 12,500 or -3,200), no k abbreviation
+      dispVal = Math.round(val).toLocaleString('ja-JP');
+    } else if (activeChartType === 'rr') {
+      dispVal = val.toFixed(2);
+    } else {
+      dispVal = Math.round(val).toLocaleString('ja-JP');
+    }
 
     barsHTML += `
-      <g style="opacity:1; animation: fadeIn 0.5s ease forwards; animation-delay: ${i*0.05}s;">
-        <rect x="${x - (barWidth*0.4)}%" y="${y}%" width="${barWidth*0.8}%" height="${heightPct}%" fill="${color}" rx="2" />
-        <text x="${x}%" y="${isPos ? y - 2 : y + heightPct + 5}%" fill="${color}" font-size="6" text-anchor="middle" font-weight="bold">${dispVal}</text>
-        <text x="${x}%" y="98%" fill="#94a3b8" font-size="6" text-anchor="middle">${lbl}</text>
+      <g style="opacity:1;">
+        <rect x="${x - (barWidth*0.38)}%" y="${y}%" width="${barWidth*0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
+        <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 3) : y + heightPct + 4}%" fill="${color}" font-size="5" text-anchor="middle" font-weight="bold">${dispVal}</text>
+        <text x="${x}%" y="97%" fill="#94a3b8" font-size="5.5" text-anchor="middle">${lbl}</text>
       </g>
     `;
   });
 
+  // Y-axis unit label
+  const unitLabel = activeChartType === 'profit' ? '円' : activeChartType === 'rr' ? 'RR' : 'pips';
+
   const svg = `
-    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="overflow:visible;">
-      <style>
-        @keyframes fadeIn { to { opacity: 1; } }
-      </style>
+    <svg width="100%" height="100%" viewBox="0 0 100 110" preserveAspectRatio="none" style="overflow:visible;">
+      <style>@keyframes fadeIn { to { opacity: 1; } }</style>
+      <!-- Unit label top-left -->
+      <text x="1" y="5" fill="#64748b" font-size="4.5" text-anchor="start">(${unitLabel})</text>
       <!-- Zero Line -->
-      <line x1="0" y1="${zeroY}%" x2="100%" y2="${zeroY}%" stroke="#334155" stroke-width="1" stroke-dasharray="2,2" />
+      <line x1="0" y1="${zeroY}%" x2="100%" y2="${zeroY}%" stroke="#475569" stroke-width="0.8" stroke-dasharray="2,1.5" />
       ${barsHTML}
     </svg>
   `;
@@ -1036,6 +1189,7 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
 
+  App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-pair-edit').classList.add('active');
 }
 
@@ -1137,8 +1291,8 @@ function analyzeMentalMode() {
   
   for(let i=0; i<history.length; i++) {
     const pips = parseFloat(history[i]['実取得pips']) || 0;
-    const isWin = pips >= 0; 
-    const isLoss = pips < 0;
+    const isWin = pips > 10;
+    const isLoss = pips < -5;
     
     if (i === 0) {
       if(isWin) isWinStreak = true;
@@ -1357,7 +1511,7 @@ function calculateSimilarTrades(prefix) {
   // Render Top 5
   outList.innerHTML = similars.slice(0, 5).map(s => {
     const t = s.trade;
-    const isWin = s.pips > 0;
+    const isWin = s.pips > 10;
     const index = App.data.entries.indexOf(t);
     const tz = t['時間帯'] ? `<span style="color:#64748b; font-size:10px;"> · ${t['時間帯']}</span>` : '';
     return `
@@ -1508,6 +1662,7 @@ function openChecklistModal() {
     alert("ペアを選択してください");
     return;
   }
+  App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-checklist').classList.add('active');
   const btn = document.getElementById('btn-final-execute');
   btn.classList.add('disabled');
@@ -1815,7 +1970,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   // existing values
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
-  document.getElementById('td-rule-pips').value = t['ルール準拠Pips'] || '';
+  document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
   
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -1855,6 +2010,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     document.getElementById('td-title').textContent += ' 【参照】';
   }
 
+  App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-trade-detail').classList.add('active');
 }
 
@@ -1888,7 +2044,8 @@ async function saveTradeDetail() {
     t['エントリー振り返り'] = document.getElementById('td-entry-ref').value;
     t['決済振り返り'] = document.getElementById('td-exit-ref').value;
     t['決済メモ'] = document.getElementById('td-exit-memo').value;
-    t['ルール準拠Pips'] = document.getElementById('td-rule-pips').value;
+    t['ルール準拠pips'] = document.getElementById('td-rule-pips').value;
+    t['ルール準拠Pips'] = t['ルール準拠pips']; // 後方互換
     
     // We would also optimistically update the other fields if we want,
     // e.g. M1, W1, MA conditions, etc.

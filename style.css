@@ -143,7 +143,7 @@ textarea.form-input { resize: vertical; }
 .filter-btn { grid-column: span 2; padding: 10px; border-radius: 8px; background: #38bdf8; color: #0f172a; font-weight: 700; border: none; cursor: pointer; }
 
 /* Charts */
-.chart-container { background: #1e293b; border-radius: 12px; padding: 12px; height: 250px; margin-bottom: 16px; }
+.chart-container { background: #1e293b; border-radius: 12px; padding: 12px; height: 280px; margin-bottom: 16px; }
 
 /* Loader */
 .loader-overlay {
@@ -210,10 +210,13 @@ textarea.form-input { resize: vertical; }
   border-color: #a78bfa; border-width: 2px;
   box-shadow: 0 0 10px rgba(167,139,250,0.3);
 }
+/* BUY/SELL direction btn-group fills remaining row width */
+#ne-dir, #td-dir { flex: 1; }
+
 /* Buy = rose red, Sell = electric blue */
 .toggle-btn.dir-buy {
   color: #f43f5e; border-color: rgba(244,63,94,0.5);
-  font-size: 14px; font-weight: 700; padding: 8px 4px;
+  font-size: 14px; font-weight: 700; padding: 6px 4px;
 }
 .toggle-btn.dir-buy.active {
   background: rgba(244,63,94,0.1); color: #f43f5e;
@@ -222,7 +225,7 @@ textarea.form-input { resize: vertical; }
 }
 .toggle-btn.dir-sell {
   color: #38bdf8; border-color: rgba(56,189,248,0.5);
-  font-size: 14px; font-weight: 700; padding: 8px 4px;
+  font-size: 14px; font-weight: 700; padding: 6px 4px;
 }
 .toggle-btn.dir-sell.active {
   background: rgba(56,189,248,0.1); color: #38bdf8;
@@ -234,14 +237,22 @@ textarea.form-input { resize: vertical; }
 .badge.sell { background: rgba(56,189,248,0.15); color: #38bdf8; }
 
 /* ======== Analysis Metrics Cards ======== */
-.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metrics-section-header {
+  grid-column: 1 / -1;
+  font-size: 11px; font-weight: 700; color: #38bdf8;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 6px 2px 4px; margin-top: 4px;
+  border-bottom: 1px solid #1e293b;
+}
+.metrics-section-header:first-child { margin-top: 0; }
 .metric-card {
   background: #0f172a; border: 1px solid #334155;
-  border-radius: 10px; padding: 12px 14px;
+  border-radius: 10px; padding: 11px 12px;
 }
-.metric-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
-.metric-value { font-size: 20px; font-weight: 800; color: #f8fafc; line-height: 1; }
+.metric-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 5px; }
+.metric-value { font-size: 19px; font-weight: 800; color: #f8fafc; line-height: 1; }
 .metric-value.pos { color: #4ade80; }
 .metric-value.neg { color: #f87171; }
 .metric-unit { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 2px; }
-.metric-sub { font-size: 11px; color: #64748b; margin-top: 5px; }
+.metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }

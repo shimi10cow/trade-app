@@ -162,7 +162,7 @@
         <button class="toggle-btn" onclick="toggleChartType('pips')">pips</button>
         <button class="toggle-btn" onclick="toggleChartType('rr')">実RR合計</button>
       </div>
-      <div class="chart-container" id="chart-growth" style="display:flex;align-items:flex-end;justify-content:center;color:#64748b; padding-top: 20px;">
+      <div class="chart-container" id="chart-growth" style="display:flex;align-items:flex-end;justify-content:center;color:#64748b; padding-top: 10px; height: 200px;">
         <!-- Chart will be injected here -->
       </div>
 
@@ -216,7 +216,7 @@
           <!-- ROW 2 -->
           <div class="form-row">
             <span class="form-label">Dow Rule</span>
-            <select class="form-input" id="ne-dow-rule">
+            <select class="form-input" id="ne-dow-rule" onchange="calculateSimilarTrades('ne')">
               <option value="1">1: D1〇H4〇　H4出入口</option>
               <option value="2">2: D1〇H4〇　H4砦</option>
               <option value="3">3: D1〇H4〇　H4砦形成M15</option>
@@ -447,7 +447,6 @@
               <option value="狙い目">狙い目</option>
               <option value="注目">注目</option>
               <option value="様子見">様子見</option>
-              <option value="その他">その他</option>
             </select>
           </div>
           <div class="form-row">
