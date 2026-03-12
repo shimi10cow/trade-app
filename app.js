@@ -942,7 +942,7 @@ function applyAnalysisFilters() {
     <div class="metric-card">
       <div class="metric-label">ルール遵守率</div>
       <div class="metric-value ${ruleComplianceRate !== '--' ? classForNum(parseFloat(ruleComplianceRate) - 70) : ''}">${ruleComplianceRate}${ruleComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
-      <div class="metric-sub">${ruleDataCount}件で計算</div>
+      <div class="metric-sub">${totalTrades}件で計算</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">ルール外損失pips</div>
@@ -965,7 +965,7 @@ function applyAnalysisFilters() {
     <div class="metric-card">
       <div class="metric-label">理論pips</div>
       <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-      <div class="metric-sub">${ruleDataCount}件のデータ使用</div>
+      <div class="metric-sub">${totalTrades}件のデータ使用</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">理論損益</div>
