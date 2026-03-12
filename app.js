@@ -81,7 +81,7 @@ function formatTimeDisplay(timeStr) {
 function openHistoryModal() {
   App.state.modalOpenedAt = Date.now();
   document.getElementById('modal-history').classList.add('active');
-  document.getElementById('hist-period').value = 'this_month';
+  document.getElementById('hist-period').value = 'all';
   toggleCustomHistDate();
   renderHistoryList();
 }
@@ -109,7 +109,8 @@ function renderHistoryList() {
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   
   filtered = filtered.filter(t => {
-    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : '';
+    // GASは yyyy/MM/dd 形式で返すのでスラッシュをダッシュに統一
+    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (period === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (period === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
     if (period === 'custom') {
@@ -402,15 +403,21 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
 async function loadData() {
   showLoader();
   try {
-    const res = await Promise.all([
-      fetch(`${GAS_URL}?action=getPairs`).then(r => r.json()),
-      fetch(`${GAS_URL}?action=getEntries`).then(r => r.json())
+    const [pairsRes, entriesRes] = await Promise.all([
+      fetch(`${GAS_URL}?action=getPairs`).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+      fetch(`${GAS_URL}?action=getEntries`).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
     ]);
-    App.data.pairs = res[0].data || [];
-    App.data.entries = res[1].data || [];
-    
+    App.data.pairs = pairsRes.data || [];
+    App.data.entries = entriesRes.data || [];
+
     populateFilterPairs();
-    
+
     // Initial renders
     renderPositions();
     renderPairs();
@@ -418,7 +425,7 @@ async function loadData() {
     renderGallery();
   } catch (err) {
     console.error('Failed to load data:', err);
-    alert('データの読み込みに失敗しました。オフラインモードで起動します。');
+    alert('データの読み込みに失敗しました: ' + err.message + '\n\nGASのURLを確認するか、再度デプロイしてください。');
   } finally {
     hideLoader();
   }
@@ -725,7 +732,7 @@ function updateMonthlyStats() {
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const monthTrades = App.data.entries.filter(t => {
     if (t['ステータス'] !== '決済') return false; // real trades only, not 見逃し
-    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0] : '';
+    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     return dateStr.startsWith(currentMonthStr);
   });
   let totalProfit = 0, totalPips = 0, totalRR = 0;
@@ -788,8 +795,8 @@ function applyAnalysisFilters() {
     if (fScore === 'high' && score < 4) return false;
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     
-    // Period
-    const dateStr = t.EntryDate ? t.EntryDate.split('T')[0] : ''; // assuming YYYY/MM/DD
+    // Period (GASはyyyy/MM/ddで返すのでスラッシュをダッシュに変換)
+    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
     if (fPeriod === 'custom') {
@@ -1112,7 +1119,7 @@ function renderGrowthChart(allTrades) {
   // Aggregate by Month
   const monthly = {}; // { 'YYYY-MM': { profit: 0, pips: 0, rrSum: 0, rrCount: 0 } }
   history.forEach(t => {
-     const d = t.EntryDate ? String(t.EntryDate).split('T')[0] : '';
+     const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
      if (!d) return;
      const monthKey = d.substring(0, 7); // YYYY-MM
      if (!monthly[monthKey]) monthly[monthKey] = { profit: 0, pips: 0, rrSum: 0, rrCount: 0 };
@@ -1750,14 +1757,78 @@ function executeEntrySubmit() {
 async function submitEntryData() {
   showLoader();
   try {
-    // In real app we collect all `ne-*` inputs and POST to GAS
-    // For now we simulate success
-    await new Promise(r => setTimeout(r, 1000));
+    const modal = document.getElementById('modal-entry');
+
+    // アクティブなトグルボタンのテキストを取得
+    const getActiveBtn = (selector) => {
+      const el = modal.querySelector(selector + ' button.active');
+      return el ? el.textContent.trim() : '';
+    };
+
+    // 方向ボタン (▲ Buy / ▼ Sell → "Buy" / "Sell")
+    const dirRaw = getActiveBtn('#ne-dir');
+    const direction = dirRaw.replace('▲ ', '').replace('▼ ', '');
+
+    const entryData = {
+      'EntryDate':      document.getElementById('ne-date').value,
+      '時間帯':          document.getElementById('ne-time').value,
+      'PairName':       document.getElementById('ne-pair').value,
+      'Direction':      direction,
+      'DowRule':        document.getElementById('ne-dow-rule').value,
+      'TakeProfitPips': document.getElementById('ne-tp').value,
+      'StopLossPips':   document.getElementById('ne-sl').value,
+      'Lot':            document.getElementById('ne-lot').value,
+      'エントリーメモ':  document.getElementById('ne-memo').value,
+    };
+
+    // グリッドボタン（トレンド方向/MA条件/エントリー根拠）
+    // grid-item ごとに label → active button テキストをマップ
+    modal.querySelectorAll('.grid-item').forEach(item => {
+      const label = item.querySelector('.grid-label')?.textContent.trim();
+      const activeBtn = item.querySelector('button.active');
+      if (label && activeBtn) {
+        entryData[label] = activeBtn.textContent.trim();
+      }
+    });
+
+    // エントリースコア
+    const scoreText = document.getElementById('checker-score-val')?.textContent || '';
+    const scoreMatch = scoreText.match(/(\d+)/);
+    if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
+
+    // 画像アップロード（base64 data URL の場合のみ）
+    const imgPreview = document.getElementById('ne-image-preview');
+    if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
+      try {
+        const uploadRes = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'uploadImage',
+            base64Data: imgPreview.src,
+            filename: 'entry_' + Date.now() + '.jpg'
+          })
+        }).then(r => r.json());
+        if (uploadRes.success && uploadRes.fileId) {
+          entryData['ChartImage'] = 'https://drive.google.com/thumbnail?id=' + uploadRes.fileId + '&sz=w800';
+        }
+      } catch(e) {
+        console.warn('画像アップロード失敗:', e.message);
+      }
+    }
+
+    // GAS に saveEntry POST
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saveEntry', data: entryData })
+    }).then(r => r.json());
+
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+
     closeEntryModal();
-    renderPositions();
-    showToast('エントリーを記録しました');
+    await loadData(); // データ再読み込みで即反映
+    showToast('エントリーを記録しました ✅');
   } catch(e) {
-    alert(e.message);
+    alert('エラー: ' + e.message);
   } finally {
     hideLoader();
   }
@@ -1773,7 +1844,7 @@ function previewUploadImage(input) {
       const img = document.getElementById('ne-image-preview');
       img.src = e.target.result;
       document.getElementById('image-preview-container').style.display = 'block';
-      document.getElementById('ne-tv-url').value = ''; // Clear URL if uploading manual
+      // (TV URL cleared if any)
     }
     reader.readAsDataURL(input.files[0]);
   }
@@ -2092,43 +2163,94 @@ function onStatusChange() {
 async function saveTradeDetail() {
   showLoader();
   try {
-    const index = document.getElementById('td-index').value;
+    const index = parseInt(document.getElementById('td-index').value);
     const t = App.data.entries[index];
-    
-    // Simulate API call to GAS (We would normally collect all inputs from td-*)
-    const payloadStatus = document.getElementById('td-status').value;
-    const payloadPips = document.getElementById('td-pips').value;
-    const payloadProfit = document.getElementById('td-profit').value;
-    
-    // Optimistic update locally
-    t['ステータス'] = payloadStatus;
-    t['実取得pips'] = payloadPips;
-    t['損益'] = payloadProfit;
-    t['エントリー振り返り'] = document.getElementById('td-entry-ref').value;
-    t['決済振り返り'] = document.getElementById('td-exit-ref').value;
-    t['決済メモ'] = document.getElementById('td-exit-memo').value;
-    t['ルール準拠pips'] = document.getElementById('td-rule-pips').value;
-    t['ルール準拠Pips'] = t['ルール準拠pips']; // 後方互換
-    
-    // We would also optimistically update the other fields if we want,
-    // e.g. M1, W1, MA conditions, etc.
-    // For this mockup, we'll just re-render.
-    
+    if (!t) throw new Error('エントリーが見つかりません');
+
+    const entryId = t['EntryID'];
+    if (!entryId) throw new Error('EntryIDが見つかりません（スプレッドシートにEntryID列が必要です）');
+
+    // アクティブなトグルボタンの値を取得するヘルパー
+    const getActiveBtn = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return '';
+      const btn = el.querySelector('button.active');
+      return btn ? btn.textContent.trim() : '';
+    };
+
+    const updateData = {
+      'ステータス':        document.getElementById('td-status').value,
+      '実取得pips':       document.getElementById('td-pips').value,
+      '損益':             document.getElementById('td-profit').value,
+      'ルール準拠pips':   document.getElementById('td-rule-pips').value,
+      'ルール準拠Pips':   document.getElementById('td-rule-pips').value,
+      'エントリー振り返り': document.getElementById('td-entry-ref').value,
+      '決済振り返り':     document.getElementById('td-exit-ref').value,
+      '決済メモ':         document.getElementById('td-exit-memo').value,
+      'TakeProfitPips':  document.getElementById('td-tp')?.value || '',
+      'StopLossPips':    document.getElementById('td-sl')?.value || '',
+      'Lot':             document.getElementById('td-lot')?.value || '',
+      'DowRule':         document.getElementById('td-dow-rule')?.value || '',
+      'M1': getActiveBtn('td-tf-m1'),
+      'W1': getActiveBtn('td-tf-w1'),
+      'D1': getActiveBtn('td-tf-d1'),
+      'H4': getActiveBtn('td-tf-h4'),
+      'H1': getActiveBtn('td-tf-h1'),
+      'H4MA480.1200_J': getActiveBtn('td-ma-480'),
+      'H4MA乖離_J':     getActiveBtn('td-ma-kairi'),
+      'H1MA20.80_J':    getActiveBtn('td-ma-h1-20'),
+      'H4MA20.80_J':    getActiveBtn('td-ma-h4-20'),
+    };
+
+    // 方向ボタン
+    const dirBtn = document.querySelector('#td-dir button.active');
+    if (dirBtn) updateData['Direction'] = dirBtn.textContent.replace('▲ ', '').replace('▼ ', '').trim();
+
+    // エントリー根拠スコアボタン
+    const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
+    const scoreGroups = document.querySelectorAll('#modal-trade-detail .score-group');
+    scoreLabels.forEach((lbl, idx) => {
+      const btn = scoreGroups[idx]?.querySelector('button.active');
+      if (btn) updateData[lbl] = btn.textContent.trim();
+    });
+
+    // GAS updateEntry を呼び出す
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateEntry', entryId: entryId, data: updateData })
+    }).then(r => r.json());
+
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+
+    // ローカルにも反映（即時表示用）
+    Object.assign(t, updateData);
+
+    const payloadStatus = updateData['ステータス'];
+    const payloadPips = updateData['実取得pips'];
     if (payloadStatus === '決済' || payloadStatus === '決済（見逃し）') {
       playCloseSound(parseFloat(payloadPips) > 0);
     }
-    
+
     closeTradeDetail();
     renderPositions();
-    showToast('変更内容を保存しました');
+    showToast('保存しました ✅');
   } catch(e) {
-    alert('エラーが発生しました: ' + e.message);
+    alert('エラー: ' + e.message);
   } finally {
     hideLoader();
   }
 }
 
 function showToast(msg) {
-  // Simple fallback since CSS toast isn't fully implemented yet
-  alert(msg);
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#10b981;color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
