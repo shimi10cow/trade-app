@@ -1,4 +1,4 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxLTCiyCf2mHi1Sd-iqTSmMypnN6b9MvGmFoHPgspH1tMUkytG1xWhXdAK2xn1IGwg8/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbybzwl3xT2egZTE-8eatRlfqaXbKLaJaEbUDl9X7fv1BghK8ZS-Ha7D0qrW5DBRxQqt/exec';
 
 const App = {
   data: {
@@ -610,19 +610,59 @@ function renderHistoryList() {
   }).join('');
 }
 
+// 画像URLキャッシュ（パスベース → Drive thumbnail URL）
+const _imgUrlCache = {};
+
 function getImageUrl(rawUrl) {
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
   if (!s || s === 'undefined' || s === 'null') return '';
-  // Pass through lh3 or other CDN URLs directly
+  // Base64 data URL (アプリからアップロードした画像)
+  if (s.startsWith('data:image')) return s;
+  // lh3 / ggpht CDN
   if (s.startsWith('https://lh') || s.startsWith('https://ggpht')) return s;
-  // Extract Google Drive file ID from any Drive URL pattern
+  // Google Drive URL → thumbnail
   const m = s.match(/(?:id=|\/d\/|open\?id=)([a-zA-Z0-9_-]{15,})/);
   if (m) {
     const id = m[1].replace(/[^a-zA-Z0-9_-]/g, '');
-    return `https://drive.google.com/thumbnail?id=${id}&sz=w600`;
+    return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+  }
+  // AppSheet パス形式 (e.g. "Entries_Images/xxx.jpg")
+  // キャッシュ済みなら返す
+  if (s.includes('/') && !s.startsWith('http')) {
+    return _imgUrlCache[s] || '';  // 空文字 → カメラ表示、非同期で解決
   }
   return s;
+}
+
+// AppSheetパス → Drive URLを非同期で解決し、imgのsrcを更新する
+async function resolvePathImages(container) {
+  const imgs = container.querySelectorAll('img[data-path]');
+  if (!imgs.length) return;
+
+  const paths = [...new Set([...imgs].map(el => el.dataset.path).filter(p => p && !_imgUrlCache[p]))];
+
+  await Promise.all(paths.map(async (path) => {
+    try {
+      const res = await fetch(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
+      const json = await res.json();
+      const url = json?.data?.url || '';
+      _imgUrlCache[path] = url;
+    } catch (e) {
+      _imgUrlCache[path] = '';
+    }
+  }));
+
+  // src を更新
+  imgs.forEach(el => {
+    const url = _imgUrlCache[el.dataset.path] || '';
+    if (url) {
+      el.src = url;
+      el.style.display = '';
+      const cam = el.parentNode.querySelector('.no-img-cam');
+      if (cam) cam.style.display = 'none';
+    }
+  });
 }
 
 function renderGallery() {
@@ -642,16 +682,22 @@ function renderGallery() {
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
     const rawUrl = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
+    const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
     const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
 
+    const imgTag = (imgUrl || isPath)
+      ? `<img src="${imgUrl}" ${isPath ? `data-path="${rawUrl}"` : ''} style="width:100%;height:100%;object-fit:cover;${imgUrl ? '' : 'display:none;'}" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.parentNode.querySelector('.no-img-cam').style.display='flex';">`
+      : '';
+
     html += `
       <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
         <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
-          ${imgUrl ? `<img src="${imgUrl}" style="width:100%;height:100%;object-fit:cover;" referrerpolicy="no-referrer" onerror="this.parentElement.innerHTML='<span style=color:#334155;font-size:32px;>📷</span>'">` : '<span style="color:#334155;font-size:32px;">📷</span>'}
+          ${imgTag}
+          <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
@@ -664,6 +710,8 @@ function renderGallery() {
     `;
   });
   container.innerHTML = html;
+  // パスベース画像を非同期で解決
+  resolvePathImages(container);
 }
 
 function renderAnalysis() {
@@ -1680,11 +1728,13 @@ function validateChecklist() {
   const allChecked = checkboxes.every(cb => cb.checked);
   const btn = document.getElementById('btn-final-execute');
   if (allChecked) {
+    btn.removeAttribute('disabled');
     btn.classList.remove('disabled');
     btn.style.pointerEvents = 'auto';
     btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
     btn.style.color = '#fff';
   } else {
+    btn.setAttribute('disabled', '');
     btn.classList.add('disabled');
     btn.style.pointerEvents = 'none';
     btn.style.background = '#334155';
@@ -1977,21 +2027,34 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   
   // Images
-  const imgURL = getImageUrl(t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '');
+  const rawEntryImg = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
+  const imgURL = getImageUrl(rawEntryImg);
+  const entryImgEl = document.getElementById('td-image-preview');
   if (imgURL) {
-     document.getElementById('td-image-preview').src = imgURL;
-     document.getElementById('td-image-preview').style.display = 'block';
+     entryImgEl.src = imgURL;
+     entryImgEl.style.display = 'block';
+  } else if (rawEntryImg && rawEntryImg.includes('/') && !rawEntryImg.startsWith('http')) {
+     entryImgEl.dataset.path = rawEntryImg;
+     entryImgEl.style.display = 'block';
+     entryImgEl.src = '';
+     resolvePathImages(document.getElementById('modal-trade-detail'));
   } else {
-     document.getElementById('td-image-preview').style.display = 'none';
-     document.getElementById('td-image-preview').src = '';
+     entryImgEl.style.display = 'none';
+     entryImgEl.src = '';
   }
 
-  const exitImgURL = getImageUrl(t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'] || '');
+  const rawExitImg = t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'] || '';
+  const exitImgURL = getImageUrl(rawExitImg);
   const exitImgContainer = document.getElementById('td-exit-image-container');
   const exitImgPreview = document.getElementById('td-exit-image-preview');
   if (exitImgURL) {
      exitImgPreview.src = exitImgURL;
      exitImgContainer.style.display = 'block';
+  } else if (rawExitImg && rawExitImg.includes('/') && !rawExitImg.startsWith('http')) {
+     exitImgPreview.dataset.path = rawExitImg;
+     exitImgPreview.src = '';
+     exitImgContainer.style.display = 'block';
+     resolvePathImages(document.getElementById('modal-trade-detail'));
   } else {
      exitImgContainer.style.display = 'none';
      exitImgPreview.src = '';
