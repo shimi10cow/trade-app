@@ -7,9 +7,10 @@ const App = {
   },
   state: {
     currentTab: 'positions',
-    currentTab: 'positions',
     isOffline: !navigator.onLine,
-    isMissedEntry: false
+    isMissedEntry: false,
+    detailFromHistory: false,
+    activeTradeIndex: null
   }
 };
 
@@ -579,7 +580,7 @@ function renderHistoryList() {
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
 
     return `
-      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
+      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false, true)" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (isWin ? '#10b981' : '#ef4444')}">
         <div style="flex:1;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
@@ -604,9 +605,14 @@ function getImageUrl(rawUrl) {
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
   if (!s || s === 'undefined' || s === 'null') return '';
-  // Use thumbnail API (returns actual image, not viewer page)
-  const m = s.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{20,})/);
-  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w800`;
+  // Pass through lh3 or other CDN URLs directly
+  if (s.startsWith('https://lh') || s.startsWith('https://ggpht')) return s;
+  // Extract Google Drive file ID from any Drive URL pattern
+  const m = s.match(/(?:id=|\/d\/|open\?id=)([a-zA-Z0-9_-]{15,})/);
+  if (m) {
+    const id = m[1].replace(/[^a-zA-Z0-9_-]/g, '');
+    return `https://drive.google.com/thumbnail?id=${id}&sz=w600`;
+  }
   return s;
 }
 
@@ -676,7 +682,7 @@ function updateMonthlyStats() {
   const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
   document.getElementById('top-profit').textContent = fmtCur(totalProfit);
   document.getElementById('top-profit').className = 'val ' + cls(totalProfit);
-  document.getElementById('top-pips').textContent = totalPips.toFixed(1);
+  document.getElementById('top-pips').textContent = Math.round(totalPips) + ' pips';
   document.getElementById('top-pips').className = 'val ' + cls(totalPips);
   document.getElementById('top-rr').textContent = totalRR.toFixed(2);
   document.getElementById('top-rr').className = 'val ' + cls(totalRR);
@@ -791,36 +797,36 @@ function applyAnalysisFilters() {
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
-    <tr>
-      <td>総計</td>
-      <td>${totalTrades} 回</td>
-      <td class="${classForNum(totalPips)}">${totalPips.toFixed(1)}</td>
-      <td class="${classForNum(totalProfit)}">${fmtCurrency(totalProfit)}</td>
-    </tr>
-    <tr>
-      <td>勝ち</td>
-      <td>${wins} 回</td>
-      <td class="${classForNum(winPips)}">${winPips.toFixed(1)}</td>
-      <td class="${classForNum(winProfit)}">${fmtCurrency(winProfit)}</td>
-    </tr>
-    <tr>
-      <td>負け</td>
-      <td>${losses} 回</td>
-      <td class="${classForNum(lossPips)}">${lossPips.toFixed(1)}</td>
-      <td class="${classForNum(lossProfit)}">${fmtCurrency(lossProfit)}</td>
-    </tr>
-    <tr>
-      <td>平均・率</td>
-      <td>勝率 ${winRate}%</td>
-      <td>+${avgWinPips} / ${avgLossPips}</td>
-      <td>${fmtCurrency(avgWinProfit)} / ${fmtCurrency(avgLossProfit)}</td>
-    </tr>
-    <tr>
-      <td>期待値</td>
-      <td>実RR ${avgRR}</td>
-      <td class="${classForNum(avgTradePips)}">${avgTradePips} pips/回</td>
-      <td class="${classForNum(avgTradeProfit)}">${fmtCurrency(avgTradeProfit)} /回</td>
-    </tr>
+    <div class="metric-card">
+      <div class="metric-label">総トレード</div>
+      <div class="metric-value">${totalTrades}<span class="metric-unit">回</span></div>
+      <div class="metric-sub">勝率 ${winRate}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">損益</div>
+      <div class="metric-value ${classForNum(totalProfit)}" style="font-size:16px;">${fmtCurrency(totalProfit)}</div>
+      <div class="metric-sub">平均 ${fmtCurrency(avgTradeProfit)}/回</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">取得値幅</div>
+      <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+      <div class="metric-sub">平均 ${avgTradePips} pips/回</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">実RR (平均)</div>
+      <div class="metric-value ${classForNum(parseFloat(avgRR))}">${avgRR}</div>
+      <div class="metric-sub">対象 ${validRRCount} 件</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ちトレード</div>
+      <div class="metric-value pos">${wins}<span class="metric-unit">回</span></div>
+      <div class="metric-sub">+${avgWinPips} pips / ${fmtCurrency(avgWinProfit)}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負けトレード</div>
+      <div class="metric-value neg">${losses}<span class="metric-unit">回</span></div>
+      <div class="metric-sub">${avgLossPips} pips / ${fmtCurrency(avgLossProfit)}</div>
+    </div>
   `;
   
   // Mental Bias Detection
@@ -978,7 +984,7 @@ function renderGrowthChart(allTrades) {
     else dispVal = val.toFixed(0);
 
     barsHTML += `
-      <g opacity="0" animation="fadeIn 0.5s forwards" style="animation-delay: ${i*0.05}s">
+      <g style="opacity:1; animation: fadeIn 0.5s ease forwards; animation-delay: ${i*0.05}s;">
         <rect x="${x - (barWidth*0.4)}%" y="${y}%" width="${barWidth*0.8}%" height="${heightPct}%" fill="${color}" rx="2" />
         <text x="${x}%" y="${isPos ? y - 2 : y + heightPct + 5}%" fill="${color}" font-size="6" text-anchor="middle" font-weight="bold">${dispVal}</text>
         <text x="${x}%" y="98%" fill="#94a3b8" font-size="6" text-anchor="middle">${lbl}</text>
@@ -1712,7 +1718,8 @@ function previewUploadImageTD(input) {
   }
 }
 
-function openTradeDetail(index, readOnly = false) {
+function openTradeDetail(index, readOnly = false, fromHistory = false) {
+  App.state.detailFromHistory = fromHistory;
   const t = App.data.entries[index];
   if(!t) return;
   App.state.activeTradeIndex = index;
@@ -1853,6 +1860,10 @@ function openTradeDetail(index, readOnly = false) {
 
 function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
+  if (App.state.detailFromHistory) {
+    App.state.detailFromHistory = false;
+    openHistoryModal();
+  }
 }
 
 function onStatusChange() {

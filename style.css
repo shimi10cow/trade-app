@@ -175,21 +175,73 @@ textarea.form-input { resize: vertical; }
 .analysis-table { table-layout: fixed; font-size: 13px; }
 .analysis-table th, .analysis-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 9px 6px; }
 
-/* ======== Colored Button States ======== */
-/* ◎/OK = green, ✕/NG = red */
-.toggle-btn.cond-ok.active { background: #10b981; border-color: #10b981; color: white; }
-.toggle-btn.cond-ng.active { background: #ef4444; border-color: #ef4444; color: white; }
-/* Direction arrows: ↑ green, ↓ red, → gray */
-.toggle-btn.dir-up.active { background: #10b981; border-color: #10b981; color: white; }
-.toggle-btn.dir-down.active { background: #ef4444; border-color: #ef4444; color: white; }
-.toggle-btn.dir-flat.active { background: #64748b; border-color: #64748b; color: white; }
+/* ======== Colored Button States (outline style, gorgeous) ======== */
+/* Default active: glowing cyan outline */
+.toggle-btn.active {
+  background: rgba(34,211,238,0.08); color: #22d3ee;
+  border-color: #22d3ee; border-width: 2px;
+  box-shadow: 0 0 10px rgba(34,211,238,0.25);
+}
+/* ◎/OK = vibrant emerald */
+.toggle-btn.cond-ok.active {
+  background: rgba(74,222,128,0.1); color: #4ade80;
+  border-color: #4ade80; border-width: 2px;
+  box-shadow: 0 0 10px rgba(74,222,128,0.3);
+}
+/* ✕/NG = vivid rose */
+.toggle-btn.cond-ng.active {
+  background: rgba(248,113,113,0.1); color: #f87171;
+  border-color: #f87171; border-width: 2px;
+  box-shadow: 0 0 10px rgba(248,113,113,0.3);
+}
+/* ↑ green, ↓ red, → purple */
+.toggle-btn.dir-up.active {
+  background: rgba(74,222,128,0.1); color: #4ade80;
+  border-color: #4ade80; border-width: 2px;
+  box-shadow: 0 0 10px rgba(74,222,128,0.3);
+}
+.toggle-btn.dir-down.active {
+  background: rgba(248,113,113,0.1); color: #f87171;
+  border-color: #f87171; border-width: 2px;
+  box-shadow: 0 0 10px rgba(248,113,113,0.3);
+}
+.toggle-btn.dir-flat.active {
+  background: rgba(167,139,250,0.1); color: #a78bfa;
+  border-color: #a78bfa; border-width: 2px;
+  box-shadow: 0 0 10px rgba(167,139,250,0.3);
+}
+/* Buy = rose red, Sell = electric blue */
+.toggle-btn.dir-buy {
+  color: #f43f5e; border-color: rgba(244,63,94,0.5);
+  font-size: 14px; font-weight: 700; padding: 8px 4px;
+}
+.toggle-btn.dir-buy.active {
+  background: rgba(244,63,94,0.1); color: #f43f5e;
+  border-color: #f43f5e; border-width: 2px;
+  box-shadow: 0 0 12px rgba(244,63,94,0.4);
+}
+.toggle-btn.dir-sell {
+  color: #38bdf8; border-color: rgba(56,189,248,0.5);
+  font-size: 14px; font-weight: 700; padding: 8px 4px;
+}
+.toggle-btn.dir-sell.active {
+  background: rgba(56,189,248,0.1); color: #38bdf8;
+  border-color: #38bdf8; border-width: 2px;
+  box-shadow: 0 0 12px rgba(56,189,248,0.4);
+}
+/* Badge: Buy = rose, Sell = sky blue */
+.badge.buy { background: rgba(244,63,94,0.15); color: #f43f5e; }
+.badge.sell { background: rgba(56,189,248,0.15); color: #38bdf8; }
 
-/* Buy = red, Sell = blue (wider + colored) */
-.toggle-btn.dir-buy { color: #ef4444; border-color: #ef4444; font-size: 14px; font-weight: 700; padding: 12px 4px; }
-.toggle-btn.dir-buy.active { background: #ef4444; border-color: #ef4444; color: white; }
-.toggle-btn.dir-sell { color: #3b82f6; border-color: #3b82f6; font-size: 14px; font-weight: 700; padding: 12px 4px; }
-.toggle-btn.dir-sell.active { background: #3b82f6; border-color: #3b82f6; color: white; }
-
-/* Badge: Buy = red, Sell = blue */
-.badge.buy { background: rgba(239,68,68,0.2); color: #ef4444; }
-.badge.sell { background: rgba(59,130,246,0.2); color: #3b82f6; }
+/* ======== Analysis Metrics Cards ======== */
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.metric-card {
+  background: #0f172a; border: 1px solid #334155;
+  border-radius: 10px; padding: 12px 14px;
+}
+.metric-label { font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+.metric-value { font-size: 20px; font-weight: 800; color: #f8fafc; line-height: 1; }
+.metric-value.pos { color: #4ade80; }
+.metric-value.neg { color: #f87171; }
+.metric-unit { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 2px; }
+.metric-sub { font-size: 11px; color: #64748b; margin-top: 5px; }

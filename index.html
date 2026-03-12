@@ -74,7 +74,7 @@
           <div class="val" id="top-profit">¥0</div>
         </div>
         <div class="stat-box">
-          <div class="lbl">今月 獲得pips</div>
+          <div class="lbl">今月 取得値幅</div>
           <div class="val" id="top-pips">0.0</div>
         </div>
         <div class="stat-box" style="grid-column: span 2;">
@@ -143,21 +143,11 @@
         <button class="filter-btn" onclick="applyAnalysisFilters()">📊 この条件で分析</button>
       </div>
 
-      <!-- 24-Metric Dense Table -->
+      <!-- Analysis Metrics Cards -->
       <div class="analysis-table-wrapper">
-        <table class="analysis-table" id="analysis-table">
-          <thead>
-            <tr>
-              <th>項目</th>
-              <th>回数・率</th>
-              <th>pips</th>
-              <th>損益額</th>
-            </tr>
-          </thead>
-          <tbody id="analysis-tbody">
-            <!-- Populated by JS -->
-          </tbody>
-        </table>
+        <div id="analysis-tbody" class="metrics-grid">
+          <!-- Populated by JS -->
+        </div>
       </div>
 
       <!-- Heatmap & Charts (Placeholders for now) -->
