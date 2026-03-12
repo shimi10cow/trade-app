@@ -101,10 +101,7 @@ function renderHistoryList() {
   const dFrom = document.getElementById('hist-date-from').value;
   const dTo = document.getElementById('hist-date-to').value;
   
-  const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
 
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   
@@ -620,6 +617,32 @@ function renderHistoryList() {
 // 画像URLキャッシュ（パスベース → Drive thumbnail URL）
 const _imgUrlCache = {};
 
+// トレードオブジェクトから画像フィールドを動的に探す
+// 既知カラム名リスト + 「画像」「Image」「Chart」を含む全カラムを検索
+function findImageField(t) {
+  // 優先チェックするカラム名（AppSheet / GAS でよく使われるもの）
+  const known = [
+    'ChartImage', 'EntryImage', 'エントリー画像', '画像', 'Image', 'ImageURL',
+    'ExitImage', '決済画像', 'ExitChartImage', 'CloseImage', 'ExitImg',
+    'エントリーチャート', '決済チャート', 'EntryChart', 'ExitChart',
+    'entry_image', 'exit_image', 'chart_image'
+  ];
+  for (const k of known) {
+    const v = t[k];
+    if (v && String(v).trim() && String(v).trim() !== 'undefined') return String(v).trim();
+  }
+  // 上記にない場合：キー名に 画像/Image/Chart が含まれる全フィールドを検索
+  for (const [k, v] of Object.entries(t)) {
+    if (!v || !String(v).trim()) continue;
+    const kl = k.toLowerCase();
+    if (kl.includes('image') || k.includes('画像') || kl.includes('chart') || k.includes('チャート')) {
+      const sv = String(v).trim();
+      if (sv && sv !== 'undefined' && sv !== '0') return sv;
+    }
+  }
+  return '';
+}
+
 function getImageUrl(rawUrl) {
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
@@ -688,7 +711,7 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
+    const rawUrl = findImageField(t);
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -726,10 +749,24 @@ function renderAnalysis() {
   applyAnalysisFilters();
 }
 
+// データの最新月と前月を返す（カレンダー月でなくデータ基準）
+function getDataMonthRange() {
+  const months = App.data.entries
+    .filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）')
+    .map(t => t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-').substring(0, 7) : '')
+    .filter(Boolean).sort();
+  const now = new Date();
+  const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const latest = months.length ? months[months.length - 1] : nowStr;
+  const [y, m] = latest.split('-').map(Number);
+  const prevDate = new Date(y, m - 2, 1);
+  const prev = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  return { current: latest, last: prev };
+}
+
 // Monthly top stats: current month REAL trades only (独立・見逃し除外)
 function updateMonthlyStats() {
-  const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const { current: currentMonthStr } = getDataMonthRange();
   const monthTrades = App.data.entries.filter(t => {
     if (t['ステータス'] !== '決済') return false; // real trades only, not 見逃し
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
@@ -770,11 +807,7 @@ function applyAnalysisFilters() {
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   
   // 2. Apply advanced filters
-  const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+  const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
 
   filtered = filtered.filter(t => {
     // Status
@@ -1061,12 +1094,21 @@ function renderHeatmap(trades) {
   for(let h=0; h<24; h++) for(let d=0; d<5; d++) grid[`${h}-${d}`] = { count:0, pips:0 };
 
   trades.forEach(t => {
-    const timeStr = formatTimeDisplay(t.EntryTime) || formatTimeDisplay(t.EntryDate);
-    const dateStr = formatDateDisplay(t.EntryDate);
+    // EntryTime: GASはtime cellを'1899/12/30'等で返す場合がある → HH:MMのみ受け付ける
+    let timeStr = '';
+    const rawTime = String(t.EntryTime || t['EntryTime'] || '').trim();
+    if (/^\d{1,2}:\d{2}/.test(rawTime)) {
+      timeStr = rawTime.substring(0, 5);
+    } else {
+      // EntryDateがISO datetime形式なら時刻を抽出 (例: 2025-10-12T15:00:00.000Z)
+      timeStr = formatTimeDisplay(t.EntryDate) || '';
+    }
+    // 日付: スラッシュをダッシュに統一
+    const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (!timeStr || !dateStr) return;
     const hour = parseInt(timeStr.split(':')[0]);
     if (isNaN(hour) || hour < 0 || hour > 23) return;
-    const dow = new Date(dateStr).getDay(); // 0=Sun,1=Mon..5=Fri,6=Sat
+    const dow = new Date(dateStr + 'T00:00:00').getDay(); // ローカル時刻で曜日取得
     if (dow < 1 || dow > 5) return;
     const key = `${hour}-${dow - 1}`;
     grid[key].count++;
@@ -2097,8 +2139,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   
-  // Images
-  const rawEntryImg = t['ChartImage'] || t['EntryImage'] || t['エントリー画像'] || t['画像'] || t['Image'] || t['ImageURL'] || '';
+  // Images (カラム名を動的に検索)
+  const rawEntryImg = findImageField(t);
   const imgURL = getImageUrl(rawEntryImg);
   const entryImgEl = document.getElementById('td-image-preview');
   if (imgURL) {
@@ -2234,6 +2276,39 @@ async function saveTradeDetail() {
     closeTradeDetail();
     renderPositions();
     showToast('保存しました ✅');
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+async function deleteEntry() {
+  const index = parseInt(document.getElementById('td-index').value);
+  const t = App.data.entries[index];
+  if (!t) return;
+
+  const pairName = t['PairName（元）'] || t.PairName || t.Pair || 'このエントリー';
+  if (!confirm(`「${pairName}」を削除しますか？\nこの操作は取り消せません。`)) return;
+
+  const entryId = t['EntryID'];
+  if (!entryId) {
+    alert('EntryIDが見つかりません。スプレッドシートを直接編集してください。');
+    return;
+  }
+
+  showLoader();
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'deleteEntry', entryId: entryId })
+    }).then(r => r.json());
+
+    if (!res.success) throw new Error(res.error || '削除に失敗しました');
+
+    closeTradeDetail();
+    await loadData();
+    showToast('削除しました 🗑️');
   } catch(e) {
     alert('エラー: ' + e.message);
   } finally {
