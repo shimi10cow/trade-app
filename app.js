@@ -667,14 +667,25 @@ function getImageUrl(rawUrl) {
   return s;
 }
 
-// AppSheetパス → Drive URLを非同期で解決し、imgのsrcを更新する
+// AppSheetパス → base64 data URLをGASから取得してimgのsrcを更新する
+// GASの同時実行制限を避けるため順番にfetchし、解決した画像から即時表示する
 async function resolvePathImages(container) {
-  const imgs = container.querySelectorAll('img[data-path]');
+  const imgs = Array.from(container.querySelectorAll('img[data-path]'));
   if (!imgs.length) return;
 
-  const paths = [...new Set([...imgs].map(el => el.dataset.path).filter(p => p && !_imgUrlCache[p]))];
+  // 未キャッシュのパスを順番に処理（重複除去）
+  const seen = new Set();
+  const todo = imgs.filter(el => {
+    const p = el.dataset.path;
+    if (!p || seen.has(p)) return false;
+    seen.add(p);
+    // キャッシュ済み（data URL）はスキップ
+    if (_imgUrlCache[p] && _imgUrlCache[p].startsWith('data:')) return false;
+    return true;
+  });
 
-  await Promise.all(paths.map(async (path) => {
+  for (const el of todo) {
+    const path = el.dataset.path;
     try {
       const res = await fetch(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
       const json = await res.json();
@@ -683,18 +694,18 @@ async function resolvePathImages(container) {
     } catch (e) {
       _imgUrlCache[path] = '';
     }
-  }));
 
-  // src を更新
-  imgs.forEach(el => {
-    const url = _imgUrlCache[el.dataset.path] || '';
+    // このpathを持つ全imgを即時更新（解決次第すぐ表示）
+    const url = _imgUrlCache[path] || '';
     if (url) {
-      el.src = url;
-      el.style.display = '';
-      const cam = el.parentNode.querySelector('.no-img-cam');
-      if (cam) cam.style.display = 'none';
+      container.querySelectorAll(`img[data-path="${CSS.escape(path)}"]`).forEach(imgEl => {
+        imgEl.src = url;
+        imgEl.style.display = '';
+        const cam = imgEl.closest('div')?.querySelector('.no-img-cam');
+        if (cam) cam.style.display = 'none';
+      });
     }
-  });
+  }
 }
 
 function renderGallery() {
