@@ -614,8 +614,26 @@ function renderHistoryList() {
   }).join('');
 }
 
-// 画像URLキャッシュ（パスベース → Drive thumbnail URL）
+// 画像URLキャッシュ（パスベース → base64 data URL）
 const _imgUrlCache = {};
+
+// 画像をアップロード前に圧縮する（max 800px, quality 0.75）
+// 大きな画像はGASタイムアウトの原因になるため圧縮して送る
+function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(maxWidth / img.width, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // 失敗時はそのまま
+    img.src = dataUrl;
+  });
+}
 
 // トレードオブジェクトから画像フィールドを動的に探す
 // 既知カラム名リスト + 「画像」「Image」「Chart」を含む全カラムを検索
@@ -1864,19 +1882,24 @@ async function submitEntryData() {
     if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
 
     // 画像アップロード（base64 data URL の場合のみ）
+    // ★ drive_images/FILEID.jpg 形式で保存 → GASがbase64で返せる形式
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
       try {
+        // アップロード前に圧縮（大きすぎるとGASがタイムアウト）
+        const compressed = await compressImageForUpload(imgPreview.src, 800, 0.75);
         const uploadRes = await fetch(GAS_URL, {
           method: 'POST',
           body: JSON.stringify({
             action: 'uploadImage',
-            base64Data: imgPreview.src,
+            base64Data: compressed,
             filename: 'entry_' + Date.now() + '.jpg'
           })
         }).then(r => r.json());
         if (uploadRes.success && uploadRes.fileId) {
-          entryData['ChartImage'] = 'https://drive.google.com/thumbnail?id=' + uploadRes.fileId + '&sz=w800';
+          // thumbnail URLではなく drive_images/FILEID.jpg 形式で保存
+          // → GAS がbase64で返すのでブラウザ認証不要
+          entryData['ChartImage'] = 'drive_images/' + uploadRes.fileId + '.jpg';
         }
       } catch(e) {
         console.warn('画像アップロード失敗:', e.message);
