@@ -621,10 +621,12 @@ const _imgUrlCache = {};
 // 既知カラム名リスト + 「画像」「Image」「Chart」を含む全カラムを検索
 function findImageField(t) {
   // 優先チェックするカラム名（AppSheet / GAS でよく使われるもの）
+  // ※ 決済チャート・エントリーチャートを最優先
   const known = [
+    '決済チャート', 'エントリーチャート',
     'ChartImage', 'EntryImage', 'エントリー画像', '画像', 'Image', 'ImageURL',
     'ExitImage', '決済画像', 'ExitChartImage', 'CloseImage', 'ExitImg',
-    'エントリーチャート', '決済チャート', 'EntryChart', 'ExitChart',
+    'EntryChart', 'ExitChart',
     'entry_image', 'exit_image', 'chart_image'
   ];
   for (const k of known) {
@@ -697,10 +699,10 @@ async function resolvePathImages(container) {
 
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
+  // 画像データがあるトレードをすべて表示（決済チャート含む）
   const galleryTrades = App.data.entries.filter(t => {
-    const score = parseInt(t['エントリースコア']) || 0;
-    const isWin = parseFloat(t['実取得pips']) > 10;
-    return score >= 4 || isWin;
+    const img = findImageField(t);
+    return img && img.trim() !== '';
   });
 
   if(galleryTrades.length === 0) {
