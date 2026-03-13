@@ -223,7 +223,11 @@ function renderHistoryList() {
     return;
   }
 
-  container.innerHTML = filtered.slice().reverse().map((t) => {
+  container.innerHTML = filtered.slice().sort((a, b) => {
+    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    return db > da ? 1 : db < da ? -1 : 0;
+  }).map((t) => {
     const index = App.data.entries.indexOf(t);
     const isMissed = t['ステータス'] === '決済（見逃し）';
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
@@ -1614,15 +1618,6 @@ function showEntryRevengeAlert() {
     if (!isNaN(profit) && profit !== 0) return profit > 0 ? 1 : -1;
     return 0; // 判定不能
   }
-  // デバッグ：直近5件の実取得pips・損益を出力
-  console.log('[streak debug] realTrades count:', realTrades.length);
-  realTrades.slice(0, 5).forEach((t, i) => {
-    console.log(`  [${i}]`, t['PairName（元）'] || t['PairName'] || '-',
-      '実取得pips:', t['実取得pips'], '→', parseFloat(t['実取得pips']),
-      '損益:', t['損益'], '→', parseFloat(t['損益']),
-      'sign:', tradeSign(t));
-  });
-
   let streak = 0, isWinStreak = false, isLossStreak = false;
   for (const t of realTrades) {
     const sign = tradeSign(t);
@@ -1636,7 +1631,6 @@ function showEntryRevengeAlert() {
       else break;
     }
   }
-  console.log('[streak debug] streak:', streak, 'isWinStreak:', isWinStreak, 'isLossStreak:', isLossStreak);
   if (isLossStreak && streak >= 2) {
     alerts.push({
       icon: '⚠️',
