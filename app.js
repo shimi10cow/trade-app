@@ -1266,22 +1266,6 @@ function applyAnalysisFilters() {
     </div>
   `;
   
-  // Mental Bias Detection
-  // Assuming date format is nice enough for JS to parse, or we just rely on order in data
-  const biasAlert = document.getElementById('mental-bias-alert');
-  if(filtered.length > 0) {
-    const last = filtered[filtered.length - 1]; // Given natural order, or we can sort
-    const lastPip = parseFloat(last['実取得pips']) || 0;
-    if (lastPip < 0) {
-      biasAlert.innerHTML = `<span style="font-size:24px;">⚠️</span><div><strong style="color:#f8fafc; font-size:14px;">リベンジトレード警告</strong><br><span style="font-size:11px;">直近のトレード(${last['PairName（元）'] || last.PairName || last.Pair})で損失が出ています。焦って取り返そうとせず、冷静にルールを見直してください。</span></div>`;
-      biasAlert.style.display = 'flex';
-    } else {
-      biasAlert.style.display = 'none';
-    }
-  } else {
-    biasAlert.style.display = 'none';
-  }
-
   renderHeatmap(filtered);
   renderGrowthChart(filtered);
 }
