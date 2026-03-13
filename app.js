@@ -1622,16 +1622,24 @@ function showEntryRevengeAlert() {
   }
 
   // ── ② 連勝 / 連敗カウント（実トレードのみ：見逃し除外） ──
+  // pipsが空/0の場合は損益(円)で勝ち負けを判定（フォールバック）
+  function tradeSign(t) {
+    const pip = parseFloat(t['実取得pips']);
+    if (!isNaN(pip) && pip !== 0) return pip > 0 ? 1 : -1;
+    const profit = parseFloat(t['損益']);
+    if (!isNaN(profit) && profit !== 0) return profit > 0 ? 1 : -1;
+    return 0; // 判定不能
+  }
   let streak = 0, isWinStreak = false, isLossStreak = false;
   for (const t of realTrades) {
-    const p = parseFloat(t['実取得pips']) || 0;
+    const sign = tradeSign(t);
     if (streak === 0) {
-      if      (p < 0) { isLossStreak = true; streak = 1; }
-      else if (p > 0) { isWinStreak  = true; streak = 1; }
-      else break;
+      if      (sign < 0) { isLossStreak = true; streak = 1; }
+      else if (sign > 0) { isWinStreak  = true; streak = 1; }
+      else continue; // 判定不能トレードはスキップ
     } else {
-      if (isLossStreak && p < 0) streak++;
-      else if (isWinStreak && p > 0) streak++;
+      if (isLossStreak && sign < 0) streak++;
+      else if (isWinStreak && sign > 0) streak++;
       else break;
     }
   }
@@ -1653,10 +1661,12 @@ function showEntryRevengeAlert() {
     });
   }
 
-  // ── ③ ポジポジ病（直近2週間のエントリー数） ──
+  // ── ③ ポジポジ病（直近2週間の実トレード数：見逃し除外） ──
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const recentCount = App.data.entries.filter(t => {
+    const st = t['ステータス'] || '';
+    if (st === '決済（見逃し）' || st === '保有中（見逃し）') return false;
     const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
     return d && new Date(d) >= twoWeeksAgo;
   }).length;
