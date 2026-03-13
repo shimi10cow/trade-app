@@ -9,7 +9,7 @@
   <title>トレード記録</title>
   
   <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="./icon-192x192.png">
+  <link rel="apple-touch-icon" href="./icon-180x180.png">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -150,20 +150,27 @@
         </div>
       </div>
 
-      <!-- Heatmap & Charts (Placeholders for now) -->
-      <div class="section-title">時間帯×曜日 ヒートマップ</div>
-      <div class="chart-container" id="chart-heatmap" style="display:flex;align-items:center;justify-content:center;color:#64748b;">
-        Canvas Heatmap (Coming Soon)
-      </div>
-
+      <!-- Monthly Chart -->
       <div class="section-title">月別実績チャート</div>
       <div class="btn-group" style="margin-bottom:8px;" id="chart-type-toggle">
         <button class="toggle-btn active" onclick="toggleChartType('profit')">損益</button>
         <button class="toggle-btn" onclick="toggleChartType('pips')">pips</button>
         <button class="toggle-btn" onclick="toggleChartType('rr')">実RR合計</button>
       </div>
-      <div class="chart-container" id="chart-growth" style="display:flex;align-items:flex-end;justify-content:center;color:#64748b; padding-top: 10px; height: 300px;">
+      <div class="chart-container" id="chart-growth" style="display:flex;align-items:flex-end;justify-content:center;color:#64748b; padding-top: 10px; height: 460px;">
         <!-- Chart will be injected here -->
+      </div>
+
+      <!-- 直近20トレード -->
+      <div class="section-title" style="margin-top:20px;">🕐 直近20トレード</div>
+      <div id="recent-trades-list" style="margin-top:8px;">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Heatmap -->
+      <div class="section-title" style="margin-top:20px;">時間帯×曜日 ヒートマップ</div>
+      <div class="chart-container" id="chart-heatmap" style="display:flex;align-items:center;justify-content:center;color:#64748b;">
+        Canvas Heatmap (Coming Soon)
       </div>
 
     </div>
@@ -186,7 +193,10 @@
         <div class="modal-close" onclick="closeEntryModal()">✕</div>
       </div>
       <div class="modal-body">
-        
+
+        <!-- 警告エリア（直近損失 / リベンジトレード / ポジポジ病） -->
+        <div id="ne-revenge-alert" style="display:none; margin-bottom:14px;"></div>
+
         <!-- Basic Info -->
         <div class="section">
           <div class="section-title">基本情報</div>
@@ -237,68 +247,41 @@
            <div id="ne-judgement-text" style="font-size:18px; font-weight:bold; color:#f8fafc;">--</div>
         </div>
 
-        <!-- Trend Direction -->
+        <!-- Trend Direction（新規エントリー：横1行レイアウト） -->
         <div class="section">
           <div class="section-title">トレンド方向</div>
-          <div class="grid-2col">
-            <div class="grid-item">
-              <span class="grid-label">M1</span>
-              <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">W1</span>
-              <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">D1</span>
-              <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4</span>
-              <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H1</span>
-              <div class="btn-group tf-group"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">M1</span><div class="btn-group tf-group" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">W1</span><div class="btn-group tf-group" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">D1</span><div class="btn-group tf-group" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H4</span><div class="btn-group tf-group" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H1</span><div class="btn-group tf-group" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
           </div>
         </div>
 
-        <!-- MA Conditions -->
+        <!-- MA Conditions（新規エントリー：横1行レイアウト） -->
         <div class="section">
           <div class="section-title">MA 条件</div>
-          <div class="grid-2col">
-            <div class="grid-item">
-              <span class="grid-label">H4MA480.1200</span>
-              <div class="btn-group ma-group"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4MA乖離</span>
-              <div class="btn-group ma-group"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H1MA20.80</span>
-              <div class="btn-group ma-group"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4MA20.80</span>
-              <div class="btn-group ma-group"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div>
-            </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H4MA<br>480.1200</span><div class="btn-group ma-group" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H4MA乖離</span><div class="btn-group ma-group" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H1MA<br>20.80</span><div class="btn-group ma-group" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H4MA<br>20.80</span><div class="btn-group ma-group" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">◎</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
           </div>
         </div>
 
-        <!-- Entry Basis (Scoring) -->
+        <!-- Entry Basis / Scoring（新規エントリー：横1行レイアウト） -->
         <div class="section" onmouseup="setTimeout(calculateEntryScore, 50)" ontouchend="setTimeout(calculateEntryScore, 50)">
           <div class="section-title">エントリー根拠</div>
-          <div class="grid-2col">
-            <div class="grid-item"><span class="grid-label">水平線D1.H4</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H1MAエリア</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL推進</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL逆トレ</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">TL(M15)</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">直近波理論</span><div class="btn-group score-group" data-val="1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">H4の5波以降</span><div class="btn-group score-group" data-val="-1"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">✕</button></div></div>
-            <div class="grid-item"><span class="grid-label">上位足リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)">ナシ</button></div></div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">水平線<br>D1.H4</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H1MA<br>エリア</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">TL推進</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">TL逆トレ</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">TL(M15)</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">直近波<br>理論</span><div class="btn-group score-group" data-val="1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H4の<br>5波以降</span><div class="btn-group score-group" data-val="-1" style="flex:1;"><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">〇</button><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">✕</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">上位足<br>リスク</span><div class="btn-group score-group" data-val="-1" data-inverse="true" style="flex:1;"><button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">ナシ</button></div></div>
           </div>
         </div>
 
@@ -342,12 +325,13 @@
         <!-- Chart & Memo -->
         <div class="section">
           <div class="section-title">チャート画像 / メモ</div>
-          <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
-            📷 エントリー画像
+          <label id="ne-image-label" class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
+            <span id="ne-image-label-text">📷 エントリー画像を追加</span>
             <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
           </label>
           <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
             <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
+            <button onclick="clearNewEntryImage()" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.85);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;">🗑️ 削除</button>
           </div>
           
           <div class="form-row" style="margin-top:12px;">
@@ -392,51 +376,21 @@
         <div class="section">
           <!-- Trend Direction -->
           <div class="section-title">トレンド方向</div>
-          <div class="grid-2col" style="margin-bottom:8px;">
-            <div class="grid-item">
-              <span class="grid-label">M1</span>
-              <div class="btn-group tf-group" id="pe-tf-m1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">W1</span>
-              <div class="btn-group tf-group" id="pe-tf-w1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">D1</span>
-              <div class="btn-group tf-group" id="pe-tf-d1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4</span>
-              <div class="btn-group tf-group" id="pe-tf-h4"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H1</span>
-              <div class="btn-group tf-group" id="pe-tf-h1"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">M1</span><div class="btn-group tf-group" id="pe-tf-m1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">W1</span><div class="btn-group tf-group" id="pe-tf-w1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">D1</span><div class="btn-group tf-group" id="pe-tf-d1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H4</span><div class="btn-group tf-group" id="pe-tf-h4" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H1</span><div class="btn-group tf-group" id="pe-tf-h1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
           </div>
 
           <!-- MA Conditions -->
           <div class="section-title">MA 条件</div>
-          <div class="grid-2col" style="margin-bottom:8px;">
-            <div class="grid-item">
-              <span class="grid-label">H4MA乖離</span>
-              <div class="btn-group" id="pe-ma-kairi">
-                <button class="toggle-btn cond-ng" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')">上アリ</button>
-                <button class="toggle-btn cond-ok" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')">下アリ</button>
-              </div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4MA480.1200</span>
-              <div class="btn-group tf-group" id="pe-ma-480"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H1MA20.80</span>
-              <div class="btn-group tf-group" id="pe-ma-h1-20"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">H4MA20.80</span>
-              <div class="btn-group tf-group" id="pe-ma-h4-20"><button class="toggle-btn dir-up" onclick="toggleBtn(this)">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)">↓</button></div>
-            </div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H4MA乖離</span><div class="btn-group" id="pe-ma-kairi" style="flex:1;"><button class="toggle-btn cond-ng" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')" style="flex:1;padding:10px 0;">上アリ</button><button class="toggle-btn cond-ok" onclick="toggleBtn(this, '#pe-ma-kairi .toggle-btn')" style="flex:1;padding:10px 0;">下アリ</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H4MA<br>480.1200</span><div class="btn-group tf-group" id="pe-ma-480" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H1MA<br>20.80</span><div class="btn-group tf-group" id="pe-ma-h1-20" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;font-size:11px;">H4MA<br>20.80</span><div class="btn-group tf-group" id="pe-ma-h4-20" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
           </div>
 
           <div class="section-title">フラグ＆メモ</div>
@@ -467,9 +421,14 @@
         <div class="modal-close" onclick="closeTradeDetail()">✕</div>
       </div>
       <div class="modal-body">
-        
+
         <input type="hidden" id="td-index">
-        <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155; margin-bottom:16px; display:none;" referrerpolicy="no-referrer">
+
+        <!-- 上部画像スロット（保有中=エントリー写真 / 履歴=決済写真） -->
+        <div id="td-top-image-area" style="display:none; margin-bottom:16px; position:relative;">
+          <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer" onerror="this.style.display='none'">
+          <button onclick="deleteTradeImage('top')" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.8);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
+        </div>
 
         <!-- Basic Info -->
         <div class="section">
@@ -610,8 +569,16 @@
                 <span class="form-label">反省</span>
                 <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
               </div>
-              <div id="td-exit-image-container" style="display:none; margin-top:8px;">
-                <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;">
+              <!-- 下部画像スロット（保有中=決済写真 / 履歴=エントリー写真） -->
+              <div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
+                <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;" referrerpolicy="no-referrer">
+                <button onclick="deleteTradeImage('bottom')" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.8);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
+              </div>
+              <!-- 下部補助画像スロット -->
+              <div id="td-bottom-image-area" style="display:none; margin-top:12px; position:relative;">
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
+                <img id="td-bottom-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
+                <button onclick="deleteTradeImage('bottom2')" style="position:absolute;top:22px;right:6px;background:rgba(15,23,42,0.8);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
               </div>
             </div>
           </div>
@@ -725,6 +692,12 @@
   <!-- Global Loader -->
   <div id="app-loader" class="loader-overlay">
     <div class="spinner"></div>
+  </div>
+
+  <!-- 画像拡大ライトボックス（全画面タップで閉じる） -->
+  <div id="lightbox" onclick="closeLightbox()" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.93); align-items:center; justify-content:center; cursor:zoom-out;">
+    <img id="lightbox-img" style="max-width:100vw; max-height:92vh; object-fit:contain; border-radius:4px; pointer-events:none; user-select:none;">
+    <div style="position:absolute; top:14px; right:18px; color:#fff; font-size:26px; font-weight:300; pointer-events:none; opacity:0.6; line-height:1;">✕</div>
   </div>
 
   <script src="./app.js" charset="utf-8"></script>

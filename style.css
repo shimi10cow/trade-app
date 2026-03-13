@@ -12,22 +12,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
 
 /* ======== Layout & Header ======== */
 .header {
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(10px);
   padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
   display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   border-bottom: 1px solid #1e293b;
 }
 
 /* ======== Navigation Tabs ======== */
 .tabs {
   display: flex; background: #0f172a; border-bottom: 1px solid #1e293b;
-  position: sticky; top: calc(45px + env(safe-area-inset-top)); z-index: 99;
+  position: fixed; top: calc(46px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 99;
 }
 
 /* ======== Content ======== */
-.content { padding: 12px; padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+.content { padding: 12px; padding-top: calc(46px + env(safe-area-inset-top) + 54px + 12px); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 
 /* ======== Tabs ======== */
 .tab {

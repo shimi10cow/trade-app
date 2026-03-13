@@ -183,52 +183,56 @@ function setupModalInteractions() {
 
   document.addEventListener('touchstart', (e) => {
     const header = e.target.closest('.modal-header');
-    if (!header) return; // Only allow dragging from header to prevent scrolling issues
+    if (!header) return;
 
     targetModal = e.target.closest('.modal-content');
     if (!targetModal) return;
 
     touchStartY = e.touches[0].clientY;
+    touchCurrentY = touchStartY; // ← 初期化（前回の値を引き継がないよう）
     isDragging = true;
-    targetModal.style.transition = 'none'; // Remove transition during drag
+    targetModal.style.transition = 'none';
   }, { passive: true });
 
   document.addEventListener('touchmove', (e) => {
     if (!isDragging || !targetModal) return;
-    
+
     touchCurrentY = e.touches[0].clientY;
     const deltaY = touchCurrentY - touchStartY;
 
-    if (deltaY > 0) { // Only allow dragging downwards
-      e.preventDefault(); // Stop natural scrolling
+    if (deltaY > 0) {
+      e.preventDefault();
       targetModal.style.transform = `translateY(${deltaY}px)`;
     }
   }, { passive: false });
 
   document.addEventListener('touchend', (e) => {
     if (!isDragging || !targetModal) return;
-    
+
     isDragging = false;
     const deltaY = touchCurrentY - touchStartY;
-    
-    targetModal.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'; // Restore transition
-    
-    if (deltaY > 100) { // Threshold to close
-      targetModal.style.transform = `translateY(100%)`;
-      const overlay = targetModal.closest('.modal-overlay');
+    const closedModal = targetModal;
+    targetModal = null; // 先にnullにして次のtouchと混在しないように
+
+    closedModal.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+
+    if (deltaY > 100) {
+      closedModal.style.transform = `translateY(100%)`;
+      const overlay = closedModal.closest('.modal-overlay');
       setTimeout(() => {
-        if(overlay) overlay.classList.remove('active');
-        targetModal.style.transform = ''; // reset for next time
+        if (overlay) overlay.classList.remove('active');
+        closedModal.style.transform = ''; // 次回open用にリセット
+        // モーダルごとの状態クリーンアップ
+        if (overlay?.id === 'modal-trade-detail') {
+          App.state.detailFromHistory = false; // 履歴フラグをリセット
+        }
       }, 300);
     } else {
-      // Snap back
-      targetModal.style.transform = `translateY(0)`;
+      closedModal.style.transform = `translateY(0)`;
       setTimeout(() => {
-        targetModal.style.transform = '';
+        closedModal.style.transform = '';
       }, 300);
     }
-    
-    targetModal = null;
   });
 }
 
@@ -303,9 +307,10 @@ function openEntryModal(isMissed = false) {
   }
   
   analyzeMentalMode();
+  showEntryRevengeAlert(); // ← エントリー前警告チェック
   document.getElementById('ne-similar-summary').textContent = '類似トレードを計算中...';
   document.getElementById('ne-similar-list').innerHTML = '';
-  
+
   calculateEntryScore();
   
   App.state.modalOpenedAt = Date.now();
@@ -516,8 +521,8 @@ function renderPairs() {
     // Assign color based on flag
     let color = '#94a3b8'; // default grey
     if(f === '待機') color = '#ef4444'; // Red
-    if(f === '狙い目') color = '#10b981'; // Green
-    if(f === '注目') color = '#3b82f6'; // Blue
+    if(f === '狙い目') color = '#3b82f6'; // Blue
+    if(f === '注目') color = '#10b981'; // Green
     if(f === '様子見') color = '#e2e8f0'; // White/LightGrey
     
     html += `<div style="font-size:12px; font-weight:700; color:${color}; margin: 16px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;">■ ${f}</div>`;
@@ -635,23 +640,33 @@ function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
   });
 }
 
-// トレードオブジェクトから画像フィールドを動的に探す
-// 既知カラム名リスト + 「画像」「Image」「Chart」を含む全カラムを検索
-function findImageField(t) {
-  // 優先チェックするカラム名（AppSheet / GAS でよく使われるもの）
-  // ※ 決済チャート・エントリーチャートを最優先
-  const known = [
-    '決済チャート', 'エントリーチャート',
-    'ChartImage', 'EntryImage', 'エントリー画像', '画像', 'Image', 'ImageURL',
-    'ExitImage', '決済画像', 'ExitChartImage', 'CloseImage', 'ExitImg',
-    'EntryChart', 'ExitChart',
-    'entry_image', 'exit_image', 'chart_image'
-  ];
-  for (const k of known) {
+// エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
+function findEntryImageField(t) {
+  const entryKeys = ['ChartImage', 'EntryImage', 'エントリー画像', 'エントリーチャート', 'EntryChart', 'entry_image'];
+  for (const k of entryKeys) {
     const v = t[k];
     if (v && String(v).trim() && String(v).trim() !== 'undefined') return String(v).trim();
   }
-  // 上記にない場合：キー名に 画像/Image/Chart が含まれる全フィールドを検索
+  return '';
+}
+
+// 決済写真専用（AppSheetの決済チャート列 etc.）
+function findExitImageField(t) {
+  const exitKeys = ['決済チャート', 'ExitImage', 'ExitChartImage', '決済画像', 'ExitChart', 'exit_image', 'CloseImage', 'ExitImg'];
+  for (const k of exitKeys) {
+    const v = t[k];
+    if (v && String(v).trim() && String(v).trim() !== 'undefined') return String(v).trim();
+  }
+  return '';
+}
+
+// ギャラリー用：エントリー→決済の順で最初に見つかったものを返す
+function findImageField(t) {
+  const entry = findEntryImageField(t);
+  if (entry) return entry;
+  const exit = findExitImageField(t);
+  if (exit) return exit;
+  // フォールバック：画像/Image/Chart を含む任意カラム
   for (const [k, v] of Object.entries(t)) {
     if (!v || !String(v).trim()) continue;
     const kl = k.toLowerCase();
@@ -721,6 +736,7 @@ async function resolvePathImages(container) {
         imgEl.style.display = '';
         const cam = imgEl.closest('div')?.querySelector('.no-img-cam');
         if (cam) cam.style.display = 'none';
+        makeTappable(imgEl); // ← 解決後にタップ拡大を有効化
       });
     }
   }
@@ -771,13 +787,79 @@ function renderGallery() {
     `;
   });
   container.innerHTML = html;
-  // パスベース画像を非同期で解決
+  // パスベース画像を非同期で解決（解決後にmakeTappableが呼ばれる）
   resolvePathImages(container);
+  // URL直接表示の画像にもタップ拡大を付ける
+  container.querySelectorAll('img[src]:not([data-path])').forEach(makeTappable);
 }
 
 function renderAnalysis() {
   updateMonthlyStats();
   applyAnalysisFilters();
+  renderRecentTrades();
+}
+
+function renderRecentTrades() {
+  const container = document.getElementById('recent-trades-list');
+  if (!container) return;
+
+  // 全決済（実トレード + 見逃し）を日付降順で最新20件
+  const trades = App.data.entries
+    .filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）')
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.EntryDate || '').replace(/\//g, '-');
+      const db = String(b.EntryDate || '').replace(/\//g, '-');
+      return da < db ? 1 : -1;
+    })
+    .slice(0, 20);
+
+  if (trades.length === 0) {
+    container.innerHTML = '<div style="color:#64748b; text-align:center; padding:12px;">データがありません</div>';
+    return;
+  }
+
+  const fmtDate = (d) => {
+    const s = String(d || '').split('T')[0].replace(/\//g, '-');
+    if (!s) return '-';
+    const parts = s.split('-');
+    return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : s;
+  };
+
+  const rows = trades.map(t => {
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const profit = parseFloat(t['損益']) || 0;
+    const pair = t['PairName（元）'] || t['PairName'] || t['Pair'] || '-';
+    const dir = t['Direction'] || t['方向'] || '';
+    const isMissed = (t['ステータス'] || '').includes('見逃し');
+    const pipsColor = pips > 0 ? '#10b981' : pips < 0 ? '#ef4444' : '#94a3b8';
+    const pipsSign = pips > 0 ? '+' : '';
+    const profitSign = profit > 0 ? '+' : '';
+    const profitStr = profit !== 0
+      ? `${profitSign}${new Intl.NumberFormat('ja-JP').format(profit)}円`
+      : '-';
+    const dirBadge = dir === 'Buy'
+      ? `<span style="color:#10b981; font-size:10px;">▲Buy</span>`
+      : dir === 'Sell'
+        ? `<span style="color:#ef4444; font-size:10px;">▼Sell</span>`
+        : '';
+    const missedBadge = isMissed
+      ? `<span style="color:#f59e0b; font-size:10px; margin-left:4px;">見逃し</span>`
+      : '';
+
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:#1e293b; border-radius:8px; margin-bottom:6px; border:1px solid #334155;">
+        <div style="min-width:34px; color:#94a3b8; font-size:11px;">${fmtDate(t.EntryDate)}</div>
+        <div style="flex:1; padding:0 8px; font-size:13px; font-weight:700; color:#e2e8f0;">${pair} ${dirBadge}${missedBadge}</div>
+        <div style="text-align:right; min-width:80px;">
+          <div style="font-size:13px; font-weight:700; color:${pipsColor};">${pipsSign}${pips.toFixed(1)}<span style="font-size:10px;">pips</span></div>
+          <div style="font-size:10px; color:${pipsColor}; opacity:0.85;">${profitStr}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = rows;
 }
 
 // データの最新月と前月を返す（カレンダー月でなくデータ基準）
@@ -1272,8 +1354,8 @@ function renderGrowthChart(allTrades) {
     barsHTML += `
       <g style="opacity:1;">
         <rect x="${x - (barWidth*0.38)}%" y="${y}%" width="${barWidth*0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
-        <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 3) : y + heightPct + 4}%" fill="${color}" font-size="5" text-anchor="middle" font-weight="bold">${dispVal}</text>
-        <text x="${x}%" y="97%" fill="#94a3b8" font-size="5.5" text-anchor="middle">${lbl}</text>
+        <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 2) : y + heightPct + 4.5}%" fill="${color}" font-size="3.8" text-anchor="middle" font-weight="bold">${dispVal}</text>
+        <text x="${x}%" y="97%" fill="#94a3b8" font-size="4.5" text-anchor="middle">${lbl}</text>
       </g>
     `;
   });
@@ -1409,6 +1491,113 @@ function toggleBtn(btn, siblingSelector = '') {
   // Recalculate score on any click inside entry or detail
   if (btn.closest('#modal-entry')) calculateEntryScore();
   if (btn.closest('#modal-trade-detail')) calculateEntryScoreTD();
+}
+
+// ==========================================
+// 新規エントリーモーダル用リベンジトレード警告
+// ==========================================
+function showEntryRevengeAlert() {
+  const alertDiv = document.getElementById('ne-revenge-alert');
+  if (!alertDiv) return;
+
+  const alerts = [];
+
+  // ── ① 直近損失警告（実トレードのみ：見逃し除外） ──
+  const realTrades = App.data.entries
+    .filter(t => t['ステータス'] === '決済')
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.EntryDate || '').replace(/\//g, '-');
+      const db = String(b.EntryDate || '').replace(/\//g, '-');
+      return da < db ? 1 : -1;
+    });
+  if (realTrades.length > 0) {
+    const last = realTrades[0];
+    const pips = parseFloat(last['実取得pips']) || 0;
+    if (pips < 0) {
+      const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '不明';
+      const profit = parseFloat(last['損益']) || 0;
+      const fmtProfit = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(profit);
+      alerts.push({
+        icon: '🔴',
+        bg: 'rgba(239,68,68,0.12)',
+        border: '#ef4444',
+        color: '#fca5a5',
+        msg: `<strong>直近トレードが損失です。</strong><br>📌 ${pair}：${pips.toFixed(1)}pips　${fmtProfit}<br>冷静に、このエントリーがルールに合致しているか確認してください。`
+      });
+    }
+  }
+
+  // ── ② 連勝 / 連敗カウント（全決済：見逃し含む） ──
+  const allClosed = App.data.entries
+    .filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）')
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.EntryDate || '').replace(/\//g, '-');
+      const db = String(b.EntryDate || '').replace(/\//g, '-');
+      return da < db ? 1 : -1;
+    });
+  let streak = 0, isWinStreak = false, isLossStreak = false;
+  for (const t of allClosed) {
+    const p = parseFloat(t['実取得pips']) || 0;
+    if (streak === 0) {
+      if      (p < 0) { isLossStreak = true; streak = 1; }
+      else if (p > 0) { isWinStreak  = true; streak = 1; }
+      else break;
+    } else {
+      if (isLossStreak && p < 0) streak++;
+      else if (isWinStreak && p > 0) streak++;
+      else break;
+    }
+  }
+  if (isLossStreak && streak >= 2) {
+    alerts.push({
+      icon: '⚠️',
+      bg: 'rgba(220,38,38,0.15)',
+      border: '#ef4444',
+      color: '#fca5a5',
+      msg: `<strong>${streak}連敗中です。</strong><br>焦って取り返そうとするリベンジトレードになっていませんか？<br>深呼吸して、このエントリーがルールに合致しているか再確認してください。`
+    });
+  } else if (isWinStreak && streak >= 2) {
+    alerts.push({
+      icon: '🎉',
+      bg: 'rgba(16,185,129,0.15)',
+      border: '#10b981',
+      color: '#6ee7b7',
+      msg: `<strong>${streak}連勝中です。</strong><br>調子が良いときほど慢心に注意。ロットを上げたり、雑なエントリーになっていませんか？<br>引き続きルール通りに丁寧にトレードしましょう。`
+    });
+  }
+
+  // ── ③ ポジポジ病（直近2週間のエントリー数） ──
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  const recentCount = App.data.entries.filter(t => {
+    const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    return d && new Date(d) >= twoWeeksAgo;
+  }).length;
+  if (recentCount >= 5) {
+    alerts.push({
+      icon: '💡',
+      bg: 'rgba(245,158,11,0.15)',
+      border: '#f59e0b',
+      color: '#fcd34d',
+      msg: `<strong>直近2週間で ${recentCount}回 のエントリーになります。</strong><br>ポジポジ病になっていませんか？優位性の高いポイントだけを厳選しましょう。`
+    });
+  }
+
+  // ── 描画 ──
+  if (alerts.length > 0) {
+    alertDiv.style.display = 'block';
+    alertDiv.innerHTML = alerts.map(a => `
+      <div style="display:flex; gap:10px; align-items:flex-start; background:${a.bg}; border:1px solid ${a.border}; border-radius:10px; padding:10px 12px; margin-bottom:8px;">
+        <span style="font-size:20px; line-height:1.4;">${a.icon}</span>
+        <div style="font-size:12px; color:${a.color}; line-height:1.6;">${a.msg}</div>
+      </div>
+    `).join('');
+  } else {
+    alertDiv.style.display = 'none';
+    alertDiv.innerHTML = '';
+  }
 }
 
 function analyzeMentalMode() {
@@ -1934,7 +2123,12 @@ function previewUploadImage(input) {
       const img = document.getElementById('ne-image-preview');
       img.src = e.target.result;
       document.getElementById('image-preview-container').style.display = 'block';
-      // (TV URL cleared if any)
+      makeTappable(img); // タップで拡大
+      // ラベルテキストを「選択済み」に変更
+      const labelText = document.getElementById('ne-image-label-text');
+      if (labelText) labelText.textContent = '✅ 画像選択済み（タップで変更）';
+      const label = document.getElementById('ne-image-label');
+      if (label) label.style.borderColor = '#10b981';
     }
     reader.readAsDataURL(input.files[0]);
   }
@@ -2072,6 +2266,68 @@ function playCloseSound(isWin) {
   } catch(e) {}
 }
 
+// 新規エントリー画像をクリア
+function clearNewEntryImage() {
+  const img = document.getElementById('ne-image-preview');
+  img.src = '';
+  document.getElementById('image-preview-container').style.display = 'none';
+  document.getElementById('ne-image-upload').value = '';
+  const labelText = document.getElementById('ne-image-label-text');
+  if (labelText) labelText.textContent = '📷 エントリー画像を追加';
+  const label = document.getElementById('ne-image-label');
+  if (label) label.style.borderColor = '#38bdf8';
+}
+
+// 詳細モーダルの画像削除（GASに保存）
+async function deleteTradeImage(slot) {
+  if (!confirm('この画像を削除しますか？')) return;
+  const index = parseInt(document.getElementById('td-index').value);
+  const t = App.data.entries[index];
+  const fromHistory = App.state.detailFromHistory;
+
+  // slot: 'top' か 'bottom'
+  // top=エントリー(保有中) or 決済(履歴)、bottom=その逆
+  let targetField = '';
+  if (slot === 'top') {
+    targetField = fromHistory ? findExitImageFieldName(t) : findEntryImageFieldName(t);
+    document.getElementById('td-image-preview').src = '';
+    document.getElementById('td-top-image-area').style.display = 'none';
+  } else {
+    targetField = fromHistory ? findEntryImageFieldName(t) : findExitImageFieldName(t);
+    document.getElementById('td-exit-image-preview').src = '';
+    document.getElementById('td-exit-image-container').style.display = 'none';
+  }
+
+  if (!targetField) { showToast('削除対象カラムが見つかりません'); return; }
+
+  // ローカルデータ更新
+  t[targetField] = '';
+
+  // GASに保存
+  try {
+    const entryId = t['EntryID'];
+    if (entryId) {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'updateEntry', entryId, data: { [targetField]: '' } })
+      });
+    }
+    showToast('画像を削除しました 🗑️');
+  } catch(e) {
+    showToast('削除保存エラー: ' + e.message);
+  }
+}
+
+// カラム名（最初に値があるもの）を返す
+function findEntryImageFieldName(t) {
+  const keys = ['ChartImage', 'EntryImage', 'エントリー画像', 'エントリーチャート', 'EntryChart', 'entry_image'];
+  return keys.find(k => t[k] && String(t[k]).trim()) || '';
+}
+function findExitImageFieldName(t) {
+  const keys = ['決済チャート', 'ExitImage', 'ExitChartImage', '決済画像', 'ExitChart', 'exit_image', 'CloseImage', 'ExitImg'];
+  return keys.find(k => t[k] && String(t[k]).trim()) || '';
+}
+
 function previewUploadImageTD(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
@@ -2187,38 +2443,66 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   
-  // Images (カラム名を動的に検索)
-  const rawEntryImg = findImageField(t);
-  const imgURL = getImageUrl(rawEntryImg);
-  const entryImgEl = document.getElementById('td-image-preview');
-  if (imgURL) {
-     entryImgEl.src = imgURL;
-     entryImgEl.style.display = 'block';
-  } else if (rawEntryImg && rawEntryImg.includes('/') && !rawEntryImg.startsWith('http')) {
-     entryImgEl.dataset.path = rawEntryImg;
-     entryImgEl.style.display = 'block';
-     entryImgEl.src = '';
-     resolvePathImages(document.getElementById('modal-trade-detail'));
+  // Images ──────────────────────────────────────────
+  // 保有中：上=エントリー写真、下=決済写真
+  // 履歴  ：上=決済写真、  下=エントリー写真
+  const rawEntryImg = findEntryImageField(t);
+  const rawExitImg  = findExitImageField(t);
+
+  const topRaw = fromHistory ? rawExitImg  : rawEntryImg;
+  const botRaw = fromHistory ? rawEntryImg : rawExitImg;
+
+  // 上部スロット（メイン写真）
+  const topArea    = document.getElementById('td-top-image-area');
+  const topImgEl   = document.getElementById('td-image-preview');
+  const topImgURL  = getImageUrl(topRaw);
+  const topIsPath  = topRaw && topRaw.includes('/') && !topRaw.startsWith('http') && !topRaw.startsWith('data:');
+  topImgEl.removeAttribute('data-path');
+  if (topImgURL) {
+    topImgEl.src = topImgURL;
+    topArea.style.display = 'block';
+    makeTappable(topImgEl);
+  } else if (topIsPath) {
+    topImgEl.src = '';
+    topImgEl.dataset.path = topRaw;
+    topArea.style.display = 'block';
+    // パス解決後にmakeTappableが呼ばれる
   } else {
-     entryImgEl.style.display = 'none';
-     entryImgEl.src = '';
+    topImgEl.src = '';
+    topArea.style.display = 'none';
+  }
+  // 上部スロットのラベル
+  const topLabel = topArea.querySelector('button');
+  if (topLabel) topLabel.dataset.imgType = fromHistory ? 'exit' : 'entry';
+
+  // 下部スロット（サブ写真）
+  const botContainer = document.getElementById('td-exit-image-container');
+  const botImgEl     = document.getElementById('td-exit-image-preview');
+  const botArea2     = document.getElementById('td-bottom-image-area');
+  const botImg2El    = document.getElementById('td-bottom-image-preview');
+
+  // 既存の下部コンテナを流用（決済メモの下）
+  botArea2.style.display = 'none'; // デフォルト非表示
+  const botImgURL = getImageUrl(botRaw);
+  const botIsPath = botRaw && botRaw.includes('/') && !botRaw.startsWith('http') && !botRaw.startsWith('data:');
+  botImgEl.removeAttribute('data-path');
+  if (botImgURL) {
+    botImgEl.src = botImgURL;
+    botContainer.style.display = 'block';
+    makeTappable(botImgEl);
+  } else if (botIsPath) {
+    botImgEl.src = '';
+    botImgEl.dataset.path = botRaw;
+    botContainer.style.display = 'block';
+    // パス解決後にmakeTappableが呼ばれる
+  } else {
+    botImgEl.src = '';
+    botContainer.style.display = 'none';
   }
 
-  const rawExitImg = t['ExitImage'] || t['決済画像'] || t['ExitChartImage'] || t['exit_image'] || t['ExitImg'] || t['CloseImage'] || '';
-  const exitImgURL = getImageUrl(rawExitImg);
-  const exitImgContainer = document.getElementById('td-exit-image-container');
-  const exitImgPreview = document.getElementById('td-exit-image-preview');
-  if (exitImgURL) {
-     exitImgPreview.src = exitImgURL;
-     exitImgContainer.style.display = 'block';
-  } else if (rawExitImg && rawExitImg.includes('/') && !rawExitImg.startsWith('http')) {
-     exitImgPreview.dataset.path = rawExitImg;
-     exitImgPreview.src = '';
-     exitImgContainer.style.display = 'block';
-     resolvePathImages(document.getElementById('modal-trade-detail'));
-  } else {
-     exitImgContainer.style.display = 'none';
-     exitImgPreview.src = '';
+  // パスベース画像を非同期で解決
+  if (topIsPath || botIsPath) {
+    resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
   onStatusChange(); // toggle fields
@@ -2362,6 +2646,40 @@ async function deleteEntry() {
   } finally {
     hideLoader();
   }
+}
+
+// ==========================================
+// 画像ライトボックス（タップで拡大・全画面）
+// ==========================================
+function openLightbox(src) {
+  if (!src || src.length < 5) return;
+  const lb  = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  img.src = src;
+  lb.style.display = 'flex';
+  // スワイプ上下で閉じる
+  let startY = 0;
+  lb.ontouchstart = (e) => { startY = e.touches[0].clientY; };
+  lb.ontouchend   = (e) => { if (Math.abs(e.changedTouches[0].clientY - startY) > 60) closeLightbox(); };
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  lb.style.display = 'none';
+  document.getElementById('lightbox-img').src = '';
+}
+
+// img要素にライトボックス用タップを登録（二重登録防止）
+function makeTappable(imgEl) {
+  if (!imgEl || imgEl._lightboxBound) return;
+  imgEl._lightboxBound = true;
+  imgEl.style.cursor = 'zoom-in';
+  imgEl.addEventListener('click', (e) => {
+    const src = imgEl.src;
+    if (!src || src === window.location.href || src.endsWith('#') || src.endsWith('/')) return;
+    e.stopPropagation();
+    openLightbox(src);
+  });
 }
 
 function showToast(msg) {
