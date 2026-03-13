@@ -14,26 +14,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
 .header {
   background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(10px);
-  padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
+  padding: 0 16px;
+  height: calc(50px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
   display: flex; align-items: center; justify-content: space-between;
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   border-bottom: 1px solid #1e293b;
 }
+.header h1 { font-size: 17px; font-weight: 700; line-height: 1; }
 
 /* ======== Navigation Tabs ======== */
 .tabs {
   display: flex; background: #0f172a; border-bottom: 1px solid #1e293b;
-  position: fixed; top: calc(46px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 99;
+  position: fixed; top: calc(50px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 99;
+  height: 52px;
 }
 
 /* ======== Content ======== */
-.content { padding: 12px; padding-top: calc(46px + env(safe-area-inset-top) + 54px + 12px); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+.content { padding: 12px; padding-top: calc(50px + env(safe-area-inset-top) + 52px + 12px); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 
 /* ======== Tabs ======== */
 .tab {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 8px 4px; font-size: 10px; color: #64748b; cursor: pointer;
+  padding: 6px 4px; font-size: 10px; color: #64748b; cursor: pointer;
   border-bottom: 2px solid transparent; transition: all 0.2s; user-select: none;
+  height: 52px; box-sizing: border-box;
 }
 .tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
 .tab-icon { font-size: 18px; margin-bottom: 2px; }
@@ -89,7 +94,7 @@ textarea.form-input { resize: vertical; }
 /* ======== Grid ======== */
 .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
 .grid-item { display: flex; flex-direction: column; gap: 4px; }
-.grid-label { font-size: 10px; color: #94a3b8; font-weight: 600; }
+.grid-label { font-size: 10px; color: #94a3b8; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ======== Modal ======== */
 .modal-overlay {

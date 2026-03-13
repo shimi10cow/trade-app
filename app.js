@@ -744,14 +744,22 @@ async function resolvePathImages(container) {
 
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
-  // 画像データがあるトレードをすべて表示（決済チャート含む）
-  const galleryTrades = App.data.entries.filter(t => {
-    const img = findImageField(t);
-    return img && img.trim() !== '';
-  });
+  // 画像があるトレードを日付降順（新しい順）で最大20件
+  const galleryTrades = App.data.entries
+    .filter(t => {
+      const img = findImageField(t);
+      return img && img.trim() !== '';
+    })
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.EntryDate || '').replace(/\//g, '-');
+      const db = String(b.EntryDate || '').replace(/\//g, '-');
+      return da < db ? 1 : -1;
+    })
+    .slice(0, 20);
 
   if(galleryTrades.length === 0) {
-    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">条件に合う画像がありません</div>';
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">画像がありません</div>';
     return;
   }
 
@@ -796,7 +804,6 @@ function renderGallery() {
 function renderAnalysis() {
   updateMonthlyStats();
   applyAnalysisFilters();
-  renderRecentTrades();
 }
 
 function renderRecentTrades() {
@@ -2335,6 +2342,11 @@ function previewUploadImageTD(input) {
       const img = document.getElementById('td-exit-image-preview');
       img.src = e.target.result;
       document.getElementById('td-exit-image-container').style.display = 'block';
+      makeTappable(img);
+      const labelText = document.getElementById('td-exit-upload-label-text');
+      if (labelText) { labelText.textContent = '✅ 画像選択済み（タップで変更）'; labelText.style.color = '#10b981'; }
+      const label = input.closest('label');
+      if (label) label.style.borderColor = '#10b981';
     }
     reader.readAsDataURL(input.files[0]);
   }
@@ -2505,6 +2517,21 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
+  // 決済画像アップロードエリア：保有中のみ表示
+  const exitUploadArea = document.getElementById('td-exit-upload-area');
+  const exitUploadInput = document.getElementById('td-exit-image-upload');
+  if (exitUploadArea) {
+    exitUploadArea.style.display = fromHistory ? 'none' : 'block';
+    // リセット
+    if (!fromHistory && exitUploadInput) {
+      exitUploadInput.value = '';
+      const labelText = document.getElementById('td-exit-upload-label-text');
+      if (labelText) { labelText.textContent = '決済画像を添付（任意）'; labelText.style.color = '#94a3b8'; }
+      const label = exitUploadArea.querySelector('label');
+      if (label) label.style.borderColor = '#334155';
+    }
+  }
+
   onStatusChange(); // toggle fields
   calculateEntryScoreTD(); // update score UI
   calculateRRTD(); // Update RR display
@@ -2587,6 +2614,28 @@ async function saveTradeDetail() {
       const btn = scoreGroups[idx]?.querySelector('button.active');
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
+
+    // 決済画像アップロード（保有中ポジションで新しい画像が選択された場合）
+    const fromHistory = App.state.detailFromHistory;
+    const exitImgPreview = document.getElementById('td-exit-image-preview');
+    if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
+      try {
+        const compressed = await compressImageForUpload(exitImgPreview.src, 800, 0.75);
+        const uploadRes = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'uploadImage',
+            base64Data: compressed,
+            filename: 'exit_' + Date.now() + '.jpg'
+          })
+        }).then(r => r.json());
+        if (uploadRes.success && uploadRes.fileId) {
+          updateData['決済チャート'] = 'drive_images/' + uploadRes.fileId + '.jpg';
+        }
+      } catch(e) {
+        console.warn('決済画像アップロード失敗:', e.message);
+      }
+    }
 
     // GAS updateEntry を呼び出す
     const res = await fetch(GAS_URL, {
