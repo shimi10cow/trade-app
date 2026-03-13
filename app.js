@@ -22,8 +22,67 @@ document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   setupEventListeners();
   setupModalInteractions();
+  setupPullToRefresh();
   loadData();
 });
+
+// ── プルダウンリフレッシュ ──
+function setupPullToRefresh() {
+  let startY = 0;
+  let isPulling = false;
+  let indicator = null;
+
+  function getIndicator() {
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'ptr-indicator';
+      indicator.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:none;justify-content:center;align-items:center;height:52px;background:rgba(15,23,42,0.92);color:#38bdf8;font-size:13px;font-weight:600;gap:8px;backdrop-filter:blur(4px);';
+      indicator.innerHTML = '<span id="ptr-icon" style="font-size:20px;transition:transform 0.2s;">↓</span><span id="ptr-text">引っ張ってリロード</span>';
+      document.body.appendChild(indicator);
+    }
+    return indicator;
+  }
+
+  document.addEventListener('touchstart', e => {
+    // モーダルが開いていたら無効
+    if (document.querySelector('.modal-overlay.active')) return;
+    const scrollEl = document.querySelector('.screen.active');
+    if (scrollEl && scrollEl.scrollTop > 0) return;
+    startY = e.touches[0].clientY;
+    isPulling = true;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!isPulling) return;
+    if (document.querySelector('.modal-overlay.active')) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy < 30) return;
+    const ind = getIndicator();
+    ind.style.display = 'flex';
+    const icon = document.getElementById('ptr-icon');
+    const text = document.getElementById('ptr-text');
+    if (dy > 80) {
+      if (icon) { icon.textContent = '↻'; icon.style.transform = 'rotate(180deg)'; }
+      if (text) text.textContent = '離してリロード';
+    } else {
+      if (icon) { icon.textContent = '↓'; icon.style.transform = `rotate(${Math.min(dy * 2, 180)}deg)`; }
+      if (text) text.textContent = '引っ張ってリロード';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!isPulling) return;
+    isPulling = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    const ind = getIndicator();
+    if (dy > 80) {
+      if (ind) { ind.querySelector('#ptr-text').textContent = '更新中...'; }
+      setTimeout(() => { window.location.reload(); }, 200);
+    } else {
+      if (ind) ind.style.display = 'none';
+    }
+  }, { passive: true });
+}
 
 function initServiceWorker() {
   if ('serviceWorker' in navigator) {
@@ -81,8 +140,8 @@ function formatTimeDisplay(timeStr) {
 function openHistoryModal() {
   App.state.modalOpenedAt = Date.now();
   const _hm = document.getElementById('modal-history');
-  _hm.querySelector('.modal-body').scrollTop = 0;
   _hm.classList.add('active');
+  requestAnimationFrame(() => { _hm.querySelector('.modal-body').scrollTop = 0; });
   document.getElementById('hist-period').value = 'all';
   toggleCustomHistDate();
   renderHistoryList();
@@ -317,8 +376,8 @@ function openEntryModal(isMissed = false) {
   
   App.state.modalOpenedAt = Date.now();
   const _em = document.getElementById('modal-entry');
-  _em.querySelector('.modal-body').scrollTop = 0;
   _em.classList.add('active');
+  requestAnimationFrame(() => { _em.querySelector('.modal-body').scrollTop = 0; });
 }
 
 function closeEntryModal() {
@@ -748,10 +807,10 @@ async function resolvePathImages(container) {
 
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
-  // 画像があるトレードを日付降順（新しい順）で最大20件
+  // 画像があるトレードを日付降順（新しい順）で最大20件（決済画像優先）
   const galleryTrades = App.data.entries
     .filter(t => {
-      const img = findImageField(t);
+      const img = findExitImageField(t) || findEntryImageField(t);
       return img && img.trim() !== '';
     })
     .slice()
@@ -770,7 +829,7 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = findImageField(t);
+    const rawUrl = findExitImageField(t) || findEntryImageField(t);
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -1420,8 +1479,8 @@ function openPairEdit(pairName) {
 
   App.state.modalOpenedAt = Date.now();
   const _pm = document.getElementById('modal-pair-edit');
-  _pm.querySelector('.modal-body').scrollTop = 0;
   _pm.classList.add('active');
+  requestAnimationFrame(() => { _pm.querySelector('.modal-body').scrollTop = 0; });
 }
 
 function closePairEdit() {
@@ -1541,17 +1600,9 @@ function showEntryRevengeAlert() {
     }
   }
 
-  // ── ② 連勝 / 連敗カウント（全決済：見逃し含む） ──
-  const allClosed = App.data.entries
-    .filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）')
-    .slice()
-    .sort((a, b) => {
-      const da = String(a.EntryDate || '').replace(/\//g, '-');
-      const db = String(b.EntryDate || '').replace(/\//g, '-');
-      return da < db ? 1 : -1;
-    });
+  // ── ② 連勝 / 連敗カウント（実トレードのみ：見逃し除外） ──
   let streak = 0, isWinStreak = false, isLossStreak = false;
-  for (const t of allClosed) {
+  for (const t of realTrades) {
     const p = parseFloat(t['実取得pips']) || 0;
     if (streak === 0) {
       if      (p < 0) { isLossStreak = true; streak = 1; }
@@ -1581,7 +1632,33 @@ function showEntryRevengeAlert() {
     });
   }
 
-  // ── ③ ポジポジ病（直近2週間のエントリー数） ──
+  // ── ③ 直近トレードのルール遵守チェック（実トレードのみ） ──
+  if (realTrades.length > 0) {
+    const last = realTrades[0];
+    const entryRef = last['エントリー振り返り'] || '';
+    const exitRef  = last['決済振り返り']     || '';
+    const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '前回';
+    const isPerfectEntry = entryRef === '完璧！';
+    const isPerfectExit  = exitRef  === '完璧利確';
+
+    if (!isPerfectEntry || !isPerfectExit) {
+      const parts = [];
+      if (!isPerfectEntry && entryRef) parts.push(`エントリーが「${entryRef}」`);
+      if (!isPerfectExit  && exitRef ) parts.push(`決済が「${exitRef}」`);
+      const detail = parts.length > 0
+        ? `${pair} のトレードで${parts.join('、')}でした。`
+        : `${pair} のトレードはルール遵守が確認できません。`;
+      alerts.push({
+        icon: '📋',
+        bg: 'rgba(100,116,139,0.15)',
+        border: '#64748b',
+        color: '#cbd5e1',
+        msg: `<strong>直近トレードのルール振り返り</strong><br>${detail}<br>同じ失敗を繰り返さないよう、今回のエントリー条件を再確認しましょう。`
+      });
+    }
+  }
+
+  // ── ④ ポジポジ病（直近2週間のエントリー数） ──
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   const recentCount = App.data.entries.filter(t => {
@@ -1784,37 +1861,60 @@ function calculateSimilarTrades(prefix) {
   const gr7 = getAct('.score-group', 6);
   const gr8 = getAct('.score-group', 7);
 
-  // Closed only
-  const history = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  // 実トレードのみ（見逃し除外）
+  const history = App.data.entries.filter(t => t['ステータス'] === '決済');
   let similars = [];
 
+  // MA正規化ヘルパー
+  const normMA = v => {
+    const s = String(v || '').trim();
+    if (s === '◎' || s === '〇' || s === '○') return '◎';
+    if (s === '✕' || s === 'NG' || s === 'ng') return '✕';
+    return '';
+  };
+
   history.forEach(t => {
-    if (t.DowRule != curDow) return; // Strict pre-filter
+    if (t.DowRule != curDow) return; // DowRule一致が必須条件
 
     let score = 0;
-    if (t.Direction === curDir) score += 10;
-    
-    // Attempt to match W1 trend from raw string, assuming it's stored exactly
-    let tW1 = '';
-    try {
-       // Typically trend directions are saved as JSON or comma separated. 
-       // For this we will assume it's just available in 'W1' if they had it.
-       // Without exact raw format, we skip precise matching or do best effort
-       tW1 = t['W1'] || ''; 
-    } catch(e) {}
-    if (w1 && w1 === tW1) score += 10;
-    
-    // MA matches (assuming t stores ◎/✕ or we just match roughly)
-    // Actually the user wants 40 points total for MA, each 10, and Entry grounds 40, each 5. 
-    // We will do a generic approximation: if there's any data correlation, we bump score. Since the current DB schema for previous entries might lack these exact newly requested mapped columns, we will simulate a score heavily weighted by DowRule which is the real filter.
-    score += (Math.random() * 80); // Simulate the remaining 80 points realistically since old data doesn't perfectly map to the new 8 checkbox pattern yet.
-    
-    if (score >= 40) {
-      similars.push({ trade: t, score: score, pips: parseFloat(t['実取得pips'])||0 });
+
+    // W1トレンド一致: +10
+    const tW1 = t['W1'] || '';
+    if (w1 && tW1 && w1 === tW1) score += 10;
+
+    // MA条件 各10点（4条件 × 10 = 40点）
+    const maKeys = ['H4MA480.1200', 'H4MA乖離', 'H1MA20.80', 'H4MA20.80'];
+    const curMAs = [ma1, ma2, ma3, ma4];
+    let maMatchCount = 0;
+    maKeys.forEach((k, i) => {
+      const cur = normMA(curMAs[i]);
+      const hist = normMA(t[k + '_J'] || t[k]);
+      if (cur && hist && cur === hist) { score += 10; maMatchCount++; }
+    });
+    // 全MA一致ボーナス: +5
+    if (maMatchCount === 4 && curMAs.every(m => m)) score += 5;
+
+    // エントリー根拠 各5点（8項目 × 5 = 40点）
+    const grKeys = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
+    const curGrs = [gr1, gr2, gr3, gr4, gr5, gr6, gr7, gr8];
+    let grMatchCount = 0;
+    grKeys.forEach((k, i) => {
+      const cur = curGrs[i];
+      const hist = String(t[k] || '').trim();
+      if (cur && hist && cur === hist) { score += 5; grMatchCount++; }
+    });
+    // 全根拠一致ボーナス: +5
+    if (grMatchCount === 8 && curGrs.every(g => g)) score += 5;
+
+    // 50点以上を類似トレードとして採用（100点満点）
+    if (score >= 50) {
+      const dateStr = String(t.EntryDate || '').replace(/\//g, '-').split('T')[0];
+      similars.push({ trade: t, score, pips: parseFloat(t['実取得pips']) || 0, dateStr });
     }
   });
 
-  similars.sort((a,b) => b.score - a.score);
+  // スコア降順、同スコアは日付降順（直近優先）
+  similars.sort((a, b) => b.score - a.score || b.dateStr.localeCompare(a.dateStr));
   
   if (similars.length === 0) {
     outSum.textContent = '条件に一致する過去の類似トレードは見つかりませんでした。';
@@ -2302,11 +2402,11 @@ async function deleteTradeImage(slot) {
   // top=エントリー(保有中) or 決済(履歴)、bottom=その逆
   let targetField = '';
   if (slot === 'top') {
-    targetField = fromHistory ? findExitImageFieldName(t) : findEntryImageFieldName(t);
+    targetField = findEntryImageFieldName(t); // 上スロットは常にエントリー画像
     document.getElementById('td-image-preview').src = '';
     document.getElementById('td-top-image-area').style.display = 'none';
   } else {
-    targetField = fromHistory ? findEntryImageFieldName(t) : findExitImageFieldName(t);
+    targetField = findExitImageFieldName(t); // 下スロットは常に決済画像
     document.getElementById('td-exit-image-preview').src = '';
     document.getElementById('td-exit-image-container').style.display = 'none';
   }
@@ -2467,8 +2567,9 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const rawEntryImg = findEntryImageField(t);
   const rawExitImg  = findExitImageField(t);
 
-  const topRaw = fromHistory ? rawExitImg  : rawEntryImg;
-  const botRaw = fromHistory ? rawEntryImg : rawExitImg;
+  // 常にエントリー画像=上スロット、決済画像=下スロット
+  const topRaw = rawEntryImg;
+  const botRaw = rawExitImg;
 
   // 上部スロット（メイン写真）
   const topArea    = document.getElementById('td-top-image-area');
@@ -2491,7 +2592,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
   // 上部スロットのラベル
   const topLabel = topArea.querySelector('button');
-  if (topLabel) topLabel.dataset.imgType = fromHistory ? 'exit' : 'entry';
+  if (topLabel) topLabel.dataset.imgType = 'entry';
 
   // 下部スロット（サブ写真）
   const botContainer = document.getElementById('td-exit-image-container');
@@ -2532,7 +2633,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     if (!fromHistory && exitUploadInput) {
       exitUploadInput.value = '';
       const labelText = document.getElementById('td-exit-upload-label-text');
-      if (labelText) { labelText.textContent = '決済画像を添付（任意）'; labelText.style.color = '#94a3b8'; }
+      if (labelText) { labelText.textContent = '決済画像を添付'; labelText.style.color = '#94a3b8'; }
       const label = exitUploadArea.querySelector('label');
       if (label) label.style.borderColor = '#334155';
     }
@@ -2553,8 +2654,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   App.state.modalOpenedAt = Date.now();
   const _tdm = document.getElementById('modal-trade-detail');
-  _tdm.querySelector('.modal-body').scrollTop = 0;
   _tdm.classList.add('active');
+  requestAnimationFrame(() => { _tdm.querySelector('.modal-body').scrollTop = 0; });
 }
 
 function closeTradeDetail() {
