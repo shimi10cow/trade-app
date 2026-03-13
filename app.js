@@ -49,9 +49,9 @@ function setupPullToRefresh() {
     </div>`;
   document.body.appendChild(ind);
 
-  // スクロール対象（activeなscreen）のscrollTopを取得
+  // ページ全体のスクロール量を取得（.screenはdisplay:blockのみでスクロールしない）
   function getScrollTop() {
-    return document.querySelector('.screen.active')?.scrollTop ?? 0;
+    return document.documentElement.scrollTop || document.body.scrollTop;
   }
 
   document.addEventListener('touchstart', e => {
@@ -402,6 +402,11 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-image-preview').style.display = 'none';
   document.getElementById('ne-image-preview').src = '';
   document.getElementById('image-preview-container').style.display = 'none';
+
+  const _ra = document.getElementById('ne-recent-analysis-section');
+  if (_ra) _ra.style.display = 'none';
+  const _rad = document.getElementById('ne-revenge-alert');
+  if (_rad) _rad.innerHTML = '';
   
   const titleDiv = document.querySelector('#modal-entry .modal-title');
   if(isMissed) {
@@ -1692,8 +1697,9 @@ function showEntryRevengeAlert() {
   }
 
   // ── 描画 ──
+  const sectionDiv = document.getElementById('ne-recent-analysis-section');
   if (alerts.length > 0) {
-    alertDiv.style.display = 'block';
+    if (sectionDiv) sectionDiv.style.display = 'block';
     alertDiv.innerHTML = alerts.map(a => `
       <div style="display:flex; gap:10px; align-items:flex-start; background:${a.bg}; border:1px solid ${a.border}; border-radius:10px; padding:10px 12px; margin-bottom:8px;">
         <span style="font-size:20px; line-height:1.4;">${a.icon}</span>
@@ -1701,7 +1707,7 @@ function showEntryRevengeAlert() {
       </div>
     `).join('');
   } else {
-    alertDiv.style.display = 'none';
+    if (sectionDiv) sectionDiv.style.display = 'none';
     alertDiv.innerHTML = '';
   }
 }
