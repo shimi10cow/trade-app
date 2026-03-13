@@ -98,18 +98,18 @@ function toggleCustomHistDate() {
 function renderHistoryList() {
   const container = document.getElementById('history-list');
   const period = document.getElementById('hist-period').value;
+  const histStatus = document.getElementById('hist-status')?.value || 'all';
   const dFrom = document.getElementById('hist-date-from').value;
   const dTo = document.getElementById('hist-date-to').value;
-  
-  const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
 
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
-  
+
   filtered = filtered.filter(t => {
-    // GASは yyyy/MM/dd 形式で返すのでスラッシュをダッシュに統一
+    // ステータスフィルター
+    if (histStatus === 'entry' && t['ステータス'] === '決済（見逃し）') return false;
+    if (histStatus === 'missed' && t['ステータス'] !== '決済（見逃し）') return false;
+    // 期間フィルター
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
-    if (period === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
-    if (period === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
     if (period === 'custom') {
       const tDate = new Date(dateStr);
       if (dFrom && tDate < new Date(dFrom)) return false;
@@ -1091,6 +1091,7 @@ function renderHeatmap(trades) {
 
   // Aggregate by hour (0-23) and weekday (0=Mon..4=Fri)
   const grid = {};
+  let plottedCount = 0;
   for(let h=0; h<24; h++) for(let d=0; d<5; d++) grid[`${h}-${d}`] = { count:0, pips:0 };
 
   trades.forEach(t => {
@@ -1113,7 +1114,14 @@ function renderHeatmap(trades) {
     const key = `${hour}-${dow - 1}`;
     grid[key].count++;
     grid[key].pips += parseFloat(t['実取得pips']) || 0;
+    plottedCount++;
   });
+
+  // 時刻データが1件もない場合はメッセージ表示
+  if (plottedCount === 0) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;font-size:13px;">時刻データがありません<br><span style="font-size:11px;">EntryTimeカラム(HH:MM形式)が必要です</span></div>';
+    return;
+  }
 
   const maxCount = Math.max(...Object.values(grid).map(c => c.count), 1);
   const days = ['月', '火', '水', '木', '金'];
@@ -1811,16 +1819,20 @@ async function submitEntryData() {
     const dirRaw = getActiveBtn('#ne-dir');
     const direction = dirRaw.replace('▲ ', '').replace('▼ ', '');
 
+    const pairName = document.getElementById('ne-pair').value;
     const entryData = {
-      'EntryDate':      document.getElementById('ne-date').value,
-      '時間帯':          document.getElementById('ne-time').value,
-      'PairName':       document.getElementById('ne-pair').value,
-      'Direction':      direction,
-      'DowRule':        document.getElementById('ne-dow-rule').value,
-      'TakeProfitPips': document.getElementById('ne-tp').value,
-      'StopLossPips':   document.getElementById('ne-sl').value,
-      'Lot':            document.getElementById('ne-lot').value,
-      'エントリーメモ':  document.getElementById('ne-memo').value,
+      'EntryDate':       document.getElementById('ne-date').value,
+      'EntryTime':       document.getElementById('ne-time').value,
+      '時間帯':           document.getElementById('ne-time').value,
+      'PairName':        pairName,
+      'PairName（元）':  pairName, // AppSheetのLOOKUP列に直接書き込む
+      'Direction':       direction,
+      'DowRule':         document.getElementById('ne-dow-rule').value,
+      'TakeProfitPips':  document.getElementById('ne-tp').value,
+      'StopLossPips':    document.getElementById('ne-sl').value,
+      'Lot':             document.getElementById('ne-lot').value,
+      'エントリーメモ':   document.getElementById('ne-memo').value,
+      'ステータス':       App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
     };
 
     // グリッドボタン（トレンド方向/MA条件/エントリー根拠）
