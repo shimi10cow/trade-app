@@ -1614,6 +1614,15 @@ function showEntryRevengeAlert() {
     if (!isNaN(profit) && profit !== 0) return profit > 0 ? 1 : -1;
     return 0; // 判定不能
   }
+  // デバッグ：直近5件の実取得pips・損益を出力
+  console.log('[streak debug] realTrades count:', realTrades.length);
+  realTrades.slice(0, 5).forEach((t, i) => {
+    console.log(`  [${i}]`, t['PairName（元）'] || t['PairName'] || '-',
+      '実取得pips:', t['実取得pips'], '→', parseFloat(t['実取得pips']),
+      '損益:', t['損益'], '→', parseFloat(t['損益']),
+      'sign:', tradeSign(t));
+  });
+
   let streak = 0, isWinStreak = false, isLossStreak = false;
   for (const t of realTrades) {
     const sign = tradeSign(t);
@@ -1627,6 +1636,7 @@ function showEntryRevengeAlert() {
       else break;
     }
   }
+  console.log('[streak debug] streak:', streak, 'isWinStreak:', isWinStreak, 'isLossStreak:', isLossStreak);
   if (isLossStreak && streak >= 2) {
     alerts.push({
       icon: '⚠️',
