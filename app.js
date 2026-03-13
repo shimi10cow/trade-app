@@ -80,7 +80,9 @@ function formatTimeDisplay(timeStr) {
 
 function openHistoryModal() {
   App.state.modalOpenedAt = Date.now();
-  document.getElementById('modal-history').classList.add('active');
+  const _hm = document.getElementById('modal-history');
+  _hm.querySelector('.modal-body').scrollTop = 0;
+  _hm.classList.add('active');
   document.getElementById('hist-period').value = 'all';
   toggleCustomHistDate();
   renderHistoryList();
@@ -314,7 +316,9 @@ function openEntryModal(isMissed = false) {
   calculateEntryScore();
   
   App.state.modalOpenedAt = Date.now();
-  document.getElementById('modal-entry').classList.add('active');
+  const _em = document.getElementById('modal-entry');
+  _em.querySelector('.modal-body').scrollTop = 0;
+  _em.classList.add('active');
 }
 
 function closeEntryModal() {
@@ -1415,7 +1419,9 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
 
   App.state.modalOpenedAt = Date.now();
-  document.getElementById('modal-pair-edit').classList.add('active');
+  const _pm = document.getElementById('modal-pair-edit');
+  _pm.querySelector('.modal-body').scrollTop = 0;
+  _pm.classList.add('active');
 }
 
 function closePairEdit() {
@@ -2546,7 +2552,9 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
 
   App.state.modalOpenedAt = Date.now();
-  document.getElementById('modal-trade-detail').classList.add('active');
+  const _tdm = document.getElementById('modal-trade-detail');
+  _tdm.querySelector('.modal-body').scrollTop = 0;
+  _tdm.classList.add('active');
 }
 
 function closeTradeDetail() {
