@@ -2868,3 +2868,168 @@ function showToast(msg) {
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
+
+// ════════════════════════════════════════
+// 🤖 Gemini AI トレード分析
+// ════════════════════════════════════════
+
+function toggleAiKeySection() {
+  const sec = document.getElementById('ai-key-section');
+  if (!sec) return;
+  const isHidden = sec.style.display === 'none';
+  sec.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    // 保存済みキーを復元（マスク表示）
+    const saved = localStorage.getItem('gemini-api-key');
+    const input = document.getElementById('ai-api-key-input');
+    if (saved && input) input.value = saved;
+  }
+}
+
+function saveGeminiKey() {
+  const key = document.getElementById('ai-api-key-input')?.value.trim();
+  if (!key) return;
+  localStorage.setItem('gemini-api-key', key);
+  const saved = document.getElementById('ai-key-saved');
+  if (saved) { saved.style.display = 'block'; setTimeout(() => { saved.style.display = 'none'; }, 2000); }
+  document.getElementById('ai-key-section').style.display = 'none';
+}
+
+async function runGeminiAnalysis() {
+  const apiKey = localStorage.getItem('gemini-api-key');
+  if (!apiKey) {
+    document.getElementById('ai-key-section').style.display = 'block';
+    const input = document.getElementById('ai-api-key-input');
+    if (input) input.focus();
+    return;
+  }
+
+  // 直近10件の実トレード（見逃し除外・日付降順）
+  const realTrades = App.data.entries
+    .filter(t => t['ステータス'] === '決済')
+    .slice().sort((a, b) => {
+      const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
+      const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
+      return db > da ? 1 : db < da ? -1 : 0;
+    })
+    .slice(0, 10);
+
+  const btn = document.getElementById('ai-analyze-btn');
+  const resultDiv = document.getElementById('ai-result');
+
+  if (realTrades.length === 0) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div style="color:#64748b;font-size:13px;">決済済みトレードがありません。</div>';
+    return;
+  }
+
+  // DowRule番号 → 説明テキスト
+  const DOW_RULE_DESC = {
+    '1':'1: D1〇H4〇　H4出入口', '2':'2: D1〇H4〇　H4砦', '3':'3: D1〇H4〇　H4砦形成M15',
+    '4':'4: D1〇H4✕　D1砦',      '5':'5: D1〇H4✕　H4出入口',
+    '6':'6: D1✕H4〇　H4出入口',  '7':'7: D1✕H4〇　H4砦', '8':'8: D1✕H4〇　H4砦形成M15',
+    '9':'9: D1✕H4✕　H4出入口',  '10':'10: D1✕H4✕　D1出入口'
+  };
+
+  // 送信データを整形
+  const tradeData = realTrades.map((t, i) => {
+    const date = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const profit = parseFloat(t['損益']) || 0;
+    const reasons = ['水平線D1.H4','H1MAエリア','TL推進','TL逆トレ','TL(M15)','直近波理論','H4の5波以降','上位足リスク']
+      .filter(k => t[k] === '〇' || t[k] === '◎');
+    const rawRule = String(t['DowRule'] || '');
+    return {
+      no: i + 1,
+      date,
+      pair: t['PairName（元）'] || t['PairName'] || '不明',
+      direction: t.Direction || '',        // Buy / Sell そのまま
+      result: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
+      pips: pips.toFixed(1),
+      profit: Math.round(profit),
+      dowRule: DOW_RULE_DESC[rawRule] || rawRule,  // 説明付き
+      w1: t['W1'] || '',
+      maH4_480: t['H4MA480.1200'] || '',
+      maKairi: t['H4MA乖離'] || '',
+      maH1: t['H1MA20.80'] || '',
+      maH4: t['H4MA20.80'] || '',
+      entryReasons: reasons,
+      entryReview: t['エントリー振り返り'] || '',
+      exitReview: t['決済振り返り'] || '',
+      memo: t['反省'] || ''
+    };
+  });
+
+  const wins  = tradeData.filter(t => t.result === '勝ち').length;
+  const losses = tradeData.filter(t => t.result === '負け').length;
+
+  const prompt = `あなたはFXトレーダーの専任コーチです。以下は私の直近${tradeData.length}件の実トレードデータ（新しい順）です。
+
+データ:
+${JSON.stringify(tradeData, null, 2)}
+
+概要: ${wins}勝${losses}敗
+
+以下の4項目を分析してください。各項目は見出し（①②③④）で始め、箇条書きで3〜5点、日本語で簡潔に。
+
+①【負けパターン】負けトレードに共通する条件・傾向（ペア、DowRule、MA条件、エントリー根拠、決済振り返りなど）
+②【勝ちパターン】勝てているときの共通点・強み
+③【決済の課題】エントリー振り返り・決済振り返りから見える行動パターンの問題点
+④【今すぐ改善すべき1点】最も優先度の高い具体的なアクション提言（1点のみ、明確に）`;
+
+  // ローディング表示
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;color:#38bdf8;font-size:13px;padding:8px 0;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
+        </path>
+      </svg>
+      AIが${tradeData.length}件を分析中...
+    </div>`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '分析結果を取得できませんでした。';
+
+    // Markdown → 簡易HTML変換
+    const html = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^(#{1,3}\s|[①②③④⑤⑥]【.+?】)/gm, m =>
+        `<div style="font-weight:700;color:#38bdf8;margin-top:14px;margin-bottom:6px;">${m}</div>`)
+      .replace(/^[\-\*]\s(.+)$/gm, '<div style="padding-left:14px;margin-bottom:3px;color:#cbd5e1;">• $1</div>')
+      .replace(/\n{2,}/g, '<br>')
+      .replace(/\n/g, '');
+
+    resultDiv.innerHTML = `
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #334155;">
+        対象: 直近${tradeData.length}件（${wins}勝${losses}敗）／ ${new Date().toLocaleString('ja-JP')}
+      </div>
+      <div style="font-size:13px;line-height:1.8;">${html}</div>`;
+
+  } catch (e) {
+    resultDiv.innerHTML = `
+      <div style="color:#ef4444;font-size:12px;">
+        ❌ エラー: ${e.message}<br>
+        <span style="color:#94a3b8;font-size:11px;">APIキーを確認してください（⚙️ APIキー）</span>
+      </div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 直近10件をAI分析';
+  }
+}
