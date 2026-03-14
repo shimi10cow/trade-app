@@ -2207,35 +2207,13 @@ async function submitEntryData() {
     const scoreMatch = scoreText.match(/(\d+)/);
     if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
 
-    // 画像アップロード（base64 data URL の場合のみ）
+    // 画像をbase64圧縮してスプシに直接保存（DriveApp不要）
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
-      try {
-        const compressed = await compressImageForUpload(imgPreview.src, 800, 0.75);
-        const uploadRes = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'uploadImage',
-            base64Data: compressed,
-            filename: 'entry_' + Date.now() + '.jpg'
-          })
-        }).then(r => r.json());
-        if (uploadRes.success && uploadRes.fileId) {
-          entryData['ChartImage'] = 'drive_images/' + uploadRes.fileId + '.jpg';
-          console.log('✅ エントリー画像アップロード成功:', uploadRes.fileId);
-        } else {
-          console.error('❌ 画像アップロード失敗（GAS）:', uploadRes);
-          showToast('⚠️ 画像アップロード失敗: ' + (uploadRes.error || 'GASを再デプロイしてください'));
-        }
-      } catch(e) {
-        console.error('❌ 画像アップロード例外:', e.message);
-        showToast('⚠️ 画像アップロードエラー: ' + e.message);
-      }
+      entryData['ChartImage'] = await compressImageForUpload(imgPreview.src, 300, 0.5);
     }
 
     // GAS に saveEntry POST
-    console.log('[DEBUG saveEntry] ChartImage:', entryData['ChartImage'] || '（なし）');
-    console.log('[DEBUG saveEntry] entryData keys:', Object.keys(entryData).join(', '));
     const res = await fetch(GAS_URL, {
       method: 'POST',
       body: JSON.stringify({ action: 'saveEntry', data: entryData })
@@ -2473,6 +2451,7 @@ function previewUploadEntryImageTD(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
       const img = document.getElementById('td-image-preview');
+      img.style.display = 'block';
       img.src = e.target.result;
       document.getElementById('td-top-image-area').style.display = 'block';
       document.getElementById('td-entry-upload-area').style.display = 'none';
@@ -2775,52 +2754,15 @@ async function saveTradeDetail() {
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
 
-    // エントリー画像アップロード（保有中ポジションで新しい画像が選択された場合）
+    // 画像をbase64圧縮してスプシに直接保存（DriveApp不要）
     const fromHistory = App.state.detailFromHistory;
     const entryImgPreview = document.getElementById('td-image-preview');
     if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
-      try {
-        const compressed = await compressImageForUpload(entryImgPreview.src, 800, 0.75);
-        const uploadRes = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'uploadImage',
-            base64Data: compressed,
-            filename: 'entry_' + Date.now() + '.jpg'
-          })
-        }).then(r => r.json());
-        if (uploadRes.success && uploadRes.fileId) {
-          updateData['ChartImage'] = 'drive_images/' + uploadRes.fileId + '.jpg';
-        }
-      } catch(e) {
-        console.warn('エントリー画像アップロード失敗:', e.message);
-      }
+      updateData['ChartImage'] = await compressImageForUpload(entryImgPreview.src, 300, 0.5);
     }
-
-    // 決済画像アップロード（保有中ポジションで新しい画像が選択された場合）
     const exitImgPreview = document.getElementById('td-exit-image-preview');
     if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
-      try {
-        const compressed = await compressImageForUpload(exitImgPreview.src, 800, 0.75);
-        const uploadRes = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({
-            action: 'uploadImage',
-            base64Data: compressed,
-            filename: 'exit_' + Date.now() + '.jpg'
-          })
-        }).then(r => r.json());
-        if (uploadRes.success && uploadRes.fileId) {
-          updateData['決済チャート'] = 'drive_images/' + uploadRes.fileId + '.jpg';
-          console.log('✅ 決済画像アップロード成功:', uploadRes.fileId);
-        } else {
-          console.error('❌ 決済画像アップロード失敗（GAS）:', uploadRes);
-          showToast('⚠️ 決済画像アップロード失敗: ' + (uploadRes.error || 'GASを再デプロイしてください'));
-        }
-      } catch(e) {
-        console.error('❌ 決済画像アップロード例外:', e.message);
-        showToast('⚠️ 決済画像アップロードエラー: ' + e.message);
-      }
+      updateData['決済チャート'] = await compressImageForUpload(exitImgPreview.src, 300, 0.5);
     }
 
     // GAS updateEntry を呼び出す
