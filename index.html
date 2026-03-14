@@ -259,10 +259,11 @@
               <option value="8">8: D1✕H4〇　H4砦形成M15</option>
               <option value="9">9: D1✕H4✕　H4出入口</option>
               <option value="10">10: D1✕H4✕　D1出入口</option>
+              <option value="ルール外">ルール外</option>
             </select>
           </div>
         </div>
-        
+
         <!-- Entry Judgement -->
         <div class="section" id="ne-judgement-section" style="background:#1e293b; border:1px solid #38bdf8; text-align:center; padding:16px; margin-bottom:16px; border-radius:8px;">
            <div style="color:#94a3b8; font-size:12px; margin-bottom:8px;">エントリー判定</div>
@@ -472,6 +473,7 @@
               <option value="8">8: D1✕H4〇　H4砦形成M15</option>
               <option value="9">9: D1✕H4✕　H4出入口</option>
               <option value="10">10: D1✕H4✕　D1出入口</option>
+              <option value="ルール外">ルール外</option>
             </select>
           </div>
           <div class="form-row"><span class="form-label">スコア</span><div class="form-input" id="td-score-display" style="text-align:center; background:#0f172a; color:#38bdf8; font-weight:700;">--</div></div>
@@ -582,6 +584,15 @@
               <div class="form-row" style="align-items:flex-start;">
                 <span class="form-label">反省</span>
                 <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
+              </div>
+
+              <!-- エントリー画像アップロード（保有中のみ表示） -->
+              <div id="td-entry-upload-area" style="display:none; margin-top:10px;">
+                <label style="display:flex; align-items:center; gap:8px; background:#1e293b; border:1px dashed #334155; border-radius:10px; padding:12px 14px; cursor:pointer;">
+                  <span style="font-size:18px;">📷</span>
+                  <span id="td-entry-upload-label-text" style="font-size:12px; color:#94a3b8;">エントリー画像を添付</span>
+                  <input type="file" id="td-entry-image-upload" accept="image/*" style="display:none;" onchange="previewUploadEntryImageTD(this)">
+                </label>
               </div>
 
               <!-- エントリー画像スロット（常に表示、反省の直後） -->

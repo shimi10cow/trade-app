@@ -621,7 +621,11 @@ function renderPositions() {
     return;
   }
   
-  container.innerHTML = activeTrades.slice().reverse().map((t) => {
+  container.innerHTML = activeTrades.slice().sort((a, b) => {
+    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    return db > da ? 1 : db < da ? -1 : 0;
+  }).map((t) => {
     // Find absolute index in full array since we filtered
     const index = App.data.entries.indexOf(t);
     const isMissed = t['ステータス'] === '保有中（見逃し）';
@@ -1115,9 +1119,9 @@ function applyAnalysisFilters() {
         ruleProfitTotal += rpProfit;
       }
     } else if (rawRulePips !== undefined && rawRulePips !== '' && pips !== 0) {
-      // AT列がない場合: AppSheet formula = 損益×(ルール準拠pips/実取得pips)
+      // AT列がない場合: |損益| / |実取得pips| × ルール準拠pips
       const rp = parseFloat(rawRulePips);
-      if (!isNaN(rp)) ruleProfitTotal += Math.round(profit * (rp / pips));
+      if (!isNaN(rp)) ruleProfitTotal += Math.round(Math.abs(profit) / Math.abs(pips) * rp);
     }
 
     // ルール遵守率: エントリー振り返り = "完璧！" の件数
@@ -2204,11 +2208,9 @@ async function submitEntryData() {
     if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
 
     // 画像アップロード（base64 data URL の場合のみ）
-    // ★ drive_images/FILEID.jpg 形式で保存 → GASがbase64で返せる形式
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
       try {
-        // アップロード前に圧縮（大きすぎるとGASがタイムアウト）
         const compressed = await compressImageForUpload(imgPreview.src, 800, 0.75);
         const uploadRes = await fetch(GAS_URL, {
           method: 'POST',
@@ -2219,12 +2221,15 @@ async function submitEntryData() {
           })
         }).then(r => r.json());
         if (uploadRes.success && uploadRes.fileId) {
-          // thumbnail URLではなく drive_images/FILEID.jpg 形式で保存
-          // → GAS がbase64で返すのでブラウザ認証不要
           entryData['ChartImage'] = 'drive_images/' + uploadRes.fileId + '.jpg';
+          console.log('✅ エントリー画像アップロード成功:', uploadRes.fileId);
+        } else {
+          console.error('❌ 画像アップロード失敗（GAS）:', uploadRes);
+          showToast('⚠️ 画像アップロード失敗: ' + (uploadRes.error || 'GASを再デプロイしてください'));
         }
       } catch(e) {
-        console.warn('画像アップロード失敗:', e.message);
+        console.error('❌ 画像アップロード例外:', e.message);
+        showToast('⚠️ 画像アップロードエラー: ' + e.message);
       }
     }
 
@@ -2461,6 +2466,20 @@ function findExitImageFieldName(t) {
   return keys.find(k => t[k] && String(t[k]).trim()) || '';
 }
 
+function previewUploadEntryImageTD(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = document.getElementById('td-image-preview');
+      img.src = e.target.result;
+      document.getElementById('td-top-image-area').style.display = 'block';
+      document.getElementById('td-entry-upload-area').style.display = 'none';
+      makeTappable(img);
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
 function previewUploadImageTD(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
@@ -2639,6 +2658,21 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
+  // エントリー画像アップロードエリア：保有中のみ表示（エントリー画像がない場合）
+  const entryUploadArea = document.getElementById('td-entry-upload-area');
+  const entryUploadInput = document.getElementById('td-entry-image-upload');
+  if (entryUploadArea) {
+    const showEntryUpload = !fromHistory && !rawEntryImg; // 保有中 かつ まだエントリー画像なし
+    entryUploadArea.style.display = showEntryUpload ? 'block' : 'none';
+    if (showEntryUpload && entryUploadInput) {
+      entryUploadInput.value = '';
+      const labelText = document.getElementById('td-entry-upload-label-text');
+      if (labelText) { labelText.textContent = 'エントリー画像を添付'; labelText.style.color = '#94a3b8'; }
+      const label = entryUploadArea.querySelector('label');
+      if (label) label.style.borderColor = '#334155';
+    }
+  }
+
   // 決済画像アップロードエリア：保有中のみ表示
   const exitUploadArea = document.getElementById('td-exit-upload-area');
   const exitUploadInput = document.getElementById('td-exit-image-upload');
@@ -2739,8 +2773,29 @@ async function saveTradeDetail() {
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
 
-    // 決済画像アップロード（保有中ポジションで新しい画像が選択された場合）
+    // エントリー画像アップロード（保有中ポジションで新しい画像が選択された場合）
     const fromHistory = App.state.detailFromHistory;
+    const entryImgPreview = document.getElementById('td-image-preview');
+    if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
+      try {
+        const compressed = await compressImageForUpload(entryImgPreview.src, 800, 0.75);
+        const uploadRes = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'uploadImage',
+            base64Data: compressed,
+            filename: 'entry_' + Date.now() + '.jpg'
+          })
+        }).then(r => r.json());
+        if (uploadRes.success && uploadRes.fileId) {
+          updateData['ChartImage'] = 'drive_images/' + uploadRes.fileId + '.jpg';
+        }
+      } catch(e) {
+        console.warn('エントリー画像アップロード失敗:', e.message);
+      }
+    }
+
+    // 決済画像アップロード（保有中ポジションで新しい画像が選択された場合）
     const exitImgPreview = document.getElementById('td-exit-image-preview');
     if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
       try {
@@ -2755,9 +2810,14 @@ async function saveTradeDetail() {
         }).then(r => r.json());
         if (uploadRes.success && uploadRes.fileId) {
           updateData['決済チャート'] = 'drive_images/' + uploadRes.fileId + '.jpg';
+          console.log('✅ 決済画像アップロード成功:', uploadRes.fileId);
+        } else {
+          console.error('❌ 決済画像アップロード失敗（GAS）:', uploadRes);
+          showToast('⚠️ 決済画像アップロード失敗: ' + (uploadRes.error || 'GASを再デプロイしてください'));
         }
       } catch(e) {
-        console.warn('決済画像アップロード失敗:', e.message);
+        console.error('❌ 決済画像アップロード例外:', e.message);
+        showToast('⚠️ 決済画像アップロードエラー: ' + e.message);
       }
     }
 
