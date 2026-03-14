@@ -1,4 +1,4 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbybzwl3xT2egZTE-8eatRlfqaXbKLaJaEbUDl9X7fv1BghK8ZS-Ha7D0qrW5DBRxQqt/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec';
 
 const App = {
   data: {
@@ -2234,6 +2234,8 @@ async function submitEntryData() {
     }
 
     // GAS に saveEntry POST
+    console.log('[DEBUG saveEntry] ChartImage:', entryData['ChartImage'] || '（なし）');
+    console.log('[DEBUG saveEntry] entryData keys:', Object.keys(entryData).join(', '));
     const res = await fetch(GAS_URL, {
       method: 'POST',
       body: JSON.stringify({ action: 'saveEntry', data: entryData })
