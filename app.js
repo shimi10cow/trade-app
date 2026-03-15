@@ -1369,8 +1369,85 @@ function applyAnalysisFilters() {
     </div>
   `;
   
+  renderDrawdown(filtered);
   renderHeatmap(filtered);
   renderGrowthChart(filtered);
+}
+
+function renderDrawdown(trades) {
+  const container = document.getElementById('drawdown-section');
+  if (!container) return;
+
+  if (trades.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">データがありません</div>';
+    return;
+  }
+
+  // 日付昇順でソート
+  const sorted = trades.slice().sort((a, b) => {
+    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  // 累計損益・ドローダウン計算
+  let cumulative = 0, peak = 0, maxDD = 0, currentDD = 0;
+  let maxStreak = 0, currentStreak = 0;
+  let peakCumulative = 0;
+
+  sorted.forEach(t => {
+    const profit = parseFloat(t['損益']) || 0;
+    const wl = t['勝敗'] || '';
+    cumulative += profit;
+
+    if (cumulative > peak) {
+      peak = cumulative;
+      peakCumulative = cumulative;
+    }
+
+    const dd = peak - cumulative;
+    if (dd > maxDD) maxDD = dd;
+    currentDD = dd;
+
+    // 連敗カウント
+    if (wl === '負け') {
+      currentStreak++;
+      if (currentStreak > maxStreak) maxStreak = currentStreak;
+    } else if (wl === '勝ち') {
+      currentStreak = 0;
+    }
+  });
+
+  // 回復係数 = 総利益 / 最大DD（総利益がプラスの場合のみ）
+  const totalProfit = cumulative;
+  const recoveryFactor = (maxDD > 0 && totalProfit > 0) ? (totalProfit / maxDD) : null;
+
+  const ddColor = currentDD > 0 ? '#f87171' : '#10b981';
+  const ddLabel = currentDD <= 0 ? '✅ 最高益更新中' : '-' + fmtCurrency(Math.round(currentDD));
+  const rfColor = recoveryFactor === null ? '#64748b' : (recoveryFactor >= 2 ? '#10b981' : recoveryFactor >= 1 ? '#f59e0b' : '#f87171');
+  const rfText = recoveryFactor === null ? '—' : recoveryFactor.toFixed(2);
+
+  container.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">最大ドローダウン</div>
+      <div class="metric-value neg">-${fmtCurrency(Math.round(maxDD))}</div>
+      <div class="metric-sub">ピークから最大落差</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">現在のドローダウン</div>
+      <div class="metric-value" style="color:${ddColor};">${ddLabel}</div>
+      <div class="metric-sub">直近ピークから</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">最大連敗数</div>
+      <div class="metric-value neg">${maxStreak}<span class="metric-unit">連敗</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">回復係数</div>
+      <div class="metric-value" style="color:${rfColor};">${rfText}</div>
+      <div class="metric-sub">総利益 ÷ 最大DD（2以上が健全）</div>
+    </div>
+  `;
 }
 
 function renderHeatmap(trades) {
