@@ -711,7 +711,6 @@ function renderPairs() {
 const _imgUrlCache = {};
 
 // 画像をアップロード前に圧縮する（max 800px, quality 0.75）
-// 大きな画像はGASタイムアウトの原因になるため圧縮して送る
 function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -723,9 +722,19 @@ function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL('image/jpeg', quality));
     };
-    img.onerror = () => resolve(dataUrl); // 失敗時はそのまま
+    img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
+}
+
+// スプシ保存用：セル上限(50,000字)に収まるまで段階的に圧縮
+async function compressForSpreadsheet(dataUrl) {
+  const attempts = [[550, 0.70], [420, 0.65], [320, 0.60], [240, 0.55]];
+  for (const [w, q] of attempts) {
+    const result = await compressImageForUpload(dataUrl, w, q);
+    if (result.length <= 45000) return result;
+  }
+  return compressImageForUpload(dataUrl, 200, 0.50);
 }
 
 // エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
@@ -2207,10 +2216,10 @@ async function submitEntryData() {
     const scoreMatch = scoreText.match(/(\d+)/);
     if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
 
-    // 画像をbase64圧縮してスプシに直接保存（DriveApp不要）
+    // 画像をbase64圧縮してスプシに直接保存（セル上限内に収まるよう適応圧縮）
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
-      entryData['ChartImage'] = await compressImageForUpload(imgPreview.src, 600, 0.72);
+      entryData['ChartImage'] = await compressForSpreadsheet(imgPreview.src);
     }
 
     // GAS に saveEntry POST
@@ -2407,13 +2416,39 @@ async function deleteTradeImage(slot) {
   // top=エントリー(保有中) or 決済(履歴)、bottom=その逆
   let targetField = '';
   if (slot === 'top') {
-    targetField = findEntryImageFieldName(t); // 上スロットは常にエントリー画像
+    targetField = findEntryImageFieldName(t);
     document.getElementById('td-image-preview').src = '';
     document.getElementById('td-top-image-area').style.display = 'none';
+    // 保有中の場合はエントリーアップロードエリアを再表示
+    if (!fromHistory) {
+      const ea = document.getElementById('td-entry-upload-area');
+      if (ea) {
+        ea.style.display = 'block';
+        const lt = document.getElementById('td-entry-upload-label-text');
+        if (lt) { lt.textContent = 'エントリー画像を添付'; lt.style.color = '#94a3b8'; }
+        const lbl = ea.querySelector('label');
+        if (lbl) lbl.style.borderColor = '#334155';
+        const inp = document.getElementById('td-entry-image-upload');
+        if (inp) inp.value = '';
+      }
+    }
   } else {
-    targetField = findExitImageFieldName(t); // 下スロットは常に決済画像
+    targetField = findExitImageFieldName(t);
     document.getElementById('td-exit-image-preview').src = '';
     document.getElementById('td-exit-image-container').style.display = 'none';
+    // 保有中の場合は決済アップロードエリアを再表示
+    if (!fromHistory) {
+      const ea = document.getElementById('td-exit-upload-area');
+      if (ea) {
+        ea.style.display = 'block';
+        const lt = document.getElementById('td-exit-upload-label-text');
+        if (lt) { lt.textContent = '決済画像を添付'; lt.style.color = '#94a3b8'; }
+        const lbl = ea.querySelector('label');
+        if (lbl) lbl.style.borderColor = '#334155';
+        const inp = document.getElementById('td-exit-image-upload');
+        if (inp) inp.value = '';
+      }
+    }
   }
 
   if (!targetField) { showToast('削除対象カラムが見つかりません'); return; }
@@ -2762,11 +2797,11 @@ async function saveTradeDetail() {
     const fromHistory = App.state.detailFromHistory;
     const entryImgPreview = document.getElementById('td-image-preview');
     if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
-      updateData['ChartImage'] = await compressImageForUpload(entryImgPreview.src, 600, 0.72);
+      updateData['ChartImage'] = await compressForSpreadsheet(entryImgPreview.src);
     }
     const exitImgPreview = document.getElementById('td-exit-image-preview');
     if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
-      updateData['決済チャート'] = await compressImageForUpload(exitImgPreview.src, 600, 0.72);
+      updateData['決済チャート'] = await compressForSpreadsheet(exitImgPreview.src);
     }
 
     // GAS updateEntry を呼び出す
