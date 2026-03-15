@@ -727,7 +727,7 @@ function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
   });
 }
 
-// スプシ保存用：セル上限(50,000字)に収まるまで段階的に圧縮
+// スプシ保存用：セル上限(50,000字)に収まるまで段階的に圧縮（フォールバック用）
 async function compressForSpreadsheet(dataUrl) {
   const attempts = [[550, 0.70], [420, 0.65], [320, 0.60], [240, 0.55]];
   for (const [w, q] of attempts) {
@@ -735,6 +735,25 @@ async function compressForSpreadsheet(dataUrl) {
     if (result.length <= 45000) return result;
   }
   return compressImageForUpload(dataUrl, 200, 0.50);
+}
+
+// Drive優先アップロード：成功すれば高画質URL、失敗ならbase64フォールバック
+async function uploadImageSmart(dataUrl, filename) {
+  try {
+    // Drive にアップロード（高画質 1200px）
+    const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'uploadImage', base64Data: compressed, filename })
+    }).then(r => r.json());
+    if (res.success && res.fileId) {
+      return 'drive_images/' + res.fileId + '.jpg'; // Driveに保存成功
+    }
+  } catch(e) {
+    console.warn('Drive upload failed, fallback to base64:', e.message);
+  }
+  // フォールバック：base64をスプシに直接保存（低画質）
+  return compressForSpreadsheet(dataUrl);
 }
 
 // エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
@@ -2216,10 +2235,10 @@ async function submitEntryData() {
     const scoreMatch = scoreText.match(/(\d+)/);
     if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
 
-    // 画像をbase64圧縮してスプシに直接保存（セル上限内に収まるよう適応圧縮）
+    // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
-      entryData['ChartImage'] = await compressForSpreadsheet(imgPreview.src);
+      entryData['ChartImage'] = await uploadImageSmart(imgPreview.src, 'entry_' + Date.now() + '.jpg');
     }
 
     // GAS に saveEntry POST
@@ -2678,35 +2697,26 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
-  // エントリー画像アップロードエリア：保有中のみ表示（エントリー画像がない場合）
-  const entryUploadArea = document.getElementById('td-entry-upload-area');
-  const entryUploadInput = document.getElementById('td-entry-image-upload');
-  if (entryUploadArea) {
-    const showEntryUpload = !fromHistory && !rawEntryImg; // 保有中 かつ まだエントリー画像なし
-    entryUploadArea.style.display = showEntryUpload ? 'block' : 'none';
-    if (showEntryUpload && entryUploadInput) {
-      entryUploadInput.value = '';
-      const labelText = document.getElementById('td-entry-upload-label-text');
-      if (labelText) { labelText.textContent = 'エントリー画像を添付'; labelText.style.color = '#94a3b8'; }
-      const label = entryUploadArea.querySelector('label');
-      if (label) label.style.borderColor = '#334155';
+  // アップロードエリア共通セット関数
+  function setupUploadArea(areaId, inputId, labelId, hasImage) {
+    const area = document.getElementById(areaId);
+    const input = document.getElementById(inputId);
+    const lt = document.getElementById(labelId);
+    if (!area) return;
+    if (fromHistory) { area.style.display = 'none'; return; }
+    area.style.display = 'block';
+    if (input) input.value = '';
+    const lbl = area.querySelector('label');
+    if (hasImage) {
+      if (lt) { lt.textContent = '✅ 画像選択済み（タップで変更）'; lt.style.color = '#10b981'; }
+      if (lbl) lbl.style.borderColor = '#10b981';
+    } else {
+      if (lt) { lt.textContent = lt.id === 'td-entry-upload-label-text' ? 'エントリー画像を添付' : '決済画像を添付'; lt.style.color = '#94a3b8'; }
+      if (lbl) lbl.style.borderColor = '#334155';
     }
   }
-
-  // 決済画像アップロードエリア：保有中のみ表示
-  const exitUploadArea = document.getElementById('td-exit-upload-area');
-  const exitUploadInput = document.getElementById('td-exit-image-upload');
-  if (exitUploadArea) {
-    exitUploadArea.style.display = fromHistory ? 'none' : 'block';
-    // リセット
-    if (!fromHistory && exitUploadInput) {
-      exitUploadInput.value = '';
-      const labelText = document.getElementById('td-exit-upload-label-text');
-      if (labelText) { labelText.textContent = '決済画像を添付'; labelText.style.color = '#94a3b8'; }
-      const label = exitUploadArea.querySelector('label');
-      if (label) label.style.borderColor = '#334155';
-    }
-  }
+  setupUploadArea('td-entry-upload-area', 'td-entry-image-upload', 'td-entry-upload-label-text', !!rawEntryImg);
+  setupUploadArea('td-exit-upload-area',  'td-exit-image-upload',  'td-exit-upload-label-text',  !!rawExitImg);
 
   onStatusChange(); // toggle fields
   calculateEntryScoreTD(); // update score UI
@@ -2793,15 +2803,15 @@ async function saveTradeDetail() {
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
 
-    // 画像をbase64圧縮してスプシに直接保存（DriveApp不要）
+    // 画像保存：Drive優先、失敗時はbase64フォールバック
     const fromHistory = App.state.detailFromHistory;
     const entryImgPreview = document.getElementById('td-image-preview');
     if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
-      updateData['ChartImage'] = await compressForSpreadsheet(entryImgPreview.src);
+      updateData['ChartImage'] = await uploadImageSmart(entryImgPreview.src, 'entry_' + Date.now() + '.jpg');
     }
     const exitImgPreview = document.getElementById('td-exit-image-preview');
     if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
-      updateData['決済チャート'] = await compressForSpreadsheet(exitImgPreview.src);
+      updateData['決済チャート'] = await uploadImageSmart(exitImgPreview.src, 'exit_' + Date.now() + '.jpg');
     }
 
     // GAS updateEntry を呼び出す
