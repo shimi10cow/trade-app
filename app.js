@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupModalInteractions();
   setupPullToRefresh();
   loadData();
+  updateImgBBStatusBar();
 });
 
 // ── プルダウンリフレッシュ ──
@@ -737,23 +738,84 @@ async function compressForSpreadsheet(dataUrl) {
   return compressImageForUpload(dataUrl, 200, 0.50);
 }
 
-// Drive優先アップロード：成功すれば高画質URL、失敗ならbase64フォールバック
+// ImgBB に直接アップロード（高画質・無圧縮）
+async function uploadToImgBB(dataUrl) {
+  const apiKey = localStorage.getItem('imgbb_api_key');
+  if (!apiKey) return null;
+  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+  const formData = new FormData();
+  formData.append('key', apiKey);
+  formData.append('image', base64);
+  const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
+  const data = await res.json();
+  if (data.success) return data.data.url;
+  throw new Error(data.error?.message || 'ImgBB upload failed');
+}
+
+// ImgBB優先アップロード：失敗時はDrive→base64の順でフォールバック
 async function uploadImageSmart(dataUrl, filename) {
+  // 1) ImgBB（高画質・ブラウザから直接）
   try {
-    // Drive にアップロード（高画質 1200px）
+    const url = await uploadToImgBB(dataUrl);
+    if (url) { console.log('ImgBB upload OK:', url); return url; }
+  } catch(e) {
+    console.warn('ImgBB upload failed:', e.message);
+  }
+  // 2) Drive経由（GAS）
+  try {
     const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
     const res = await fetch(GAS_URL, {
       method: 'POST',
       body: JSON.stringify({ action: 'uploadImage', base64Data: compressed, filename })
     }).then(r => r.json());
     if (res.success && res.fileId) {
-      return 'drive_images/' + res.fileId + '.jpg'; // Driveに保存成功
+      return 'drive_images/' + res.fileId + '.jpg';
     }
   } catch(e) {
     console.warn('Drive upload failed, fallback to base64:', e.message);
   }
-  // フォールバック：base64をスプシに直接保存（低画質）
+  // 3) 最終フォールバック：base64をスプシに直接保存（低画質）
   return compressForSpreadsheet(dataUrl);
+}
+
+// ImgBB APIキー 保存/表示
+function saveImgBBKey() {
+  const key = document.getElementById('imgbb-api-key-input')?.value.trim();
+  const status = document.getElementById('imgbb-key-status');
+  if (!key) {
+    if (status) { status.textContent = '⚠️ キーを入力してください'; status.style.color = '#f59e0b'; }
+    return;
+  }
+  localStorage.setItem('imgbb_api_key', key);
+  if (status) { status.textContent = '✓ 保存しました'; status.style.color = '#10b981'; }
+  updateImgBBStatusBar();
+  setTimeout(() => { document.getElementById('imgbb-key-section').style.display = 'none'; updateImgBBStatusBar(); }, 1200);
+}
+
+function toggleImgBBKeySection() {
+  const sec = document.getElementById('imgbb-key-section');
+  const isHidden = sec.style.display === 'none' || sec.style.display === '';
+  sec.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    const saved = localStorage.getItem('imgbb_api_key');
+    const input = document.getElementById('imgbb-api-key-input');
+    if (saved && input) input.value = saved;
+    const status = document.getElementById('imgbb-key-status');
+    if (status) { status.textContent = ''; }
+  }
+}
+
+function updateImgBBStatusBar() {
+  const bar = document.getElementById('imgbb-status-bar');
+  if (!bar) return;
+  const key = localStorage.getItem('imgbb_api_key');
+  if (key) {
+    bar.innerHTML = '✅ ImgBB 有効（高画質アップロード）　<span style="color:#38bdf8;cursor:pointer;" onclick="toggleImgBBKeySection()">変更</span>';
+    bar.style.color = '#10b981';
+  } else {
+    bar.innerHTML = '⚠️ ImgBB未設定（低画質base64保存）　<span style="color:#38bdf8;cursor:pointer;" onclick="toggleImgBBKeySection()">設定する</span>';
+    bar.style.color = '#f59e0b';
+  }
 }
 
 // エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
