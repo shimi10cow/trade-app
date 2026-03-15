@@ -2486,22 +2486,19 @@ function clearNewEntryImage() {
   if (label) label.style.borderColor = '#38bdf8';
 }
 
-// 詳細モーダルの画像削除（GASに保存）
-async function deleteTradeImage(slot) {
-  if (!confirm('この画像を削除しますか？')) return;
+// 詳細モーダルの画像削除（UIのみ変更・GAS保存は「変更内容を保存」ボタン時）
+function deleteTradeImage(slot) {
+  if (!confirm('この画像を削除しますか？\n※「変更内容を保存」で確定されます')) return;
   const index = parseInt(document.getElementById('td-index').value);
   const t = App.data.entries[index];
   const fromHistory = App.state.detailFromHistory;
 
-  // slot: 'top' か 'bottom'
-  // top=エントリー(保有中) or 決済(履歴)、bottom=その逆
-  let targetField = '';
   if (slot === 'top') {
-    targetField = findEntryImageFieldName(t);
+    const targetField = findEntryImageFieldName(t);
     document.getElementById('td-image-preview').src = '';
     document.getElementById('td-top-image-area').style.display = 'none';
-    // 保有中の場合はエントリーアップロードエリアを再表示
     if (!fromHistory) {
+      App.state.pendingEntryImgDelete = targetField || 'ChartImage';
       const ea = document.getElementById('td-entry-upload-area');
       if (ea) {
         ea.style.display = 'block';
@@ -2514,11 +2511,11 @@ async function deleteTradeImage(slot) {
       }
     }
   } else {
-    targetField = findExitImageFieldName(t);
+    const targetField = findExitImageFieldName(t);
     document.getElementById('td-exit-image-preview').src = '';
     document.getElementById('td-exit-image-container').style.display = 'none';
-    // 保有中の場合は決済アップロードエリアを再表示
     if (!fromHistory) {
+      App.state.pendingExitImgDelete = targetField || '決済チャート';
       const ea = document.getElementById('td-exit-upload-area');
       if (ea) {
         ea.style.display = 'block';
@@ -2531,25 +2528,7 @@ async function deleteTradeImage(slot) {
       }
     }
   }
-
-  if (!targetField) { showToast('削除対象カラムが見つかりません'); return; }
-
-  // ローカルデータ更新
-  t[targetField] = '';
-
-  // GASに保存
-  try {
-    const entryId = t['EntryID'];
-    if (entryId) {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'updateEntry', entryId, data: { [targetField]: '' } })
-      });
-    }
-    showToast('画像を削除しました 🗑️');
-  } catch(e) {
-    showToast('削除保存エラー: ' + e.message);
-  }
+  showToast('🗑️ 保存ボタンで確定されます');
 }
 
 // カラム名（最初に値があるもの）を返す
@@ -2600,6 +2579,8 @@ function previewUploadImageTD(input) {
 
 function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailFromHistory = fromHistory;
+  App.state.pendingEntryImgDelete = null;
+  App.state.pendingExitImgDelete = null;
   const t = App.data.entries[index];
   if(!t) return;
   App.state.activeTradeIndex = index;
@@ -2801,6 +2782,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
 function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
+  App.state.pendingEntryImgDelete = null;
+  App.state.pendingExitImgDelete = null;
   if (App.state.detailFromHistory) {
     App.state.detailFromHistory = false;
     openHistoryModal();
@@ -2865,15 +2848,28 @@ async function saveTradeDetail() {
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
 
-    // 画像保存：Drive優先、失敗時はbase64フォールバック
+    // 画像保存（保留中の削除 & 新規アップロード）
     const fromHistory = App.state.detailFromHistory;
-    const entryImgPreview = document.getElementById('td-image-preview');
-    if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
-      updateData['ChartImage'] = await uploadImageSmart(entryImgPreview.src, 'entry_' + Date.now() + '.jpg');
-    }
-    const exitImgPreview = document.getElementById('td-exit-image-preview');
-    if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
-      updateData['決済チャート'] = await uploadImageSmart(exitImgPreview.src, 'exit_' + Date.now() + '.jpg');
+    if (!fromHistory) {
+      // 保留中の削除を適用
+      if (App.state.pendingEntryImgDelete) {
+        updateData[App.state.pendingEntryImgDelete] = '';
+      }
+      if (App.state.pendingExitImgDelete) {
+        updateData[App.state.pendingExitImgDelete] = '';
+      }
+      // 新規選択ファイルのアップロード（fileInputにファイルがある場合のみ）
+      const entryFileInput = document.getElementById('td-entry-image-upload');
+      if (entryFileInput && entryFileInput.files && entryFileInput.files[0]) {
+        const entryImgPreview = document.getElementById('td-image-preview');
+        const entryField = findEntryImageFieldName(t) || 'ChartImage';
+        updateData[entryField] = await uploadImageSmart(entryImgPreview.src, 'entry_' + Date.now() + '.jpg');
+      }
+      const exitFileInput = document.getElementById('td-exit-image-upload');
+      if (exitFileInput && exitFileInput.files && exitFileInput.files[0]) {
+        const exitImgPreview = document.getElementById('td-exit-image-preview');
+        updateData['決済チャート'] = await uploadImageSmart(exitImgPreview.src, 'exit_' + Date.now() + '.jpg');
+      }
     }
 
     // GAS updateEntry を呼び出す
