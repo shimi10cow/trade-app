@@ -2210,7 +2210,7 @@ async function submitEntryData() {
     // 画像をbase64圧縮してスプシに直接保存（DriveApp不要）
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
-      entryData['ChartImage'] = await compressImageForUpload(imgPreview.src, 300, 0.5);
+      entryData['ChartImage'] = await compressImageForUpload(imgPreview.src, 600, 0.72);
     }
 
     // GAS に saveEntry POST
@@ -2454,7 +2454,11 @@ function previewUploadEntryImageTD(input) {
       img.style.display = 'block';
       img.src = e.target.result;
       document.getElementById('td-top-image-area').style.display = 'block';
-      document.getElementById('td-entry-upload-area').style.display = 'none';
+      // アップロードエリアは非表示にせず「選択済み」表示に更新（決済写真と同じ動作）
+      const labelText = document.getElementById('td-entry-upload-label-text');
+      if (labelText) { labelText.textContent = '✅ 画像選択済み（タップで変更）'; labelText.style.color = '#10b981'; }
+      const label = input.closest('label');
+      if (label) label.style.borderColor = '#10b981';
       makeTappable(img);
     };
     reader.readAsDataURL(input.files[0]);
@@ -2758,11 +2762,11 @@ async function saveTradeDetail() {
     const fromHistory = App.state.detailFromHistory;
     const entryImgPreview = document.getElementById('td-image-preview');
     if (!fromHistory && entryImgPreview && entryImgPreview.src && entryImgPreview.src.startsWith('data:image') && !t['ChartImage']) {
-      updateData['ChartImage'] = await compressImageForUpload(entryImgPreview.src, 300, 0.5);
+      updateData['ChartImage'] = await compressImageForUpload(entryImgPreview.src, 600, 0.72);
     }
     const exitImgPreview = document.getElementById('td-exit-image-preview');
     if (!fromHistory && exitImgPreview && exitImgPreview.src && exitImgPreview.src.startsWith('data:image')) {
-      updateData['決済チャート'] = await compressImageForUpload(exitImgPreview.src, 300, 0.5);
+      updateData['決済チャート'] = await compressImageForUpload(exitImgPreview.src, 600, 0.72);
     }
 
     // GAS updateEntry を呼び出す
@@ -2833,17 +2837,74 @@ function openLightbox(src) {
   const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   img.src = src;
+  img.style.transform = 'translate(0px,0px) scale(1)';
   lb.style.display = 'flex';
-  // スワイプ上下で閉じる
-  let startY = 0;
-  lb.ontouchstart = (e) => { startY = e.touches[0].clientY; };
-  lb.ontouchend   = (e) => { if (Math.abs(e.changedTouches[0].clientY - startY) > 60) closeLightbox(); };
+
+  // ── ピンチズーム＆パン ──
+  let scale = 1, tx = 0, ty = 0;
+  let lastScale = 1, lastTx = 0, lastTy = 0;
+  let startDist = 0, startMx = 0, startMy = 0;
+  let panStartX = 0, panStartY = 0;
+  let swipeStartY = 0;
+
+  function getDist(t) {
+    const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  function applyTransform() {
+    img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+  }
+
+  lb.ontouchstart = (e) => {
+    if (e.touches.length === 2) {
+      startDist = getDist(e.touches);
+      lastScale = scale; lastTx = tx; lastTy = ty;
+      startMx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      startMy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    } else if (e.touches.length === 1) {
+      panStartX = e.touches[0].clientX - tx;
+      panStartY = e.touches[0].clientY - ty;
+      swipeStartY = e.touches[0].clientY;
+    }
+  };
+  lb.ontouchmove = (e) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      const newDist = getDist(e.touches);
+      scale = Math.min(Math.max(lastScale * (newDist / startDist), 1), 6);
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      tx = lastTx + (mx - startMx);
+      ty = lastTy + (my - startMy);
+    } else if (e.touches.length === 1) {
+      if (scale > 1) {
+        tx = e.touches[0].clientX - panStartX;
+        ty = e.touches[0].clientY - panStartY;
+      }
+    }
+    applyTransform();
+  };
+  lb.ontouchend = (e) => {
+    if (scale <= 1) {
+      tx = 0; ty = 0; scale = 1;
+      applyTransform();
+      // ズームなしのスワイプで閉じる
+      if (Math.abs(e.changedTouches[0].clientY - swipeStartY) > 70) closeLightbox();
+    }
+  };
+  // タップで閉じる（ズームなし時のみ）
+  lb.onclick = (e) => {
+    if (e.target === lb && scale <= 1) closeLightbox();
+  };
 }
 
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
   lb.style.display = 'none';
-  document.getElementById('lightbox-img').src = '';
+  const img = document.getElementById('lightbox-img');
+  img.src = '';
+  img.style.transform = 'translate(0px,0px) scale(1)';
+  lb.ontouchstart = lb.ontouchmove = lb.ontouchend = lb.onclick = null;
 }
 
 // img要素にライトボックス用タップを登録（二重登録防止）
