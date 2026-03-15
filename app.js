@@ -870,6 +870,11 @@ function getImageUrl(rawUrl) {
     const id = m[1].replace(/[^a-zA-Z0-9_-]/g, '');
     return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
   }
+  // drive_images/xxxxxx.jpg 形式 → Google Drive サムネイルURL に変換
+  if (s.startsWith('drive_images/')) {
+    const fileId = s.replace('drive_images/', '').replace(/\.jpg$/i, '');
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+  }
   // AppSheet パス形式 (e.g. "Entries_Images/xxx.jpg")
   // キャッシュ済みなら返す
   if (s.includes('/') && !s.startsWith('http')) {

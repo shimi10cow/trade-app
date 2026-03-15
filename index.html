@@ -201,8 +201,17 @@
 
     </div>
 
+
+    </div>
+
+    <!-- Screen: Gallery -->
+    <div id="screen-gallery" class="screen">
+      <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:4px;">
+        <!-- Images dynamically inserted here -->
+      </div>
+
       <!-- ImgBB 設定セクション -->
-      <div class="section" style="margin-top:16px; margin-bottom:20px;">
+      <div class="section" style="margin-top:24px; margin-bottom:20px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
           <div class="section-title" style="margin-bottom:0;">🖼️ 画像アップロード設定</div>
           <button onclick="toggleImgBBKeySection()" style="background:none;border:1px solid #334155;color:#64748b;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;">⚙️ APIキー</button>
@@ -223,14 +232,6 @@
         <div id="imgbb-status-bar" style="font-size:11px; padding:6px 10px; background:#1e293b; border-radius:6px; color:#64748b;">
           <!-- JS で「ImgBB有効」or「未設定」を表示 -->
         </div>
-      </div>
-
-    </div>
-
-    <!-- Screen: Gallery -->
-    <div id="screen-gallery" class="screen">
-      <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin-top:4px;">
-        <!-- Images dynamically inserted here -->
       </div>
     </div>
 
