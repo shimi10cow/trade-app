@@ -1377,6 +1377,7 @@ function applyAnalysisFilters() {
 function renderDrawdown(trades) {
   const container = document.getElementById('drawdown-section');
   if (!container) return;
+  const fmtCurrency = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(val);
 
   if (trades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">データがありません</div>';
