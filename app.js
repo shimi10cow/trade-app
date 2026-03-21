@@ -373,12 +373,12 @@ function setupModalInteractions() {
 function switchTab(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-  
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${tabId}`).classList.add('active');
-  
+
   App.state.currentTab = tabId;
-  
+
   // Update view based on tab
   if (tabId === 'positions') renderPositions();
   if (tabId === 'pairs') renderPairs();
@@ -393,7 +393,7 @@ function renderAnalysis() {
 
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
-  
+
   // CLEAR ALL FORM FIELDS
   const modal = document.getElementById('modal-entry');
   modal.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(el => {
@@ -403,10 +403,10 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-dow-rule').value = '1';
   document.getElementById('ne-rr-display').textContent = 'RR: --';
   document.getElementById('ne-rr-display').className = 'calc-info';
-  
+
   const sel = document.getElementById('ne-pair');
   sel.innerHTML = '<option value="">選択...</option>';
-  
+
   const pairNames = [...new Set(App.data.pairs.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
   pairNames.forEach(name => {
     const opt = document.createElement('option');
@@ -414,18 +414,18 @@ function openEntryModal(isMissed = false) {
     opt.textContent = name;
     sel.appendChild(opt);
   });
-  
+
   // Set current date/time
   const now = new Date();
-  const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('ne-date').value = dateStr;
   document.getElementById('ne-time').value = timeStr;
-  
+
   document.getElementById('ne-pre-memo').textContent = '(ペアを選択すると表示されます)';
   document.getElementById('ne-judgement-text').textContent = '--';
   document.getElementById('ne-judgement-text').style.color = '#f8fafc';
-  
+
   document.getElementById('ne-image-preview').style.display = 'none';
   document.getElementById('ne-image-preview').src = '';
   document.getElementById('image-preview-container').style.display = 'none';
@@ -434,23 +434,23 @@ function openEntryModal(isMissed = false) {
   if (_ra) _ra.style.display = 'none';
   const _rad = document.getElementById('ne-revenge-alert');
   if (_rad) _rad.innerHTML = '';
-  
+
   const titleDiv = document.querySelector('#modal-entry .modal-title');
-  if(isMissed) {
+  if (isMissed) {
     titleDiv.textContent = '見逃しエントリー記録';
     titleDiv.style.color = '#f59e0b';
   } else {
     titleDiv.textContent = '新規エントリー記録';
     titleDiv.style.color = '#38bdf8';
   }
-  
+
   analyzeMentalMode();
   showEntryRevengeAlert(); // ← エントリー前警告チェック
   document.getElementById('ne-similar-summary').textContent = '類似トレードを計算中...';
   document.getElementById('ne-similar-list').innerHTML = '';
 
   calculateEntryScore();
-  
+
   App.state.modalOpenedAt = Date.now();
   const _em = document.getElementById('modal-entry');
   _em.classList.add('active');
@@ -491,8 +491,8 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
         const val = p[keys[i]];
         if (val) {
           grp.querySelectorAll('button').forEach(b => {
-             b.classList.remove('active');
-             if(b.textContent.trim() === val) b.classList.add('active');
+            b.classList.remove('active');
+            if (b.textContent.trim() === val) b.classList.add('active');
           });
         }
       });
@@ -506,10 +506,10 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
   } else {
     dirActive = document.querySelector(`#td-dir .active`);
   }
-  
+
   if (p && dirActive) {
     const dir = dirActive.textContent.includes('Buy') || dirActive.textContent.includes('▲') ? 'Buy' : 'Sell';
-    
+
     const getMAKairi = (cDir, cVal) => {
       if (!cVal) return '✕';
       if (cDir === 'Buy' && cVal === '下アリ') return '◎';
@@ -523,7 +523,7 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
       // index: 0=480, 1=kairi, 2=H1_20, 3=H4_20
       const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
       const mapGrp = document.querySelectorAll(`${modalId} .ma-group`)[idx];
-      if(!mapGrp) return;
+      if (!mapGrp) return;
       mapGrp.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       if (status === '◎') mapGrp.querySelector('.cond-ok')?.classList.add('active');
       else if (status === '✕' || status === 'NG') mapGrp.querySelector('.cond-ng')?.classList.add('active');
@@ -585,7 +585,7 @@ async function loadData() {
 // ==========================================
 function populateFilterPairs() {
   const sel = document.getElementById('flt-pair');
-  if(!sel) return;
+  if (!sel) return;
   const pairs = [...new Set(App.data.pairs.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
   pairs.forEach(p => {
     const opt = document.createElement('option');
@@ -635,15 +635,15 @@ function toggleCustomDate() {
 // ==========================================
 function renderPositions() {
   const container = document.getElementById('positions-list');
-  
+
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
-  
+
   if (activeTrades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">現在保有中のポジションはありません</div>';
     return;
   }
-  
+
   container.innerHTML = activeTrades.slice().sort((a, b) => {
     const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
     const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
@@ -654,7 +654,7 @@ function renderPositions() {
     const isMissed = t['ステータス'] === '保有中（見逃し）';
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
-    
+
     return `
       <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#3b82f6'}">
         <div>
@@ -673,46 +673,46 @@ function renderPositions() {
 
 function renderPairs() {
   const container = document.getElementById('pairs-list');
-  if(App.data.pairs.length === 0) {
-     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">ペアデータがありません</div>';
-     return;
+  if (App.data.pairs.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">ペアデータがありません</div>';
+    return;
   }
-  
+
   // Group by Flag (フラグ)
   const flags = ['待機', '狙い目', '注目', '様子見', 'その他'];
   let groups = {};
   flags.forEach(f => groups[f] = []);
-  
+
   App.data.pairs.forEach(p => {
     let flag = p['フラグ'] || p['Flag'];
-    if(!flag) flag = '様子見';
-    if(!groups[flag]) flag = 'その他';
+    if (!flag) flag = '様子見';
+    if (!groups[flag]) flag = 'その他';
     groups[flag].push(p);
   });
-  
+
   let html = '';
   flags.forEach(f => {
-    if(groups[f].length === 0) return;
-    
+    if (groups[f].length === 0) return;
+
     // Assign color based on flag
     let color = '#94a3b8'; // default grey
-    if(f === '待機') color = '#ef4444'; // Red
-    if(f === '狙い目') color = '#3b82f6'; // Blue
-    if(f === '注目') color = '#10b981'; // Green
-    if(f === '様子見') color = '#e2e8f0'; // White/LightGrey
-    
+    if (f === '待機') color = '#ef4444'; // Red
+    if (f === '狙い目') color = '#3b82f6'; // Blue
+    if (f === '注目') color = '#10b981'; // Green
+    if (f === '様子見') color = '#e2e8f0'; // White/LightGrey
+
     html += `<div style="font-size:12px; font-weight:700; color:${color}; margin: 16px 0 8px 0; border-bottom:1px solid #334155; padding-bottom:4px;">■ ${f}</div>`;
-    
+
     groups[f].forEach(p => {
       const pairName = p['PairName（元）'] || p['PairName'] || '';
-      
+
       // Extract arrow from matching W1, D1, H4
       const w1 = p['W1'], d1 = p['D1'], h4 = p['H4'];
       let arrowHtml = '';
-      if(w1 === '↑' && d1 === '↑' && h4 === '↑') {
-         arrowHtml = `<span style="background:#ef4444; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↗</span>`;
-      } else if(w1 === '↓' && d1 === '↓' && h4 === '↓') {
-         arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↘</span>`;
+      if (w1 === '↑' && d1 === '↑' && h4 === '↑') {
+        arrowHtml = `<span style="background:#ef4444; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↗</span>`;
+      } else if (w1 === '↓' && d1 === '↓' && h4 === '↓') {
+        arrowHtml = `<span style="background:#3b82f6; color:white; border-radius:2px; padding:0px 4px; font-size:10px; margin-left:6px;">↘</span>`;
       }
 
       html += `
@@ -725,7 +725,7 @@ function renderPairs() {
       `;
     });
   });
-  
+
   container.innerHTML = html;
 }
 
@@ -740,7 +740,7 @@ function compressImageForUpload(dataUrl, maxWidth = 800, quality = 0.75) {
     img.onload = () => {
       const ratio = Math.min(maxWidth / img.width, 1);
       const canvas = document.createElement('canvas');
-      canvas.width  = Math.round(img.width  * ratio);
+      canvas.width = Math.round(img.width * ratio);
       canvas.height = Math.round(img.height * ratio);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL('image/jpeg', quality));
@@ -780,7 +780,7 @@ async function uploadImageSmart(dataUrl, filename) {
   try {
     const url = await uploadToImgBB(dataUrl);
     if (url) { console.log('ImgBB upload OK:', url); return url; }
-  } catch(e) {
+  } catch (e) {
     console.warn('ImgBB upload failed:', e.message);
   }
   // 2) Drive経由（GAS）
@@ -793,7 +793,7 @@ async function uploadImageSmart(dataUrl, filename) {
     if (res.success && res.fileId) {
       return 'drive_images/' + res.fileId + '.jpg';
     }
-  } catch(e) {
+  } catch (e) {
     console.warn('Drive upload failed, fallback to base64:', e.message);
   }
   // 3) 最終フォールバック：base64をスプシに直接保存（低画質）
@@ -963,7 +963,7 @@ function renderGallery() {
     })
     .slice(0, 20);
 
-  if(galleryTrades.length === 0) {
+  if (galleryTrades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">画像がありません</div>';
     return;
   }
@@ -1124,10 +1124,10 @@ function applyAnalysisFilters() {
   const fExitRef = document.getElementById('flt-exit-ref')?.value || 'all';
   const dFrom = document.getElementById('flt-date-from').value;
   const dTo = document.getElementById('flt-date-to').value;
-  
+
   // 1. Base filter: Closed trades only
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
-  
+
   // 2. Apply advanced filters
   const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
 
@@ -1159,7 +1159,7 @@ function applyAnalysisFilters() {
     }
     return true;
   });
-  
+
   let totalTrades = 0, wins = 0, losses = 0, evens = 0;
   let totalPips = 0, winPips = 0, lossPips = 0;
   let totalProfit = 0, winProfit = 0, lossProfit = 0;
@@ -1380,7 +1380,7 @@ function applyAnalysisFilters() {
       <div class="metric-sub">実際比 ${classForNum(theoryProfit - totalProfit) === 'pos' ? '+' : ''}${fmtCurrency(Math.round(theoryProfit - totalProfit))}</div>
     </div>
   `;
-  
+
   renderDrawdown(filtered);
   App.state.analysisFiltered = filtered; // チャートバークリック時の絞り込みに使用
   renderHeatmap(filtered);
@@ -1467,7 +1467,7 @@ function renderDrawdown(trades) {
 
 function renderHeatmap(trades) {
   const container = document.getElementById('chart-heatmap');
-  if(trades.length === 0) {
+  if (trades.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">データがありません</div>';
     return;
   }
@@ -1475,7 +1475,7 @@ function renderHeatmap(trades) {
   // Aggregate by hour (0-23) and weekday (0=Mon..4=Fri)
   const grid = {};
   let plottedCount = 0;
-  for(let h=0; h<24; h++) for(let d=0; d<5; d++) grid[`${h}-${d}`] = { count:0, pips:0 };
+  for (let h = 0; h < 24; h++) for (let d = 0; d < 5; d++) grid[`${h}-${d}`] = { count: 0, pips: 0 };
 
   trades.forEach(t => {
     // EntryTime: GASはtime cellを'1899/12/30'等で返す場合がある → HH:MMのみ受け付ける
@@ -1513,9 +1513,9 @@ function renderHeatmap(trades) {
   html += '<div></div>';
   days.forEach(d => html += `<div style="font-size:10px; color:#94a3b8; padding-bottom:4px;">${d}</div>`);
 
-  for(let h=0; h<24; h++) {
-    html += `<div style="font-size:9px; color:#64748b; text-align:right; padding-right:3px; display:flex; align-items:center; justify-content:flex-end;">${String(h).padStart(2,'0')}</div>`;
-    for(let d=0; d<5; d++) {
+  for (let h = 0; h < 24; h++) {
+    html += `<div style="font-size:9px; color:#64748b; text-align:right; padding-right:3px; display:flex; align-items:center; justify-content:flex-end;">${String(h).padStart(2, '0')}</div>`;
+    for (let d = 0; d < 5; d++) {
       const cell = grid[`${h}-${d}`];
       let color = 'transparent';
       if (cell.count > 0) {
@@ -1541,33 +1541,33 @@ function toggleChartType(type) {
 
 function renderGrowthChart(allTrades) {
   const container = document.getElementById('chart-growth');
-  
+
   // Base it on CLOSED trades only for the chart
   const history = allTrades.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
-  if(history.length === 0) {
+  if (history.length === 0) {
     container.innerHTML = 'データがありません';
     return;
   }
-  
+
   // Aggregate by Month
   const monthly = {}; // { 'YYYY-MM': { profit: 0, pips: 0, rrSum: 0, rrCount: 0 } }
   history.forEach(t => {
-     const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
-     if (!d) return;
-     const monthKey = d.substring(0, 7); // YYYY-MM
-     if (!monthly[monthKey]) monthly[monthKey] = { profit: 0, pips: 0, rrSum: 0, rrCount: 0 };
-     
-     monthly[monthKey].profit += (parseFloat(t['損益']) || 0);
-     monthly[monthKey].pips += (parseFloat(t['実取得pips']) || 0);
-     
-     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-     const pps = parseFloat(t['実取得pips']) || 0;
-     if (sl > 0) {
-       monthly[monthKey].rrSum += (pps / sl);
-       monthly[monthKey].rrCount++;
-     }
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+    if (!d) return;
+    const monthKey = d.substring(0, 7); // YYYY-MM
+    if (!monthly[monthKey]) monthly[monthKey] = { profit: 0, pips: 0, rrSum: 0, rrCount: 0 };
+
+    monthly[monthKey].profit += (parseFloat(t['損益']) || 0);
+    monthly[monthKey].pips += (parseFloat(t['実取得pips']) || 0);
+
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    const pps = parseFloat(t['実取得pips']) || 0;
+    if (sl > 0) {
+      monthly[monthKey].rrSum += (pps / sl);
+      monthly[monthKey].rrCount++;
+    }
   });
-  
+
   // Build last 6 calendar months (fixed range, fills 0 for empty months)
   const now2 = new Date();
   const last6 = [];
@@ -1592,25 +1592,25 @@ function renderGrowthChart(allTrades) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">データがありません</div>';
     return;
   }
-  
+
   const maxVal = Math.max(...dataPoints, 0);
   const minVal = Math.min(...dataPoints, 0);
   const range = (maxVal - minVal) || 1;
   const zeroY = 100 - ((0 - minVal) / range * 80); // Calculate Y position for 0-line in SVG (20-100 range)
-  
+
   const barWidth = 100 / Math.max(labels.length, 5); // % width
-  
+
   let barsHTML = '';
   labels.forEach((lbl, i) => {
     const val = dataPoints[i];
     const isPos = val >= 0;
     const heightPct = Math.abs(val) / range * 80;
-    
+
     // Y coordinate (SVG 0 is at top)
     const y = isPos ? (zeroY - heightPct) : zeroY;
     const color = isPos ? '#10b981' : '#ef4444';
     const x = (i * (100 / labels.length)) + (50 / labels.length);
-    
+
     let dispVal = val;
     if (activeChartType === 'profit') {
       // Show as integers with comma (e.g. 12,500 or -3,200), no k abbreviation
@@ -1623,8 +1623,8 @@ function renderGrowthChart(allTrades) {
 
     barsHTML += `
       <g onclick="openHistoryForMonth('${last6[i]}')" style="cursor:pointer;">
-        <rect x="${x - (barWidth*0.48)}%" y="8%" width="${barWidth*0.96}%" height="89%" fill="transparent" />
-        <rect x="${x - (barWidth*0.38)}%" y="${y}%" width="${barWidth*0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
+        <rect x="${x - (barWidth * 0.48)}%" y="8%" width="${barWidth * 0.96}%" height="89%" fill="transparent" />
+        <rect x="${x - (barWidth * 0.38)}%" y="${y}%" width="${barWidth * 0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
         <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 2) : y + heightPct + 4.5}%" fill="${color}" font-size="3.8" text-anchor="middle" font-weight="bold">${dispVal}</text>
         <text x="${x}%" y="97%" fill="#94a3b8" font-size="4.5" text-anchor="middle">${lbl}</text>
       </g>
@@ -1672,7 +1672,7 @@ function renderEquityCurve() {
   // エクイティカーブ独自の期間フィルター
   const now = new Date();
   const eFrom = document.getElementById('equity-date-from')?.value;
-  const eTo   = document.getElementById('equity-date-to')?.value;
+  const eTo = document.getElementById('equity-date-to')?.value;
   if (activeEquityPeriod !== 'all') {
     trades = trades.filter(t => {
       const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
@@ -1681,7 +1681,7 @@ function renderEquityCurve() {
       if (activeEquityPeriod === '3m') return tDate >= new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
       if (activeEquityPeriod === 'custom') {
         if (eFrom && tDate < new Date(eFrom)) return false;
-        if (eTo   && tDate > new Date(eTo + 'T23:59:59')) return false;
+        if (eTo && tDate > new Date(eTo + 'T23:59:59')) return false;
       }
       return true;
     });
@@ -1710,7 +1710,7 @@ function renderEquityCurve() {
   const allCums = [0, ...points.map(p => p.cum)];
   const maxVal = Math.max(...allCums);
   const minVal = Math.min(...allCums);
-  const range  = (maxVal - minVal) || 1;
+  const range = (maxVal - minVal) || 1;
   const pL = 12, pR = 99, pT = 6, pB = 72;
   const n = points.length;
   const toX = (i) => pL + (i / n) * (pR - pL);
@@ -1791,13 +1791,13 @@ function showEquityTooltip(event, index) {
   const tooltip = document.getElementById('equity-tooltip');
   if (!tooltip) return;
   const fmt = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(Math.round(val));
-  const profit  = parseFloat(p.trade['損益']) || 0;
-  const pips    = parseFloat(p.trade['実取得pips']) || 0;
-  const pair    = p.trade['PairName（元）'] || p.trade.PairName || p.trade.Pair || '';
-  const dir     = p.trade.Direction || '';
+  const profit = parseFloat(p.trade['損益']) || 0;
+  const pips = parseFloat(p.trade['実取得pips']) || 0;
+  const pair = p.trade['PairName（元）'] || p.trade.PairName || p.trade.Pair || '';
+  const dir = p.trade.Direction || '';
   const dateStr = p.trade.EntryDate ? String(p.trade.EntryDate).split('T')[0].replace(/\//g, '-') : '';
   const pc = profit >= 0 ? '#10b981' : '#ef4444';
-  const cc = p.cum  >= 0 ? '#10b981' : '#ef4444';
+  const cc = p.cum >= 0 ? '#10b981' : '#ef4444';
   tooltip.innerHTML = `
     <div style="font-size:10px;color:#64748b;margin-bottom:2px;">${dateStr}</div>
     <div style="font-weight:700;margin-bottom:3px;">${pair} ${dir}</div>
@@ -1808,11 +1808,11 @@ function showEquityTooltip(event, index) {
   const cx = (event.touches?.[0] || event).clientX;
   const cy = (event.touches?.[0] || event).clientY;
   let left = cx - rect.left + 12;
-  let top  = cy - rect.top  - 70;
+  let top = cy - rect.top - 70;
   if (left + 150 > rect.width) left = cx - rect.left - 155;
   if (top < 0) top = cy - rect.top + 12;
   tooltip.style.left = left + 'px';
-  tooltip.style.top  = top  + 'px';
+  tooltip.style.top = top + 'px';
   clearTimeout(window._eqTipTimer);
   window._eqTipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
   event.stopPropagation();
@@ -1823,13 +1823,13 @@ function showEquityTooltip(event, index) {
 // ==========================================
 function openPairEdit(pairName) {
   const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
-  if(!p) return;
-  
+  if (!p) return;
+
   document.getElementById('pe-pair-name').value = pairName;
   document.getElementById('pe-title').textContent = pairName;
   document.getElementById('pe-flag').value = p['フラグ'] || '様子見';
   document.getElementById('pe-memo').value = p['環境認識メモ'] || p['メモ'] || '';
-  
+
   const setBtn = (groupId, val) => {
     const btns = document.querySelectorAll(`#${groupId} .toggle-btn`);
     btns.forEach(b => {
@@ -1864,10 +1864,10 @@ async function savePairEdit() {
   try {
     const pairName = document.getElementById('pe-pair-name').value;
     const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
-    
+
     // Simulate API call
     // await gasPost('updatePair', payload);
-    
+
     // Optimistic Update
     const getBtnVal = (groupId) => {
       const btn = document.querySelector(`#${groupId} .toggle-btn.active`);
@@ -1888,11 +1888,11 @@ async function savePairEdit() {
     p['H4MA480.1200'] = getBtnVal('pe-ma-480');
     p['H1MA20.80'] = getBtnVal('pe-ma-h1-20');
     p['H4MA20.80'] = getBtnVal('pe-ma-h4-20');
-    
+
     closePairEdit();
     renderPairs();
     showToast('ペア情報を更新しました');
-  } catch(e) {
+  } catch (e) {
     alert('エラーが発生しました: ' + e.message);
   } finally {
     hideLoader();
@@ -1904,11 +1904,11 @@ async function savePairEdit() {
 // ==========================================
 function toggleBtn(btn, siblingSelector = '') {
   const parent = btn.parentElement;
-  
+
   // If the button is already active, UNSELECT it and return
   if (btn.classList.contains('active')) {
     btn.classList.remove('active');
-    
+
     // If we are unselecting a direction button, we don't necessarily need to trigger auto MA updates since there is no direction anymore
     if (btn.closest('#modal-entry')) calculateEntryScore();
     if (btn.closest('#modal-trade-detail')) calculateEntryScoreTD();
@@ -1916,18 +1916,18 @@ function toggleBtn(btn, siblingSelector = '') {
   }
 
   // Otherwise, behave normally: unselect others and select this one
-  if(!siblingSelector) {
+  if (!siblingSelector) {
     Array.from(parent.children).forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
   } else {
     document.querySelectorAll(siblingSelector).forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
   }
-  
+
   // If direction was changed, automatically update MAs (but do NOT reset direction buttons)
   if (btn.classList.contains('dir-up') || btn.classList.contains('dir-down') ||
-      btn.classList.contains('dir-buy') || btn.classList.contains('dir-sell') ||
-      btn.textContent.includes('Buy') || btn.textContent.includes('Sell')) {
+    btn.classList.contains('dir-buy') || btn.classList.contains('dir-sell') ||
+    btn.textContent.includes('Buy') || btn.textContent.includes('Sell')) {
     if (btn.closest('#ne-dir')) autoLoadPairInfo('ne', false);
     if (btn.closest('#td-dir')) autoLoadPairInfo('td', false);
   }
@@ -1985,8 +1985,8 @@ function showEntryRevengeAlert() {
   for (const t of realTrades) {
     const sign = tradeSign(t);
     if (streak === 0) {
-      if      (sign < 0) { isLossStreak = true; streak = 1; }
-      else if (sign > 0) { isWinStreak  = true; streak = 1; }
+      if (sign < 0) { isLossStreak = true; streak = 1; }
+      else if (sign > 0) { isWinStreak = true; streak = 1; }
       else continue; // 判定不能トレードはスキップ
     } else {
       if (isLossStreak && sign < 0) streak++;
@@ -2035,15 +2035,15 @@ function showEntryRevengeAlert() {
   if (realTrades.length > 0) {
     const last = realTrades[0];
     const entryRef = last['エントリー振り返り'] || '';
-    const exitRef  = last['決済振り返り']     || '';
+    const exitRef = last['決済振り返り'] || '';
     const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '前回';
     const isPerfectEntry = entryRef === '完璧！';
-    const isPerfectExit  = exitRef  === '完璧利確';
+    const isPerfectExit = exitRef === '完璧利確';
 
     if (!isPerfectEntry || !isPerfectExit) {
       const parts = [];
       if (!isPerfectEntry && entryRef) parts.push(`エントリーが「${entryRef}」`);
-      if (!isPerfectExit  && exitRef ) parts.push(`決済が「${exitRef}」`);
+      if (!isPerfectExit && exitRef) parts.push(`決済が「${exitRef}」`);
       const detail = parts.length > 0
         ? `${pair} のトレードで${parts.join('、')}でした。`
         : `${pair} のトレードはルール遵守が確認できません。`;
@@ -2075,10 +2075,10 @@ function showEntryRevengeAlert() {
 
 function analyzeMentalMode() {
   const alertBox = document.getElementById('ne-mental-alert');
-  if(!alertBox) return;
-  
+  if (!alertBox) return;
+
   const history = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）').slice().reverse();
-  if(history.length === 0) {
+  if (history.length === 0) {
     alertBox.style.display = 'none';
     return;
   }
@@ -2086,19 +2086,19 @@ function analyzeMentalMode() {
   let streak = 0;
   let isWinStreak = false;
   let isLossStreak = false;
-  
-  for(let i=0; i<history.length; i++) {
+
+  for (let i = 0; i < history.length; i++) {
     const pips = parseFloat(history[i]['実取得pips']) || 0;
     const isWin = pips > 10;
     const isLoss = pips < -5;
-    
+
     if (i === 0) {
-      if(isWin) isWinStreak = true;
-      else if(isLoss) isLossStreak = true;
+      if (isWin) isWinStreak = true;
+      else if (isLoss) isLossStreak = true;
       streak = 1;
       continue;
     }
-    
+
     if (isWinStreak && isWin) streak++;
     else if (isLossStreak && isLoss) streak++;
     else break;
@@ -2153,7 +2153,7 @@ function updateEntryJudgementText(prefix) {
   };
   const getGroupAct = (cls, idx) => {
     const grps = document.querySelectorAll(`${modalId} ${cls}`);
-    if(!grps[idx]) return '';
+    if (!grps[idx]) return '';
     const el = grps[idx].querySelector('.active');
     return el ? el.textContent : '';
   };
@@ -2162,7 +2162,7 @@ function updateEntryJudgementText(prefix) {
   const vKairi = getGroupAct('.ma-group', 1);
   const vH1_20 = getGroupAct('.ma-group', 2);
   const vH4_20 = getGroupAct('.ma-group', 3);
-  
+
   const w1 = getGroupAct('.tf-group', 1);
   const d1 = getGroupAct('.tf-group', 2);
   const h4 = getGroupAct('.tf-group', 3);
@@ -2182,20 +2182,20 @@ function updateEntryJudgementText(prefix) {
   // Wait, if it mapped to ✕, how do we know if it was NG or just a blank ✕?
   // Let's assume if the active button is 'cond-ng' (✕) then it's considered "NG/✕" in logic.
   const isOkKairi = vKairi === '◎';
-  
+
   let resText = "🚫 エントリーNG！ 🚫";
   let resColor = "#ef4444";
 
   if (!isOkKairi) { // Treated as "NG" per user formula logic
-    const hasAnyOk = (v480==='◎' || vH1_20==='◎' || vH4_20==='◎');
-    const alignUp = (w1==='↑' && d1==='↑' && h4==='↑');
-    const alignDn = (w1==='↓' && d1==='↓' && h4==='↓');
+    const hasAnyOk = (v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎');
+    const alignUp = (w1 === '↑' && d1 === '↑' && h4 === '↑');
+    const alignDn = (w1 === '↓' && d1 === '↓' && h4 === '↓');
     if (hasAnyOk && (alignUp || alignDn)) {
       resText = "✅ エントリーOK！（特例）✅";
       resColor = "#f59e0b"; // Orange/Yellow
     }
   } else {
-    if (v480==='◎' || vH1_20==='◎' || vH4_20==='◎' || isOkKairi) {
+    if (v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎' || isOkKairi) {
       resText = "✅ エントリーOK！ ✅";
       resColor = "#10b981"; // Green
     }
@@ -2210,7 +2210,7 @@ function calculateSimilarTrades(prefix) {
   const outSum = prefix === 'ne' ? document.getElementById('ne-similar-summary') : null;
   const outList = prefix === 'ne' ? document.getElementById('ne-similar-list') : null;
 
-  if(!outSum || !outList) return;
+  if (!outSum || !outList) return;
 
   // Require pair AND direction to be selected before calculating
   const pairVal = document.querySelector(`${modalId} select[id$="-pair"]`)?.value;
@@ -2223,12 +2223,12 @@ function calculateSimilarTrades(prefix) {
 
   // Extract current input features
   let curDow = document.querySelector(`${modalId} select[id$="-dow-rule"]`)?.value || '';
-  
+
   const getAct = (cls, idx) => {
     const el = document.querySelectorAll(`${modalId} ${cls}`)[idx]?.querySelector('.active');
     return el ? el.textContent : '';
   };
-  
+
   const curDir = getAct('.btn-group', 0)?.includes('Buy') ? 'Buy' : 'Sell'; // first group is Direction
   const w1 = getAct('.tf-group', 1);
   const ma1 = getAct('.ma-group', 0);
@@ -2298,7 +2298,7 @@ function calculateSimilarTrades(prefix) {
 
   // スコア降順、同スコアは日付降順（直近優先）
   similars.sort((a, b) => b.score - a.score || b.dateStr.localeCompare(a.dateStr));
-  
+
   if (similars.length === 0) {
     outSum.textContent = '条件に一致する過去の類似トレードは見つかりませんでした。';
     outList.innerHTML = '';
@@ -2309,7 +2309,7 @@ function calculateSimilarTrades(prefix) {
   let totalPips = 0;
   let totalRR = 0;
   let countRR = 0;
-  
+
   similars.forEach(s => {
     totalPips += s.pips;
     if (s.pips > 0) totalWin++;
@@ -2338,11 +2338,11 @@ function calculateSimilarTrades(prefix) {
     return `
       <div onclick="openTradeDetail(${index}, true)" style="background:#0f172a; padding:8px 12px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-size:12px; border:1px solid #334155;">
         <div>
-           <strong style="color:#38bdf8;">${t['PairName（元）']||t.Pair||'ペア不明'}</strong>
+           <strong style="color:#38bdf8;">${t['PairName（元）'] || t.Pair || 'ペア不明'}</strong>
            <span style="color:#94a3b8;">(${Math.round(s.score)}点)</span>${tz}
         </div>
-        <div style="color:${isWin?'#10b981':'#ef4444'}; font-weight:bold;">
-           ${isWin?'+':''}${s.pips.toFixed(1)}p
+        <div style="color:${isWin ? '#10b981' : '#ef4444'}; font-weight:bold;">
+           ${isWin ? '+' : ''}${s.pips.toFixed(1)}p
         </div>
       </div>
     `;
@@ -2356,7 +2356,7 @@ function calculateEntryScore() {
 
   groups.forEach(group => {
     const active = group.querySelector('.active');
-    if(active) {
+    if (active) {
       const val = parseInt(group.dataset.val);
       const isInverse = group.dataset.inverse === "true";
 
@@ -2404,7 +2404,7 @@ function calculateEntryScoreTD() {
   const groups = document.querySelectorAll('#modal-trade-detail .score-group');
   groups.forEach(group => {
     const active = group.querySelector('.active');
-    if(active) {
+    if (active) {
       const val = parseInt(group.dataset.val);
       const isInverse = group.dataset.inverse === "true";
       if (val === 1) {
@@ -2432,8 +2432,8 @@ function calculateRR() {
   const tp = parseFloat(document.getElementById('ne-tp').value);
   const sl = parseFloat(document.getElementById('ne-sl').value);
   const disp = document.getElementById('ne-rr-display');
-  
-  if(!isNaN(tp) && !isNaN(sl) && sl > 0) {
+
+  if (!isNaN(tp) && !isNaN(sl) && sl > 0) {
     const rr = (tp / sl).toFixed(2);
     disp.textContent = `RR: 1 : ${rr}`;
     disp.className = rr >= 2.0 ? 'calc-info text-green' : 'calc-info text-red';
@@ -2447,8 +2447,8 @@ function calculateRRTD() {
   const pips = parseFloat(document.getElementById('td-pips').value);
   const sl = parseFloat(document.getElementById('td-sl').value);
   const disp = document.getElementById('td-rr-display');
-  
-  if(!isNaN(pips) && !isNaN(sl) && sl > 0) {
+
+  if (!isNaN(pips) && !isNaN(sl) && sl > 0) {
     const rr = (pips / sl).toFixed(1);
     disp.textContent = `1 : ${rr}`;
     disp.style.color = rr >= 2.0 ? '#10b981' : (rr >= 0 ? '#f8fafc' : '#ef4444');
@@ -2537,18 +2537,18 @@ async function submitEntryData() {
 
     const pairName = document.getElementById('ne-pair').value;
     const entryData = {
-      'EntryDate':       document.getElementById('ne-date').value,
-      'EntryTime':       document.getElementById('ne-time').value,
-      '時間帯':           document.getElementById('ne-time').value,
-      'PairName':        pairName,
-      'PairName（元）':  pairName, // AppSheetのLOOKUP列に直接書き込む
-      'Direction':       direction,
-      'DowRule':         document.getElementById('ne-dow-rule').value,
-      'TakeProfitPips':  document.getElementById('ne-tp').value,
-      'StopLossPips':    document.getElementById('ne-sl').value,
-      'Lot':             document.getElementById('ne-lot').value,
-      'エントリーメモ':   document.getElementById('ne-memo').value,
-      'ステータス':       App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
+      'EntryDate': document.getElementById('ne-date').value,
+      'EntryTime': document.getElementById('ne-time').value,
+      '時間帯': document.getElementById('ne-time').value,
+      'PairName': pairName,
+      'PairName（元）': pairName, // AppSheetのLOOKUP列に直接書き込む
+      'Direction': direction,
+      'DowRule': document.getElementById('ne-dow-rule').value,
+      'TakeProfitPips': document.getElementById('ne-tp').value,
+      'StopLossPips': document.getElementById('ne-sl').value,
+      'Lot': document.getElementById('ne-lot').value,
+      'エントリーメモ': document.getElementById('ne-memo').value,
+      'ステータス': App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
     };
 
     // グリッドボタン（トレンド方向/MA条件/エントリー根拠）
@@ -2583,7 +2583,7 @@ async function submitEntryData() {
     closeEntryModal();
     await loadData(); // データ再読み込みで即反映
     showToast('エントリーを記録しました ✅');
-  } catch(e) {
+  } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
     hideLoader();
@@ -2596,7 +2596,7 @@ async function submitEntryData() {
 function previewUploadImage(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       const img = document.getElementById('ne-image-preview');
       img.src = e.target.result;
       img.style.display = 'block'; // display:none が設定されている場合に強制表示
@@ -2615,32 +2615,32 @@ let canvasParams = { isDrawing: false, ctx: null, color: '#ef4444' };
 
 function openCanvasEditor() {
   const img = document.getElementById('ne-image-preview');
-  if(!img.src) return;
+  if (!img.src) return;
 
   const canvas = document.getElementById('markup-canvas');
   const ctx = canvas.getContext('2d');
-  
+
   // Set real dimensions preserving aspect ratio
   canvas.width = img.naturalWidth || 800;
   canvas.height = img.naturalHeight || 450;
-  
+
   // Draw base image
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  
+
   canvasParams.ctx = ctx;
   ctx.strokeStyle = canvasParams.color;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   ctx.lineWidth = 4;
-  
+
   document.getElementById('modal-canvas-editor').classList.add('active');
-  
+
   // Events
   canvas.onmousedown = startDrawing;
   canvas.onmousemove = draw;
   canvas.onmouseup = stopDrawing;
   canvas.onmouseout = stopDrawing;
-  
+
   // Touch
   canvas.ontouchstart = (e) => { e.preventDefault(); startDrawing(e.touches[0]); };
   canvas.ontouchmove = (e) => { e.preventDefault(); draw(e.touches[0]); };
@@ -2662,10 +2662,10 @@ function draw(e) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
-  
+
   const x = (e.clientX - rect.left) * scaleX;
   const y = (e.clientY - rect.top) * scaleY;
-  
+
   canvasParams.ctx.lineTo(x, y);
   canvasParams.ctx.stroke();
   canvasParams.ctx.beginPath();
@@ -2679,12 +2679,12 @@ function stopDrawing() {
 
 function setMarkupColor(color) {
   canvasParams.color = color;
-  if(canvasParams.ctx) canvasParams.ctx.strokeStyle = color;
-  
+  if (canvasParams.ctx) canvasParams.ctx.strokeStyle = color;
+
   // Update UI borders
   const btns = document.getElementById('modal-canvas-editor').querySelectorAll('button[onclick^="setMarkupColor"]');
   btns.forEach(b => {
-    b.style.border = b.style.background.includes(color.replace('#','')) ? '2px solid white' : 'none';
+    b.style.border = b.style.background.includes(color.replace('#', '')) ? '2px solid white' : 'none';
   });
 }
 
@@ -2700,7 +2700,7 @@ function clearCanvas() {
 function saveCanvasMarkup() {
   const canvas = document.getElementById('markup-canvas');
   const imgURL = canvas.toDataURL('image/jpeg', 0.8);
-  
+
   // Set preview to new marked-up image
   document.getElementById('ne-image-preview').src = imgURL;
   closeCanvasEditor();
@@ -2711,19 +2711,19 @@ function saveCanvasMarkup() {
 // ==========================================
 function playCloseSound(isWin) {
   try {
-    if('vibrate' in navigator) {
-      if(isWin) navigator.vibrate([100, 50, 100, 50, 150]);
+    if ('vibrate' in navigator) {
+      if (isWin) navigator.vibrate([100, 50, 100, 50, 150]);
       else navigator.vibrate([200, 100, 300]);
     }
-    
+
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
+
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
-    if(isWin) {
+
+    if (isWin) {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1);
@@ -2740,7 +2740,7 @@ function playCloseSound(isWin) {
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
     }
-  } catch(e) {}
+  } catch (e) { }
 }
 
 // 新規エントリー画像をクリア
@@ -2813,7 +2813,7 @@ function findExitImageFieldName(t) {
 function previewUploadEntryImageTD(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       const img = document.getElementById('td-image-preview');
       img.style.display = 'block';
       img.src = e.target.result;
@@ -2832,7 +2832,7 @@ function previewUploadEntryImageTD(input) {
 function previewUploadImageTD(input) {
   if (input.files && input.files[0]) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       const img = document.getElementById('td-exit-image-preview');
       img.src = e.target.result;
       document.getElementById('td-exit-image-container').style.display = 'block';
@@ -2851,7 +2851,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.pendingEntryImgDelete = null;
   App.state.pendingExitImgDelete = null;
   const t = App.data.entries[index];
-  if(!t) return;
+  if (!t) return;
   App.state.activeTradeIndex = index;
 
   // Reset read-only state before populating
@@ -2890,24 +2890,24 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     const sc = t['エントリースコア'];
     scoreDisp.textContent = (sc !== undefined && sc !== '') ? `${sc}/6` : '--';
   }
-  
+
   // Direction
   const isBuy = t.Direction === 'Buy' || t.Direction === '▲ Buy';
   const isSell = t.Direction === 'Sell' || t.Direction === '▼ Sell';
   document.querySelectorAll('#td-dir button').forEach(b => b.classList.remove('active'));
   if (isBuy) document.querySelector('#td-dir .dir-buy')?.classList.add('active');
   if (isSell) document.querySelector('#td-dir .dir-sell')?.classList.add('active');
-  
+
   document.getElementById('td-dow-rule').value = t.DowRule || '1';
 
   // Helper to set btn-group
   const setBg = (id, val) => {
     const p = document.getElementById(id);
-    if(!p) return;
+    if (!p) return;
     p.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    if(!val) return;
+    if (!val) return;
     Array.from(p.querySelectorAll('button')).forEach(b => {
-      if(b.textContent.trim() === val) b.classList.add('active');
+      if (b.textContent.trim() === val) b.classList.add('active');
     });
   };
 
@@ -2919,12 +2919,12 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   // MAs assume either direct value or matching what it produced. 
   // If db has "◎" we match it. If db has "↑" we might need translation, but ideally the UI outputs ◎/✕.
-  const mapMA = (v) => v==='◎' ? '◎' : (v==='✕'||v==='NG' ? '✕' : '');
+  const mapMA = (v) => v === '◎' ? '◎' : (v === '✕' || v === 'NG' ? '✕' : '');
   setBg('td-ma-480', mapMA(t['H4MA480.1200_J'] || t['H4MA480.1200']));
   setBg('td-ma-kairi', mapMA(t['H4MA乖離_J'] || t['H4MA乖離']));
   setBg('td-ma-h1-20', mapMA(t['H1MA20.80_J'] || t['H1MA20.80']));
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
-  
+
   // Entry Grounds
   const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
   const scoreGrups = document.querySelectorAll('#modal-trade-detail .score-group');
@@ -2932,8 +2932,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     const val = t[lbl];
     if (val && scoreGrups[idx]) {
       scoreGrups[idx].querySelectorAll('button').forEach(b => {
-         b.classList.remove('active');
-         if (b.textContent === val) b.classList.add('active');
+        b.classList.remove('active');
+        if (b.textContent === val) b.classList.add('active');
       });
     }
   });
@@ -2946,26 +2946,26 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
-  
+
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
-  
+
   // Images ──────────────────────────────────────────
   // 保有中：上=エントリー写真、下=決済写真
   // 履歴  ：上=決済写真、  下=エントリー写真
   const rawEntryImg = findEntryImageField(t);
-  const rawExitImg  = findExitImageField(t);
+  const rawExitImg = findExitImageField(t);
 
   // 常にエントリー画像=上スロット、決済画像=下スロット
   const topRaw = rawEntryImg;
   const botRaw = rawExitImg;
 
   // 上部スロット（メイン写真）
-  const topArea    = document.getElementById('td-top-image-area');
-  const topImgEl   = document.getElementById('td-image-preview');
-  const topImgURL  = getImageUrl(topRaw);
-  const topIsPath  = topRaw && topRaw.includes('/') && !topRaw.startsWith('http') && !topRaw.startsWith('data:');
+  const topArea = document.getElementById('td-top-image-area');
+  const topImgEl = document.getElementById('td-image-preview');
+  const topImgURL = getImageUrl(topRaw);
+  const topIsPath = topRaw && topRaw.includes('/') && !topRaw.startsWith('http') && !topRaw.startsWith('data:');
   topImgEl.removeAttribute('data-path');
   if (topImgURL) {
     topImgEl.src = topImgURL;
@@ -2986,7 +2986,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   // 下部スロット（決済画像）
   const botContainer = document.getElementById('td-exit-image-container');
-  const botImgEl     = document.getElementById('td-exit-image-preview');
+  const botImgEl = document.getElementById('td-exit-image-preview');
   const botImgURL = getImageUrl(botRaw);
   const botIsPath = botRaw && botRaw.includes('/') && !botRaw.startsWith('http') && !botRaw.startsWith('data:');
   botImgEl.removeAttribute('data-path');
@@ -3028,7 +3028,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     }
   }
   setupUploadArea('td-entry-upload-area', 'td-entry-image-upload', 'td-entry-upload-label-text', !!rawEntryImg);
-  setupUploadArea('td-exit-upload-area',  'td-exit-image-upload',  'td-exit-upload-label-text',  !!rawExitImg);
+  setupUploadArea('td-exit-upload-area', 'td-exit-image-upload', 'td-exit-upload-label-text', !!rawExitImg);
 
   onStatusChange(); // toggle fields
   calculateEntryScoreTD(); // update score UI
@@ -3082,27 +3082,27 @@ async function saveTradeDetail() {
     };
 
     const updateData = {
-      'ステータス':        document.getElementById('td-status').value,
-      '実取得pips':       document.getElementById('td-pips').value,
-      '損益':             document.getElementById('td-profit').value,
-      'ルール準拠pips':   document.getElementById('td-rule-pips').value,
-      'ルール準拠Pips':   document.getElementById('td-rule-pips').value,
+      'ステータス': document.getElementById('td-status').value,
+      '実取得pips': document.getElementById('td-pips').value,
+      '損益': document.getElementById('td-profit').value,
+      'ルール準拠pips': document.getElementById('td-rule-pips').value,
+      'ルール準拠Pips': document.getElementById('td-rule-pips').value,
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
-      '決済振り返り':     document.getElementById('td-exit-ref').value,
-      '決済メモ':         document.getElementById('td-exit-memo').value,
-      'TakeProfitPips':  document.getElementById('td-tp')?.value || '',
-      'StopLossPips':    document.getElementById('td-sl')?.value || '',
-      'Lot':             document.getElementById('td-lot')?.value || '',
-      'DowRule':         document.getElementById('td-dow-rule')?.value || '',
+      '決済振り返り': document.getElementById('td-exit-ref').value,
+      '決済メモ': document.getElementById('td-exit-memo').value,
+      'TakeProfitPips': document.getElementById('td-tp')?.value || '',
+      'StopLossPips': document.getElementById('td-sl')?.value || '',
+      'Lot': document.getElementById('td-lot')?.value || '',
+      'DowRule': document.getElementById('td-dow-rule')?.value || '',
       'M1': getActiveBtn('td-tf-m1'),
       'W1': getActiveBtn('td-tf-w1'),
       'D1': getActiveBtn('td-tf-d1'),
       'H4': getActiveBtn('td-tf-h4'),
       'H1': getActiveBtn('td-tf-h1'),
       'H4MA480.1200_J': getActiveBtn('td-ma-480'),
-      'H4MA乖離_J':     getActiveBtn('td-ma-kairi'),
-      'H1MA20.80_J':    getActiveBtn('td-ma-h1-20'),
-      'H4MA20.80_J':    getActiveBtn('td-ma-h4-20'),
+      'H4MA乖離_J': getActiveBtn('td-ma-kairi'),
+      'H1MA20.80_J': getActiveBtn('td-ma-h1-20'),
+      'H4MA20.80_J': getActiveBtn('td-ma-h4-20'),
     };
 
     // 方向ボタン
@@ -3161,7 +3161,7 @@ async function saveTradeDetail() {
     closeTradeDetail();
     renderPositions();
     showToast('保存しました ✅');
-  } catch(e) {
+  } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
     hideLoader();
@@ -3194,7 +3194,7 @@ async function deleteEntry() {
     closeTradeDetail();
     await loadData();
     showToast('削除しました 🗑️');
-  } catch(e) {
+  } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
     hideLoader();
@@ -3206,7 +3206,7 @@ async function deleteEntry() {
 // ==========================================
 function openLightbox(src) {
   if (!src || src.length < 5) return;
-  const lb  = document.getElementById('lightbox');
+  const lb = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   img.src = src;
   img.style.transform = 'translate(0px,0px) scale(1)';
@@ -3221,7 +3221,7 @@ function openLightbox(src) {
 
   function getDist(t) {
     const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
-    return Math.sqrt(dx*dx + dy*dy);
+    return Math.sqrt(dx * dx + dy * dy);
   }
   function applyTransform() {
     img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
@@ -3362,10 +3362,10 @@ async function runGeminiAnalysis() {
 
   // DowRule番号 → 説明テキスト
   const DOW_RULE_DESC = {
-    '1':'1: D1〇H4〇　H4出入口', '2':'2: D1〇H4〇　H4砦', '3':'3: D1〇H4〇　H4砦形成M15',
-    '4':'4: D1〇H4✕　D1砦',      '5':'5: D1〇H4✕　H4出入口',
-    '6':'6: D1✕H4〇　H4出入口',  '7':'7: D1✕H4〇　H4砦', '8':'8: D1✕H4〇　H4砦形成M15',
-    '9':'9: D1✕H4✕　H4出入口',  '10':'10: D1✕H4✕　D1出入口'
+    '1': '1: D1〇H4〇　H4出入口', '2': '2: D1〇H4〇　H4砦', '3': '3: D1〇H4〇　H4砦形成M15',
+    '4': '4: D1〇H4✕　D1砦', '5': '5: D1〇H4✕　H4出入口',
+    '6': '6: D1✕H4〇　H4出入口', '7': '7: D1✕H4〇　H4砦', '8': '8: D1✕H4〇　H4砦形成M15',
+    '9': '9: D1✕H4✕　H4出入口', '10': '10: D1✕H4✕　D1出入口'
   };
 
   // 送信データを整形
@@ -3373,7 +3373,7 @@ async function runGeminiAnalysis() {
     const date = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
     const pips = parseFloat(t['実取得pips']) || 0;
     const profit = parseFloat(t['損益']) || 0;
-    const reasons = ['水平線D1.H4','H1MAエリア','TL推進','TL逆トレ','TL(M15)','直近波理論','H4の5波以降','上位足リスク']
+    const reasons = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク']
       .filter(k => t[k] === '〇' || t[k] === '◎');
     const rawRule = String(t['DowRule'] || '');
     return {
@@ -3397,7 +3397,7 @@ async function runGeminiAnalysis() {
     };
   });
 
-  const wins  = tradeData.filter(t => t.result === '勝ち').length;
+  const wins = tradeData.filter(t => t.result === '勝ち').length;
   const losses = tradeData.filter(t => t.result === '負け').length;
 
   const prompt = `あなたはFXトレーダーの専任コーチです。以下は私の直近${tradeData.length}件の実トレードデータ（新しい順）です。
@@ -3440,36 +3440,17 @@ ${JSON.stringify(tradeData, null, 2)}
   }
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      }
-    );
+    // GAS経由でGemini APIを呼ぶ（IP制限回避）
+    const gasRes = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'geminiAnalysis', prompt })
+    }).then(r => r.json());
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const code = err.error?.code || res.status;
-      const msg  = err.error?.message || '';
-      const statusText = err.error?.status || '';
-
-      let userMsg = '';
-      if (code === 400 || statusText === 'INVALID_ARGUMENT') {
-        userMsg = 'APIキーが無効です。<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で正しいキーを確認してください。';
-      } else if (code === 403 || statusText === 'PERMISSION_DENIED') {
-        userMsg = 'APIキーに権限がありません。Gemini API用のキーを使用してください。';
-      } else if (code === 429 || msg.includes('quota') || msg.includes('Quota') || msg.includes('limit')) {
-        userMsg = '無料枠の利用制限に達しました。しばらく待つか、<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で新しいキーを発行してください。';
-      } else {
-        userMsg = `APIエラー (${code}): ${msg.substring(0, 100)}`;
-      }
-      throw new Error(userMsg);
+    if (!gasRes.success) {
+      throw new Error(gasRes.error || '不明なエラー');
     }
 
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '分析結果を取得できませんでした。';
+    const text = gasRes.text || '分析結果を取得できませんでした。';
 
     // Markdown → 簡易HTML変換
     const html = text
