@@ -171,6 +171,7 @@ function formatTimeDisplay(timeStr) {
 
 function openHistoryModal() {
   App.state.modalOpenedAt = Date.now();
+  App.state.historyBaseFilter = null; // 通常オープン時はリセット
   const _hm = document.getElementById('modal-history');
   _hm.classList.add('active');
   requestAnimationFrame(() => { _hm.querySelector('.modal-body').scrollTop = 0; });
@@ -179,7 +180,24 @@ function openHistoryModal() {
   renderHistoryList();
 }
 
+function openHistoryForMonth(monthKey) {
+  // monthKey: 'YYYY-MM' — 分析タブの絞り込み結果を引き継いで月フィルタで開く
+  const [year, month] = monthKey.split('-').map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  App.state.modalOpenedAt = Date.now();
+  App.state.historyBaseFilter = App.state.analysisFiltered || null;
+  const _hm = document.getElementById('modal-history');
+  _hm.classList.add('active');
+  requestAnimationFrame(() => { _hm.querySelector('.modal-body').scrollTop = 0; });
+  document.getElementById('hist-period').value = 'custom';
+  toggleCustomHistDate();
+  document.getElementById('hist-date-from').value = `${monthKey}-01`;
+  document.getElementById('hist-date-to').value = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
+  renderHistoryList();
+}
+
 function closeHistoryModal() {
+  App.state.historyBaseFilter = null;
   document.getElementById('modal-history').classList.remove('active');
 }
 
@@ -201,7 +219,11 @@ function renderHistoryList() {
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
 
-  let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  // チャートバークリック時は分析タブの絞り込み結果をベースにする
+  const base = App.state.historyBaseFilter
+    ? App.state.historyBaseFilter
+    : App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  let filtered = base.slice();
 
   filtered = filtered.filter(t => {
     // ステータスフィルター
@@ -1109,33 +1131,24 @@ function applyAnalysisFilters() {
   // 2. Apply advanced filters
   const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
 
+  // 属性フィルター（期間を除く）→ エクイティカーブが独自期間で使用
   filtered = filtered.filter(t => {
-    // Status
     if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
-    
-    // Pair
     if (fPair !== 'all' && (t['PairName（元）'] || t.PairName || t.Pair) !== fPair) return false;
-    
-    // Timezone
     if (fTimezone !== 'all' && t['時間帯'] !== fTimezone) return false;
-    
-    // DowRule
     if (fRule !== 'all' && t.DowRule != fRule) return false;
-    
-    // Score
     const score = parseInt(t['エントリースコア']) || 0;
     if (fScore === 'high' && score < 4) return false;
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
-
-    // エントリー振り返り
     if (fEntryRef !== 'all' && (t['エントリー振り返り'] || '') !== fEntryRef) return false;
-
-    // 決済振り返り
     if (fExitRef !== 'all' && (t['決済振り返り'] || '') !== fExitRef) return false;
+    return true;
+  });
+  App.state.analysisFilteredNoPeriod = filtered.slice(); // エクイティカーブ用（期間フィルタ前）
 
-
-    // Period (GASはyyyy/MM/ddで返すのでスラッシュをダッシュに変換)
+  // 期間フィルター（分析タブ用）
+  filtered = filtered.filter(t => {
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
     if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
@@ -1144,7 +1157,6 @@ function applyAnalysisFilters() {
       if (dFrom && tDate < new Date(dFrom)) return false;
       if (dTo && tDate > new Date(dTo + "T23:59:59")) return false;
     }
-    
     return true;
   });
   
@@ -1370,8 +1382,10 @@ function applyAnalysisFilters() {
   `;
   
   renderDrawdown(filtered);
+  App.state.analysisFiltered = filtered; // チャートバークリック時の絞り込みに使用
   renderHeatmap(filtered);
   renderGrowthChart(filtered);
+  renderEquityCurve();
 }
 
 function renderDrawdown(trades) {
@@ -1608,7 +1622,8 @@ function renderGrowthChart(allTrades) {
     }
 
     barsHTML += `
-      <g style="opacity:1;">
+      <g onclick="openHistoryForMonth('${last6[i]}')" style="cursor:pointer;">
+        <rect x="${x - (barWidth*0.48)}%" y="8%" width="${barWidth*0.96}%" height="89%" fill="transparent" />
         <rect x="${x - (barWidth*0.38)}%" y="${y}%" width="${barWidth*0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
         <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 2) : y + heightPct + 4.5}%" fill="${color}" font-size="3.8" text-anchor="middle" font-weight="bold">${dispVal}</text>
         <text x="${x}%" y="97%" fill="#94a3b8" font-size="4.5" text-anchor="middle">${lbl}</text>
@@ -1630,6 +1645,177 @@ function renderGrowthChart(allTrades) {
     </svg>
   `;
   container.innerHTML = svg;
+}
+
+// ==========================================
+// Equity Curve
+// ==========================================
+let activeEquityPeriod = 'all';
+
+function setEquityPeriod(period) {
+  activeEquityPeriod = period;
+  document.querySelectorAll('#equity-period-toggle .toggle-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`#equity-period-toggle .toggle-btn[onclick="setEquityPeriod('${period}')"]`);
+  if (btn) btn.classList.add('active');
+  const customDiv = document.getElementById('equity-custom-date');
+  if (customDiv) customDiv.style.display = period === 'custom' ? 'flex' : 'none';
+  renderEquityCurve();
+}
+
+function renderEquityCurve() {
+  const container = document.getElementById('chart-equity');
+  if (!container) return;
+  const fmt = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(Math.round(val));
+
+  let trades = (App.state.analysisFilteredNoPeriod || []).slice();
+
+  // エクイティカーブ独自の期間フィルター
+  const now = new Date();
+  const eFrom = document.getElementById('equity-date-from')?.value;
+  const eTo   = document.getElementById('equity-date-to')?.value;
+  if (activeEquityPeriod !== 'all') {
+    trades = trades.filter(t => {
+      const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+      const tDate = new Date(dateStr);
+      if (activeEquityPeriod === '6m') return tDate >= new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      if (activeEquityPeriod === '3m') return tDate >= new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      if (activeEquityPeriod === 'custom') {
+        if (eFrom && tDate < new Date(eFrom)) return false;
+        if (eTo   && tDate > new Date(eTo + 'T23:59:59')) return false;
+      }
+      return true;
+    });
+  }
+
+  if (trades.length === 0) {
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">データがありません</div>';
+    return;
+  }
+
+  // 日付昇順ソート
+  trades.sort((a, b) => {
+    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  // 累計損益を計算
+  let cum = 0;
+  const points = trades.map(t => {
+    cum += parseFloat(t['損益']) || 0;
+    return { cum, trade: t };
+  });
+
+  // 座標計算
+  const allCums = [0, ...points.map(p => p.cum)];
+  const maxVal = Math.max(...allCums);
+  const minVal = Math.min(...allCums);
+  const range  = (maxVal - minVal) || 1;
+  const pL = 12, pR = 99, pT = 6, pB = 72;
+  const n = points.length;
+  const toX = (i) => pL + (i / n) * (pR - pL);
+  const toY = (v) => pB - ((v - minVal) / range) * (pB - pT);
+
+  // 座標配列（原点 + 各トレード）
+  const coords = [{ x: pL, y: toY(0), cum: 0 }];
+  points.forEach((p, i) => coords.push({ x: toX(i + 1), y: toY(p.cum), cum: p.cum, trade: p.trade }));
+
+  // ラインパス
+  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(2)},${c.y.toFixed(2)}`).join(' ');
+
+  // ドローダウン塗りつぶし
+  let ddPaths = '';
+  let peak = 0, inDD = false, ddStart = 0;
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i];
+    if (c.cum > peak) {
+      if (inDD) {
+        const seg = coords.slice(ddStart, i + 1);
+        const peakY = toY(peak).toFixed(2);
+        const fwd = seg.map(s => `${s.x.toFixed(2)},${s.y.toFixed(2)}`).join(' ');
+        const bwd = seg.slice().reverse().map(s => `${s.x.toFixed(2)},${peakY}`).join(' ');
+        ddPaths += `<polygon points="${fwd} ${bwd}" fill="rgba(239,68,68,0.18)" />`;
+        inDD = false;
+      }
+      peak = c.cum;
+    } else if (c.cum < peak && !inDD) {
+      inDD = true; ddStart = i - 1;
+    }
+  }
+  if (inDD) {
+    const seg = coords.slice(ddStart);
+    const peakY = toY(peak).toFixed(2);
+    const fwd = seg.map(s => `${s.x.toFixed(2)},${s.y.toFixed(2)}`).join(' ');
+    const bwd = seg.slice().reverse().map(s => `${s.x.toFixed(2)},${peakY}`).join(' ');
+    ddPaths += `<polygon points="${fwd} ${bwd}" fill="rgba(239,68,68,0.18)" />`;
+  }
+
+  // データ点（クリック可能）
+  window._equityPoints = points;
+  let circles = '';
+  points.forEach((p, i) => {
+    const c = coords[i + 1];
+    const col = (parseFloat(p.trade['損益']) || 0) >= 0 ? '#10b981' : '#ef4444';
+    circles += `<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="1.8" fill="${col}" stroke="#0f172a" stroke-width="0.4" style="cursor:pointer;" onclick="showEquityTooltip(event,${i})" />`;
+  });
+
+  // Y軸ラベル
+  let yLabels = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = minVal + (range * i / 4);
+    const y = toY(v);
+    const lbl = Math.abs(v) >= 10000 ? (v / 10000).toFixed(1) + '万' : Math.round(v).toLocaleString();
+    yLabels += `<text x="${pL - 1}" y="${y.toFixed(2)}" fill="#64748b" font-size="3" text-anchor="end" dominant-baseline="middle">${lbl}</text>`;
+  }
+
+  // ゼロライン
+  const zeroY = toY(0);
+  const zeroLine = (minVal < 0 && maxVal > 0)
+    ? `<line x1="${pL}" y1="${zeroY.toFixed(2)}" x2="${pR}" y2="${zeroY.toFixed(2)}" stroke="#475569" stroke-width="0.6" stroke-dasharray="2,1.5" />`
+    : '';
+
+  container.innerHTML = `
+    <svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none" style="overflow:visible;">
+      <text x="${pL}" y="3.5" fill="#64748b" font-size="2.8" text-anchor="start">(円)</text>
+      ${yLabels}
+      ${zeroLine}
+      ${ddPaths}
+      <path d="${pathD}" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" />
+      ${circles}
+    </svg>`;
+}
+
+function showEquityTooltip(event, index) {
+  const p = window._equityPoints?.[index];
+  if (!p) return;
+  const tooltip = document.getElementById('equity-tooltip');
+  if (!tooltip) return;
+  const fmt = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(Math.round(val));
+  const profit  = parseFloat(p.trade['損益']) || 0;
+  const pips    = parseFloat(p.trade['実取得pips']) || 0;
+  const pair    = p.trade['PairName（元）'] || p.trade.PairName || p.trade.Pair || '';
+  const dir     = p.trade.Direction || '';
+  const dateStr = p.trade.EntryDate ? String(p.trade.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+  const pc = profit >= 0 ? '#10b981' : '#ef4444';
+  const cc = p.cum  >= 0 ? '#10b981' : '#ef4444';
+  tooltip.innerHTML = `
+    <div style="font-size:10px;color:#64748b;margin-bottom:2px;">${dateStr}</div>
+    <div style="font-weight:700;margin-bottom:3px;">${pair} ${dir}</div>
+    <div style="color:${pc};">${fmt(profit)} / ${pips >= 0 ? '+' : ''}${pips.toFixed(1)}pips</div>
+    <div style="color:${cc};font-size:10px;margin-top:2px;">累計: ${fmt(p.cum)}</div>`;
+  tooltip.style.display = 'block';
+  const rect = document.getElementById('chart-equity').getBoundingClientRect();
+  const cx = (event.touches?.[0] || event).clientX;
+  const cy = (event.touches?.[0] || event).clientY;
+  let left = cx - rect.left + 12;
+  let top  = cy - rect.top  - 70;
+  if (left + 150 > rect.width) left = cx - rect.left - 155;
+  if (top < 0) top = cy - rect.top + 12;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top  = top  + 'px';
+  clearTimeout(window._eqTipTimer);
+  window._eqTipTimer = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
+  event.stopPropagation();
 }
 
 // ==========================================
@@ -3242,19 +3428,46 @@ ${JSON.stringify(tradeData, null, 2)}
       AIが${tradeData.length}件を分析中...
     </div>`;
 
+  // APIキー簡易チェック（Gemini APIキーは "AIza" で始まる39文字）
+  if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `
+      <div style="color:#ef4444;font-size:12px;">
+        ❌ APIキーの形式が正しくありません。<br>
+        <span style="color:#94a3b8;font-size:11px;">Gemini APIキーは「AIza」で始まります。<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で発行してください。</span>
+      </div>`;
+    return;
+  }
+
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       }
     );
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `HTTP ${res.status}`);
+      const code = err.error?.code || res.status;
+      const msg  = err.error?.message || '';
+      const statusText = err.error?.status || '';
+
+      let userMsg = '';
+      if (code === 400 || statusText === 'INVALID_ARGUMENT') {
+        userMsg = 'APIキーが無効です。<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で正しいキーを確認してください。';
+      } else if (code === 403 || statusText === 'PERMISSION_DENIED') {
+        userMsg = 'APIキーに権限がありません。Gemini API用のキーを使用してください。';
+      } else if (code === 429 || msg.includes('quota') || msg.includes('Quota') || msg.includes('limit')) {
+        userMsg = '無料枠の利用制限に達しました。しばらく待つか、<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で新しいキーを発行してください。';
+      } else {
+        userMsg = `APIエラー (${code}): ${msg.substring(0, 100)}`;
+      }
+      throw new Error(userMsg);
     }
+
     const data = await res.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '分析結果を取得できませんでした。';
 
@@ -3276,8 +3489,7 @@ ${JSON.stringify(tradeData, null, 2)}
   } catch (e) {
     resultDiv.innerHTML = `
       <div style="color:#ef4444;font-size:12px;">
-        ❌ エラー: ${e.message}<br>
-        <span style="color:#94a3b8;font-size:11px;">APIキーを確認してください（⚙️ APIキー）</span>
+        ❌ ${e.message}
       </div>`;
   } finally {
     btn.disabled = false;

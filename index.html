@@ -171,6 +171,24 @@
         <!-- Chart will be injected here -->
       </div>
 
+      <!-- Equity Curve -->
+      <div class="section-title" style="margin-top:20px;">📈 エクイティカーブ</div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;" id="equity-period-toggle">
+        <button class="toggle-btn active" onclick="setEquityPeriod('all')">全期間</button>
+        <button class="toggle-btn" onclick="setEquityPeriod('6m')">6ヶ月</button>
+        <button class="toggle-btn" onclick="setEquityPeriod('3m')">3ヶ月</button>
+        <button class="toggle-btn" onclick="setEquityPeriod('custom')">カスタム</button>
+      </div>
+      <div id="equity-custom-date" style="display:none; gap:4px; align-items:center; margin-bottom:8px;">
+        <input type="date" id="equity-date-from" class="form-input" style="padding:6px; flex:1;" onchange="renderEquityCurve()">
+        <span style="color:#64748b; padding:0 4px;">〜</span>
+        <input type="date" id="equity-date-to" class="form-input" style="padding:6px; flex:1;" onchange="renderEquityCurve()">
+      </div>
+      <div style="position:relative;">
+        <div class="chart-container" id="chart-equity" style="color:#64748b; padding:10px 4px 4px; height:260px;"></div>
+        <div id="equity-tooltip" style="display:none; position:absolute; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px 10px; font-size:11px; color:#e2e8f0; pointer-events:none; z-index:10; min-width:130px;"></div>
+      </div>
+
       <!-- Heatmap -->
       <div class="section-title" style="margin-top:20px;">時間帯×曜日 ヒートマップ</div>
       <div class="chart-container" id="chart-heatmap" style="display:flex;align-items:center;justify-content:center;color:#64748b;">
