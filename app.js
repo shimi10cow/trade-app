@@ -3333,14 +3333,6 @@ function saveGeminiKey() {
 }
 
 async function runGeminiAnalysis() {
-  const apiKey = localStorage.getItem('gemini-api-key');
-  if (!apiKey) {
-    document.getElementById('ai-key-section').style.display = 'block';
-    const input = document.getElementById('ai-api-key-input');
-    if (input) input.focus();
-    return;
-  }
-
   // 直近10件の実トレード（見逃し除外・日付降順）
   const realTrades = App.data.entries
     .filter(t => t['ステータス'] === '決済')
@@ -3427,17 +3419,6 @@ ${JSON.stringify(tradeData, null, 2)}
       </svg>
       AIが${tradeData.length}件を分析中...
     </div>`;
-
-  // APIキー簡易チェック（Gemini APIキーは "AIza" で始まる39文字）
-  if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `
-      <div style="color:#ef4444;font-size:12px;">
-        ❌ APIキーの形式が正しくありません。<br>
-        <span style="color:#94a3b8;font-size:11px;">Gemini APIキーは「AIza」で始まります。<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#38bdf8;">Google AI Studio</a>で発行してください。</span>
-      </div>`;
-    return;
-  }
 
   try {
     // GAS経由でGemini APIを呼ぶ（IP制限回避）

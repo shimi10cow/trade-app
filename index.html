@@ -197,22 +197,8 @@
 
       <!-- AI Analysis Section -->
       <div class="section" style="margin-top:20px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="margin-bottom:10px;">
           <div class="section-title" style="margin-bottom:0;">🤖 AI トレード分析</div>
-          <button onclick="toggleAiKeySection()" style="background:none;border:1px solid #334155;color:#64748b;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;">⚙️ APIキー</button>
-        </div>
-        <!-- API Key 入力（折りたたみ） -->
-        <div id="ai-key-section" style="display:none; margin-bottom:10px; background:#1e293b; border-radius:8px; padding:10px;">
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:6px;">
-            Gemini API Key（<a href="https://aistudio.google.com/apikey" target="_blank" style="color:#38bdf8;">無料取得はこちら</a>）
-          </div>
-          <div style="display:flex; gap:6px;">
-            <input type="password" id="ai-api-key-input" placeholder="AIzaSy..."
-              style="flex:1; background:#0f172a; border:1px solid #334155; color:#f8fafc; border-radius:6px; padding:8px; font-size:12px;">
-            <button onclick="saveGeminiKey()"
-              style="background:#38bdf8; color:#0f172a; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer;">保存</button>
-          </div>
-          <div id="ai-key-saved" style="display:none; color:#10b981; font-size:11px; margin-top:6px;">✓ 保存しました</div>
         </div>
         <!-- 分析ボタン -->
         <button id="ai-analyze-btn" onclick="runGeminiAnalysis()"
