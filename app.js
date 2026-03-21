@@ -762,7 +762,14 @@ async function compressForSpreadsheet(dataUrl) {
 
 // ImgBB に直接アップロード（高画質・無圧縮）
 async function uploadToImgBB(dataUrl) {
-  const apiKey = localStorage.getItem('imgbb_api_key');
+  // キーはGASスクリプトプロパティから取得（メモリキャッシュ）
+  if (!App.state.imgbbKey) {
+    try {
+      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      App.state.imgbbKey = res.key || '';
+    } catch(e) { App.state.imgbbKey = ''; }
+  }
+  const apiKey = App.state.imgbbKey;
   if (!apiKey) return null;
   const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
   const formData = new FormData();
@@ -800,42 +807,20 @@ async function uploadImageSmart(dataUrl, filename) {
   return compressForSpreadsheet(dataUrl);
 }
 
-// ImgBB APIキー 保存/表示
-function saveImgBBKey() {
-  const key = document.getElementById('imgbb-api-key-input')?.value.trim();
-  const status = document.getElementById('imgbb-key-status');
-  if (!key) {
-    if (status) { status.textContent = '⚠️ キーを入力してください'; status.style.color = '#f59e0b'; }
-    return;
-  }
-  localStorage.setItem('imgbb_api_key', key);
-  if (status) { status.textContent = '✓ 保存しました'; status.style.color = '#10b981'; }
-  updateImgBBStatusBar();
-  setTimeout(() => { document.getElementById('imgbb-key-section').style.display = 'none'; updateImgBBStatusBar(); }, 1200);
-}
-
-function toggleImgBBKeySection() {
-  const sec = document.getElementById('imgbb-key-section');
-  const isHidden = sec.style.display === 'none' || sec.style.display === '';
-  sec.style.display = isHidden ? 'block' : 'none';
-  if (isHidden) {
-    const saved = localStorage.getItem('imgbb_api_key');
-    const input = document.getElementById('imgbb-api-key-input');
-    if (saved && input) input.value = saved;
-    const status = document.getElementById('imgbb-key-status');
-    if (status) { status.textContent = ''; }
-  }
-}
-
-function updateImgBBStatusBar() {
+async function updateImgBBStatusBar() {
   const bar = document.getElementById('imgbb-status-bar');
   if (!bar) return;
-  const key = localStorage.getItem('imgbb_api_key');
-  if (key) {
-    bar.innerHTML = '✅ ImgBB 有効（高画質アップロード）　<span style="color:#38bdf8;cursor:pointer;" onclick="toggleImgBBKeySection()">変更</span>';
+  if (!App.state.imgbbKey) {
+    try {
+      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      App.state.imgbbKey = res.key || '';
+    } catch(e) { App.state.imgbbKey = ''; }
+  }
+  if (App.state.imgbbKey) {
+    bar.innerHTML = '✅ ImgBB 有効（高画質アップロード）';
     bar.style.color = '#10b981';
   } else {
-    bar.innerHTML = '⚠️ ImgBB未設定（低画質base64保存）　<span style="color:#38bdf8;cursor:pointer;" onclick="toggleImgBBKeySection()">設定する</span>';
+    bar.innerHTML = '⚠️ ImgBB未設定　GASスクリプトプロパティに IMGBB_API_KEY を設定してください';
     bar.style.color = '#f59e0b';
   }
 }
@@ -3330,79 +3315,94 @@ function saveGroqKey() {
   document.getElementById('ai-key-section').style.display = 'none';
 }
 
+function setAiPeriodMonth(n) {
+  const to = new Date();
+  const from = new Date();
+  from.setMonth(from.getMonth() - n);
+  document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
+  document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
+}
+
 async function runGeminiAnalysis() {
-  // 直近10件の実トレード（見逃し除外・日付降順）
-  const realTrades = App.data.entries
+  const btn = document.getElementById('ai-analyze-btn');
+  const resultDiv = document.getElementById('ai-result');
+
+  // 期間フィルター（デフォルト: 直近1ヶ月）
+  let fromVal = document.getElementById('ai-date-from').value;
+  let toVal = document.getElementById('ai-date-to').value;
+  if (!fromVal && !toVal) { setAiPeriodMonth(1); fromVal = document.getElementById('ai-date-from').value; toVal = document.getElementById('ai-date-to').value; }
+
+  const fromDate = fromVal ? new Date(fromVal) : null;
+  const toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
+
+  const sorted = App.data.entries
     .filter(t => t['ステータス'] === '決済')
+    .filter(t => {
+      const d = new Date(String(t.EntryDate || '').split('T')[0].replace(/\//g, '-'));
+      if (fromDate && d < fromDate) return false;
+      if (toDate && d > toDate) return false;
+      return true;
+    })
     .slice().sort((a, b) => {
       const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
       const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
       return db > da ? 1 : db < da ? -1 : 0;
-    })
-    .slice(0, 10);
+    });
 
-  const btn = document.getElementById('ai-analyze-btn');
-  const resultDiv = document.getElementById('ai-result');
-
-  if (realTrades.length === 0) {
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<div style="color:#64748b;font-size:13px;">決済済みトレードがありません。</div>';
+  resultDiv.style.display = 'block';
+  if (sorted.length === 0) {
+    resultDiv.innerHTML = '<div style="color:#64748b;font-size:13px;">指定期間に決済済みトレードがありません。</div>';
     return;
   }
 
-  // DowRule番号 → 説明テキスト
-  const DOW_RULE_DESC = {
-    '1': '1: D1〇H4〇　H4出入口', '2': '2: D1〇H4〇　H4砦', '3': '3: D1〇H4〇　H4砦形成M15',
-    '4': '4: D1〇H4✕　D1砦', '5': '5: D1〇H4✕　H4出入口',
-    '6': '6: D1✕H4〇　H4出入口', '7': '7: D1✕H4〇　H4砦', '8': '8: D1✕H4〇　H4砦形成M15',
-    '9': '9: D1✕H4✕　H4出入口', '10': '10: D1✕H4✕　D1出入口'
-  };
-
-  // 送信データを整形
-  const tradeData = realTrades.map((t, i) => {
+  // 送信データを整形（感情・心理分析に必要なフィールドのみ）
+  const tradeData = sorted.map((t, i) => {
     const date = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
     const pips = parseFloat(t['実取得pips']) || 0;
     const profit = parseFloat(t['損益']) || 0;
-    const reasons = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク']
-      .filter(k => t[k] === '〇' || t[k] === '◎');
-    const rawRule = String(t['DowRule'] || '');
+    const scoreKeys = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
+    const entryScore = scoreKeys.filter(k => t[k] === '〇' || t[k] === '◎').length;
     return {
       no: i + 1,
       date,
-      pair: t['PairName（元）'] || t['PairName'] || '不明',
-      direction: t.Direction || '',        // Buy / Sell そのまま
       result: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
       pips: pips.toFixed(1),
       profit: Math.round(profit),
-      dowRule: DOW_RULE_DESC[rawRule] || rawRule,  // 説明付き
-      w1: t['W1'] || '',
-      maH4_480: t['H4MA480.1200'] || '',
-      maKairi: t['H4MA乖離'] || '',
-      maH1: t['H1MA20.80'] || '',
-      maH4: t['H4MA20.80'] || '',
-      entryReasons: reasons,
+      entryScore: `${entryScore}/${scoreKeys.length}`,
       entryReview: t['エントリー振り返り'] || '',
       exitReview: t['決済振り返り'] || '',
       memo: t['反省'] || ''
     };
   });
 
+  // 直近10件（期間内）
+  const recent10 = tradeData.slice(0, 10);
   const wins = tradeData.filter(t => t.result === '勝ち').length;
   const losses = tradeData.filter(t => t.result === '負け').length;
 
-  const prompt = `あなたはFXトレーダーの専任コーチです。以下は私の直近${tradeData.length}件の実トレードデータ（新しい順）です。
+  const prompt = `あなたはFXトレーダーの心理・感情パターンを分析する専任コーチです。
+以下は指定期間（${fromVal}〜${toVal}）の実トレードデータです。
 
-データ:
+【全データ（${tradeData.length}件）】
 ${JSON.stringify(tradeData, null, 2)}
 
 概要: ${wins}勝${losses}敗
 
 以下の4項目を分析してください。各項目は見出し（①②③④）で始め、箇条書きで3〜5点、日本語で簡潔に。
+「エントリー振り返り」「決済振り返り」「反省」のコメントから感情・心理・思考パターンを読み取ることに集中してください。勝敗・pips・エントリースコアはその裏付けに使ってください。
 
-①【負けパターン】負けトレードに共通する条件・傾向（ペア、DowRule、MA条件、エントリー根拠、決済振り返りなど）
-②【勝ちパターン】勝てているときの共通点・強み
-③【決済の課題】エントリー振り返り・決済振り返りから見える行動パターンの問題点
-④【今すぐ改善すべき1点】最も優先度の高い具体的なアクション提言（1点のみ、明確に）`;
+①【勝ちトレードの感情・心理】
+勝てているときのコメントに共通する状態・思考パターン
+
+②【負けトレードの感情・心理】
+負けトレードのコメントから読み取れる感情・思考（焦り・リベンジ・FOMO・自信過剰・迷いなど）
+
+③【ルール遵守と感情の関係】
+ルールを守れたとき・守れなかったときのコメントの違い。ルール外行動のときに現れる感情パターン
+
+④【直近の状態チェック（直近${recent10.length}件）】
+${JSON.stringify(recent10, null, 2)}
+直近${recent10.length}件のコメントから読み取れる今の精神状態・注意すべき兆候`;
 
   // ローディング表示
   btn.disabled = true;
@@ -3466,6 +3466,6 @@ ${JSON.stringify(tradeData, null, 2)}
       </div>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = '🤖 直近10件をAI分析';
+    btn.textContent = '🤖 AI分析';
   }
 }

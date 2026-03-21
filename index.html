@@ -214,10 +214,18 @@
               style="background:#38bdf8; color:#0f172a; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer;">保存</button>
           </div>
         </div>
+        <!-- 期間設定 -->
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+          <input type="date" id="ai-date-from" style="flex:1; background:#1e293b; border:1px solid #334155; color:#f8fafc; border-radius:6px; padding:7px 8px; font-size:12px;">
+          <span style="color:#64748b; font-size:12px;">〜</span>
+          <input type="date" id="ai-date-to" style="flex:1; background:#1e293b; border:1px solid #334155; color:#f8fafc; border-radius:6px; padding:7px 8px; font-size:12px;">
+          <button onclick="setAiPeriodMonth(1)" style="background:#1e293b; border:1px solid #334155; color:#94a3b8; border-radius:6px; padding:7px 8px; font-size:11px; cursor:pointer; white-space:nowrap;">1ヶ月</button>
+          <button onclick="setAiPeriodMonth(3)" style="background:#1e293b; border:1px solid #334155; color:#94a3b8; border-radius:6px; padding:7px 8px; font-size:11px; cursor:pointer; white-space:nowrap;">3ヶ月</button>
+        </div>
         <!-- 分析ボタン -->
         <button id="ai-analyze-btn" onclick="runGeminiAnalysis()"
           style="width:100%; padding:14px; background:linear-gradient(135deg,#1e3a5f,#1e293b); border:1px solid #38bdf8; color:#38bdf8; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; letter-spacing:0.5px;">
-          🤖 直近10件をAI分析
+          🤖 AI分析
         </button>
         <!-- 結果表示エリア -->
         <div id="ai-result" style="display:none; margin-top:12px; background:#1e293b; border-radius:10px; padding:14px; border:1px solid #334155;"></div>
@@ -236,22 +244,8 @@
 
       <!-- ImgBB 設定セクション -->
       <div class="section" style="margin-top:24px; margin-bottom:20px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <div style="margin-bottom:10px;">
           <div class="section-title" style="margin-bottom:0;">🖼️ 画像アップロード設定</div>
-          <button onclick="toggleImgBBKeySection()" style="background:none;border:1px solid #334155;color:#64748b;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;">⚙️ APIキー</button>
-        </div>
-        <div id="imgbb-key-section" style="display:none; background:#1e293b; border-radius:8px; padding:10px;">
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:6px;">
-            ImgBB APIキー（<a href="https://api.imgbb.com/" target="_blank" style="color:#38bdf8;">無料取得はこちら</a>）<br>
-            <span style="color:#64748b;">※設定するとトレード画像を高画質で保存できます</span>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <input type="password" id="imgbb-api-key-input" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              style="flex:1; background:#0f172a; border:1px solid #334155; color:#f8fafc; border-radius:6px; padding:8px; font-size:12px;">
-            <button onclick="saveImgBBKey()"
-              style="background:#38bdf8; color:#0f172a; border:none; border-radius:6px; padding:8px 14px; font-size:12px; font-weight:700; cursor:pointer;">保存</button>
-          </div>
-          <div id="imgbb-key-status" style="font-size:11px; margin-top:6px;"></div>
         </div>
         <div id="imgbb-status-bar" style="font-size:11px; padding:6px 10px; background:#1e293b; border-radius:6px; color:#64748b;">
           <!-- JS で「ImgBB有効」or「未設定」を表示 -->
