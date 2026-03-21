@@ -3307,7 +3307,7 @@ function showToast(msg) {
 }
 
 // ════════════════════════════════════════
-// 🤖 Gemini AI トレード分析
+// 🤖 AI トレード分析（Groq）
 // ════════════════════════════════════════
 
 function toggleAiKeySection() {
@@ -3316,19 +3316,17 @@ function toggleAiKeySection() {
   const isHidden = sec.style.display === 'none';
   sec.style.display = isHidden ? 'block' : 'none';
   if (isHidden) {
-    // 保存済みキーを復元（マスク表示）
-    const saved = localStorage.getItem('gemini-api-key');
+    const saved = localStorage.getItem('groq_api_key');
     const input = document.getElementById('ai-api-key-input');
     if (saved && input) input.value = saved;
   }
 }
 
-function saveGeminiKey() {
+function saveGroqKey() {
   const key = document.getElementById('ai-api-key-input')?.value.trim();
   if (!key) return;
-  localStorage.setItem('gemini-api-key', key);
-  const saved = document.getElementById('ai-key-saved');
-  if (saved) { saved.style.display = 'block'; setTimeout(() => { saved.style.display = 'none'; }, 2000); }
+  localStorage.setItem('groq_api_key', key);
+  showToast('APIキーを保存しました ✅');
   document.getElementById('ai-key-section').style.display = 'none';
 }
 
@@ -3421,17 +3419,30 @@ ${JSON.stringify(tradeData, null, 2)}
     </div>`;
 
   try {
-    // GAS経由でGemini APIを呼ぶ（IP制限回避）
-    const gasRes = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'geminiAnalysis', prompt })
-    }).then(r => r.json());
-
-    if (!gasRes.success) {
-      throw new Error(gasRes.error || '不明なエラー');
+    const apiKey = localStorage.getItem('groq_api_key');
+    if (!apiKey) {
+      const sec = document.getElementById('ai-key-section');
+      if (sec) sec.style.display = 'block';
+      throw new Error('Groq APIキーを設定してください');
     }
 
-    const text = gasRes.text || '分析結果を取得できませんでした。';
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1024
+      })
+    }).then(r => r.json());
+
+    if (groqRes.error) throw new Error(groqRes.error.message || 'Groq APIエラー');
+
+    const text = groqRes.choices?.[0]?.message?.content || '分析結果を取得できませんでした。';
 
     // Markdown → 簡易HTML変換
     const html = text
