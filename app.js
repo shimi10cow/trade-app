@@ -1077,24 +1077,36 @@ function getDataMonthRange() {
 function updateMonthlyStats() {
   const { current: currentMonthStr } = getDataMonthRange();
   const monthTrades = App.data.entries.filter(t => {
-    if (t['ステータス'] !== '決済') return false; // real trades only, not 見逃し
+    if (t['ステータス'] !== '決済') return false;
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     return dateStr.startsWith(currentMonthStr);
   });
   let totalProfit = 0, totalPips = 0, totalRR = 0;
+  let entryPerfect = 0, exitPerfect = 0;
   monthTrades.forEach(t => {
     totalProfit += parseFloat(t['損益']) || 0;
     totalPips += parseFloat(t['実取得pips']) || 0;
     const pips = parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
     if (sl > 0) totalRR += pips / sl;
+    if ((t['エントリー振り返り'] || '') === '完璧！') entryPerfect++;
+    const exitRef = t['決済振り返り'] || '';
+    if (exitRef === '完璧利確' || exitRef === '適切損切り') exitPerfect++;
   });
+  const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
   const cls = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  const clsRate = (v) => v >= 70 ? 'pos' : (v >= 50 ? '' : 'neg');
   document.getElementById('top-profit').textContent = fmtCur(totalProfit);
   document.getElementById('top-profit').className = 'val ' + cls(totalProfit);
   document.getElementById('top-pips').textContent = Math.round(totalPips) + ' pips';
   document.getElementById('top-pips').className = 'val ' + cls(totalPips);
+  const entryRate = total > 0 ? (entryPerfect / total * 100).toFixed(1) : '--';
+  const exitRate = total > 0 ? (exitPerfect / total * 100).toFixed(1) : '--';
+  document.getElementById('top-entry-rate').textContent = entryRate !== '--' ? entryRate + '%' : '--';
+  document.getElementById('top-entry-rate').className = 'val ' + (entryRate !== '--' ? clsRate(parseFloat(entryRate)) : '');
+  document.getElementById('top-exit-rate').textContent = exitRate !== '--' ? exitRate + '%' : '--';
+  document.getElementById('top-exit-rate').className = 'val ' + (exitRate !== '--' ? clsRate(parseFloat(exitRate)) : '');
   document.getElementById('top-rr').textContent = totalRR.toFixed(2);
   document.getElementById('top-rr').className = 'val ' + cls(totalRR);
 }
@@ -1154,13 +1166,10 @@ function applyAnalysisFilters() {
   let totalProfit = 0, winProfit = 0, lossProfit = 0;
   let totalLot = 0;
   let avgRRSum = 0, validRRCount = 0;
-  // Rule metrics (Excelのデータ分析シートと同じロジック)
-  let rulePipsTotal = 0, ruleProfitTotal = 0;
-  // ルール外損失: 実取得pips<0 かつ エントリー振り返り≠"完璧！" のトレードのpips/損益合計
-  // (Excelでは負値として格納、I8列=負値 → 理論式で -I8 で加算)
-  let ruleViolationPips = 0, ruleViolationProfit = 0;
-  // ルール遵守率: "完璧！" のトレード数 / 総トレード数 (Excel: C38/C39)
-  let perfectCount = 0;
+  // 理論値: ルール準拠pips/損益の合計（全トレード）
+  let theoryPipsTotal = 0, theoryProfitTotal = 0;
+  // ルール遵守率: エントリー・決済別
+  let entryPerfectCount = 0, exitPerfectCount = 0;
 
   filtered.forEach(t => {
     totalTrades++;
@@ -1168,18 +1177,19 @@ function applyAnalysisFilters() {
     const profit = parseFloat(t['損益']) || 0;
     const lot = parseFloat(t['Lot']) || 0;
     const entryRef = t['エントリー振り返り'] || '';
+    const exitRef = t['決済振り返り'] || '';
 
     totalPips += pips;
     totalProfit += profit;
     totalLot += lot;
 
-    // 勝敗判定: AppSheet formula準拠
-    // 勝ち: pips > 10 / 負け: pips < -5 / 建値(引き分け): -5 <= pips <= 10
+    // 勝敗判定: ±10pips閾値
+    // 勝ち: pips > 10 / 負け: pips < -10 / 引き分け: -10 <= pips <= 10
     if (pips > 10) {
       wins++;
       winPips += pips;
       winProfit += profit;
-    } else if (pips < -5) {
+    } else if (pips < -10) {
       losses++;
       lossPips += pips;
       lossProfit += profit;
@@ -1194,34 +1204,23 @@ function applyAnalysisFilters() {
       validRRCount++;
     }
 
-    // ルール外損失: 実取得pipsが負 かつ エントリー振り返りが"完璧！"でない
-    // Excel Q列: SUM(FILTER(Entries!AQ, AQ<0, AV=category))
-    if (pips < 0 && entryRef !== '完璧！') {
-      ruleViolationPips += pips;   // 負値として蓄積
-      ruleViolationProfit += profit; // 負値として蓄積
-    }
-
-    // ルール準拠総pips: Entries!AS列(ルール準拠pips)の合計
-    // ルール準拠総損益: Entries!AT列(ルール準拠損益)の合計
+    // 理論pips: ルール準拠pips列の合計（全トレード）
     const rawRulePips = t['ルール準拠pips'] ?? t['ルール準拠Pips'];
-    const rawRuleProfit = t['ルール準拠損益'];
     if (rawRulePips !== undefined && rawRulePips !== '' && rawRulePips !== null) {
       const rp = parseFloat(rawRulePips);
-      if (!isNaN(rp)) rulePipsTotal += rp;
+      if (!isNaN(rp)) theoryPipsTotal += rp;
     }
+    // 理論損益: ルール準拠損益列の合計（手入力値）
+    const rawRuleProfit = t['ルール準拠損益'];
     if (rawRuleProfit !== undefined && rawRuleProfit !== '' && rawRuleProfit !== null) {
       const rpProfit = parseFloat(rawRuleProfit);
-      if (!isNaN(rpProfit)) {
-        ruleProfitTotal += rpProfit;
-      }
-    } else if (rawRulePips !== undefined && rawRulePips !== '' && pips !== 0) {
-      // AT列がない場合: |損益| / |実取得pips| × ルール準拠pips
-      const rp = parseFloat(rawRulePips);
-      if (!isNaN(rp)) ruleProfitTotal += Math.round(Math.abs(profit) / Math.abs(pips) * rp);
+      if (!isNaN(rpProfit)) theoryProfitTotal += rpProfit;
     }
 
-    // ルール遵守率: エントリー振り返り = "完璧！" の件数
-    if (entryRef === '完璧！') perfectCount++;
+    // エントリールール遵守率: エントリー振り返り = "完璧！"
+    if (entryRef === '完璧！') entryPerfectCount++;
+    // 決済ルール遵守率: 決済振り返り = "完璧利確" or "適切損切り"
+    if (exitRef === '完璧利確' || exitRef === '適切損切り') exitPerfectCount++;
   });
 
   const winRate = totalTrades ? (wins / totalTrades * 100).toFixed(1) : 0;
@@ -1236,14 +1235,16 @@ function applyAnalysisFilters() {
   const avgLot = totalTrades ? (totalLot / totalTrades).toFixed(2) : '0.00';
 
   const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : '--';
-  // ルール遵守率 = 完璧！件数 / 総件数 (Excel: C38/C39)
-  const ruleComplianceRate = totalTrades > 0 ? (perfectCount / totalTrades * 100).toFixed(1) : '--';
 
-  // 理論pips / 理論損益: Excel formula K7 = E9 - I8 + E8 + I10
-  // I8(ルール外損失pips) は負値で格納 → -I8 = +|ruleViolationPips|
-  // = lossPips - ruleViolationPips(負) + winPips + rulePipsTotal
-  const theoryPips = winPips + lossPips - ruleViolationPips + rulePipsTotal;
-  const theoryProfit = winProfit + lossProfit - ruleViolationProfit + ruleProfitTotal;
+  // エントリー・決済ルール遵守率
+  const entryComplianceRate = totalTrades > 0 ? (entryPerfectCount / totalTrades * 100).toFixed(1) : '--';
+  const exitComplianceRate = totalTrades > 0 ? (exitPerfectCount / totalTrades * 100).toFixed(1) : '--';
+
+  // 理論値 / ルール外乖離
+  const theoryPips = theoryPipsTotal;
+  const theoryProfit = theoryProfitTotal;
+  const deviationPips = totalPips - theoryPips;
+  const deviationProfit = totalProfit - theoryProfit;
 
   // Top banner is calculated independently by updateMonthlyStats()
   const fmtCurrency = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(val);
@@ -1336,37 +1337,34 @@ function applyAnalysisFilters() {
       <div class="metric-value">${avgLot}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">ルール遵守率</div>
-      <div class="metric-value ${ruleComplianceRate !== '--' ? classForNum(parseFloat(ruleComplianceRate) - 70) : ''}">${ruleComplianceRate}${ruleComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
+      <div class="metric-label">エントリールール遵守率</div>
+      <div class="metric-value ${entryComplianceRate !== '--' ? classForNum(parseFloat(entryComplianceRate) - 70) : ''}">${entryComplianceRate}${entryComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
       <div class="metric-sub">${totalTrades}件で計算</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">ルール外損失pips</div>
-      <div class="metric-value neg">${ruleViolationPips < 0 ? ruleViolationPips.toFixed(1) : '0.0'}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">ルール外損失額</div>
-      <div class="metric-value neg" style="font-size:15px;">${ruleViolationProfit < 0 ? fmtCurrency(ruleViolationProfit) : fmtCurrency(0)}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">ルール準拠総pips</div>
-      <div class="metric-value ${classForNum(rulePipsTotal)}">${rulePipsTotal.toFixed(1)}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">ルール準拠総損益</div>
-      <div class="metric-value ${classForNum(ruleProfitTotal)}" style="font-size:15px;">${fmtCurrency(ruleProfitTotal)}</div>
+      <div class="metric-label">決済ルール遵守率</div>
+      <div class="metric-value ${exitComplianceRate !== '--' ? classForNum(parseFloat(exitComplianceRate) - 70) : ''}">${exitComplianceRate}${exitComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
+      <div class="metric-sub">${totalTrades}件で計算</div>
     </div>
 
-    <div class="metrics-section-header">🔮 理論値（ルール完全遵守の場合）</div>
+    <div class="metrics-section-header">🔮 理論値</div>
     <div class="metric-card">
       <div class="metric-label">理論pips</div>
       <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-      <div class="metric-sub">${totalTrades}件のデータ使用</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">理論損益</div>
       <div class="metric-value ${classForNum(theoryProfit)}" style="font-size:15px;">${fmtCurrency(Math.round(theoryProfit))}</div>
-      <div class="metric-sub">実際比 ${classForNum(theoryProfit - totalProfit) === 'pos' ? '+' : ''}${fmtCurrency(Math.round(theoryProfit - totalProfit))}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール外乖離pips</div>
+      <div class="metric-value ${classForNum(deviationPips)}">${deviationPips > 0 ? '+' : ''}${deviationPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+      <div class="metric-sub">実績 − 理論</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">ルール外乖離額</div>
+      <div class="metric-value ${classForNum(deviationProfit)}" style="font-size:15px;">${deviationProfit >= 0 ? '+' : ''}${fmtCurrency(Math.round(deviationProfit))}</div>
+      <div class="metric-sub">実績 − 理論</div>
     </div>
   `;
 
@@ -3439,7 +3437,7 @@ async function runGeminiAnalysis() {
     return {
       no: i + 1,
       日付: date,
-      結果: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
+      結果: pips > 10 ? '勝ち' : (pips < -10 ? '負け' : '引き分け'),
       pips: pips.toFixed(1),
       損益: Math.round(profit),
       スコア: entryScore,
