@@ -389,6 +389,10 @@ function switchTab(tabId) {
 function renderAnalysis() {
   updateMonthlyStats();
   applyAnalysisFilters();
+  // AI分析期間タブ：初回のみデフォルト1ヶ月を設定
+  if (!document.getElementById('ai-date-from')?.value) {
+    setAiTab('1m');
+  }
 }
 
 function openEntryModal(isMissed = false) {
@@ -1644,6 +1648,16 @@ function setEquityPeriod(period) {
   if (btn) btn.classList.add('active');
   const customDiv = document.getElementById('equity-custom-date');
   if (customDiv) customDiv.style.display = period === 'custom' ? 'flex' : 'none';
+  // カスタム選択時：デフォルトで1ヶ月を入力
+  if (period === 'custom') {
+    const to = new Date();
+    const from = new Date();
+    from.setMonth(from.getMonth() - 1);
+    const fromEl = document.getElementById('equity-date-from');
+    const toEl = document.getElementById('equity-date-to');
+    if (fromEl && !fromEl.value) fromEl.value = from.toISOString().split('T')[0];
+    if (toEl && !toEl.value) toEl.value = to.toISOString().split('T')[0];
+  }
   renderEquityCurve();
 }
 
@@ -3295,32 +3309,29 @@ function showToast(msg) {
 // 🤖 AI トレード分析（Groq）
 // ════════════════════════════════════════
 
-function toggleAiKeySection() {
-  const sec = document.getElementById('ai-key-section');
-  if (!sec) return;
-  const isHidden = sec.style.display === 'none';
-  sec.style.display = isHidden ? 'block' : 'none';
-  if (isHidden) {
-    const saved = localStorage.getItem('groq_api_key');
-    const input = document.getElementById('ai-api-key-input');
-    if (saved && input) input.value = saved;
-  }
-}
-
-function saveGroqKey() {
-  const key = document.getElementById('ai-api-key-input')?.value.trim();
-  if (!key) return;
-  localStorage.setItem('groq_api_key', key);
-  showToast('APIキーを保存しました ✅');
-  document.getElementById('ai-key-section').style.display = 'none';
-}
-
-function setAiPeriodMonth(n) {
+function setAiTab(tab) {
+  ['1m','3m','custom'].forEach(t => {
+    const btn = document.getElementById('ai-tab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  const customDiv = document.getElementById('ai-custom-date');
+  if (customDiv) customDiv.style.display = tab === 'custom' ? 'flex' : 'none';
   const to = new Date();
   const from = new Date();
-  from.setMonth(from.getMonth() - n);
-  document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
-  document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
+  if (tab === '1m') {
+    from.setMonth(from.getMonth() - 1);
+    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
+    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
+  } else if (tab === '3m') {
+    from.setMonth(from.getMonth() - 3);
+    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
+    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
+  } else if (tab === 'custom') {
+    // カスタム：デフォルトで1ヶ月
+    from.setMonth(from.getMonth() - 1);
+    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
+    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
+  }
 }
 
 async function runGeminiAnalysis() {
@@ -3369,9 +3380,10 @@ async function runGeminiAnalysis() {
       pips: pips.toFixed(1),
       profit: Math.round(profit),
       entryScore: `${entryScore}/${scoreKeys.length}`,
-      entryReview: t['エントリー振り返り'] || '',
-      exitReview: t['決済振り返り'] || '',
-      memo: t['反省'] || ''
+      entryMemo: t['エントリーメモ'] || '',       // エントリー時の感情・心理（メイン）
+      exitMemo: t['決済メモ'] || '',               // 決済時の反省・感情（メイン）
+      entryRule: t['エントリー振り返り'] || '',    // ルール遵守記録のみ（感情分析には使わない）
+      exitRule: t['決済振り返り'] || ''            // ルール遵守記録のみ（感情分析には使わない）
     };
   });
 
@@ -3380,29 +3392,26 @@ async function runGeminiAnalysis() {
   const wins = tradeData.filter(t => t.result === '勝ち').length;
   const losses = tradeData.filter(t => t.result === '負け').length;
 
-  const prompt = `あなたはFXトレーダーの心理・感情パターンを分析する専任コーチです。
-以下は指定期間（${fromVal}〜${toVal}）の実トレードデータです。
+  const prompt = `期間：${fromVal}〜${toVal}
+概要：${tradeData.length}件 / ${wins}勝${losses}敗
 
-【全データ（${tradeData.length}件）】
+【データの定義】
+・entryMemo → エントリー時の感情・心理状態（メイン分析対象）
+・exitMemo → 決済時の反省・感情（メイン分析対象）
+・entryRule / exitRule → ルール遵守記録のみ。「完璧！」=ルール遵守、それ以外=そのルール外行動をしたことを示す
+・entryScore → エントリー根拠スコア（最大6点。4以上で優位性高、3以下は負けやすい傾向）
+・result / pips / profit → 結果の裏付け
+
+【全トレードデータ（${tradeData.length}件）】
 ${JSON.stringify(tradeData, null, 2)}
 
-概要: ${wins}勝${losses}敗
-
 以下の4項目を分析してください。各項目は見出し（①②③④）で始め、箇条書きで3〜5点、日本語で簡潔に。
-「エントリー振り返り」「決済振り返り」「反省」のコメントから感情・心理・思考パターンを読み取ることに集中してください。勝敗・pips・エントリースコアはその裏付けに使ってください。
 
 ①【勝ちトレードの感情・心理】
-勝てているときのコメントに共通する状態・思考パターン
-
 ②【負けトレードの感情・心理】
-負けトレードのコメントから読み取れる感情・思考（焦り・リベンジ・FOMO・自信過剰・迷いなど）
-
-③【ルール遵守と感情の関係】
-ルールを守れたとき・守れなかったときのコメントの違い。ルール外行動のときに現れる感情パターン
-
+③【ルール遵守と感情の関係】（entryRuleが「完璧！」以外のトレードのentryMemoを中心に）
 ④【直近の状態チェック（直近${recent10.length}件）】
-${JSON.stringify(recent10, null, 2)}
-直近${recent10.length}件のコメントから読み取れる今の精神状態・注意すべき兆候`;
+${JSON.stringify(recent10, null, 2)}`;
 
   // ローディング表示
   btn.disabled = true;
@@ -3419,12 +3428,13 @@ ${JSON.stringify(recent10, null, 2)}
     </div>`;
 
   try {
-    const apiKey = localStorage.getItem('groq_api_key');
-    if (!apiKey) {
-      const sec = document.getElementById('ai-key-section');
-      if (sec) sec.style.display = 'block';
-      throw new Error('Groq APIキーを設定してください');
-    }
+    // GASからGroq APIキーを取得
+    const keyRes = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getGroqKey' })
+    }).then(r => r.json());
+    const apiKey = keyRes.key || '';
+    if (!apiKey) throw new Error('Groq APIキーがGASに設定されていません（Script PropertiesにGROQ_API_KEYを設定してください）');
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -3434,7 +3444,21 @@ ${JSON.stringify(recent10, null, 2)}
       },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          {
+            role: 'system',
+            content: `あなたはFXトレーダーの心理・感情パターンを分析する専任コーチです。
+以下のルールを厳守してください：
+・entryMemo（エントリー時メモ）とexitMemo（決済メモ）を中心に分析する
+・entryRule・exitRuleはルール遵守の記録であり感情分析には使わない
+・「完璧！」はルールを守れたことを示すだけで感情・自信とは無関係
+・方向・通貨ペア・MAなどテクニカル要素には言及しない
+・断定せず「〜の傾向が見られる」という表現を使う
+・メモが空のトレードはスキップする
+・データが少なく判断困難な項目は「データ不足のため判断困難」と明記する`
+          },
+          { role: 'user', content: prompt }
+        ],
         temperature: 0.7,
         max_tokens: 1024
       })
