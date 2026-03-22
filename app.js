@@ -3475,8 +3475,7 @@ async function runGeminiAnalysis() {
       .replace(/^(#{1,3}\s|[①②③④⑤⑥]【.+?】)/gm, m =>
         `<div style="font-weight:700;color:#38bdf8;margin-top:14px;margin-bottom:6px;">${m}</div>`)
       .replace(/^[\-\*・]\s*(.+)$/gm, '<div style="padding-left:14px;margin-bottom:4px;color:#cbd5e1;">• $1</div>')
-      .replace(/\n{2,}/g, '<br>')
-      .replace(/\n/g, '<br>');
+      .replace(/\n+/g, '<br>');
 
     resultDiv.innerHTML = `
       <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #334155;">
