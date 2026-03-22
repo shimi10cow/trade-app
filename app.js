@@ -1235,6 +1235,7 @@ function applyAnalysisFilters() {
   const avgLot = totalTrades ? (totalLot / totalTrades).toFixed(2) : '0.00';
 
   const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : '--';
+  const totalRR = avgRRSum.toFixed(2);
 
   // エントリー・決済ルール遵守率
   const entryComplianceRate = totalTrades > 0 ? (entryPerfectCount / totalTrades * 100).toFixed(1) : '--';
@@ -1274,9 +1275,26 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(parseFloat(winRate) - 50)}">${winRate}<span class="metric-unit">%</span></div>
     </div>
     <div class="metric-card">
+      <div class="metric-label">平均Lot</div>
+      <div class="metric-value">${avgLot}</div>
+    </div>
+    <div class="metric-card">
       <div class="metric-label">平均実RR</div>
       <div class="metric-value ${classForNum(parseFloat(avgRR))}">${avgRR}</div>
-      <div class="metric-sub">${validRRCount}件で計算</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">合計実RR</div>
+      <div class="metric-value ${classForNum(parseFloat(totalRR))}">${totalRR}</div>
+    </div>
+
+    <div class="metrics-section-header">📋 ルール遵守</div>
+    <div class="metric-card">
+      <div class="metric-label">エントリールール遵守率</div>
+      <div class="metric-value ${entryComplianceRate !== '--' ? classForNum(parseFloat(entryComplianceRate) - 70) : ''}">${entryComplianceRate}${entryComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">決済ルール遵守率</div>
+      <div class="metric-value ${exitComplianceRate !== '--' ? classForNum(parseFloat(exitComplianceRate) - 70) : ''}">${exitComplianceRate}${exitComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
     </div>
 
     <div class="metrics-section-header">📈 pips統計</div>
@@ -1331,22 +1349,6 @@ function applyAnalysisFilters() {
       <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(parseInt(avgLossProfit))}</div>
     </div>
 
-    <div class="metrics-section-header">📋 ルール遵守</div>
-    <div class="metric-card">
-      <div class="metric-label">平均Lot</div>
-      <div class="metric-value">${avgLot}</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">エントリールール遵守率</div>
-      <div class="metric-value ${entryComplianceRate !== '--' ? classForNum(parseFloat(entryComplianceRate) - 70) : ''}">${entryComplianceRate}${entryComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
-      <div class="metric-sub">${totalTrades}件で計算</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">決済ルール遵守率</div>
-      <div class="metric-value ${exitComplianceRate !== '--' ? classForNum(parseFloat(exitComplianceRate) - 70) : ''}">${exitComplianceRate}${exitComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
-      <div class="metric-sub">${totalTrades}件で計算</div>
-    </div>
-
     <div class="metrics-section-header">🔮 理論値</div>
     <div class="metric-card">
       <div class="metric-label">理論pips</div>
@@ -1359,12 +1361,10 @@ function applyAnalysisFilters() {
     <div class="metric-card">
       <div class="metric-label">ルール外乖離pips</div>
       <div class="metric-value ${classForNum(deviationPips)}">${deviationPips > 0 ? '+' : ''}${deviationPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-      <div class="metric-sub">実績 − 理論</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">ルール外乖離額</div>
       <div class="metric-value ${classForNum(deviationProfit)}" style="font-size:15px;">${deviationProfit >= 0 ? '+' : ''}${fmtCurrency(Math.round(deviationProfit))}</div>
-      <div class="metric-sub">実績 − 理論</div>
     </div>
   `;
 
