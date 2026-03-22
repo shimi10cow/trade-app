@@ -2416,6 +2416,9 @@ function calculateEntryScoreTD() {
   });
 
   document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
+  // 画面上の表示スコアも更新
+  const scoreDisplay = document.getElementById('td-score-display');
+  if (scoreDisplay) scoreDisplay.textContent = score;
   const box = document.getElementById('td-checker-status');
   const msg = document.getElementById('td-checker-msg');
   if (score >= 4) {
@@ -3367,7 +3370,7 @@ async function runGeminiAnalysis() {
   // 期間フィルター（デフォルト: 直近1ヶ月）
   let fromVal = document.getElementById('ai-date-from').value;
   let toVal = document.getElementById('ai-date-to').value;
-  if (!fromVal && !toVal) { setAiPeriodMonth(1); fromVal = document.getElementById('ai-date-from').value; toVal = document.getElementById('ai-date-to').value; }
+  if (!fromVal && !toVal) { setAiTab('1m'); fromVal = document.getElementById('ai-date-from').value; toVal = document.getElementById('ai-date-to').value; }
 
   const fromDate = fromVal ? new Date(fromVal) : null;
   const toDate = toVal ? new Date(toVal + 'T23:59:59') : null;

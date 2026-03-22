@@ -59,6 +59,12 @@ function doPost(e) {
     result = uploadImage(body.base64Data, body.filename);
   } else if (action === 'getSimilarTrades') {
     result = getSimilarTrades(body.conditions);
+  } else if (action === 'getImgBBKey') {
+    const key = PropertiesService.getScriptProperties().getProperty('IMGBB_API_KEY') || '';
+    result = { success: true, key: key };
+  } else if (action === 'getGroqKey') {
+    const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY') || '';
+    result = { success: true, key: key };
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -451,53 +457,48 @@ function testDriveAuth() {
 
 // =============================================
 // 画像URL解決（パス → base64 data URL）
+// DriveApp不要：UrlFetchApp + Drive REST API で認証問題を回避
 // =============================================
 function getImageUrlByPath(path) {
   if (!path) return { url: '' };
   try {
+    const token = ScriptApp.getOAuthToken();
     const parts = path.split('/');
     const folderName = parts[0];
     const fileName   = parts[parts.length - 1];
 
-    let file = null;
+    let fileId = null;
 
-    // ★ 特別処理: drive_images/FILEID.jpg → DriveApp.getFileById で直接取得（最速・確実）
+    // ★ drive_images/FILEID.jpg → ファイルIDが直接わかる
     if (folderName === 'drive_images') {
-      const fileId = fileName.replace(/\.(jpg|jpeg|png|gif|webp)$/i, '');
-      try {
-        file = DriveApp.getFileById(fileId);
-      } catch(e2) {
-        return { url: '', error: 'getFileById failed: ' + e2.message };
+      fileId = fileName.replace(/\.(jpg|jpeg|png|gif|webp)$/i, '');
+    } else {
+      // Drive REST API でファイル名検索（AppSheet: Entries_Images/xxx.jpg など）
+      const safeName = fileName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const q = encodeURIComponent("name='" + safeName + "' and trashed=false");
+      const listRes = UrlFetchApp.fetch(
+        'https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id)&pageSize=5',
+        { headers: { 'Authorization': 'Bearer ' + token }, muteHttpExceptions: true }
+      );
+      const listData = JSON.parse(listRes.getContentText());
+      if (listData.files && listData.files.length > 0) {
+        fileId = listData.files[0].id;
       }
     }
 
-    // ① フォルダ名で検索（AppSheet 標準構造: Entries_Images/xxx.jpg）
-    if (!file) {
-      const folders = DriveApp.getFoldersByName(folderName);
-      while (folders.hasNext()) {
-        const folder = folders.next();
-        const files = folder.getFilesByName(fileName);
-        if (files.hasNext()) {
-          file = files.next();
-          break;
-        }
-      }
+    if (!fileId) return { url: '', error: 'file not found: ' + fileName };
+
+    // Drive REST API でファイル内容取得
+    const mediaRes = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media',
+      { headers: { 'Authorization': 'Bearer ' + token }, muteHttpExceptions: true }
+    );
+
+    if (mediaRes.getResponseCode() !== 200) {
+      return { url: '', error: 'download failed: ' + mediaRes.getResponseCode() };
     }
 
-    // ② フォールバック: Drive全体でファイル名検索
-    if (!file) {
-      const safeFileName = fileName.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const searchResult = DriveApp.searchFiles("title = '" + safeFileName + "'");
-      if (searchResult.hasNext()) {
-        file = searchResult.next();
-      }
-    }
-
-    if (!file) return { url: '', error: 'file not found: ' + fileName };
-
-    // base64エンコードして返す（thumbnail URLはブラウザ認証が必要なため使わない）
-    const blob = file.getBlob();
-    const bytes = blob.getBytes();
+    const bytes = mediaRes.getContent();
 
     // 3MB超はスキップ（GASタイムアウト防止）
     if (bytes.length > 3 * 1024 * 1024) {
@@ -505,8 +506,7 @@ function getImageUrlByPath(path) {
     }
 
     const base64 = Utilities.base64Encode(bytes);
-    const mimeType = blob.getContentType() || 'image/jpeg';
-    return { url: 'data:' + mimeType + ';base64,' + base64 };
+    return { url: 'data:image/jpeg;base64,' + base64 };
 
   } catch(e) {
     return { url: '', error: e.message };
@@ -518,23 +518,58 @@ function getImageUrlByPath(path) {
 // =============================================
 function uploadImage(base64Data, filename) {
   try {
-    // data:image/jpeg;base64, の部分を除去
+    // DriveApp不使用 → Drive REST API + UrlFetchApp で実装
+    // 必要スコープ: drive.file（フルdriveスコープ不要）
     const base64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
-    const blob = Utilities.newBlob(
-      Utilities.base64Decode(base64),
-      'image/jpeg',
-      filename
+    const token  = ScriptApp.getOAuthToken();
+
+    // マルチパートアップロード
+    const boundary = 'trade_app_' + Utilities.getUuid().replace(/-/g,'');
+    const metadata = JSON.stringify({ name: filename, mimeType: 'image/jpeg' });
+    const body =
+      '--' + boundary + '\r\n' +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      metadata + '\r\n' +
+      '--' + boundary + '\r\n' +
+      'Content-Type: image/jpeg\r\n' +
+      'Content-Transfer-Encoding: base64\r\n\r\n' +
+      base64 + '\r\n' +
+      '--' + boundary + '--';
+
+    const uploadRes = UrlFetchApp.fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type' : 'multipart/related; boundary=' + boundary
+        },
+        payload: body,
+        muteHttpExceptions: true
+      }
+    );
+    const uploaded = JSON.parse(uploadRes.getContentText());
+    if (!uploaded.id) throw new Error('Upload failed: ' + uploadRes.getContentText());
+
+    // 全員に閲覧権限を付与
+    UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + uploaded.id + '/permissions',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type' : 'application/json'
+        },
+        payload: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        muteHttpExceptions: true
+      }
     );
 
-    // TradeImagesフォルダを取得/作成
-    const folders = DriveApp.getFoldersByName(DRIVE_FOLDER);
-    const folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder(DRIVE_FOLDER);
-
-    const file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    return { success: true, url: file.getUrl(), fileId: file.getId() };
+    return { success: true, fileId: uploaded.id };
   } catch(e) {
     return { success: false, error: e.message };
   }
 }
+
+
+// =============================================
