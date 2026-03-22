@@ -3560,41 +3560,42 @@ function renderIdeas() {
     }
   }
 
-  const hist = document.getElementById('idea-history-list');
-  if (hist) {
-    if (done.length === 0) {
-      hist.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:16px;">解決済みのメモはありません</div>';
-    } else {
-      hist.innerHTML = done
-        .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
-        .map(idea => ideaCard(idea))
-        .join('');
-    }
-  }
 }
 
 function ideaCard(idea) {
   const text = idea['本文'] || '';
   const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
+  const dateStr = (idea['日付'] || '').replace(/-/g, '/');
   const imgHtml = idea['画像URL'] ? `
-    <div style="margin-top:8px;">
-      <img src="${idea['画像URL']}" style="width:100%; max-height:120px; object-fit:cover; border-radius:6px;" onerror="this.style.display='none'">
+    <div style="margin-top:8px; background:#0f172a; border-radius:6px; overflow:hidden;">
+      <img src="${idea['画像URL']}" style="width:100%; max-height:140px; object-fit:contain; display:block;" onerror="this.parentElement.style.display='none'">
     </div>` : '';
   return `
     <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
-      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${idea['日付'] || ''}</div>
+      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${dateStr}</div>
       <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
       ${imgHtml}
     </div>`;
 }
 
-function toggleIdeaHistory() {
-  const el = document.getElementById('idea-history-list');
-  const tog = document.getElementById('idea-history-toggle');
-  if (!el) return;
-  const shown = el.style.display !== 'none';
-  el.style.display = shown ? 'none' : 'block';
-  if (tog) tog.textContent = shown ? '▼ 表示' : '▲ 非表示';
+function openIdeaHistoryModal() {
+  const done = App.data.ideas.filter(i => i['ステータス'] === '解決済み');
+  const modal = document.getElementById('modal-idea-history');
+  const list  = document.getElementById('idea-history-modal-list');
+  if (!modal || !list) return;
+  if (done.length === 0) {
+    list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">解決済みのメモはありません</div>';
+  } else {
+    list.innerHTML = done
+      .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
+      .map(idea => ideaCard(idea))
+      .join('');
+  }
+  modal.style.display = 'flex';
+}
+function closeIdeaHistoryModal() {
+  const modal = document.getElementById('modal-idea-history');
+  if (modal) modal.style.display = 'none';
 }
 
 // ---- 新規メモ ----
@@ -3617,20 +3618,30 @@ async function onIdeaImageSelected(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async (e) => {
+    // ローカルプレビューを即時表示
+    document.getElementById('idea-image-thumb').src = e.target.result;
+    document.getElementById('idea-image-preview').style.display = 'block';
+    App.state.ideaNewImageUrl = ''; // アップロード完了まで空
+    // バックグラウンドでImgBBにアップロード
     const base64 = e.target.result.split(',')[1];
-    const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
-    const apiKey = keyRes.key || '';
-    if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
-    const form = new FormData();
-    form.append('key', apiKey);
-    form.append('image', base64);
-    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
-    if (res.success) {
-      App.state.ideaNewImageUrl = res.data.url;
-      document.getElementById('idea-image-thumb').src = res.data.url;
-      document.getElementById('idea-image-preview').style.display = 'block';
-    } else {
-      alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+    try {
+      const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const apiKey = keyRes.key || '';
+      if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+      const form = new FormData();
+      form.append('key', apiKey);
+      form.append('image', base64);
+      const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
+      if (res.success) {
+        App.state.ideaNewImageUrl = res.data.url;
+        document.getElementById('idea-image-thumb').src = res.data.url;
+      } else {
+        alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+        removeIdeaImage();
+      }
+    } catch(err) {
+      alert('画像アップロードエラー: ' + err.message);
+      removeIdeaImage();
     }
   };
   reader.readAsDataURL(file);
@@ -3650,7 +3661,6 @@ async function saveNewIdea() {
     '画像URL': App.state.ideaNewImageUrl || '',
     'ステータス': '未解決'
   };
-  if (!data['本文'].trim()) { alert('メモを入力してください'); return; }
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -3698,20 +3708,30 @@ async function onIdeaDetailImageSelected(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async (e) => {
+    // ローカルプレビューを即時表示
+    document.getElementById('idea-detail-image-thumb').src = e.target.result;
+    document.getElementById('idea-detail-image-preview').style.display = 'block';
+    App.state.ideaDetailImageUrl = ''; // アップロード完了まで空
+    // バックグラウンドでImgBBにアップロード
     const base64 = e.target.result.split(',')[1];
-    const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
-    const apiKey = keyRes.key || '';
-    if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
-    const form = new FormData();
-    form.append('key', apiKey);
-    form.append('image', base64);
-    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
-    if (res.success) {
-      App.state.ideaDetailImageUrl = res.data.url;
-      document.getElementById('idea-detail-image-thumb').src = res.data.url;
-      document.getElementById('idea-detail-image-preview').style.display = 'block';
-    } else {
-      alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+    try {
+      const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const apiKey = keyRes.key || '';
+      if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+      const form = new FormData();
+      form.append('key', apiKey);
+      form.append('image', base64);
+      const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
+      if (res.success) {
+        App.state.ideaDetailImageUrl = res.data.url;
+        document.getElementById('idea-detail-image-thumb').src = res.data.url;
+      } else {
+        alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+        removeIdeaDetailImage();
+      }
+    } catch(err) {
+      alert('画像アップロードエラー: ' + err.message);
+      removeIdeaDetailImage();
     }
   };
   reader.readAsDataURL(file);
