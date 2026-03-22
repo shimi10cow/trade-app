@@ -3621,13 +3621,14 @@ async function onIdeaImageSelected(event) {
     // ローカルプレビューを即時表示
     document.getElementById('idea-image-thumb').src = e.target.result;
     document.getElementById('idea-image-preview').style.display = 'block';
-    App.state.ideaNewImageUrl = ''; // アップロード完了まで空
+    App.state.ideaNewImageUrl = '';
+    App.state.ideaImageUploading = true;
     // バックグラウンドでImgBBにアップロード
     const base64 = e.target.result.split(',')[1];
     try {
       const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
       const apiKey = keyRes.key || '';
-      if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+      if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); App.state.ideaImageUploading = false; return; }
       const form = new FormData();
       form.append('key', apiKey);
       form.append('image', base64);
@@ -3636,13 +3637,12 @@ async function onIdeaImageSelected(event) {
         App.state.ideaNewImageUrl = res.data.url;
         document.getElementById('idea-image-thumb').src = res.data.url;
       } else {
-        alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
-        removeIdeaImage();
+        showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
       }
     } catch(err) {
-      alert('画像アップロードエラー: ' + err.message);
-      removeIdeaImage();
+      showToast('⚠️ 画像アップロードエラー（プレビューのみ表示）');
     }
+    App.state.ideaImageUploading = false;
   };
   reader.readAsDataURL(file);
 }
@@ -3655,12 +3655,14 @@ function removeIdeaImage() {
 }
 
 async function saveNewIdea() {
+  if (App.state.ideaImageUploading) { showToast('⏳ 画像アップロード中...少し待ってください'); return; }
   const data = {
     '日付': document.getElementById('idea-date').value,
     '本文': document.getElementById('idea-text').value,
     '画像URL': App.state.ideaNewImageUrl || '',
     'ステータス': '未解決'
   };
+  showLoader();
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -3670,12 +3672,14 @@ async function saveNewIdea() {
       App.data.ideas.push(Object.assign({ id: res.id }, data));
       renderIdeas();
       closeNewIdeaModal();
+      showToast('保存しました ✅');
     } else {
-      alert('保存失敗: ' + (res.error || ''));
+      showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
   } catch (e) {
-    alert('保存エラー: ' + e.message);
+    showToast('⚠️ 保存エラー: ' + e.message);
   }
+  hideLoader();
 }
 
 // ---- 詳細モーダル ----
@@ -3711,13 +3715,14 @@ async function onIdeaDetailImageSelected(event) {
     // ローカルプレビューを即時表示
     document.getElementById('idea-detail-image-thumb').src = e.target.result;
     document.getElementById('idea-detail-image-preview').style.display = 'block';
-    App.state.ideaDetailImageUrl = ''; // アップロード完了まで空
+    App.state.ideaDetailImageUrl = '';
+    App.state.ideaDetailImageUploading = true;
     // バックグラウンドでImgBBにアップロード
     const base64 = e.target.result.split(',')[1];
     try {
       const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
       const apiKey = keyRes.key || '';
-      if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+      if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); App.state.ideaDetailImageUploading = false; return; }
       const form = new FormData();
       form.append('key', apiKey);
       form.append('image', base64);
@@ -3726,13 +3731,12 @@ async function onIdeaDetailImageSelected(event) {
         App.state.ideaDetailImageUrl = res.data.url;
         document.getElementById('idea-detail-image-thumb').src = res.data.url;
       } else {
-        alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
-        removeIdeaDetailImage();
+        showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
       }
     } catch(err) {
-      alert('画像アップロードエラー: ' + err.message);
-      removeIdeaDetailImage();
+      showToast('⚠️ 画像アップロードエラー（プレビューのみ表示）');
     }
+    App.state.ideaDetailImageUploading = false;
   };
   reader.readAsDataURL(file);
 }
@@ -3745,6 +3749,7 @@ function removeIdeaDetailImage() {
 }
 
 async function saveIdeaDetail() {
+  if (App.state.ideaDetailImageUploading) { showToast('⏳ 画像アップロード中...少し待ってください'); return; }
   const id = App.state.currentIdeaId;
   const data = {
     '日付': document.getElementById('idea-detail-date').value,
@@ -3752,6 +3757,7 @@ async function saveIdeaDetail() {
     '画像URL': App.state.ideaDetailImageUrl || '',
     'ステータス': document.getElementById('idea-detail-status').value
   };
+  showLoader();
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -3762,17 +3768,20 @@ async function saveIdeaDetail() {
       if (idx !== -1) App.data.ideas[idx] = Object.assign({ id: id }, data);
       renderIdeas();
       closeIdeaDetail();
+      showToast('保存しました ✅');
     } else {
-      alert('保存失敗: ' + (res.error || ''));
+      showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
   } catch (e) {
-    alert('保存エラー: ' + e.message);
+    showToast('⚠️ 保存エラー: ' + e.message);
   }
+  hideLoader();
 }
 
 async function deleteIdeaDetail() {
   if (!confirm('このメモを削除しますか？')) return;
   const id = App.state.currentIdeaId;
+  showLoader();
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -3782,10 +3791,12 @@ async function deleteIdeaDetail() {
       App.data.ideas = App.data.ideas.filter(function(i) { return i.id !== id; });
       renderIdeas();
       closeIdeaDetail();
+      showToast('削除しました 🗑️');
     } else {
-      alert('削除失敗: ' + (res.error || ''));
+      showToast('⚠️ 削除失敗: ' + (res.error || ''));
     }
   } catch (e) {
-    alert('削除エラー: ' + e.message);
+    showToast('⚠️ 削除エラー: ' + e.message);
   }
+  hideLoader();
 }
