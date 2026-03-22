@@ -2551,6 +2551,7 @@ async function submitEntryData() {
       'StopLossPips': document.getElementById('ne-sl').value,
       'Lot': document.getElementById('ne-lot').value,
       'エントリーメモ': document.getElementById('ne-memo').value,
+      '事前メモ': document.getElementById('ne-pre-memo')?.textContent?.replace('(ペアを選択すると表示されます)', '').replace('(事前メモなし)', '').trim() || '',
       'ステータス': App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
     };
 
@@ -3105,6 +3106,23 @@ async function saveTradeDetail() {
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
       'ルール準拠Pips': document.getElementById('td-rule-pips').value,
+      'ルール準拠損益': (() => {
+        const _pips = parseFloat(document.getElementById('td-pips').value);
+        const _profit = parseFloat(document.getElementById('td-profit').value);
+        const _rPips = parseFloat(document.getElementById('td-rule-pips').value);
+        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_rPips)) {
+          return String(Math.round(_profit * (_rPips / _pips)));
+        }
+        return '';
+      })(),
+      '実リスクリワード': (() => {
+        const _pips = parseFloat(document.getElementById('td-pips').value);
+        const _sl = parseFloat(document.getElementById('td-sl')?.value);
+        if (!isNaN(_pips) && !isNaN(_sl) && _sl > 0) {
+          return (_pips / _sl).toFixed(2);
+        }
+        return '';
+      })(),
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
       'エントリーメモ': document.getElementById('td-entry-memo')?.value || '',
       '決済振り返り': document.getElementById('td-exit-ref').value,

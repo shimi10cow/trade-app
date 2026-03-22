@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v92';
+const CACHE_NAME = 'trade-app-v93';
 const urlsToCache = [
   './',
   './index.html',
