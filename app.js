@@ -1307,7 +1307,7 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(parseFloat(avgTradePips))}">${avgTradePips}<span class="metric-unit">pips</span></div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">勝ちpips</div>
+      <div class="metric-label">勝ち合計pips</div>
       <div class="metric-value pos">${winPips.toFixed(1)}<span class="metric-unit">pips</span></div>
     </div>
     <div class="metric-card">
@@ -1315,7 +1315,7 @@ function applyAnalysisFilters() {
       <div class="metric-value pos">+${avgWinPips}<span class="metric-unit">pips</span></div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">負けpips</div>
+      <div class="metric-label">負け合計pips</div>
       <div class="metric-value neg">${lossPips.toFixed(1)}<span class="metric-unit">pips</span></div>
     </div>
     <div class="metric-card">
@@ -1333,7 +1333,7 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(parseFloat(avgTradeProfit))}" style="font-size:15px;">${fmtCurrency(parseInt(avgTradeProfit))}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">勝ち損益</div>
+      <div class="metric-label">勝ち合計損益</div>
       <div class="metric-value pos" style="font-size:15px;">${fmtCurrency(winProfit)}</div>
     </div>
     <div class="metric-card">
@@ -1341,7 +1341,7 @@ function applyAnalysisFilters() {
       <div class="metric-value pos" style="font-size:15px;">${fmtCurrency(parseInt(avgWinProfit))}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">負け損益</div>
+      <div class="metric-label">負け合計損益</div>
       <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(lossProfit)}</div>
     </div>
     <div class="metric-card">
