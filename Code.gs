@@ -573,3 +573,28 @@ function uploadImage(base64Data, filename) {
 
 
 // =============================================
+// 勝敗列一括更新（±10pips閾値）
+// GASエディタから手動実行: updateWinLossColumn()
+// =============================================
+function updateWinLossColumn() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  // AQ列(実取得pips) = 43列目、AP列(勝敗) = 42列目
+  const pipCol = 43;  // AQ
+  const resultCol = 42; // AP
+
+  const pipValues = sheet.getRange(2, pipCol, lastRow - 1, 1).getValues();
+  const updates = pipValues.map(([pips]) => {
+    if (pips === '' || pips === null) return [''];
+    const p = parseFloat(pips);
+    if (isNaN(p)) return [''];
+    return [p > 10 ? '勝ち' : (p < -10 ? '負け' : '引き分け')];
+  });
+
+  sheet.getRange(2, resultCol, updates.length, 1).setValues(updates);
+  Logger.log('勝敗列を' + updates.length + '件更新しました');
+}
+// =============================================
