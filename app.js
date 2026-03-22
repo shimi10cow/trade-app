@@ -3,7 +3,8 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJH
 const App = {
   data: {
     entries: [],
-    pairs: []
+    pairs: [],
+    ideas: []
   },
   state: {
     currentTab: 'positions',
@@ -549,7 +550,7 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
 async function loadData() {
   showLoader();
   try {
-    const [pairsRes, entriesRes] = await Promise.all([
+    const [pairsRes, entriesRes, ideasRes] = await Promise.all([
       fetch(`${GAS_URL}?action=getPairs`).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -557,10 +558,15 @@ async function loadData() {
       fetch(`${GAS_URL}?action=getEntries`).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
+      }),
+      fetch(`${GAS_URL}?action=getIdeas`).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
     ]);
     App.data.pairs = pairsRes.data || [];
     App.data.entries = entriesRes.data || [];
+    App.data.ideas = ideasRes.data || [];
 
     populateFilterPairs();
 
@@ -569,6 +575,7 @@ async function loadData() {
     renderPairs();
     renderAnalysis();
     renderGallery();
+    renderIdeas();
 
     // プルダウンリフレッシュ後のタブ復元
     const ptrTab = sessionStorage.getItem('ptr-active-tab');
@@ -3530,5 +3537,235 @@ async function runGeminiAnalysis() {
   } finally {
     btn.disabled = false;
     btn.textContent = '🤖 AI分析';
+  }
+}
+
+// ==========================================
+// Ideas (アイデアメモ)
+// ==========================================
+
+function renderIdeas() {
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
+  const done   = App.data.ideas.filter(i => i['ステータス'] === '解決済み');
+
+  const list = document.getElementById('idea-list');
+  if (list) {
+    if (active.length === 0) {
+      list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">メモがありません</div>';
+    } else {
+      list.innerHTML = active
+        .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
+        .map(idea => ideaCard(idea))
+        .join('');
+    }
+  }
+
+  const hist = document.getElementById('idea-history-list');
+  if (hist) {
+    if (done.length === 0) {
+      hist.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:16px;">解決済みのメモはありません</div>';
+    } else {
+      hist.innerHTML = done
+        .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
+        .map(idea => ideaCard(idea))
+        .join('');
+    }
+  }
+}
+
+function ideaCard(idea) {
+  const text = idea['本文'] || '';
+  const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
+  const imgHtml = idea['画像URL'] ? `
+    <div style="margin-top:8px;">
+      <img src="${idea['画像URL']}" style="width:100%; max-height:120px; object-fit:cover; border-radius:6px;" onerror="this.style.display='none'">
+    </div>` : '';
+  return `
+    <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
+      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${idea['日付'] || ''}</div>
+      <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
+      ${imgHtml}
+    </div>`;
+}
+
+function toggleIdeaHistory() {
+  const el = document.getElementById('idea-history-list');
+  const tog = document.getElementById('idea-history-toggle');
+  if (!el) return;
+  const shown = el.style.display !== 'none';
+  el.style.display = shown ? 'none' : 'block';
+  if (tog) tog.textContent = shown ? '▼ 表示' : '▲ 非表示';
+}
+
+// ---- 新規メモ ----
+function openNewIdeaModal() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('idea-date').value = today;
+  document.getElementById('idea-text').value = '';
+  document.getElementById('idea-image-preview').style.display = 'none';
+  document.getElementById('idea-image-thumb').src = '';
+  App.state.ideaNewImageUrl = '';
+  document.getElementById('modal-new-idea').style.display = 'flex';
+}
+
+function closeNewIdeaModal() {
+  document.getElementById('modal-new-idea').style.display = 'none';
+}
+
+async function onIdeaImageSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+    const apiKey = keyRes.key || '';
+    if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+    const form = new FormData();
+    form.append('key', apiKey);
+    form.append('image', base64);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
+    if (res.success) {
+      App.state.ideaNewImageUrl = res.data.url;
+      document.getElementById('idea-image-thumb').src = res.data.url;
+      document.getElementById('idea-image-preview').style.display = 'block';
+    } else {
+      alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeIdeaImage() {
+  App.state.ideaNewImageUrl = '';
+  document.getElementById('idea-image-thumb').src = '';
+  document.getElementById('idea-image-preview').style.display = 'none';
+  document.getElementById('idea-image-input').value = '';
+}
+
+async function saveNewIdea() {
+  const data = {
+    '日付': document.getElementById('idea-date').value,
+    '本文': document.getElementById('idea-text').value,
+    '画像URL': App.state.ideaNewImageUrl || '',
+    'ステータス': '未解決'
+  };
+  if (!data['本文'].trim()) { alert('メモを入力してください'); return; }
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saveIdea', data: data })
+    }).then(r => r.json());
+    if (res.success) {
+      App.data.ideas.push(Object.assign({ id: res.id }, data));
+      renderIdeas();
+      closeNewIdeaModal();
+    } else {
+      alert('保存失敗: ' + (res.error || ''));
+    }
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  }
+}
+
+// ---- 詳細モーダル ----
+function openIdeaDetail(id) {
+  const idea = App.data.ideas.find(function(i) { return i.id === id; });
+  if (!idea) return;
+  App.state.currentIdeaId = id;
+  App.state.ideaDetailImageUrl = idea['画像URL'] || '';
+  document.getElementById('idea-detail-date').value = idea['日付'] || '';
+  document.getElementById('idea-detail-text').value = idea['本文'] || '';
+  document.getElementById('idea-detail-status').value = idea['ステータス'] || '未解決';
+  const preview = document.getElementById('idea-detail-image-preview');
+  const thumb = document.getElementById('idea-detail-image-thumb');
+  if (idea['画像URL']) {
+    thumb.src = idea['画像URL'];
+    preview.style.display = 'block';
+  } else {
+    thumb.src = '';
+    preview.style.display = 'none';
+  }
+  document.getElementById('modal-idea-detail').style.display = 'flex';
+}
+
+function closeIdeaDetail() {
+  document.getElementById('modal-idea-detail').style.display = 'none';
+}
+
+async function onIdeaDetailImageSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+    const apiKey = keyRes.key || '';
+    if (!apiKey) { alert('ImgBB APIキーが設定されていません'); return; }
+    const form = new FormData();
+    form.append('key', apiKey);
+    form.append('image', base64);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
+    if (res.success) {
+      App.state.ideaDetailImageUrl = res.data.url;
+      document.getElementById('idea-detail-image-thumb').src = res.data.url;
+      document.getElementById('idea-detail-image-preview').style.display = 'block';
+    } else {
+      alert('画像アップロード失敗: ' + (res.error && res.error.message ? res.error.message : ''));
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeIdeaDetailImage() {
+  App.state.ideaDetailImageUrl = '';
+  document.getElementById('idea-detail-image-thumb').src = '';
+  document.getElementById('idea-detail-image-preview').style.display = 'none';
+  document.getElementById('idea-detail-image-input').value = '';
+}
+
+async function saveIdeaDetail() {
+  const id = App.state.currentIdeaId;
+  const data = {
+    '日付': document.getElementById('idea-detail-date').value,
+    '本文': document.getElementById('idea-detail-text').value,
+    '画像URL': App.state.ideaDetailImageUrl || '',
+    'ステータス': document.getElementById('idea-detail-status').value
+  };
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateIdea', ideaId: id, data: data })
+    }).then(r => r.json());
+    if (res.success) {
+      const idx = App.data.ideas.findIndex(function(i) { return i.id === id; });
+      if (idx !== -1) App.data.ideas[idx] = Object.assign({ id: id }, data);
+      renderIdeas();
+      closeIdeaDetail();
+    } else {
+      alert('保存失敗: ' + (res.error || ''));
+    }
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  }
+}
+
+async function deleteIdeaDetail() {
+  if (!confirm('このメモを削除しますか？')) return;
+  const id = App.state.currentIdeaId;
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'deleteIdea', ideaId: id })
+    }).then(r => r.json());
+    if (res.success) {
+      App.data.ideas = App.data.ideas.filter(function(i) { return i.id !== id; });
+      renderIdeas();
+      closeIdeaDetail();
+    } else {
+      alert('削除失敗: ' + (res.error || ''));
+    }
+  } catch (e) {
+    alert('削除エラー: ' + e.message);
   }
 }

@@ -17,6 +17,7 @@ const GAS_ACTIONS = {
   getEntries:       () => getEntries(),
   getPairs:         () => getPairs(),
   getAnalysisStats: () => getAnalysisStats(),
+  getIdeas:         () => getIdeas(),
 };
 
 function doGet(e) {
@@ -65,6 +66,12 @@ function doPost(e) {
   } else if (action === 'getGroqKey') {
     const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY') || '';
     result = { success: true, key: key };
+  } else if (action === 'saveIdea') {
+    result = saveIdea(body.data);
+  } else if (action === 'updateIdea') {
+    result = updateIdea(body.ideaId, body.data);
+  } else if (action === 'deleteIdea') {
+    result = deleteIdea(body.ideaId);
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -596,5 +603,79 @@ function updateWinLossColumn() {
 
   sheet.getRange(2, resultCol, updates.length, 1).setValues(updates);
   Logger.log('勝敗列を' + updates.length + '件更新しました');
+}
+
+// =============================================
+// アイデアメモ (Ideas シート)
+// 列: A=ID, B=日付, C=本文, D=画像URL, E=ステータス
+// =============================================
+const IDEAS_SHEET = 'Ideas';
+
+function getOrCreateIdeasSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(IDEAS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(IDEAS_SHEET);
+    sheet.getRange(1, 1, 1, 5).setValues([['ID','日付','本文','画像URL','ステータス']]);
+  }
+  return sheet;
+}
+
+function getIdeas() {
+  const sheet = getOrCreateIdeasSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  return rows
+    .filter(r => r[0] !== '')
+    .map(r => ({
+      id:       String(r[0]),
+      日付:     String(r[1] || ''),
+      本文:     String(r[2] || ''),
+      画像URL:  String(r[3] || ''),
+      ステータス: String(r[4] || '未解決'),
+    }));
+}
+
+function saveIdea(data) {
+  const sheet = getOrCreateIdeasSheet();
+  const id = String(Date.now());
+  sheet.appendRow([
+    id,
+    data['日付'] || '',
+    data['本文'] || '',
+    data['画像URL'] || '',
+    data['ステータス'] || '未解決',
+  ]);
+  return { success: true, id: id };
+}
+
+function updateIdea(ideaId, data) {
+  const sheet = getOrCreateIdeasSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: false, error: 'Not found' };
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const rowIdx = ids.indexOf(String(ideaId));
+  if (rowIdx === -1) return { success: false, error: 'Not found' };
+  const row = rowIdx + 2;
+  sheet.getRange(row, 1, 1, 5).setValues([[
+    ideaId,
+    data['日付'] || '',
+    data['本文'] || '',
+    data['画像URL'] || '',
+    data['ステータス'] || '未解決',
+  ]]);
+  return { success: true };
+}
+
+function deleteIdea(ideaId) {
+  const sheet = getOrCreateIdeasSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: false, error: 'Not found' };
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const rowIdx = ids.indexOf(String(ideaId));
+  if (rowIdx === -1) return { success: false, error: 'Not found' };
+  sheet.deleteRow(rowIdx + 2);
+  return { success: true };
 }
 // =============================================
