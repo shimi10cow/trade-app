@@ -2278,11 +2278,12 @@ function calculateSimilarTrades(prefix) {
 
     // エントリー根拠 各5点（8項目 × 5 = 40点）
     const grKeys = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
+    const grAliases = { 'TL推進': 'トレンドライン（推進）', 'TL逆トレ': 'トレンドライン（逆トレ）', 'TL(M15)': 'トレンドライン（M15）' };
     const curGrs = [gr1, gr2, gr3, gr4, gr5, gr6, gr7, gr8];
     let grMatchCount = 0;
     grKeys.forEach((k, i) => {
       const cur = curGrs[i];
-      const hist = String(t[k] || '').trim();
+      const hist = String(t[k] || t[grAliases[k]] || '').trim();
       if (cur && hist && cur === hist) { score += 5; grMatchCount++; }
     });
     // 全根拠一致ボーナス: +5
@@ -2928,11 +2929,17 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
 
   // Entry Grounds
+  // カラム名の別名対応（スプレッドシートの列名が異なる場合のフォールバック）
+  const scoreLabelAliases = {
+    'TL推進':  'トレンドライン（推進）',
+    'TL逆トレ': 'トレンドライン（逆トレ）',
+    'TL(M15)': 'トレンドライン（M15）',
+  };
   const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
   const scoreGrups = document.querySelectorAll('#modal-trade-detail .score-group');
   scoreLabels.forEach((lbl, idx) => {
     if (!scoreGrups[idx]) return;
-    const val = t[lbl];
+    const val = t[lbl] || t[scoreLabelAliases[lbl]];
     // 常に全ボタンをリセット（前のトレードのDOM状態を引き継がないように）
     scoreGrups[idx].querySelectorAll('button').forEach(b => b.classList.remove('active'));
     // 値があれば該当ボタンをアクティブに
@@ -3122,11 +3129,21 @@ async function saveTradeDetail() {
     if (dirBtn) updateData['Direction'] = dirBtn.textContent.replace('▲ ', '').replace('▼ ', '').trim();
 
     // エントリー根拠スコアボタン
+    const scoreLabelAliases = {
+      'TL推進':  'トレンドライン（推進）',
+      'TL逆トレ': 'トレンドライン（逆トレ）',
+      'TL(M15)': 'トレンドライン（M15）',
+    };
     const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
     const scoreGroups = document.querySelectorAll('#modal-trade-detail .score-group');
     scoreLabels.forEach((lbl, idx) => {
       const btn = scoreGroups[idx]?.querySelector('button.active');
-      if (btn) updateData[lbl] = btn.textContent.trim();
+      if (btn) {
+        const v = btn.textContent.trim();
+        updateData[lbl] = v;
+        // スプレッドシートの別名カラムにも同時保存
+        if (scoreLabelAliases[lbl]) updateData[scoreLabelAliases[lbl]] = v;
+      }
     });
 
     // エントリースコアを再計算して保存
