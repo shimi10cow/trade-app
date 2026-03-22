@@ -3101,6 +3101,11 @@ async function saveTradeDetail() {
       'PairName': document.getElementById('td-pair').value,
       'ステータス': document.getElementById('td-status').value,
       '実取得pips': document.getElementById('td-pips').value,
+      '勝敗': (() => {
+        const _p = parseFloat(document.getElementById('td-pips').value);
+        if (isNaN(_p) || document.getElementById('td-pips').value === '') return '';
+        return _p > 10 ? '勝ち' : (_p < -10 ? '負け' : '引き分け');
+      })(),
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
       'ルール準拠Pips': document.getElementById('td-rule-pips').value,
