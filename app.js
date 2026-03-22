@@ -3083,6 +3083,10 @@ async function saveTradeDetail() {
     };
 
     const updateData = {
+      'EntryDate': document.getElementById('td-date').value.replace(/-/g, '/'),
+      'EntryTime': document.getElementById('td-time').value,
+      'PairName（元）': document.getElementById('td-pair').value,
+      'PairName': document.getElementById('td-pair').value,
       'ステータス': document.getElementById('td-status').value,
       '実取得pips': document.getElementById('td-pips').value,
       '損益': document.getElementById('td-profit').value,
@@ -3118,6 +3122,22 @@ async function saveTradeDetail() {
       const btn = scoreGroups[idx]?.querySelector('button.active');
       if (btn) updateData[lbl] = btn.textContent.trim();
     });
+
+    // エントリースコアを再計算して保存
+    let calcScore = 0;
+    scoreGroups.forEach(group => {
+      const active = group.querySelector('button.active');
+      if (active) {
+        const val = parseInt(group.dataset.val);
+        const isInverse = group.dataset.inverse === 'true';
+        if (val === 1 && active.classList.contains('cond-ok')) calcScore += 1;
+        else if (val === -1) {
+          if (!isInverse && active.classList.contains('cond-ok')) calcScore -= 1;
+          if (isInverse && active.classList.contains('cond-ng')) calcScore -= 1;
+        }
+      }
+    });
+    updateData['エントリースコア'] = String(calcScore);
 
     // 画像保存（保留中の削除 & 新規アップロード）
     const fromHistory = App.state.detailFromHistory;
@@ -3374,15 +3394,14 @@ async function runGeminiAnalysis() {
     const date = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
     const pips = parseFloat(t['実取得pips']) || 0;
     const profit = parseFloat(t['損益']) || 0;
-    const scoreKeys = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
-    const entryScore = scoreKeys.filter(k => t[k] === '〇' || t[k] === '◎').length;
+    const entryScore = parseInt(t['エントリースコア']) || 0;
     return {
       no: i + 1,
       日付: date,
       結果: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
       pips: pips.toFixed(1),
       損益: Math.round(profit),
-      スコア: `${entryScore}/${scoreKeys.length}`,
+      スコア: entryScore,
       エントリー前の記録: t['エントリーメモ'] || '',
       決済後の記録: t['決済メモ'] || '',
       エントリーのルール記録: t['エントリー振り返り'] || '',
