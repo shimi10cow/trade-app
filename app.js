@@ -3684,6 +3684,7 @@ async function saveNewIdea() {
 
 // ---- 詳細モーダル ----
 function openIdeaDetail(id) {
+  closeIdeaHistoryModal(); // 履歴モーダルが開いていれば閉じる
   const idea = App.data.ideas.find(function(i) { return i.id === id; });
   if (!idea) return;
   App.state.currentIdeaId = id;
