@@ -2928,11 +2928,14 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
   const scoreGrups = document.querySelectorAll('#modal-trade-detail .score-group');
   scoreLabels.forEach((lbl, idx) => {
+    if (!scoreGrups[idx]) return;
     const val = t[lbl];
-    if (val && scoreGrups[idx]) {
+    // 常に全ボタンをリセット（前のトレードのDOM状態を引き継がないように）
+    scoreGrups[idx].querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    // 値があれば該当ボタンをアクティブに
+    if (val) {
       scoreGrups[idx].querySelectorAll('button').forEach(b => {
-        b.classList.remove('active');
-        if (b.textContent === val) b.classList.add('active');
+        if (b.textContent.trim() === val.trim()) b.classList.add('active');
       });
     }
   });
@@ -3402,8 +3405,8 @@ async function runGeminiAnalysis() {
       pips: pips.toFixed(1),
       損益: Math.round(profit),
       スコア: entryScore,
-      エントリー前の記録: t['エントリーメモ'] || '',
-      決済後の記録: t['決済メモ'] || '',
+      エントリー前のメモ: t['エントリーメモ'] || '',
+      決済後のメモ: t['決済メモ'] || '',
       エントリーのルール記録: t['エントリー振り返り'] || '',
       決済のルール記録: t['決済振り返り'] || ''
     };
@@ -3414,41 +3417,7 @@ async function runGeminiAnalysis() {
   const wins = tradeData.filter(t => t['結果'] === '勝ち').length;
   const losses = tradeData.filter(t => t['結果'] === '負け').length;
 
-  const prompt = `期間：${fromVal}〜${toVal}
-概要：${tradeData.length}件 / ${wins}勝${losses}敗
-
-【データ定義】
-・エントリー前の記録：エントリー時の感情・心理（メイン分析対象）
-・決済後の記録：決済後の反省・感情（メイン分析対象）
-・エントリーのルール記録：エントリー時のルール遵守状況。「完璧！」=完全遵守、それ以外=その内容のルール違反（エントリー違反）
-・決済のルール記録：決済時のルール遵守状況。「完璧利確」=完全遵守で利確、「適切損切り」=完全遵守で損切り（ルール外ではない）、それ以外=その内容のルール違反（決済違反）
-　※エントリー違反と決済違反は別物として扱うこと
-・スコア：エントリー根拠の数（最大6点。4以上=優位性高、3以下=負けやすい傾向あり）
-・結果 / pips / 損益：成績
-
-【全トレードデータ（${tradeData.length}件）】
-${JSON.stringify(tradeData, null, 2)}
-
-以下4項目を分析。各項目は箇条書き3〜5点。「結論 → 根拠（引用＋数値）」の順で。
-
-①【勝ちトレードの心理パターン】
-勝ちトレードのエントリー前・決済後の記録から類似表現を集約しパターン化。
-「〇〇」という記録があるトレードはX件中Y件勝ちなど数値で示す。
-スコアと勝率の関係も言及。心理→結果の因果で説明する。
-
-②【負けトレードの心理パターン】
-負けトレードのエントリー前・決済後の記録から類似表現を集約しパターン化。
-「〇〇」という記録があるトレードはX件中Y件負けなど数値で示す。
-スコアと負率の関係も言及。心理→結果の因果で説明する。
-
-③【ルール違反トレードの心理】
-エントリーのルール記録・決済のルール記録がルール違反のトレード限定。
-どんな心理状態のときに違反しているか。引用＋結果をセットで。心理→違反行動→結果の順で。
-
-④【直近${recent10.length}件の状態と次への提言】
-${JSON.stringify(recent10, null, 2)}
-直近データ内で実際に勝ち・負けに繋がっている行動を1つずつ特定。
-それを踏まえた次のトレードで取るべき具体的な行動を1文で提示。`;
+  const prompt = buildAiUserPrompt(tradeData, recent10, fromVal, toVal, wins, losses);
 
   // ローディング表示
   btn.disabled = true;
@@ -3484,24 +3453,7 @@ ${JSON.stringify(recent10, null, 2)}
         messages: [
           {
             role: 'system',
-            content: `あなたはFXトレード記録から心理・感情パターンを抽出し、結果との因果関係を分析する専門アナリストです。
-どのような感情が勝ち負けの結果に結びついているかを分析してください。
-
-【出力ルール・厳守】
-・フィールド名（entryMemo・exitMemoなど英語名）は使用禁止。「エントリー前の記録」「決済後の記録」など自然な日本語で記述
-・データが空のトレードは言及せず、わかる内容だけで分析すること
-・一般論は禁止。必ずデータ内の記述または数値のみを根拠とする
-・実際のメモの文言を必ず「」で引用し、そのトレード結果とセットで言及する
-・各項目は「結論 → 根拠（引用＋数値）」の順で記述する
-・心理 → 行動 → 結果 の因果関係で説明する
-・類似表現は同一パターンとして集約する（例：「迷い」「不安」「躊躇」など）
-
-【分析前の内部処理（必須）】
-・勝ち / 負けの分類
-・エントリー前の記録・決済後の記録からのキーワード抽出と頻度カウント
-・類似表現の統合
-・スコア別（4以上 / 3以下）の勝敗分類
-・エントリールール違反・決済ルール違反トレードの抽出`
+            content: AI_SYSTEM_PROMPT
           },
           { role: 'user', content: prompt }
         ],

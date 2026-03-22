@@ -1,10 +1,11 @@
-const CACHE_NAME = 'trade-app-v84';
+const CACHE_NAME = 'trade-app-v85';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './icon-192x192.png',
-  './icon-512x512.png'
+  './icon-512x512.png',
+  './ai_prompt.js'
 ];
 
 self.addEventListener('install', event => {
