@@ -2418,7 +2418,7 @@ function calculateEntryScoreTD() {
   document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
   // 画面上の表示スコアも更新
   const scoreDisplay = document.getElementById('td-score-display');
-  if (scoreDisplay) scoreDisplay.textContent = score;
+  if (scoreDisplay) scoreDisplay.innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
   const box = document.getElementById('td-checker-status');
   const msg = document.getElementById('td-checker-msg');
   if (score >= 4) {
@@ -3411,7 +3411,8 @@ async function runGeminiAnalysis() {
       エントリー前のメモ: t['エントリーメモ'] || '',
       決済後のメモ: t['決済メモ'] || '',
       エントリーのルール記録: t['エントリー振り返り'] || '',
-      決済のルール記録: t['決済振り返り'] || ''
+      決済のルール記録: t['決済振り返り'] || '',
+      ルール準拠pips: parseFloat(t['ルール準拠pips'] ?? t['ルール準拠Pips']) || 0
     };
   });
 
