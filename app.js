@@ -2949,6 +2949,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
+  const tdEntryMemo = document.getElementById('td-entry-memo');
+  if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || '';
 
   // Images ──────────────────────────────────────────
   // 保有中：上=エントリー写真、下=決済写真
@@ -3087,6 +3089,7 @@ async function saveTradeDetail() {
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
       'ルール準拠Pips': document.getElementById('td-rule-pips').value,
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
+      'エントリーメモ': document.getElementById('td-entry-memo')?.value || '',
       '決済振り返り': document.getElementById('td-exit-ref').value,
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
@@ -3375,43 +3378,58 @@ async function runGeminiAnalysis() {
     const entryScore = scoreKeys.filter(k => t[k] === '〇' || t[k] === '◎').length;
     return {
       no: i + 1,
-      date,
-      result: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
+      日付: date,
+      結果: pips > 0 ? '勝ち' : (pips < 0 ? '負け' : '±0'),
       pips: pips.toFixed(1),
-      profit: Math.round(profit),
-      entryScore: `${entryScore}/${scoreKeys.length}`,
-      entryMemo: t['エントリーメモ'] || '',       // エントリー時の感情・心理（メイン）
-      exitMemo: t['決済メモ'] || '',               // 決済時の反省・感情（メイン）
-      entryRule: t['エントリー振り返り'] || '',    // ルール遵守記録のみ（感情分析には使わない）
-      exitRule: t['決済振り返り'] || ''            // ルール遵守記録のみ（感情分析には使わない）
+      損益: Math.round(profit),
+      スコア: `${entryScore}/${scoreKeys.length}`,
+      エントリー前の記録: t['エントリーメモ'] || '',
+      決済後の記録: t['決済メモ'] || '',
+      エントリーのルール記録: t['エントリー振り返り'] || '',
+      決済のルール記録: t['決済振り返り'] || ''
     };
   });
 
   // 直近10件（期間内）
   const recent10 = tradeData.slice(0, 10);
-  const wins = tradeData.filter(t => t.result === '勝ち').length;
-  const losses = tradeData.filter(t => t.result === '負け').length;
+  const wins = tradeData.filter(t => t['結果'] === '勝ち').length;
+  const losses = tradeData.filter(t => t['結果'] === '負け').length;
 
   const prompt = `期間：${fromVal}〜${toVal}
 概要：${tradeData.length}件 / ${wins}勝${losses}敗
 
-【データの定義】
-・entryMemo → エントリー時の感情・心理状態（メイン分析対象）
-・exitMemo → 決済時の反省・感情（メイン分析対象）
-・entryRule / exitRule → ルール遵守記録のみ。「完璧！」=ルール遵守、それ以外=そのルール外行動をしたことを示す
-・entryScore → エントリー根拠スコア（最大6点。4以上で優位性高、3以下は負けやすい傾向）
-・result / pips / profit → 結果の裏付け
+【データ定義】
+・エントリー前の記録：エントリー時の感情・心理（メイン分析対象）
+・決済後の記録：決済後の反省・感情（メイン分析対象）
+・エントリーのルール記録：エントリー時のルール遵守状況。「完璧！」=完全遵守、それ以外=その内容のルール違反（エントリー違反）
+・決済のルール記録：決済時のルール遵守状況。「完璧利確」=完全遵守で利確、「適切損切り」=完全遵守で損切り（ルール外ではない）、それ以外=その内容のルール違反（決済違反）
+　※エントリー違反と決済違反は別物として扱うこと
+・スコア：エントリー根拠の数（最大6点。4以上=優位性高、3以下=負けやすい傾向あり）
+・結果 / pips / 損益：成績
 
 【全トレードデータ（${tradeData.length}件）】
 ${JSON.stringify(tradeData, null, 2)}
 
-以下の4項目を分析してください。各項目は見出し（①②③④）で始め、箇条書きで3〜5点、日本語で簡潔に。
+以下4項目を分析。各項目は箇条書き3〜5点。「結論 → 根拠（引用＋数値）」の順で。
 
-①【勝ちトレードの感情・心理】
-②【負けトレードの感情・心理】
-③【ルール遵守と感情の関係】（entryRuleが「完璧！」以外のトレードのentryMemoを中心に）
-④【直近の状態チェック（直近${recent10.length}件）】
-${JSON.stringify(recent10, null, 2)}`;
+①【勝ちトレードの心理パターン】
+勝ちトレードのエントリー前・決済後の記録から類似表現を集約しパターン化。
+「〇〇」という記録があるトレードはX件中Y件勝ちなど数値で示す。
+スコアと勝率の関係も言及。心理→結果の因果で説明する。
+
+②【負けトレードの心理パターン】
+負けトレードのエントリー前・決済後の記録から類似表現を集約しパターン化。
+「〇〇」という記録があるトレードはX件中Y件負けなど数値で示す。
+スコアと負率の関係も言及。心理→結果の因果で説明する。
+
+③【ルール違反トレードの心理】
+エントリーのルール記録・決済のルール記録がルール違反のトレード限定。
+どんな心理状態のときに違反しているか。引用＋結果をセットで。心理→違反行動→結果の順で。
+
+④【直近${recent10.length}件の状態と次への提言】
+${JSON.stringify(recent10, null, 2)}
+直近データ内で実際に勝ち・負けに繋がっている行動を1つずつ特定。
+それを踏まえた次のトレードで取るべき具体的な行動を1文で提示。`;
 
   // ローディング表示
   btn.disabled = true;
@@ -3447,15 +3465,24 @@ ${JSON.stringify(recent10, null, 2)}`;
         messages: [
           {
             role: 'system',
-            content: `あなたはFXトレーダーの心理・感情パターンを分析する専任コーチです。
-以下のルールを厳守してください：
-・entryMemo（エントリー時メモ）とexitMemo（決済メモ）を中心に分析する
-・entryRule・exitRuleはルール遵守の記録であり感情分析には使わない
-・「完璧！」はルールを守れたことを示すだけで感情・自信とは無関係
-・方向・通貨ペア・MAなどテクニカル要素には言及しない
-・断定せず「〜の傾向が見られる」という表現を使う
-・メモが空のトレードはスキップする
-・データが少なく判断困難な項目は「データ不足のため判断困難」と明記する`
+            content: `あなたはFXトレード記録から心理・感情パターンを抽出し、結果との因果関係を分析する専門アナリストです。
+どのような感情が勝ち負けの結果に結びついているかを分析してください。
+
+【出力ルール・厳守】
+・フィールド名（entryMemo・exitMemoなど英語名）は使用禁止。「エントリー前の記録」「決済後の記録」など自然な日本語で記述
+・データが空のトレードは言及せず、わかる内容だけで分析すること
+・一般論は禁止。必ずデータ内の記述または数値のみを根拠とする
+・実際のメモの文言を必ず「」で引用し、そのトレード結果とセットで言及する
+・各項目は「結論 → 根拠（引用＋数値）」の順で記述する
+・心理 → 行動 → 結果 の因果関係で説明する
+・類似表現は同一パターンとして集約する（例：「迷い」「不安」「躊躇」など）
+
+【分析前の内部処理（必須）】
+・勝ち / 負けの分類
+・エントリー前の記録・決済後の記録からのキーワード抽出と頻度カウント
+・類似表現の統合
+・スコア別（4以上 / 3以下）の勝敗分類
+・エントリールール違反・決済ルール違反トレードの抽出`
           },
           { role: 'user', content: prompt }
         ],
