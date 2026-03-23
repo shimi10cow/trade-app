@@ -1890,7 +1890,10 @@ async function savePairEdit() {
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
     };
 
-    const res = await gasPost('updatePair', { pairName, data: updateData });
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updatePair', pairName, data: updateData })
+    }).then(r => r.json());
     if (!res.success) throw new Error(res.error || '保存失敗');
 
     // ローカルにも反映

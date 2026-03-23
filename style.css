@@ -72,6 +72,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
   font-weight: 700; font-size: 15px; display: block; text-align: center;
   margin-bottom: 10px;
 }
+.btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #2563eb); color: white;
+  border: none; border-radius: 12px; font-weight: 700; cursor: pointer;
+}
+.btn-secondary {
+  background: #1e293b; color: #38bdf8;
+  border: 1px solid #334155; border-radius: 12px; font-weight: 600; cursor: pointer;
+}
+.btn-danger {
+  background: transparent; color: #ef4444;
+  border: 1px solid #ef4444; border-radius: 12px; font-weight: 600; cursor: pointer;
+}
 .toggle-btn {
   flex: 1; padding: 8px 4px; background: #1e293b; color: #94a3b8;
   border: 1px solid #334155; border-radius: 8px; font-size: 12px; font-weight: 600;
