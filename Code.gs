@@ -66,6 +66,8 @@ function doPost(e) {
   } else if (action === 'getGroqKey') {
     const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY') || '';
     result = { success: true, key: key };
+  } else if (action === 'updatePair') {
+    result = updatePair(body.pairName, body.data);
   } else if (action === 'saveIdea') {
     result = saveIdea(body.data);
   } else if (action === 'updateIdea') {
@@ -147,6 +149,26 @@ function getPairs() {
       });
       return obj;
     });
+}
+
+function updatePair(pairName, data) {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+  const sheetData = sheet.getDataRange().getValues();
+  const headers = sheetData[0].map(h => String(h).trim());
+  const pairCol = headers.indexOf('PairName（元）') >= 0 ? headers.indexOf('PairName（元）') : headers.indexOf('PairName');
+  if (pairCol < 0) return { success: false, error: 'PairName column not found' };
+
+  const rowIdx = sheetData.slice(1).findIndex(r => String(r[pairCol]) === String(pairName));
+  if (rowIdx < 0) return { success: false, error: 'Pair not found: ' + pairName };
+
+  const sheetRow = rowIdx + 2; // 1-indexed + header row
+  Object.keys(data).forEach(key => {
+    const colIdx = headers.indexOf(key);
+    if (colIdx >= 0) {
+      sheet.getRange(sheetRow, colIdx + 1).setValue(data[key]);
+    }
+  });
+  return { success: true };
 }
 
 // =============================================
@@ -629,10 +651,12 @@ function getIdeas() {
   return rows
     .filter(r => r[0] !== '')
     .map(r => ({
-      id:       String(r[0]),
-      日付:     String(r[1] || ''),
-      本文:     String(r[2] || ''),
-      画像URL:  String(r[3] || ''),
+      id:        String(r[0]),
+      日付:      r[1] instanceof Date
+                   ? Utilities.formatDate(r[1], 'Asia/Tokyo', 'yyyy-MM-dd')
+                   : String(r[1] || ''),
+      本文:      String(r[2] || ''),
+      画像URL:   String(r[3] || ''),
       ステータス: String(r[4] || '未解決'),
     }));
 }
@@ -640,13 +664,16 @@ function getIdeas() {
 function saveIdea(data) {
   const sheet = getOrCreateIdeasSheet();
   const id = String(Date.now());
-  sheet.appendRow([
+  // IDは文字列として保存（数値変換を防ぐ）
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 5);
+  range.setNumberFormat('@'); // 文字列フォーマット
+  range.setValues([[
     id,
     data['日付'] || '',
     data['本文'] || '',
     data['画像URL'] || '',
     data['ステータス'] || '未解決',
-  ]);
+  ]]);
   return { success: true, id: id };
 }
 
@@ -655,11 +682,12 @@ function updateIdea(ideaId, data) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: false, error: 'Not found' };
   const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
-  const rowIdx = ids.indexOf(String(ideaId));
+  // 数値・文字列どちらで保存されていても一致させる
+  const rowIdx = ids.findIndex(id => String(id) === String(ideaId));
   if (rowIdx === -1) return { success: false, error: 'Not found' };
   const row = rowIdx + 2;
   sheet.getRange(row, 1, 1, 5).setValues([[
-    ideaId,
+    String(ideaId),
     data['日付'] || '',
     data['本文'] || '',
     data['画像URL'] || '',
@@ -673,9 +701,44 @@ function deleteIdea(ideaId) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: false, error: 'Not found' };
   const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
-  const rowIdx = ids.indexOf(String(ideaId));
+  // 数値・文字列どちらで保存されていても一致させる
+  const rowIdx = ids.findIndex(id => String(id) === String(ideaId));
   if (rowIdx === -1) return { success: false, error: 'Not found' };
   sheet.deleteRow(rowIdx + 2);
   return { success: true };
 }
 // =============================================
+
+// ===== Ideas CRUD テスト関数（GASエディタから手動実行） =====
+function testIdeasCRUD() {
+  Logger.log('=== Ideas CRUD テスト開始 ===');
+
+  // 1. シート取得
+  const sheet = getOrCreateIdeasSheet();
+  Logger.log('シート名: ' + sheet.getName());
+  Logger.log('最終行: ' + sheet.getLastRow());
+
+  // 2. 保存テスト
+  const saveResult = saveIdea({ '日付': '2026-01-01', '本文': 'テストメモ', '画像URL': '', 'ステータス': '未解決' });
+  Logger.log('saveIdea結果: ' + JSON.stringify(saveResult));
+
+  if (!saveResult.success) { Logger.log('★ 保存失敗'); return; }
+  const testId = saveResult.id;
+  Logger.log('発行されたID: ' + testId);
+
+  // 3. 一覧取得テスト
+  const ideas = getIdeas();
+  Logger.log('getIdeas件数: ' + ideas.length);
+  const found = ideas.find(i => i.id === testId);
+  Logger.log('IDで検索: ' + JSON.stringify(found));
+
+  // 4. 更新テスト
+  const updateResult = updateIdea(testId, { '日付': '2026-01-02', '本文': 'テストメモ（更新）', '画像URL': '', 'ステータス': '解決済み' });
+  Logger.log('updateIdea結果: ' + JSON.stringify(updateResult));
+
+  // 5. 削除テスト
+  const deleteResult = deleteIdea(testId);
+  Logger.log('deleteIdea結果: ' + JSON.stringify(deleteResult));
+
+  Logger.log('=== テスト完了 ===');
+}

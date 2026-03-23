@@ -1868,30 +1868,33 @@ async function savePairEdit() {
   try {
     const pairName = document.getElementById('pe-pair-name').value;
     const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
+    if (!p) throw new Error('ペアが見つかりません');
 
-    // Simulate API call
-    // await gasPost('updatePair', payload);
-
-    // Optimistic Update
     const getBtnVal = (groupId) => {
       const btn = document.querySelector(`#${groupId} .toggle-btn.active`);
       return btn ? btn.textContent.trim() : '';
     };
 
-    p['フラグ'] = document.getElementById('pe-flag').value;
-    p['環境認識メモ'] = document.getElementById('pe-memo').value;
-    p['メモ'] = document.getElementById('pe-memo').value;
+    const updateData = {
+      'フラグ':        document.getElementById('pe-flag').value,
+      '環境認識メモ':  document.getElementById('pe-memo').value,
+      'メモ':          document.getElementById('pe-memo').value,
+      'M1':            getBtnVal('pe-tf-m1'),
+      'W1':            getBtnVal('pe-tf-w1'),
+      'D1':            getBtnVal('pe-tf-d1'),
+      'H4':            getBtnVal('pe-tf-h4'),
+      'H1':            getBtnVal('pe-tf-h1'),
+      'H4MA乖離':      getBtnVal('pe-ma-kairi'),
+      'H4MA480.1200':  getBtnVal('pe-ma-480'),
+      'H1MA20.80':     getBtnVal('pe-ma-h1-20'),
+      'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
+    };
 
-    p['M1'] = getBtnVal('pe-tf-m1');
-    p['W1'] = getBtnVal('pe-tf-w1');
-    p['D1'] = getBtnVal('pe-tf-d1');
-    p['H4'] = getBtnVal('pe-tf-h4');
-    p['H1'] = getBtnVal('pe-tf-h1');
+    const res = await gasPost('updatePair', { pairName, data: updateData });
+    if (!res.success) throw new Error(res.error || '保存失敗');
 
-    p['H4MA乖離'] = getBtnVal('pe-ma-kairi');
-    p['H4MA480.1200'] = getBtnVal('pe-ma-480');
-    p['H1MA20.80'] = getBtnVal('pe-ma-h1-20');
-    p['H4MA20.80'] = getBtnVal('pe-ma-h4-20');
+    // ローカルにも反映
+    Object.assign(p, updateData);
 
     closePairEdit();
     renderPairs();
