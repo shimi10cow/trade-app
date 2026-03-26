@@ -2972,7 +2972,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     }
   });
 
-  document.getElementById('td-tp').value = t['TP'] || t['StopProfitPips'] || '';
+  document.getElementById('td-tp').value = t['TP'] || t['TakeProfitPips'] || t['StopProfitPips'] || '';
   document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
   document.getElementById('td-lot').value = t['Lot'] || '';
 
