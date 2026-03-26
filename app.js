@@ -2576,6 +2576,16 @@ async function submitEntryData() {
       }
     });
 
+    // グリッドラベルのエイリアス変換（スプレッドシートの列名に合わせる）
+    const gridLabelAliases = {
+      'TL推進': 'トレンドライン（推進）',
+      'TL逆トレ': 'トレンドライン（逆トレ）',
+      'TL(M15)': 'トレンドライン（M15）',
+    };
+    Object.entries(gridLabelAliases).forEach(([short, full]) => {
+      if (entryData[short] !== undefined) entryData[full] = entryData[short];
+    });
+
     // エントリースコア
     const scoreText = document.getElementById('checker-score-val')?.textContent || '';
     const scoreMatch = scoreText.match(/(\d+)/);
