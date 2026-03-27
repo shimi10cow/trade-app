@@ -431,9 +431,7 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-judgement-text').textContent = '--';
   document.getElementById('ne-judgement-text').style.color = '#f8fafc';
 
-  document.getElementById('ne-image-preview').style.display = 'none';
-  document.getElementById('ne-image-preview').src = '';
-  document.getElementById('image-preview-container').style.display = 'none';
+  clearNewEntryImage();
 
   const _ra = document.getElementById('ne-recent-analysis-section');
   if (_ra) _ra.style.display = 'none';
