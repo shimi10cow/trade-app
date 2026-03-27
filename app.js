@@ -2489,10 +2489,14 @@ function calculateRuleMetrics() {
 }
 
 function openChecklistModal() {
-  // Check if everything is filled
   const pair = document.getElementById('ne-pair').value;
   if (!pair) {
     alert("ペアを選択してください");
+    return;
+  }
+  // 見逃しエントリーはチェックリストをスキップして直接保存
+  if (App.state.isMissedEntry) {
+    submitEntryData();
     return;
   }
   App.state.modalOpenedAt = Date.now();
