@@ -2155,58 +2155,64 @@ function analyzeMentalMode() {
 
 function updateEntryJudgementText(prefix) {
   const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
-  const getAct = (selector) => {
-    const el = document.querySelector(`${modalId} ${selector} .active`);
-    return el ? el.textContent : '';
-  };
   const getGroupAct = (cls, idx) => {
     const grps = document.querySelectorAll(`${modalId} ${cls}`);
     if (!grps[idx]) return '';
     const el = grps[idx].querySelector('.active');
-    return el ? el.textContent : '';
+    return el ? el.textContent.trim() : '';
   };
 
-  const v480 = getGroupAct('.ma-group', 0);
-  const vKairi = getGroupAct('.ma-group', 1);
+  const v480   = getGroupAct('.ma-group', 0);
   const vH1_20 = getGroupAct('.ma-group', 2);
   const vH4_20 = getGroupAct('.ma-group', 3);
-
   const w1 = getGroupAct('.tf-group', 1);
   const d1 = getGroupAct('.tf-group', 2);
   const h4 = getGroupAct('.tf-group', 3);
 
   const outBox = prefix === 'ne' ? document.getElementById('ne-judgement-text') : null;
-  if (!outBox) return; // Only exists on ne for now.
+  if (!outBox) return;
 
-  if (!v480 || !vKairi || !vH1_20 || !vH4_20 || !w1 || !d1 || !h4) {
-    outBox.textContent = '--';
-    outBox.style.color = '#f8fafc';
-    return;
+  // 方向を取得
+  const dirEl = document.querySelector(`${modalId} #ne-dir .active, ${modalId} #td-dir .active`);
+  const direction = dirEl ? (dirEl.textContent.includes('Buy') ? 'Buy' : 'Sell') : '';
+
+  // 通貨ペアタブのH4MA乖離（上アリ/下アリ）から判定
+  const pairName = document.querySelector(`${modalId} select[id$="-pair"]`)?.value || '';
+  const pairData = App.data.pairs.find(p => (p['PairName（元）'] || p['PairName']) === pairName);
+  const kairiVal = pairData ? (pairData['H4MA乖離'] || '') : '';
+
+  // H4MA乖離判定（方向 × ペアデータ）
+  // 入力ナシ → 判定なし　Buy+下アリ or Sell+上アリ → ◎　Buy+上アリ or Sell+下アリ → ✕
+  let isKairiOk = false;
+  let isKairiNg = false;
+  if (direction && kairiVal) {
+    if ((direction === 'Buy' && kairiVal === '下アリ') || (direction === 'Sell' && kairiVal === '上アリ')) {
+      isKairiOk = true;
+    } else if ((direction === 'Buy' && kairiVal === '上アリ') || (direction === 'Sell' && kairiVal === '下アリ')) {
+      isKairiNg = true;
+    }
   }
 
-  // "✕" covers both "NG" and "✕" as text content could be just "✕" in the UI for failure modes.
-  // Wait, the UI has ◎ and ✕. NG is not visually distinct from ✕ unless we look at the raw data.
-  // Ah, the user formula uses "NG". If H4MA乖離 is "NG" (which mapped to ✕ visually!).
-  // Wait, if it mapped to ✕, how do we know if it was NG or just a blank ✕?
-  // Let's assume if the active button is 'cond-ng' (✕) then it's considered "NG/✕" in logic.
-  const isOkKairi = vKairi === '◎';
+  // 他3つのMA◎判定
+  const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
+  const isOk = isKairiOk || hasAnyOtherOk;
 
-  let resText = "🚫 エントリーNG！ 🚫";
-  let resColor = "#ef4444";
+  let resText = '--';
+  let resColor = '#f8fafc';
 
-  if (!isOkKairi) { // Treated as "NG" per user formula logic
-    const hasAnyOk = (v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎');
-    const alignUp = (w1 === '↑' && d1 === '↑' && h4 === '↑');
-    const alignDn = (w1 === '↓' && d1 === '↓' && h4 === '↓');
-    if (hasAnyOk && (alignUp || alignDn)) {
+  if (isKairiNg) {
+    const alignUp = w1 === '↑' && d1 === '↑' && h4 === '↑';
+    const alignDn = w1 === '↓' && d1 === '↓' && h4 === '↓';
+    if (hasAnyOtherOk && (alignUp || alignDn)) {
       resText = "✅ エントリーOK！（特例）✅";
-      resColor = "#f59e0b"; // Orange/Yellow
+      resColor = "#f59e0b";
+    } else {
+      resText = "🚫 エントリーNG！ 🚫";
+      resColor = "#ef4444";
     }
-  } else {
-    if (v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎' || isOkKairi) {
-      resText = "✅ エントリーOK！ ✅";
-      resColor = "#10b981"; // Green
-    }
+  } else if (isOk) {
+    resText = "✅ エントリーOK！ ✅";
+    resColor = "#10b981";
   }
 
   outBox.textContent = resText;
@@ -2774,6 +2780,7 @@ function playCloseSound(isWin) {
 function clearNewEntryImage() {
   const img = document.getElementById('ne-image-preview');
   img.src = '';
+  img.style.display = 'none';
   document.getElementById('image-preview-container').style.display = 'none';
   document.getElementById('ne-image-upload').value = '';
   const labelText = document.getElementById('ne-image-label-text');
