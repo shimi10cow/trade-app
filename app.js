@@ -2446,6 +2446,16 @@ function calculateEntryScoreTD() {
   }
 }
 
+function calcTimezone(timeStr) {
+  if (!timeStr) return '';
+  const hour = parseInt(timeStr.split(':')[0]);
+  if (hour >= 2  && hour <  9)  return 'T2-9';
+  if (hour >= 9  && hour < 12)  return 'T9-12';
+  if (hour >= 15 && hour < 18)  return 'T15-18';
+  if (hour >= 18 || hour <  2)  return 'T18-2';
+  return ''; // 12-15は対象外
+}
+
 function calculateRR() {
   const tp = parseFloat(document.getElementById('ne-tp').value);
   const sl = parseFloat(document.getElementById('ne-sl').value);
@@ -2561,7 +2571,7 @@ async function submitEntryData() {
     const entryData = {
       'EntryDate': document.getElementById('ne-date').value,
       'EntryTime': document.getElementById('ne-time').value,
-      '時間帯': document.getElementById('ne-time').value,
+      '時間帯': calcTimezone(document.getElementById('ne-time').value),
       'PairName': pairName,
       'PairName（元）': pairName, // AppSheetのLOOKUP列に直接書き込む
       'Direction': direction,
@@ -3140,7 +3150,6 @@ async function saveTradeDetail() {
       })(),
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
-      'ルール準拠Pips': document.getElementById('td-rule-pips').value,
       'ルール準拠損益': (() => {
         const _pips = parseFloat(document.getElementById('td-pips').value);
         const _profit = parseFloat(document.getElementById('td-profit').value);
