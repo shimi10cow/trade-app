@@ -1528,50 +1528,46 @@ function toggleChartType(type) {
 function renderGrowthChart(allTrades) {
   const container = document.getElementById('chart-growth');
 
-  // Base it on CLOSED trades only for the chart
   const history = allTrades.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
   if (history.length === 0) {
-    container.innerHTML = 'データがありません';
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:40px;">データがありません</div>';
     return;
   }
 
-  // Aggregate by Month
-  const monthly = {}; // { 'YYYY-MM': { profit: 0, pips: 0, rrSum: 0, rrCount: 0 } }
+  // 月別集計
+  const monthly = {};
   history.forEach(t => {
     const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (!d) return;
-    const monthKey = d.substring(0, 7); // YYYY-MM
-    if (!monthly[monthKey]) monthly[monthKey] = { profit: 0, pips: 0, rrSum: 0, rrCount: 0 };
-
-    monthly[monthKey].profit += (parseFloat(t['損益']) || 0);
-    monthly[monthKey].pips += (parseFloat(t['実取得pips']) || 0);
-
+    const mk = d.substring(0, 7);
+    if (!monthly[mk]) monthly[mk] = { profit: 0, pips: 0, rrSum: 0 };
+    monthly[mk].profit += parseFloat(t['損益']) || 0;
+    monthly[mk].pips   += parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-    const pps = parseFloat(t['実取得pips']) || 0;
-    if (sl > 0) {
-      monthly[monthKey].rrSum += (pps / sl);
-      monthly[monthKey].rrCount++;
-    }
+    if (sl > 0) monthly[mk].rrSum += (parseFloat(t['実取得pips']) || 0) / sl;
   });
 
-  // Build last 6 calendar months (fixed range, fills 0 for empty months)
+  // データの最古月〜今月まで全月を生成
   const now2 = new Date();
-  const last6 = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
-    last6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  const nowMk = `${now2.getFullYear()}-${String(now2.getMonth()+1).padStart(2,'0')}`;
+  const dataMonths = Object.keys(monthly).sort();
+  const firstMk = dataMonths.length ? dataMonths[0] : nowMk;
+  const allMonths = [];
+  let cur = new Date(firstMk + '-01');
+  const end = new Date(nowMk + '-01');
+  while (cur <= end) {
+    allMonths.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`);
+    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
   }
 
-  // Extract Data Series
-  const labels = last6.map(m => m.substring(5, 7) + '月');
-  let dataPoints = [];
-
+  // データ系列
+  let dataPoints;
   if (activeChartType === 'profit') {
-    dataPoints = last6.map(m => monthly[m] ? monthly[m].profit : 0);
+    dataPoints = allMonths.map(m => monthly[m] ? monthly[m].profit : 0);
   } else if (activeChartType === 'pips') {
-    dataPoints = last6.map(m => monthly[m] ? monthly[m].pips : 0);
-  } else if (activeChartType === 'rr') {
-    dataPoints = last6.map(m => monthly[m] ? monthly[m].rrSum : 0); // Sum of RR
+    dataPoints = allMonths.map(m => monthly[m] ? monthly[m].pips : 0);
+  } else {
+    dataPoints = allMonths.map(m => monthly[m] ? monthly[m].rrSum : 0);
   }
 
   if (dataPoints.every(v => v === 0)) {
@@ -1581,56 +1577,50 @@ function renderGrowthChart(allTrades) {
 
   const maxVal = Math.max(...dataPoints, 0);
   const minVal = Math.min(...dataPoints, 0);
-  const range = (maxVal - minVal) || 1;
-  const zeroY = 100 - ((0 - minVal) / range * 80); // Calculate Y position for 0-line in SVG (20-100 range)
-
-  const barWidth = 100 / Math.max(labels.length, 5); // % width
-
-  let barsHTML = '';
-  labels.forEach((lbl, i) => {
-    const val = dataPoints[i];
-    const isPos = val >= 0;
-    const heightPct = Math.abs(val) / range * 80;
-
-    // Y coordinate (SVG 0 is at top)
-    const y = isPos ? (zeroY - heightPct) : zeroY;
-    const color = isPos ? '#10b981' : '#ef4444';
-    const x = (i * (100 / labels.length)) + (50 / labels.length);
-
-    let dispVal = val;
-    if (activeChartType === 'profit') {
-      // Show as integers with comma (e.g. 12,500 or -3,200), no k abbreviation
-      dispVal = Math.round(val).toLocaleString('ja-JP');
-    } else if (activeChartType === 'rr') {
-      dispVal = val.toFixed(2);
-    } else {
-      dispVal = Math.round(val).toLocaleString('ja-JP');
-    }
-
-    barsHTML += `
-      <g onclick="openHistoryForMonth('${last6[i]}')" style="cursor:pointer;">
-        <rect x="${x - (barWidth * 0.48)}%" y="8%" width="${barWidth * 0.96}%" height="89%" fill="transparent" />
-        <rect x="${x - (barWidth * 0.38)}%" y="${y}%" width="${barWidth * 0.76}%" height="${Math.max(heightPct, 0.5)}%" fill="${color}" rx="1.5" />
-        <text x="${x}%" y="${isPos ? Math.max(y - 1.5, 2) : y + heightPct + 4.5}%" fill="${color}" font-size="3.8" text-anchor="middle" font-weight="bold">${dispVal}</text>
-        <text x="${x}%" y="97%" fill="#94a3b8" font-size="4.5" text-anchor="middle">${lbl}</text>
-      </g>
-    `;
-  });
-
-  // Y-axis unit label
+  const range  = (maxVal - minVal) || 1;
+  const zeroY  = 100 - ((0 - minVal) / range * 80);
   const unitLabel = activeChartType === 'profit' ? '円' : activeChartType === 'rr' ? 'RR' : 'pips';
 
+  // 1バー = 54px（6ヶ月で約324px ≒ 画面幅に収まる）
+  const BAR_PX  = 54;
+  const svgW    = allMonths.length * BAR_PX;
+  const svgH    = 440;
+  // viewBox座標系：x=0〜allMonths.length*10, y=0〜110
+  const VB_W    = allMonths.length * 10;
+
+  let barsHTML = '';
+  allMonths.forEach((mk, i) => {
+    const val     = dataPoints[i];
+    const isPos   = val >= 0;
+    const hPct    = Math.abs(val) / range * 80;
+    const y       = isPos ? (zeroY - hPct) : zeroY;
+    const color   = isPos ? '#10b981' : '#ef4444';
+    const cx      = i * 10 + 5; // bar center in viewBox units
+    let dispVal;
+    if (activeChartType === 'profit') dispVal = Math.round(val).toLocaleString('ja-JP');
+    else if (activeChartType === 'rr') dispVal = val.toFixed(2);
+    else dispVal = Math.round(val).toLocaleString('ja-JP');
+
+    const label = mk.substring(5,7) + '月';
+    barsHTML += `
+      <g onclick="openHistoryForMonth('${mk}')" style="cursor:pointer;">
+        <rect x="${cx-4.8}" y="8" width="9.6" height="89" fill="transparent" />
+        <rect x="${cx-3.6}" y="${y}" width="7.2" height="${Math.max(hPct,0.5)}" fill="${color}" rx="0.8" />
+        <text x="${cx}" y="${isPos ? Math.max(y-1.5, 2) : y+hPct+4.5}" fill="${color}" font-size="3.2" text-anchor="middle" font-weight="bold">${dispVal}</text>
+        <text x="${cx}" y="105" fill="#94a3b8" font-size="4" text-anchor="middle">${label}</text>
+      </g>`;
+  });
+
   const svg = `
-    <svg width="100%" height="100%" viewBox="0 0 100 110" preserveAspectRatio="none" style="overflow:visible;">
-      <style>@keyframes fadeIn { to { opacity: 1; } }</style>
-      <!-- Unit label top-left -->
+    <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${VB_W} 110" preserveAspectRatio="none" style="display:block;overflow:visible;">
       <text x="1" y="5" fill="#64748b" font-size="4.5" text-anchor="start">(${unitLabel})</text>
-      <!-- Zero Line -->
-      <line x1="0" y1="${zeroY}%" x2="100%" y2="${zeroY}%" stroke="#475569" stroke-width="0.8" stroke-dasharray="2,1.5" />
+      <line x1="0" y1="${zeroY}" x2="${VB_W}" y2="${zeroY}" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,1.5" />
       ${barsHTML}
-    </svg>
-  `;
+    </svg>`;
+
   container.innerHTML = svg;
+  // 最新月（右端）にスクロール
+  container.scrollLeft = container.scrollWidth;
 }
 
 // ==========================================
