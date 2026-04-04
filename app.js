@@ -1063,19 +1063,13 @@ function renderRecentTrades() {
   container.innerHTML = rows;
 }
 
-// データの最新月と前月を返す（カレンダー月でなくデータ基準）
+// 今月と前月を返す（常にカレンダーの現在月基準）
 function getDataMonthRange() {
-  const months = App.data.entries
-    .filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）')
-    .map(t => t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-').substring(0, 7) : '')
-    .filter(Boolean).sort();
   const now = new Date();
-  const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const latest = months.length ? months[months.length - 1] : nowStr;
-  const [y, m] = latest.split('-').map(Number);
-  const prevDate = new Date(y, m - 2, 1);
-  const prev = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-  return { current: latest, last: prev };
+  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const last = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  return { current, last };
 }
 
 // Monthly top stats: current month REAL trades only (独立・見逃し除外)
