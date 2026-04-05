@@ -951,22 +951,45 @@ async function resolvePathImages(container) {
 
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
-  // 画像があるトレードを日付降順（新しい順）で最大20件（決済画像優先）
-  const galleryTrades = App.data.entries
-    .filter(t => {
-      const img = findExitImageField(t) || findEntryImageField(t);
-      return img && img.trim() !== '';
-    })
-    .slice()
-    .sort((a, b) => {
+  const sortKey = document.getElementById('gallery-sort')?.value || 'date';
+
+  // 決済済みのみ・画像あり
+  let galleryTrades = App.data.entries.filter(t => {
+    const st = t['ステータス'] || '';
+    if (st !== '決済' && st !== '決済（見逃し）') return false;
+    const img = findExitImageField(t) || findEntryImageField(t);
+    return img && img.trim() !== '';
+  });
+
+  // 実RRバンドフィルター
+  if (sortKey.startsWith('rr_')) {
+    galleryTrades = galleryTrades.filter(t => {
+      const rr = parseFloat(t['実リスクリワード']) || 0;
+      if (sortKey === 'rr_3up')   return rr >= 3;
+      if (sortKey === 'rr_2to3')  return rr >= 2 && rr < 3;
+      if (sortKey === 'rr_1to2')  return rr >= 1 && rr < 2;
+      if (sortKey === 'rr_0to1')  return rr >= 0 && rr < 1;
+      if (sortKey === 'rr_minus') return rr < 0;
+      return true;
+    });
+    // バンド内は実RR降順
+    galleryTrades.sort((a, b) => (parseFloat(b['実リスクリワード']) || 0) - (parseFloat(a['実リスクリワード']) || 0));
+  } else if (sortKey === 'score') {
+    galleryTrades.sort((a, b) => (parseFloat(b['エントリースコア']) || 0) - (parseFloat(a['エントリースコア']) || 0));
+  } else {
+    // date（デフォルト）
+    galleryTrades.sort((a, b) => {
       const da = String(a.EntryDate || '').replace(/\//g, '-');
       const db = String(b.EntryDate || '').replace(/\//g, '-');
       return da < db ? 1 : -1;
-    })
-    .slice(0, 20);
+    });
+  }
+
+  // 最大20件
+  galleryTrades = galleryTrades.slice(0, 20);
 
   if (galleryTrades.length === 0) {
-    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">画像がありません</div>';
+    container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;grid-column:1/-1;">該当する画像がありません</div>';
     return;
   }
 
@@ -996,7 +1019,8 @@ function renderGallery() {
         </div>
         <div style="padding:8px;">
           <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''}</div>
-          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · ${formatDateDisplay(t.EntryDate)}</div>
+          <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · RR: ${t['実リスクリワード'] || '-'}</div>
+          <div style="font-size:10px; color:#64748b;">${formatDateDisplay(t.EntryDate)}</div>
         </div>
       </div>
     `;
