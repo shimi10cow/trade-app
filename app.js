@@ -949,9 +949,17 @@ async function resolvePathImages(container) {
   }
 }
 
+function galleryFilterBtn(btn, group, val) {
+  // 同グループのアクティブを外して選択
+  document.querySelectorAll(`[data-gf-${group}]`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGallery();
+}
+
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
-  const sortKey = document.getElementById('gallery-sort')?.value || 'date';
+  const scoreVal = document.querySelector('[data-gf-score].active')?.dataset.gfScore || 'all';
+  const rrVal    = document.querySelector('[data-gf-rr].active')?.dataset.gfRr || 'all';
 
   // 決済済みのみ・画像あり
   let galleryTrades = App.data.entries.filter(t => {
@@ -961,29 +969,31 @@ function renderGallery() {
     return img && img.trim() !== '';
   });
 
-  // 実RRバンドフィルター
-  if (sortKey.startsWith('rr_')) {
+  // スコアフィルター
+  if (scoreVal !== 'all') {
+    const sv = parseInt(scoreVal);
+    galleryTrades = galleryTrades.filter(t => parseInt(t['エントリースコア']) === sv);
+  }
+
+  // 実RRフィルター
+  if (rrVal !== 'all') {
     galleryTrades = galleryTrades.filter(t => {
       const rr = parseFloat(t['実リスクリワード']) || 0;
-      if (sortKey === 'rr_3up')   return rr >= 3;
-      if (sortKey === 'rr_2to3')  return rr >= 2 && rr < 3;
-      if (sortKey === 'rr_1to2')  return rr >= 1 && rr < 2;
-      if (sortKey === 'rr_0to1')  return rr >= 0 && rr < 1;
-      if (sortKey === 'rr_minus') return rr < 0;
+      if (rrVal === '3up')   return rr >= 3;
+      if (rrVal === '2to3')  return rr >= 2 && rr < 3;
+      if (rrVal === '1to2')  return rr >= 1 && rr < 2;
+      if (rrVal === '0to1')  return rr >= 0 && rr < 1;
+      if (rrVal === 'minus') return rr < 0;
       return true;
     });
-    // バンド内は実RR降順
-    galleryTrades.sort((a, b) => (parseFloat(b['実リスクリワード']) || 0) - (parseFloat(a['実リスクリワード']) || 0));
-  } else if (sortKey === 'score') {
-    galleryTrades.sort((a, b) => (parseFloat(b['エントリースコア']) || 0) - (parseFloat(a['エントリースコア']) || 0));
-  } else {
-    // date（デフォルト）
-    galleryTrades.sort((a, b) => {
-      const da = String(a.EntryDate || '').replace(/\//g, '-');
-      const db = String(b.EntryDate || '').replace(/\//g, '-');
-      return da < db ? 1 : -1;
-    });
   }
+
+  // ソート: 日付降順（固定）
+  galleryTrades.sort((a, b) => {
+    const da = String(a.EntryDate || '').replace(/\//g, '-');
+    const db = String(b.EntryDate || '').replace(/\//g, '-');
+    return da < db ? 1 : -1;
+  });
 
   // 最大20件
   galleryTrades = galleryTrades.slice(0, 20);

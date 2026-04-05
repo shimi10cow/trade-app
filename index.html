@@ -257,16 +257,31 @@
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <div class="section-title">🖼 ギャラリー</div>
         </div>
-        <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-          <select id="gallery-sort" onchange="renderGallery()" class="form-input" style="flex:1; min-width:130px; padding:6px 8px; font-size:12px;">
-            <option value="date">日付順</option>
-            <option value="score">スコア順</option>
-            <option value="rr_3up">実RR 3以上</option>
-            <option value="rr_2to3">実RR 2〜3</option>
-            <option value="rr_1to2">実RR 1〜2</option>
-            <option value="rr_0to1">実RR 0〜1</option>
-            <option value="rr_minus">実RR -1以下</option>
-          </select>
+        <!-- スコアフィルター -->
+        <div style="margin-bottom:8px;">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">スコア</div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <button class="toggle-btn active" onclick="galleryFilterBtn(this,'score','all')" data-gf-score="all" style="padding:4px 8px; font-size:12px;">すべて</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','0')" data-gf-score="0" style="padding:4px 8px; font-size:12px;">0</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','1')" data-gf-score="1" style="padding:4px 8px; font-size:12px;">1</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','2')" data-gf-score="2" style="padding:4px 8px; font-size:12px;">2</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','3')" data-gf-score="3" style="padding:4px 8px; font-size:12px;">3</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','4')" data-gf-score="4" style="padding:4px 8px; font-size:12px;">4</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','5')" data-gf-score="5" style="padding:4px 8px; font-size:12px;">5</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'score','6')" data-gf-score="6" style="padding:4px 8px; font-size:12px;">6</button>
+          </div>
+        </div>
+        <!-- 実RRフィルター -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">実RR</div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <button class="toggle-btn active" onclick="galleryFilterBtn(this,'rr','all')" data-gf-rr="all" style="padding:4px 8px; font-size:12px;">すべて</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','3up')" data-gf-rr="3up" style="padding:4px 8px; font-size:12px;">3以上</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','2to3')" data-gf-rr="2to3" style="padding:4px 8px; font-size:12px;">2〜3</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','1to2')" data-gf-rr="1to2" style="padding:4px 8px; font-size:12px;">1〜2</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','0to1')" data-gf-rr="0to1" style="padding:4px 8px; font-size:12px;">0〜1</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','minus')" data-gf-rr="minus" style="padding:4px 8px; font-size:12px;">-1以下</button>
+          </div>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
           <!-- Images dynamically inserted here -->
