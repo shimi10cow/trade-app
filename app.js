@@ -1592,10 +1592,10 @@ function renderGrowthChart(allTrades) {
   const zeroY  = 100 - ((0 - minVal) / range * 80);
   const unitLabel = activeChartType === 'profit' ? '円' : activeChartType === 'rr' ? 'RR' : 'pips';
 
-  // 1バー = 54px（6ヶ月で約324px ≒ 画面幅に収まる）
-  const BAR_PX  = 54;
+  // 1バー = 60px、縦は540pxに拡大
+  const BAR_PX  = 60;
   const svgW    = allMonths.length * BAR_PX;
-  const svgH    = 440;
+  const svgH    = 520;
   // viewBox座標系：x=0〜allMonths.length*10, y=0〜110
   const VB_W    = allMonths.length * 10;
 
@@ -1606,25 +1606,26 @@ function renderGrowthChart(allTrades) {
     const hPct    = Math.abs(val) / range * 80;
     const y       = isPos ? (zeroY - hPct) : zeroY;
     const color   = isPos ? '#10b981' : '#ef4444';
-    const cx      = i * 10 + 5; // bar center in viewBox units
+    const cx      = i * 10 + 5;
     let dispVal;
     if (activeChartType === 'profit') dispVal = Math.round(val).toLocaleString('ja-JP');
     else if (activeChartType === 'rr') dispVal = val.toFixed(2);
     else dispVal = Math.round(val).toLocaleString('ja-JP');
 
-    const label = mk.substring(5,7) + '月';
+    // 先頭ゼロなし: "01月" → "1月"
+    const label = parseInt(mk.substring(5,7)) + '月';
     barsHTML += `
       <g onclick="openHistoryForMonth('${mk}')" style="cursor:pointer;">
         <rect x="${cx-4.8}" y="8" width="9.6" height="89" fill="transparent" />
         <rect x="${cx-3.6}" y="${y}" width="7.2" height="${Math.max(hPct,0.5)}" fill="${color}" rx="0.8" />
-        <text x="${cx}" y="${isPos ? Math.max(y-1.5, 2) : y+hPct+4.5}" fill="${color}" font-size="3.2" text-anchor="middle" font-weight="bold">${dispVal}</text>
-        <text x="${cx}" y="105" fill="#94a3b8" font-size="4" text-anchor="middle">${label}</text>
+        <text x="${cx}" y="${isPos ? Math.max(y-1.5, 2) : y+hPct+4.5}" fill="${color}" font-size="2.4" text-anchor="middle" font-weight="bold">${dispVal}</text>
+        <text x="${cx}" y="105" fill="#94a3b8" font-size="3.2" text-anchor="middle">${label}</text>
       </g>`;
   });
 
   const svg = `
     <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${VB_W} 110" preserveAspectRatio="none" style="display:block;overflow:visible;">
-      <text x="1" y="5" fill="#64748b" font-size="4.5" text-anchor="start">(${unitLabel})</text>
+      <text x="1" y="5" fill="#64748b" font-size="3.5" text-anchor="start">(${unitLabel})</text>
       <line x1="0" y1="${zeroY}" x2="${VB_W}" y2="${zeroY}" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,1.5" />
       ${barsHTML}
     </svg>`;
