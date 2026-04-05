@@ -642,6 +642,17 @@ function toggleCustomDate() {
   const customDiv = document.getElementById('flt-custom-date');
   if (period === 'custom') {
     customDiv.style.display = 'flex';
+    // デフォルト値が空の場合のみ設定
+    const fromEl = document.getElementById('flt-date-from');
+    const toEl   = document.getElementById('flt-date-to');
+    if (!fromEl.value) {
+      const now = new Date();
+      fromEl.value = `${now.getFullYear()}-01-01`;
+    }
+    if (!toEl.value) {
+      const now = new Date();
+      toEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    }
   } else {
     customDiv.style.display = 'none';
   }
