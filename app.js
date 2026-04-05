@@ -2563,7 +2563,6 @@ async function submitEntryData() {
       'TakeProfitPips': document.getElementById('ne-tp').value,
       'StopLossPips': document.getElementById('ne-sl').value,
       'Lot': document.getElementById('ne-lot').value,
-      'エントリーメモ': document.getElementById('ne-memo').value,
       'エントリー時メモ': document.getElementById('ne-memo').value,
       '事前メモ': document.getElementById('ne-pre-memo')?.textContent?.replace('(ペアを選択すると表示されます)', '').replace('(事前メモなし)', '').trim() || '',
       'ステータス': App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
@@ -3153,7 +3152,6 @@ async function saveTradeDetail() {
         return '';
       })(),
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
-      'エントリーメモ': document.getElementById('td-entry-memo')?.value || '',
       'エントリー時メモ': document.getElementById('td-entry-memo')?.value || '',
       '決済振り返り': document.getElementById('td-exit-ref').value,
       '決済メモ': document.getElementById('td-exit-memo').value,
