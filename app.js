@@ -608,6 +608,9 @@ function populateFilterPairs() {
 
   const entryRefSel = document.getElementById('flt-entry-ref');
   if (entryRefSel) {
+    const savedEntryRef = entryRefSel.value;
+    // 「すべて」以外をクリアして重複防止
+    Array.from(entryRefSel.options).slice(1).forEach(o => o.remove());
     const entryRefVals = [...new Set(closedTrades.map(t => t['エントリー振り返り'] || '').filter(Boolean))].sort();
     entryRefVals.forEach(v => {
       const opt = document.createElement('option');
@@ -615,10 +618,14 @@ function populateFilterPairs() {
       opt.textContent = v;
       entryRefSel.appendChild(opt);
     });
+    entryRefSel.value = savedEntryRef; // 選択状態を復元
   }
 
   const exitRefSel = document.getElementById('flt-exit-ref');
   if (exitRefSel) {
+    const savedExitRef = exitRefSel.value;
+    // 「すべて」以外をクリアして重複防止
+    Array.from(exitRefSel.options).slice(1).forEach(o => o.remove());
     const exitRefVals = [...new Set(closedTrades.map(t => t['決済振り返り'] || '').filter(Boolean))].sort();
     exitRefVals.forEach(v => {
       const opt = document.createElement('option');
@@ -626,6 +633,7 @@ function populateFilterPairs() {
       opt.textContent = v;
       exitRefSel.appendChild(opt);
     });
+    exitRefSel.value = savedExitRef; // 選択状態を復元
   }
 }
 
