@@ -2564,6 +2564,7 @@ async function submitEntryData() {
       'StopLossPips': document.getElementById('ne-sl').value,
       'Lot': document.getElementById('ne-lot').value,
       'エントリーメモ': document.getElementById('ne-memo').value,
+      'エントリー時メモ': document.getElementById('ne-memo').value,
       '事前メモ': document.getElementById('ne-pre-memo')?.textContent?.replace('(ペアを選択すると表示されます)', '').replace('(事前メモなし)', '').trim() || '',
       'ステータス': App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
     };
@@ -2988,7 +2989,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   const tdEntryMemo = document.getElementById('td-entry-memo');
-  if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || '';
+  if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || t['エントリー時メモ'] || '';
 
   // Images ──────────────────────────────────────────
   // 保有中：上=エントリー写真、下=決済写真
@@ -3153,6 +3154,7 @@ async function saveTradeDetail() {
       })(),
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
       'エントリーメモ': document.getElementById('td-entry-memo')?.value || '',
+      'エントリー時メモ': document.getElementById('td-entry-memo')?.value || '',
       '決済振り返り': document.getElementById('td-exit-ref').value,
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
