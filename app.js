@@ -1174,7 +1174,7 @@ function applyAnalysisFilters() {
   let totalTrades = 0, wins = 0, losses = 0, evens = 0;
   let totalPips = 0, winPips = 0, lossPips = 0;
   let totalProfit = 0, winProfit = 0, lossProfit = 0;
-  let totalLot = 0;
+  let totalLot = 0, lotCount = 0;
   let avgRRSum = 0, validRRCount = 0;
   // 理論値: ルール準拠pips/損益の合計（全トレード）
   let theoryPipsTotal = 0, theoryProfitTotal = 0;
@@ -1191,7 +1191,7 @@ function applyAnalysisFilters() {
 
     totalPips += pips;
     totalProfit += profit;
-    totalLot += lot;
+    if (lot > 0) { totalLot += lot; lotCount++; }
 
     // 勝敗判定: ±10pips閾値
     // 勝ち: pips > 10 / 負け: pips < -10 / 引き分け: -10 <= pips <= 10
@@ -1242,7 +1242,7 @@ function applyAnalysisFilters() {
 
   const avgTradePips = totalTrades ? (totalPips / totalTrades).toFixed(1) : 0;
   const avgTradeProfit = totalTrades ? (totalProfit / totalTrades).toFixed(0) : 0;
-  const avgLot = totalTrades ? (totalLot / totalTrades).toFixed(2) : '0.00';
+  const avgLot = lotCount ? (totalLot / lotCount).toFixed(2) : '0.00';
 
   const avgRR = validRRCount ? (avgRRSum / validRRCount).toFixed(2) : '--';
   const totalRR = avgRRSum.toFixed(2);
