@@ -1156,10 +1156,13 @@ function applyAnalysisFilters() {
   App.state.analysisFilteredNoPeriod = filtered.slice(); // エクイティカーブ用（期間フィルタ前）
 
   // 期間フィルター（分析タブ用）
+  const now3m = new Date();
+  const last3mDate = new Date(now3m.getFullYear(), now3m.getMonth() - 2, 1); // 3ヶ月前の月初
   filtered = filtered.filter(t => {
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
-    if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
-    if (fPeriod === 'last_month' && !dateStr.startsWith(lastMonthStr)) return false;
+    if (fPeriod === 'this_month'  && !dateStr.startsWith(currentMonthStr)) return false;
+    if (fPeriod === 'last_month'  && !dateStr.startsWith(lastMonthStr)) return false;
+    if (fPeriod === 'last_3months' && new Date(dateStr) < last3mDate) return false;
     if (fPeriod === 'custom') {
       const tDate = new Date(dateStr);
       if (dFrom && tDate < new Date(dFrom)) return false;
