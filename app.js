@@ -489,7 +489,7 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-judgement-text').textContent = '--';
   document.getElementById('ne-judgement-text').style.color = '#f8fafc';
 
-  clearNewEntryImage();
+  clearNewEntryImage(1);
 
   const _ra = document.getElementById('ne-recent-analysis-section');
   if (_ra) _ra.style.display = 'none';
@@ -623,6 +623,12 @@ async function loadData() {
     App.data.pairs = pairsRes.data || [];
     App.data.entries = entriesRes.data || [];
     App.data.ideas = ideasRes.data || [];
+
+    // スコア列・画像列の自動確認（初回のみバックグラウンドで実行）
+    if (!App.state._columnsEnsured) {
+      App.state._columnsEnsured = true;
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
+    }
 
     populateFilterPairs();
 
@@ -2684,15 +2690,25 @@ async function submitEntryData() {
       if (entryData[short] !== undefined) entryData[full] = entryData[short];
     });
 
-    // エントリースコア
-    const scoreText = document.getElementById('checker-score-val')?.textContent || '';
-    const scoreMatch = scoreText.match(/(\d+)/);
-    if (scoreMatch) entryData['エントリースコア'] = scoreMatch[1];
+    // エントリースコア（UIから直接計算）
+    var neScore = 0;
+    document.querySelectorAll('#modal-entry .score-group').forEach(function(group) {
+      var active = group.querySelector('.active');
+      var configItem = scoreConfig.find(function(c) { return c.key === group.dataset.key; });
+      if (!active || !configItem || configItem.enabled === false) return;
+      if (active.classList.contains('cond-ok')) neScore += parseFloat(group.dataset.okScore || 0);
+      else neScore += parseFloat(group.dataset.ngScore || 0);
+    });
+    entryData['エントリースコア'] = neScore;
 
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
       entryData['ChartImage'] = await uploadImageSmart(imgPreview.src, 'entry_' + Date.now() + '.jpg');
+    }
+    const imgPreview2 = document.getElementById('ne-image2-preview');
+    if (imgPreview2 && imgPreview2.src && imgPreview2.src.startsWith('data:image')) {
+      entryData['ChartImage2'] = await uploadImageSmart(imgPreview2.src, 'entry2_' + Date.now() + '.jpg');
     }
 
     // GAS に saveEntry POST
@@ -2716,19 +2732,35 @@ async function submitEntryData() {
 // ==========================================
 // Chart Image & Canvas Markup
 // ==========================================
-function previewUploadImage(input) {
+function previewUploadImage(input, slot) {
+  slot = slot || 1;
   if (input.files && input.files[0]) {
     const reader = new FileReader();
     reader.onload = function (e) {
-      const img = document.getElementById('ne-image-preview');
-      img.src = e.target.result;
-      img.style.display = 'block'; // display:none が設定されている場合に強制表示
-      document.getElementById('image-preview-container').style.display = 'block';
-      makeTappable(img);
-      const labelText = document.getElementById('ne-image-label-text');
-      if (labelText) labelText.textContent = '✅ 画像選択済み（タップで変更）';
-      const label = document.getElementById('ne-image-label');
-      if (label) label.style.borderColor = '#10b981';
+      if (slot === 1) {
+        const img = document.getElementById('ne-image-preview');
+        img.src = e.target.result;
+        img.style.display = 'block';
+        document.getElementById('image-preview-container').style.display = 'block';
+        makeTappable(img);
+        const labelText = document.getElementById('ne-image-label-text');
+        if (labelText) labelText.textContent = '✅ 画像1選択済み（タップで変更）';
+        const label = document.getElementById('ne-image-label');
+        if (label) label.style.borderColor = '#10b981';
+        // 2枚目ボタンを表示
+        const label2 = document.getElementById('ne-image2-label');
+        if (label2) label2.style.display = 'flex';
+      } else {
+        const img = document.getElementById('ne-image2-preview');
+        img.src = e.target.result;
+        img.style.display = 'block';
+        document.getElementById('image2-preview-container').style.display = 'block';
+        makeTappable(img);
+        const labelText = document.getElementById('ne-image2-label-text');
+        if (labelText) labelText.textContent = '✅ 画像2選択済み（タップで変更）';
+        const label2 = document.getElementById('ne-image2-label');
+        if (label2) label2.style.borderColor = '#10b981';
+      }
     };
     reader.readAsDataURL(input.files[0]);
   }
@@ -2867,16 +2899,33 @@ function playCloseSound(isWin) {
 }
 
 // 新規エントリー画像をクリア
-function clearNewEntryImage() {
-  const img = document.getElementById('ne-image-preview');
-  img.src = '';
-  img.style.display = 'none';
-  document.getElementById('image-preview-container').style.display = 'none';
-  document.getElementById('ne-image-upload').value = '';
-  const labelText = document.getElementById('ne-image-label-text');
-  if (labelText) labelText.textContent = '📷 エントリー画像を追加';
-  const label = document.getElementById('ne-image-label');
-  if (label) label.style.borderColor = '#38bdf8';
+function clearNewEntryImage(slot) {
+  slot = slot || 1;
+  if (slot === 1) {
+    const img = document.getElementById('ne-image-preview');
+    img.src = '';
+    img.style.display = 'none';
+    document.getElementById('image-preview-container').style.display = 'none';
+    document.getElementById('ne-image-upload').value = '';
+    const labelText = document.getElementById('ne-image-label-text');
+    if (labelText) labelText.textContent = '📷 エントリー画像1を追加';
+    const label = document.getElementById('ne-image-label');
+    if (label) label.style.borderColor = '#38bdf8';
+    // 2枚目も隠す
+    clearNewEntryImage(2);
+    const label2 = document.getElementById('ne-image2-label');
+    if (label2) label2.style.display = 'none';
+  } else {
+    const img = document.getElementById('ne-image2-preview');
+    img.src = '';
+    img.style.display = 'none';
+    document.getElementById('image2-preview-container').style.display = 'none';
+    document.getElementById('ne-image2-upload').value = '';
+    const labelText = document.getElementById('ne-image2-label-text');
+    if (labelText) labelText.textContent = '📷 エントリー画像2を追加';
+    const label2 = document.getElementById('ne-image2-label');
+    if (label2) label2.style.borderColor = '#38bdf8';
+  }
 }
 
 // 詳細モーダルの画像削除（UIのみ変更・GAS保存は「変更内容を保存」ボタン時）
