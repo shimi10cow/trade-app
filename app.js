@@ -2398,6 +2398,13 @@ function updateEntryJudgementText(prefix) {
   const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
   const isOk = isKairiOk || hasAnyOtherOk;
 
+  // ペアまたは方向が未選択なら判定しない
+  if (!pairName || !direction) {
+    outBox.textContent = '--';
+    outBox.style.color = '#94a3b8';
+    return;
+  }
+
   let resText = '🚫 エントリーNG！ 🚫';
   let resColor = '#ef4444';
 
