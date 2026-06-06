@@ -38,7 +38,8 @@ let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}
 // エントリールール遵守判定
 // 完璧エントリー + 環境認識6項目すべてOK（空欄はNG扱い）
 function isEntryCompliant(t) {
-  if ((t['エントリー振り返り'] || '') !== 'エントリータイミングOK') return false;
+  var er = t['エントリー振り返り'] || '';
+  if (er !== 'エントリータイミングOK' && er !== '完璧エントリー') return false;
   var envKeys = ['ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定'];
   return envKeys.every(function(k) { return (t[k] || '') === 'OK'; });
 }
@@ -1250,7 +1251,7 @@ function updateMonthlyStats() {
     if (sl > 0) totalRR += pips / sl;
     if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
-    if (exitRef === '決済タイミングOK') exitPerfect++;
+    if (exitRef === '決済タイミングOK' || exitRef === '完璧決済') exitPerfect++;
   });
   const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
@@ -2257,8 +2258,8 @@ function showEntryRevengeAlert() {
     const entryRef = last['エントリー振り返り'] || '';
     const exitRef = last['決済振り返り'] || '';
     const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '前回';
-    const isPerfectEntry = entryRef === 'エントリータイミングOK';
-    const isPerfectExit = exitRef === '決済タイミングOK';
+    const isPerfectEntry = entryRef === 'エントリータイミングOK' || entryRef === '完璧エントリー';
+    const isPerfectExit = exitRef === '決済タイミングOK' || exitRef === '完璧決済';
 
     if (!isPerfectEntry || !isPerfectExit) {
       const parts = [];
