@@ -441,9 +441,9 @@
         <div class="section" style="padding:10px 12px;">
           <div style="display:flex; align-items:center; justify-content:space-between;">
             <span class="section-title" style="margin-bottom:0;">再エントリー</span>
-            <div class="btn-group" id="ne-reentry" style="display:flex; gap:6px;">
-              <button class="toggle-btn" onclick="toggleBtn(this)" style="font-size:11px; padding:4px 12px;">ON</button>
-              <button class="toggle-btn" onclick="toggleBtn(this)" style="font-size:11px; padding:4px 12px;">OFF</button>
+            <div class="btn-group" id="ne-reentry" style="display:flex; gap:4px;">
+              <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">ON</button>
+              <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OFF</button>
             </div>
           </div>
         </div>
@@ -749,8 +749,8 @@
                   </div>
                 </div>
               </div>
-              <div class="form-row" style="align-items:flex-start;">
-                <span class="form-label">エントリー時メモ</span>
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;">
+                <span class="form-label" style="font-size:10px;">エントリー時メモ</span>
                 <textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の感情や反省..."></textarea>
               </div>
               <!-- 決済タイミング -->
@@ -775,8 +775,8 @@
                   <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">指標後</button>
                 </div>
               </div>
-              <div class="form-row" style="align-items:flex-start;">
-                <span class="form-label">決済時メモ</span>
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;">
+                <span class="form-label" style="font-size:10px;">決済時メモ</span>
                 <textarea class="form-input" id="td-exit-memo" rows="3" placeholder="決済時の感情や反省..."></textarea>
               </div>
 
