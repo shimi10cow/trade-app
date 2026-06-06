@@ -20,14 +20,14 @@ const App = {
 // Score Config
 // ==========================================
 const DEFAULT_SCORE_CONFIG = [
-  { label: '水平線D1.H4', key: '水平線D1.H4', okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
-  { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
-  { label: 'TL推進',       key: 'TL推進',       okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（推進）'] },
-  { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（逆トレ）'] },
-  { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（M15）'] },
-  { label: '直近波理論',    key: '直近波理論',    okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
-  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '〇',  okScore: -1, ngLabel: '✕', ngScore:  0 },
-  { label: '上位足リスク',  key: '上位足リスク',  okLabel: 'ナシ', okScore:  0, ngLabel: 'アリ', ngScore: -1 },
+  { label: '水平線D1.H4', key: '水平線D1.H4', okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'TL推進',       key: 'TL推進',       okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（推進）'] },
+  { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（逆トレ）'] },
+  { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
+  { label: '直近波理論',    key: '直近波理論',    okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '〇',  okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: '上位足リスク',  key: '上位足リスク',  okLabel: 'ナシ', okScore:  0, ngLabel: 'アリ', ngScore: -1, enabled: true },
 ];
 
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(c => ({ ...c }));
@@ -44,7 +44,10 @@ function loadScoreConfig() {
 }
 
 function getMaxScore() {
-  return scoreConfig.reduce((sum, c) => sum + Math.max(c.okScore || 0, c.ngScore || 0, 0), 0);
+  return scoreConfig.reduce((sum, c) => {
+    if (c.enabled === false) return sum;
+    return sum + Math.max(c.okScore || 0, c.ngScore || 0, 0);
+  }, 0);
 }
 
 function buildScoreGroups(containerId, prefix) {
@@ -2464,8 +2467,10 @@ function calculateEntryScore() {
   const maxScore = getMaxScore();
   document.querySelectorAll('#modal-entry .score-group').forEach(group => {
     const active = group.querySelector('.active');
+    const configItem = scoreConfig.find(c => c.key === group.dataset.key);
     if (!active) return;
-    filled++;
+    if (configItem?.enabled !== false) filled++;
+    if (configItem?.enabled === false) return;
     if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
     else score += parseFloat(group.dataset.ngScore || 0);
   });
@@ -2476,7 +2481,7 @@ function calculateEntryScore() {
   const title = document.getElementById('checker-title');
   const msg = document.getElementById('checker-msg');
 
-  if (filled < scoreConfig.length) {
+  if (filled < scoreConfig.filter(c => c.enabled !== false).length) {
     box.className = 'checker-box';
     title.textContent = '判定待ち';
     msg.textContent = 'すべての根拠を入力してください';
@@ -2500,6 +2505,8 @@ function calculateEntryScoreTD() {
   document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
     const active = group.querySelector('.active');
     if (!active) return;
+    const configItem = scoreConfig.find(c => c.key === group.dataset.key);
+    if (configItem?.enabled === false) return;
     if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
     else score += parseFloat(group.dataset.ngScore || 0);
   });
@@ -3265,8 +3272,11 @@ async function saveTradeDetail() {
       updateData[key] = v;
       const configItem = scoreConfig.find(c => c.key === key);
       (configItem?.aliases || []).forEach(alias => { updateData[alias] = v; });
-      if (btn.classList.contains('cond-ok')) calcScore += parseFloat(group.dataset.okScore || 0);
-      else calcScore += parseFloat(group.dataset.ngScore || 0);
+      const configItem = scoreConfig.find(c => c.key === key);
+      if (configItem?.enabled !== false) {
+        if (btn.classList.contains('cond-ok')) calcScore += parseFloat(group.dataset.okScore || 0);
+        else calcScore += parseFloat(group.dataset.ngScore || 0);
+      }
     });
     updateData['エントリースコア'] = String(calcScore);
 
@@ -3903,11 +3913,19 @@ function renderScoreConfigList() {
     container.innerHTML = '<div style="text-align:center; color:#64748b; font-size:12px; padding:12px;">項目がありません</div>';
     return;
   }
-  container.innerHTML = scoreConfig.map((item, i) => `
-    <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
+  container.innerHTML = scoreConfig.map((item, i) => {
+    const enabled = item.enabled !== false;
+    return `
+    <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:6px; opacity:${enabled ? 1 : 0.5};">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <span style="font-size:13px; font-weight:600; color:#e2e8f0;">${item.label}</span>
-        <button onclick="deleteScoreConfigItem(${i})" style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:2px 8px;">🗑️</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#94a3b8;">
+            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="scoreConfig[${i}].enabled = this.checked; renderScoreConfigList()" style="cursor:pointer;">
+            スコアに含める
+          </label>
+          <button onclick="deleteScoreConfigItem(${i})" style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:2px 8px;">🗑️</button>
+        </div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:12px;">
         <div style="display:flex; align-items:center; gap:4px;">
@@ -3926,7 +3944,8 @@ function renderScoreConfigList() {
         </div>
       </div>
     </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function deleteScoreConfigItem(i) {
@@ -3945,7 +3964,7 @@ function addScoreConfigItem() {
 
   if (!label) { alert('表示名を入力してください'); return; }
 
-  scoreConfig.push({ label, key, okLabel, okScore, ngLabel, ngScore });
+  scoreConfig.push({ label, key, okLabel, okScore, ngLabel, ngScore, enabled: true });
   renderScoreConfigList();
 
   document.getElementById('sc-new-label').value = '';
