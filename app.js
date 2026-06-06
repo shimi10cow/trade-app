@@ -3919,12 +3919,14 @@ function renderScoreConfigList() {
     <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:6px; opacity:${enabled ? 1 : 0.5};">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <span style="font-size:13px; font-weight:600; color:#e2e8f0;">${item.label}</span>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#94a3b8;">
+        <div style="display:flex; align-items:center; gap:4px;">
+          <button onclick="moveScoreConfigItem(${i}, -1)" ${i === 0 ? 'disabled' : ''} style="background:#334155; border:none; color:#e2e8f0; border-radius:4px; width:26px; height:26px; font-size:13px; cursor:pointer; opacity:${i === 0 ? 0.3 : 1};">↑</button>
+          <button onclick="moveScoreConfigItem(${i},  1)" ${i === scoreConfig.length - 1 ? 'disabled' : ''} style="background:#334155; border:none; color:#e2e8f0; border-radius:4px; width:26px; height:26px; font-size:13px; cursor:pointer; opacity:${i === scoreConfig.length - 1 ? 0.3 : 1};">↓</button>
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#94a3b8; margin-left:4px;">
             <input type="checkbox" ${enabled ? 'checked' : ''} onchange="scoreConfig[${i}].enabled = this.checked; renderScoreConfigList()" style="cursor:pointer;">
-            スコアに含める
+            含める
           </label>
-          <button onclick="deleteScoreConfigItem(${i})" style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:2px 8px;">🗑️</button>
+          <button onclick="deleteScoreConfigItem(${i})" style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:2px 4px;">🗑️</button>
         </div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:12px;">
@@ -3946,6 +3948,13 @@ function renderScoreConfigList() {
     </div>
     `;
   }).join('');
+}
+
+function moveScoreConfigItem(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= scoreConfig.length) return;
+  [scoreConfig[i], scoreConfig[j]] = [scoreConfig[j], scoreConfig[i]];
+  renderScoreConfigList();
 }
 
 function deleteScoreConfigItem(i) {
