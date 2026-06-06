@@ -646,37 +646,97 @@
             </div>
             
             <div style="margin-top:16px;">
+              <!-- エントリータイミング -->
               <div class="form-row">
                 <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
                 <select class="form-input" id="td-entry-ref">
                   <option value="">選択...</option>
-                  <option value="完璧！">完璧！</option>
-                  <option value="ルール外">ルール外</option>
-                  <option value="トレンドライン認識甘い">トレンドライン認識甘い</option>
-                  <option value="ダウ認識ミス">ダウ認識ミス</option>
+                  <option value="完璧エントリー">完璧エントリー</option>
                   <option value="アーリー">アーリー</option>
                   <option value="レイト">レイト</option>
-                  <option value="上位足リスク">上位足リスク</option>
-                  <option value="損切り設定ミス">損切り設定ミス</option>
-                  <option value="Lotミス">Lotミス</option>
-                  <option value="指標">指標</option>
+                  <option value="DowRule外">DowRule外</option>
                 </select>
+              </div>
+              <!-- 指標前エントリー -->
+              <div class="form-row" style="align-items:center;">
+                <span class="form-label" style="font-size:10px;">指標前ｴﾝﾄﾘｰ</span>
+                <div class="btn-group" id="td-indicator-entry" style="display:flex; gap:6px;">
+                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">ON</button>
+                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">OFF</button>
+                </div>
+              </div>
+              <!-- 環境認識チェック -->
+              <div style="margin-top:8px; margin-bottom:4px;">
+                <span style="font-size:10px; color:#94a3b8;">環境認識チェック</span>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:4px;">
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">ダウ認識</div>
+                    <div class="btn-group env-check-group" id="td-env-dow" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">TL推進認識</div>
+                    <div class="btn-group env-check-group" id="td-env-tl-push" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">TL逆トレ認識</div>
+                    <div class="btn-group env-check-group" id="td-env-tl-rev" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">TL(M15)認識</div>
+                    <div class="btn-group env-check-group" id="td-env-tl-m15" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">上位足リスク認識</div>
+                    <div class="btn-group env-check-group" id="td-env-upper-risk" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#cbd5e1; margin-bottom:2px;">Lot/損切り設定</div>
+                    <div class="btn-group env-check-group" id="td-env-lot-sl" style="display:flex; gap:4px;">
+                      <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">OK</button>
+                      <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">NG</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="form-row" style="align-items:flex-start;">
                 <span class="form-label">エントリー時メモ</span>
                 <textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の感情や反省..."></textarea>
               </div>
+              <!-- 決済タイミング -->
               <div class="form-row">
                 <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
                 <select class="form-input" id="td-exit-ref" onchange="calculateRuleMetrics()">
                   <option value="">選択...</option>
-                  <option value="完璧利確">完璧利確</option>
+                  <option value="完璧決済">完璧決済</option>
                   <option value="ビビり決済">ビビり決済</option>
                   <option value="利確逃し">利確逃し</option>
-                  <option value="エントリー過ち">エントリー過ち</option>
-                  <option value="適切損切り">適切損切り</option>
-                  <option value="損切り設定ミス">損切り設定ミス</option>
+                  <option value="SL無視">SL無視</option>
+                  <option value="SL設定ミス">SL設定ミス</option>
+                  <option value="ルール外気づき">ルール外気づき</option>
                 </select>
+              </div>
+              <!-- 指標決済 -->
+              <div class="form-row" style="align-items:center;">
+                <span class="form-label" style="font-size:10px;">指標決済</span>
+                <div class="btn-group" id="td-indicator-exit" style="display:flex; gap:6px;">
+                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">ON</button>
+                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">OFF</button>
+                </div>
               </div>
               <div class="form-row" style="align-items:flex-start;">
                 <span class="form-label">決済時メモ</span>

@@ -637,7 +637,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2'] }) }).catch(function(){});
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
     }
 
     populateFilterPairs();
@@ -1215,9 +1215,9 @@ function updateMonthlyStats() {
     const pips = parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
     if (sl > 0) totalRR += pips / sl;
-    if ((t['エントリー振り返り'] || '') === '完璧！') entryPerfect++;
+    if ((t['エントリー振り返り'] || '') === '完璧エントリー') entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
-    if (exitRef === '完璧利確' || exitRef === '適切損切り') exitPerfect++;
+    if (exitRef === '完璧決済') exitPerfect++;
   });
   const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
@@ -1349,7 +1349,7 @@ function applyAnalysisFilters() {
     // エントリールール遵守率: エントリー振り返り = "完璧！"
     if (entryRef === '完璧！') entryPerfectCount++;
     // 決済ルール遵守率: 決済振り返り = "完璧利確" or "適切損切り"
-    if (exitRef === '完璧利確' || exitRef === '適切損切り') exitPerfectCount++;
+    if (exitRef === '完璧決済') exitPerfectCount++;
   });
 
   const winRate = totalTrades ? (wins / totalTrades * 100).toFixed(1) : 0;
@@ -2160,8 +2160,8 @@ function showEntryRevengeAlert() {
     const entryRef = last['エントリー振り返り'] || '';
     const exitRef = last['決済振り返り'] || '';
     const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '前回';
-    const isPerfectEntry = entryRef === '完璧！';
-    const isPerfectExit = exitRef === '完璧利確';
+    const isPerfectEntry = entryRef === '完璧エントリー';
+    const isPerfectExit = exitRef === '完璧決済';
 
     if (!isPerfectEntry || !isPerfectExit) {
       const parts = [];
@@ -3181,6 +3181,36 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const tdEntryMemo = document.getElementById('td-entry-memo');
   if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || t['エントリー時メモ'] || '';
 
+  // 指標前エントリー
+  (function() {
+    var v = t['指標前エントリー'] || '';
+    document.querySelectorAll('#td-indicator-entry button').forEach(function(b) {
+      b.classList.toggle('active', b.textContent.trim() === v);
+    });
+  })();
+  // 指標決済
+  (function() {
+    var v = t['指標決済'] || '';
+    document.querySelectorAll('#td-indicator-exit button').forEach(function(b) {
+      b.classList.toggle('active', b.textContent.trim() === v);
+    });
+  })();
+  // 環境認識チェック
+  var envMap = {
+    'td-env-dow': 'ダウ認識',
+    'td-env-tl-push': 'TL推進認識',
+    'td-env-tl-rev': 'TL逆トレ認識',
+    'td-env-tl-m15': 'TL(M15)認識',
+    'td-env-upper-risk': '上位足リスク認識',
+    'td-env-lot-sl': 'Lot/損切り設定'
+  };
+  Object.keys(envMap).forEach(function(id) {
+    var val = t[envMap[id]] || '';
+    document.querySelectorAll('#' + id + ' button').forEach(function(b) {
+      b.classList.toggle('active', b.textContent.trim() === val);
+    });
+  });
+
   // Images ──────────────────────────────────────────
   // 保有中：上=エントリー写真、下=決済写真
   // 履歴  ：上=決済写真、  下=エントリー写真
@@ -3404,7 +3434,15 @@ async function saveTradeDetail() {
       })(),
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
       'エントリー時メモ': document.getElementById('td-entry-memo')?.value || '',
+      '指標前エントリー': (() => { const b = document.querySelector('#td-indicator-entry button.active'); return b ? b.textContent.trim() : ''; })(),
+      'ダウ認識': (() => { const b = document.querySelector('#td-env-dow button.active'); return b ? b.textContent.trim() : ''; })(),
+      'TL推進認識': (() => { const b = document.querySelector('#td-env-tl-push button.active'); return b ? b.textContent.trim() : ''; })(),
+      'TL逆トレ認識': (() => { const b = document.querySelector('#td-env-tl-rev button.active'); return b ? b.textContent.trim() : ''; })(),
+      'TL(M15)認識': (() => { const b = document.querySelector('#td-env-tl-m15 button.active'); return b ? b.textContent.trim() : ''; })(),
+      '上位足リスク認識': (() => { const b = document.querySelector('#td-env-upper-risk button.active'); return b ? b.textContent.trim() : ''; })(),
+      'Lot/損切り設定': (() => { const b = document.querySelector('#td-env-lot-sl button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済振り返り': document.getElementById('td-exit-ref').value,
+      '指標決済': (() => { const b = document.querySelector('#td-indicator-exit button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
       'StopLossPips': document.getElementById('td-sl')?.value || '',

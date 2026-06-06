@@ -80,6 +80,8 @@ function doPost(e) {
     result = ensureScoreColumns(body.config);
   } else if (action === 'ensureColumns') {
     result = ensureNamedColumns(body.columns);
+  } else if (action === 'migrateEntryFields') {
+    result = migrateEntryFields();
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -802,6 +804,109 @@ function ensureScoreColumns(config) {
   });
 
   return { success: true, added };
+}
+
+// =============================================
+// エントリー振り返りフィールド移行（GASエディタから手動実行）
+// =============================================
+function migrateEntryFields() {
+  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, updated: 0 };
+
+  var entryRefCol = headers.indexOf('エントリー振り返り');
+  var exitRefCol  = headers.indexOf('決済振り返り');
+  if (entryRefCol < 0) return { success: false, error: 'エントリー振り返り列が見つかりません' };
+
+  // 新列インデックスを取得（なければ追加）
+  function getOrAddCol(name) {
+    var idx = headers.indexOf(name);
+    if (idx < 0) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(name);
+      idx = sheet.getLastColumn() - 1;
+      headers.push(name);
+    }
+    return idx;
+  }
+  var colDow     = getOrAddCol('ダウ認識');
+  var colTlPush  = getOrAddCol('TL推進認識');
+  var colTlRev   = getOrAddCol('TL逆トレ認識');
+  var colTlM15   = getOrAddCol('TL(M15)認識');
+  var colUpper   = getOrAddCol('上位足リスク認識');
+  var colLotSl   = getOrAddCol('Lot/損切り設定');
+
+  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  var updated = 0;
+
+  data.forEach(function(row, i) {
+    var entryRef = String(row[entryRefCol] || '').trim();
+    var exitRef  = exitRefCol >= 0 ? String(row[exitRefCol] || '').trim() : '';
+    var rowNum = i + 2;
+
+    // ① エントリー振り返り の移行
+    var newEntryRef = entryRef;
+    var dow = '', tlPush = '', tlRev = '', tlM15 = '', upper = '', lotSl = '';
+
+    if (entryRef === '完璧！') {
+      newEntryRef = '完璧エントリー';
+      dow = tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === 'アーリー') {
+      newEntryRef = 'アーリー';
+      dow = tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === 'レイト') {
+      newEntryRef = 'レイト';
+      dow = tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === 'トレンドライン認識甘い') {
+      newEntryRef = '完璧エントリー';
+      dow = upper = lotSl = 'OK';
+      // tlPush, tlRev, tlM15 は空欄
+    } else if (entryRef === 'ダウ認識ミス') {
+      newEntryRef = '完璧エントリー';
+      dow = 'NG'; tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === 'ルール外') {
+      newEntryRef = 'DowRule外';
+      dow = 'NG'; tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === '上位足リスク') {
+      newEntryRef = '完璧エントリー';
+      dow = tlPush = tlRev = tlM15 = lotSl = 'OK'; upper = 'NG';
+    } else if (entryRef === '指標') {
+      newEntryRef = '完璧エントリー';
+      dow = tlPush = tlRev = tlM15 = upper = lotSl = 'OK';
+    } else if (entryRef === 'Lotミス') {
+      newEntryRef = '完璧エントリー';
+      dow = tlPush = tlRev = tlM15 = upper = 'OK'; lotSl = 'NG';
+    } else if (entryRef === '損切り設定ミス') {
+      newEntryRef = '完璧エントリー';
+      dow = tlPush = tlRev = tlM15 = upper = 'OK'; lotSl = 'NG';
+    }
+
+    // ② 決済振り返り の移行
+    var newExitRef = exitRef;
+    if (exitRef === '完璧利確' || exitRef === '適切損切り') newExitRef = '完璧決済';
+    else if (exitRef === 'エントリー過ち') newExitRef = 'ルール外気づき';
+    else if (exitRef === '損切り設定ミス') newExitRef = 'SL設定ミス';
+
+    // 書き込み
+    if (newEntryRef !== entryRef) {
+      sheet.getRange(rowNum, entryRefCol + 1).setValue(newEntryRef);
+    }
+    if (exitRefCol >= 0 && newExitRef !== exitRef) {
+      sheet.getRange(rowNum, exitRefCol + 1).setValue(newExitRef);
+    }
+    if (dow !== '')    sheet.getRange(rowNum, colDow + 1).setValue(dow);
+    if (tlPush !== '') sheet.getRange(rowNum, colTlPush + 1).setValue(tlPush);
+    if (tlRev !== '')  sheet.getRange(rowNum, colTlRev + 1).setValue(tlRev);
+    if (tlM15 !== '')  sheet.getRange(rowNum, colTlM15 + 1).setValue(tlM15);
+    if (upper !== '')  sheet.getRange(rowNum, colUpper + 1).setValue(upper);
+    if (lotSl !== '')  sheet.getRange(rowNum, colLotSl + 1).setValue(lotSl);
+
+    if (newEntryRef !== entryRef || newExitRef !== exitRef || dow || tlPush || tlRev || tlM15 || upper || lotSl) updated++;
+  });
+
+  return { success: true, updated: updated };
 }
 
 // ===== Ideas CRUD テスト関数（GASエディタから手動実行） =====
