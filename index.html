@@ -614,8 +614,8 @@
 
           <div id="closing-fields">
             <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
-              <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
-              <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
+              <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics(); calculateExitMetrics()"></div>
+              <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="calculateRRTD(); calculateRuleMetrics(); calculateExitMetrics()"></div>
               <div class="grid-item"><span class="grid-label">実RR</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
             </div>
             <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 8px;">
@@ -629,11 +629,19 @@
               </div>
               <div class="grid-item">
                 <span class="grid-label">M15決済(pips)</span>
-                <input type="number" class="form-input" id="td-m15-exit" step="0.1" style="text-align:center; padding:10px 4px;">
+                <input type="number" class="form-input" id="td-m15-exit" step="0.1" style="text-align:center; padding:10px 4px;" oninput="calculateExitMetrics()">
+              </div>
+              <div class="grid-item">
+                <span class="grid-label">M15決済損益</span>
+                <div class="form-input" id="td-m15-profit" style="text-align:center; padding:10px 4px; background:#0f172a; color:#94a3b8; font-size:12px;">--</div>
               </div>
               <div class="grid-item">
                 <span class="grid-label">H1決済(pips)</span>
-                <input type="number" class="form-input" id="td-h1-exit" step="0.1" style="text-align:center; padding:10px 4px;">
+                <input type="number" class="form-input" id="td-h1-exit" step="0.1" style="text-align:center; padding:10px 4px;" oninput="calculateExitMetrics()">
+              </div>
+              <div class="grid-item">
+                <span class="grid-label">H1決済損益</span>
+                <div class="form-input" id="td-h1-profit" style="text-align:center; padding:10px 4px; background:#0f172a; color:#94a3b8; font-size:12px;">--</div>
               </div>
             </div>
             

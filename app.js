@@ -634,7 +634,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'H1決済', 'ChartImage2'] }) }).catch(function(){});
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2'] }) }).catch(function(){});
     }
 
     populateFilterPairs();
@@ -2579,6 +2579,33 @@ function calculateRRTD() {
   }
 }
 
+function calculateExitMetrics() {
+  const pips = parseFloat(document.getElementById('td-pips').value);
+  const profit = parseFloat(document.getElementById('td-profit').value);
+  const m15El = document.getElementById('td-m15-profit');
+  const h1El = document.getElementById('td-h1-profit');
+  const m15Pips = parseFloat(document.getElementById('td-m15-exit').value);
+  const h1Pips = parseFloat(document.getElementById('td-h1-exit').value);
+
+  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(m15Pips)) {
+    const v = Math.round(profit * (m15Pips / pips));
+    m15El.textContent = '\xA5' + v.toLocaleString();
+    m15El.style.color = '#f8fafc';
+  } else {
+    m15El.textContent = '--';
+    m15El.style.color = '#94a3b8';
+  }
+
+  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(h1Pips)) {
+    const v = Math.round(profit * (h1Pips / pips));
+    h1El.textContent = '\xA5' + v.toLocaleString();
+    h1El.style.color = '#f8fafc';
+  } else {
+    h1El.textContent = '--';
+    h1El.style.color = '#94a3b8';
+  }
+}
+
 function calculateRuleMetrics() {
   const pips = parseFloat(document.getElementById('td-pips').value);
   const profit = parseFloat(document.getElementById('td-profit').value);
@@ -3234,6 +3261,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   calculateEntryScoreTD(); // update score UI
   calculateRRTD(); // Update RR display
   calculateRuleMetrics(); // Update Rule pips/profit
+  calculateExitMetrics(); // Update M15/H1 exit profit displays
 
   // Apply read-only mode if requested (e.g. opened from similar trades)
   if (readOnly) {
@@ -3284,6 +3312,25 @@ function onStatusChange() {
 }
 
 async function saveTradeDetail() {
+  // Validation
+  const _valPips = parseFloat(document.getElementById('td-pips').value);
+  const _valProfit = parseFloat(document.getElementById('td-profit').value);
+  const _valSL = parseFloat(document.getElementById('td-sl')?.value);
+  if (!isNaN(_valPips) && !isNaN(_valProfit)) {
+    if (_valPips < 0 && _valProfit > 0) {
+      alert('入力エラー: 実取得pipsがマイナスなのに損益がプラスになっています。');
+      return;
+    }
+    if (_valPips > 0 && _valProfit < 0) {
+      alert('入力エラー: 実取得pipsがプラスなのに損益がマイナスになっています。');
+      return;
+    }
+  }
+  if (!isNaN(_valSL) && _valSL < 0) {
+    alert('入力エラー: SLがマイナスになっています。');
+    return;
+  }
+
   showLoader();
   try {
     const index = parseInt(document.getElementById('td-index').value);
@@ -3316,7 +3363,25 @@ async function saveTradeDetail() {
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
       'M15決済': document.getElementById('td-m15-exit').value,
+      'M15決済損益': (() => {
+        const _pips = parseFloat(document.getElementById('td-pips').value);
+        const _profit = parseFloat(document.getElementById('td-profit').value);
+        const _m15 = parseFloat(document.getElementById('td-m15-exit').value);
+        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_m15)) {
+          return String(Math.round(_profit * (_m15 / _pips)));
+        }
+        return '';
+      })(),
       'H1決済': document.getElementById('td-h1-exit').value,
+      'H1決済損益': (() => {
+        const _pips = parseFloat(document.getElementById('td-pips').value);
+        const _profit = parseFloat(document.getElementById('td-profit').value);
+        const _h1 = parseFloat(document.getElementById('td-h1-exit').value);
+        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_h1)) {
+          return String(Math.round(_profit * (_h1 / _pips)));
+        }
+        return '';
+      })(),
       'ルール準拠損益': (() => {
         const _pips = parseFloat(document.getElementById('td-pips').value);
         const _profit = parseFloat(document.getElementById('td-profit').value);
