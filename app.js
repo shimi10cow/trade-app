@@ -17,10 +17,67 @@ const App = {
 };
 
 // ==========================================
+// Score Config
+// ==========================================
+const DEFAULT_SCORE_CONFIG = [
+  { label: '水平線D1.H4', key: '水平線D1.H4', okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
+  { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
+  { label: 'TL推進',       key: 'TL推進',       okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（推進）'] },
+  { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（逆トレ）'] },
+  { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, aliases: ['トレンドライン（M15）'] },
+  { label: '直近波理論',    key: '直近波理論',    okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0 },
+  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '〇',  okScore: -1, ngLabel: '✕', ngScore:  0 },
+  { label: '上位足リスク',  key: '上位足リスク',  okLabel: 'ナシ', okScore:  0, ngLabel: 'アリ', ngScore: -1 },
+];
+
+let scoreConfig = DEFAULT_SCORE_CONFIG.map(c => ({ ...c }));
+
+function loadScoreConfig() {
+  try {
+    const saved = localStorage.getItem('scoreConfig');
+    if (saved) scoreConfig = JSON.parse(saved);
+  } catch(e) {
+    scoreConfig = DEFAULT_SCORE_CONFIG.map(c => ({ ...c }));
+  }
+  buildScoreGroups('ne-score-groups-container', 'ne');
+  buildScoreGroups('td-score-groups-container', 'td');
+}
+
+function getMaxScore() {
+  return scoreConfig.reduce((sum, c) => sum + Math.max(c.okScore || 0, c.ngScore || 0, 0), 0);
+}
+
+function buildScoreGroups(containerId, prefix) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const isNE = (prefix === 'ne');
+  container.innerHTML = scoreConfig.map(item => {
+    if (isNE) {
+      return `<div class="grid-item" style="width:100%;">
+        <span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">${item.label}</span>
+        <div class="btn-group score-group" data-key="${item.key}" data-ok-score="${item.okScore}" data-ng-score="${item.ngScore}" style="flex:1;">
+          <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">${item.okLabel}</button>
+          <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">${item.ngLabel}</button>
+        </div>
+      </div>`;
+    } else {
+      return `<div class="grid-item">
+        <span class="grid-label">${item.label}</span>
+        <div class="btn-group score-group" data-key="${item.key}" data-ok-score="${item.okScore}" data-ng-score="${item.ngScore}">
+          <button class="toggle-btn cond-ok" onclick="toggleBtn(this)">${item.okLabel}</button>
+          <button class="toggle-btn cond-ng" onclick="toggleBtn(this)">${item.ngLabel}</button>
+        </div>
+      </div>`;
+    }
+  }).join('');
+}
+
+// ==========================================
 // Initialization
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
+  loadScoreConfig();
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
@@ -2290,14 +2347,13 @@ function calculateSimilarTrades(prefix) {
   const ma2 = getAct('.ma-group', 1);
   const ma3 = getAct('.ma-group', 2);
   const ma4 = getAct('.ma-group', 3);
-  const gr1 = getAct('.score-group', 0);
-  const gr2 = getAct('.score-group', 1);
-  const gr3 = getAct('.score-group', 2);
-  const gr4 = getAct('.score-group', 3);
-  const gr5 = getAct('.score-group', 4);
-  const gr6 = getAct('.score-group', 5);
-  const gr7 = getAct('.score-group', 6);
-  const gr8 = getAct('.score-group', 7);
+  // score-groupの値をdata-keyベースで取得
+  const curGrMap = {};
+  scoreConfig.forEach(item => {
+    const group = document.querySelector(`${modalId} .score-group[data-key="${item.key}"]`);
+    const active = group?.querySelector('.active');
+    curGrMap[item.key] = active ? active.textContent.trim() : '';
+  });
 
   // 実トレードのみ（見逃し除外）
   const history = App.data.entries.filter(t => t['ステータス'] === '決済');
@@ -2332,18 +2388,16 @@ function calculateSimilarTrades(prefix) {
     // 全MA一致ボーナス: +5
     if (maMatchCount === 4 && curMAs.every(m => m)) score += 5;
 
-    // エントリー根拠 各5点（8項目 × 5 = 40点）
-    const grKeys = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
-    const grAliases = { 'TL推進': 'トレンドライン（推進）', 'TL逆トレ': 'トレンドライン（逆トレ）', 'TL(M15)': 'トレンドライン（M15）' };
-    const curGrs = [gr1, gr2, gr3, gr4, gr5, gr6, gr7, gr8];
+    // エントリー根拠 各5点
     let grMatchCount = 0;
-    grKeys.forEach((k, i) => {
-      const cur = curGrs[i];
-      const hist = String(t[k] || t[grAliases[k]] || '').trim();
+    scoreConfig.forEach(item => {
+      const cur = curGrMap[item.key];
+      const keys = [item.key].concat(item.aliases || []);
+      const hist = keys.map(k => String(t[k] || '').trim()).find(v => v) || '';
       if (cur && hist && cur === hist) { score += 5; grMatchCount++; }
     });
     // 全根拠一致ボーナス: +5
-    if (grMatchCount === 8 && curGrs.every(g => g)) score += 5;
+    if (grMatchCount === scoreConfig.length && Object.values(curGrMap).every(v => v)) score += 5;
 
     // 50点以上を類似トレードとして採用（100点満点）
     if (score >= 50) {
@@ -2406,37 +2460,23 @@ function calculateSimilarTrades(prefix) {
 }
 
 function calculateEntryScore() {
-  let score = 0;
-  let conditionsMet = 0;
-  const groups = document.querySelectorAll('#modal-entry .score-group');
-
-  groups.forEach(group => {
+  let score = 0, filled = 0;
+  const maxScore = getMaxScore();
+  document.querySelectorAll('#modal-entry .score-group').forEach(group => {
     const active = group.querySelector('.active');
-    if (active) {
-      const val = parseInt(group.dataset.val);
-      const isInverse = group.dataset.inverse === "true";
-
-      if (val === 1) {
-        // Positive condition: +1 if 〇(cond-ok) selected
-        if (active.classList.contains('cond-ok')) score += 1;
-      } else if (val === -1) {
-        // Negative condition: -1 if the "bad" option is selected
-        // H4の5波以降 (no data-inverse): cond-ok(〇) = bad → -1
-        // 上位足リスク (data-inverse=true): cond-ng(アリ) = bad → -1
-        if (!isInverse && active.classList.contains('cond-ok')) score -= 1;
-        if (isInverse && active.classList.contains('cond-ng')) score -= 1;
-      }
-      conditionsMet++;
-    }
+    if (!active) return;
+    filled++;
+    if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
+    else score += parseFloat(group.dataset.ngScore || 0);
   });
 
-  document.getElementById('checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
+  document.getElementById('checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
 
   const box = document.getElementById('checker-status');
   const title = document.getElementById('checker-title');
   const msg = document.getElementById('checker-msg');
 
-  if (conditionsMet < 8) {
+  if (filled < scoreConfig.length) {
     box.className = 'checker-box';
     title.textContent = '判定待ち';
     msg.textContent = 'すべての根拠を入力してください';
@@ -2455,27 +2495,18 @@ function calculateEntryScore() {
 }
 
 function calculateEntryScoreTD() {
-  // Similar math but updates the TD score box without triggering side effects
   let score = 0;
-  const groups = document.querySelectorAll('#modal-trade-detail .score-group');
-  groups.forEach(group => {
+  const maxScore = getMaxScore();
+  document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
     const active = group.querySelector('.active');
-    if (active) {
-      const val = parseInt(group.dataset.val);
-      const isInverse = group.dataset.inverse === "true";
-      if (val === 1) {
-        if (active.classList.contains('cond-ok')) score += 1;
-      } else if (val === -1) {
-        if (!isInverse && active.classList.contains('cond-ok')) score -= 1;
-        if (isInverse && active.classList.contains('cond-ng')) score -= 1;
-      }
-    }
+    if (!active) return;
+    if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
+    else score += parseFloat(group.dataset.ngScore || 0);
   });
 
-  document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
-  // 画面上の表示スコアも更新
+  document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
   const scoreDisplay = document.getElementById('td-score-display');
-  if (scoreDisplay) scoreDisplay.innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/6</span>`;
+  if (scoreDisplay) scoreDisplay.innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
   const box = document.getElementById('td-checker-status');
   const msg = document.getElementById('td-checker-msg');
   if (score >= 4) {
@@ -3010,24 +3041,17 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   setBg('td-ma-h1-20', mapMA(t['H1MA20.80_J'] || t['H1MA20.80']));
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
 
-  // Entry Grounds
-  // カラム名の別名対応（スプレッドシートの列名が異なる場合のフォールバック）
-  const scoreLabelAliases = {
-    'TL推進':  'トレンドライン（推進）',
-    'TL逆トレ': 'トレンドライン（逆トレ）',
-    'TL(M15)': 'トレンドライン（M15）',
-  };
-  const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
-  const scoreGrups = document.querySelectorAll('#modal-trade-detail .score-group');
-  scoreLabels.forEach((lbl, idx) => {
-    if (!scoreGrups[idx]) return;
-    const val = t[lbl] || t[scoreLabelAliases[lbl]];
-    // 常に全ボタンをリセット（前のトレードのDOM状態を引き継がないように）
-    scoreGrups[idx].querySelectorAll('button').forEach(b => b.classList.remove('active'));
-    // 値があれば該当ボタンをアクティブに
+  // Entry Grounds（configベースでdata-key属性から取得）
+  document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
+    const key = group.dataset.key;
+    const configItem = scoreConfig.find(c => c.key === key);
+    if (!configItem) return;
+    const keys = [key].concat(configItem.aliases || []);
+    const val = keys.map(k => t[k]).find(v => v != null && v !== '') || '';
+    group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
     if (val) {
-      scoreGrups[idx].querySelectorAll('button').forEach(b => {
-        if (b.textContent.trim() === val.trim()) b.classList.add('active');
+      group.querySelectorAll('button').forEach(b => {
+        if (b.textContent.trim() === String(val).trim()) b.classList.add('active');
       });
     }
   });
@@ -3231,37 +3255,18 @@ async function saveTradeDetail() {
     const dirBtn = document.querySelector('#td-dir button.active');
     if (dirBtn) updateData['Direction'] = dirBtn.textContent.replace('▲ ', '').replace('▼ ', '').trim();
 
-    // エントリー根拠スコアボタン
-    const scoreLabelAliases = {
-      'TL推進':  'トレンドライン（推進）',
-      'TL逆トレ': 'トレンドライン（逆トレ）',
-      'TL(M15)': 'トレンドライン（M15）',
-    };
-    const scoreLabels = ['水平線D1.H4', 'H1MAエリア', 'TL推進', 'TL逆トレ', 'TL(M15)', '直近波理論', 'H4の5波以降', '上位足リスク'];
-    const scoreGroups = document.querySelectorAll('#modal-trade-detail .score-group');
-    scoreLabels.forEach((lbl, idx) => {
-      const btn = scoreGroups[idx]?.querySelector('button.active');
-      if (btn) {
-        const v = btn.textContent.trim();
-        updateData[lbl] = v;
-        // スプレッドシートの別名カラムにも同時保存
-        if (scoreLabelAliases[lbl]) updateData[scoreLabelAliases[lbl]] = v;
-      }
-    });
-
-    // エントリースコアを再計算して保存
+    // エントリー根拠スコアボタン（configベースでdata-key属性から取得）
     let calcScore = 0;
-    scoreGroups.forEach(group => {
-      const active = group.querySelector('button.active');
-      if (active) {
-        const val = parseInt(group.dataset.val);
-        const isInverse = group.dataset.inverse === 'true';
-        if (val === 1 && active.classList.contains('cond-ok')) calcScore += 1;
-        else if (val === -1) {
-          if (!isInverse && active.classList.contains('cond-ok')) calcScore -= 1;
-          if (isInverse && active.classList.contains('cond-ng')) calcScore -= 1;
-        }
-      }
+    document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
+      const key = group.dataset.key;
+      const btn = group.querySelector('button.active');
+      if (!key || !btn) return;
+      const v = btn.textContent.trim();
+      updateData[key] = v;
+      const configItem = scoreConfig.find(c => c.key === key);
+      (configItem?.aliases || []).forEach(alias => { updateData[alias] = v; });
+      if (btn.classList.contains('cond-ok')) calcScore += parseFloat(group.dataset.okScore || 0);
+      else calcScore += parseFloat(group.dataset.ngScore || 0);
     });
     updateData['エントリースコア'] = String(calcScore);
 
@@ -3875,4 +3880,104 @@ async function deleteIdeaDetail() {
     showToast('⚠️ 削除エラー: ' + e.message);
   }
   hideLoader();
+}
+
+// ==========================================
+// Score Config Modal
+// ==========================================
+function openScoreConfigModal() {
+  renderScoreConfigList();
+  document.getElementById('modal-score-config').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeScoreConfigModal() {
+  document.getElementById('modal-score-config').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function renderScoreConfigList() {
+  const container = document.getElementById('score-config-list');
+  if (!container) return;
+  if (scoreConfig.length === 0) {
+    container.innerHTML = '<div style="text-align:center; color:#64748b; font-size:12px; padding:12px;">項目がありません</div>';
+    return;
+  }
+  container.innerHTML = scoreConfig.map((item, i) => `
+    <div style="background:#0f172a; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:13px; font-weight:600; color:#e2e8f0;">${item.label}</span>
+        <button onclick="deleteScoreConfigItem(${i})" style="background:none; border:none; color:#ef4444; font-size:14px; cursor:pointer; padding:2px 8px;">🗑️</button>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:12px;">
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span style="background:#334155; color:#e2e8f0; padding:3px 7px; border-radius:4px; min-width:28px; text-align:center;">${item.okLabel}</span>
+          <input type="number" step="0.5" value="${item.okScore}"
+            onchange="scoreConfig[${i}].okScore = parseFloat(this.value) || 0"
+            style="width:56px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; padding:5px; border-radius:4px; text-align:center; font-size:12px;">
+          <span style="color:#64748b;">点</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span style="background:#334155; color:#e2e8f0; padding:3px 7px; border-radius:4px; min-width:28px; text-align:center;">${item.ngLabel}</span>
+          <input type="number" step="0.5" value="${item.ngScore}"
+            onchange="scoreConfig[${i}].ngScore = parseFloat(this.value) || 0"
+            style="width:56px; background:#1e293b; border:1px solid #334155; color:#e2e8f0; padding:5px; border-radius:4px; text-align:center; font-size:12px;">
+          <span style="color:#64748b;">点</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function deleteScoreConfigItem(i) {
+  if (!confirm(`「${scoreConfig[i].label}」を削除しますか？`)) return;
+  scoreConfig.splice(i, 1);
+  renderScoreConfigList();
+}
+
+function addScoreConfigItem() {
+  const label    = document.getElementById('sc-new-label').value.trim();
+  const key      = document.getElementById('sc-new-key').value.trim() || label;
+  const okLabel  = document.getElementById('sc-new-ok-label').value.trim() || '〇';
+  const okScore  = parseFloat(document.getElementById('sc-new-ok-score').value) || 0;
+  const ngLabel  = document.getElementById('sc-new-ng-label').value.trim() || '✕';
+  const ngScore  = parseFloat(document.getElementById('sc-new-ng-score').value) || 0;
+
+  if (!label) { alert('表示名を入力してください'); return; }
+
+  scoreConfig.push({ label, key, okLabel, okScore, ngLabel, ngScore });
+  renderScoreConfigList();
+
+  document.getElementById('sc-new-label').value = '';
+  document.getElementById('sc-new-key').value = '';
+  document.getElementById('sc-new-ok-label').value = '〇';
+  document.getElementById('sc-new-ok-score').value = '1';
+  document.getElementById('sc-new-ng-label').value = '✕';
+  document.getElementById('sc-new-ng-score').value = '0';
+}
+
+function saveScoreConfig() {
+  localStorage.setItem('scoreConfig', JSON.stringify(scoreConfig));
+  buildScoreGroups('ne-score-groups-container', 'ne');
+  buildScoreGroups('td-score-groups-container', 'td');
+  closeScoreConfigModal();
+  showToast('スコア設定を保存しました ✅');
+}
+
+async function recalculateAllScores() {
+  if (!confirm('現在の設定で全エントリーのスコアを再計算します。よろしいですか？')) return;
+  showLoader();
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'recalculateAllScores', config: scoreConfig })
+    }).then(r => r.json());
+    if (!res.success) throw new Error(res.error || '再計算に失敗しました');
+    await loadData();
+    showToast(`${res.updated}件のスコアを更新しました ✅`);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
 }

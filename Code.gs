@@ -74,6 +74,8 @@ function doPost(e) {
     result = updateIdea(body.ideaId, body.data);
   } else if (action === 'deleteIdea') {
     result = deleteIdea(body.ideaId);
+  } else if (action === 'recalculateAllScores') {
+    result = recalculateAllScores(body.config);
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -708,6 +710,51 @@ function deleteIdea(ideaId) {
   return { success: true };
 }
 // =============================================
+
+// =============================================
+// スコア全件再計算
+// =============================================
+function recalculateAllScores(config) {
+  if (!config || !Array.isArray(config) || config.length === 0) {
+    return { success: false, error: 'config が不正です' };
+  }
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return { success: true, updated: 0 };
+
+  const headers = data[0].map(String);
+  const scoreCol = headers.indexOf('エントリースコア');
+  if (scoreCol === -1) return { success: false, error: 'エントリースコア列が見つかりません' };
+
+  let updated = 0;
+  for (let row = 1; row < data.length; row++) {
+    const entry = {};
+    headers.forEach((h, i) => { entry[h] = data[row][i]; });
+
+    let score = 0;
+    config.forEach(item => {
+      const keys = [item.key].concat(item.aliases || []);
+      let val = null;
+      for (const k of keys) {
+        if (entry[k] !== undefined && entry[k] !== '') { val = String(entry[k]).trim(); break; }
+      }
+      if (val === null) return;
+      if (val === item.okLabel) score += Number(item.okScore) || 0;
+      else if (val === item.ngLabel) score += Number(item.ngScore) || 0;
+    });
+
+    sheet.getRange(row + 1, scoreCol + 1).setValue(score);
+    updated++;
+  }
+
+  try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
+
+  return { success: true, updated };
+}
 
 // ===== Ideas CRUD テスト関数（GASエディタから手動実行） =====
 function testIdeasCRUD() {
