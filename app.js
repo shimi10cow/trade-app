@@ -1,4 +1,4 @@
-﻿const GAS_URL = 'https://script.google.com/macros/s/AKfycbwnK-Ype1Wq2opXzm1KvZ_WsI4YYMra9bjLsZK3i9DA4Ku04q1_BPDfCj40wlMSA7uO9g/exec';
+const GAS_URL = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbwnK-Ype1Wq2opXzm1KvZ_WsI4YYMra9bjLsZK3i9DA4Ku04q1_BPDfCj40wlMSA7uO9g/exec';
 
 const App = {
   data: {
@@ -20,57 +20,55 @@ const App = {
 // Score Config
 // ==========================================
 const DEFAULT_SCORE_CONFIG = [
-  { label: '水平線D1.H4', key: '水平線D1.H4', okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: 'TL推進',       key: 'TL推進',       okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（推進）'] },
-  { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（逆トレ）'] },
-  { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
-  { label: '直近波理論',    key: '直近波理論',    okLabel: '〇',  okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '〇',  okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: '上位足リスク',  key: '上位足リスク',  okLabel: 'ナシ', okScore:  0, ngLabel: 'アリ', ngScore: -1, enabled: true },
+  { label: '水平線D1.H4',  key: '水平線D1.H4',  okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'TL推進',       key: 'TL推進',       okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（推進）'] },
+  { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（逆トレ）'] },
+  { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
+  { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: '上位足リスク', key: '上位足リスク', okLabel: 'ナシ', okScore: 0, ngLabel: 'アリ', ngScore: -1, enabled: true },
 ];
 
-let scoreConfig = DEFAULT_SCORE_CONFIG.map(c => ({ ...c }));
+let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
 
 function loadScoreConfig() {
   try {
-    const saved = localStorage.getItem('scoreConfig');
+    var saved = localStorage.getItem('scoreConfig');
     if (saved) scoreConfig = JSON.parse(saved);
   } catch(e) {
-    scoreConfig = DEFAULT_SCORE_CONFIG.map(c => ({ ...c }));
+    scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
   }
   buildScoreGroups('ne-score-groups-container', 'ne');
   buildScoreGroups('td-score-groups-container', 'td');
 }
 
 function getMaxScore() {
-  return scoreConfig.reduce((sum, c) => {
+  return scoreConfig.reduce(function(sum, c) {
     if (c.enabled === false) return sum;
     return sum + Math.max(c.okScore || 0, c.ngScore || 0, 0);
   }, 0);
 }
 
 function buildScoreGroups(containerId, prefix) {
-  const container = document.getElementById(containerId);
+  var container = document.getElementById(containerId);
   if (!container) return;
-  const isNE = (prefix === 'ne');
-  container.innerHTML = scoreConfig.map(item => {
+  var isNE = (prefix === 'ne');
+  container.innerHTML = scoreConfig.map(function(item) {
     if (isNE) {
-      return `<div class="grid-item" style="width:100%;">
-        <span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">${item.label}</span>
-        <div class="btn-group score-group" data-key="${item.key}" data-ok-score="${item.okScore}" data-ng-score="${item.ngScore}" style="flex:1;">
-          <button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">${item.okLabel}</button>
-          <button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">${item.ngLabel}</button>
-        </div>
-      </div>`;
+      return '<div class="grid-item" style="width:100%;">'
+        + '<span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">' + item.label + '</span>'
+        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '" style="flex:1;">'
+        + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.okLabel + '</button>'
+        + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.ngLabel + '</button>'
+        + '</div></div>';
     } else {
-      return `<div class="grid-item">
-        <span class="grid-label">${item.label}</span>
-        <div class="btn-group score-group" data-key="${item.key}" data-ok-score="${item.okScore}" data-ng-score="${item.ngScore}">
-          <button class="toggle-btn cond-ok" onclick="toggleBtn(this)">${item.okLabel}</button>
-          <button class="toggle-btn cond-ng" onclick="toggleBtn(this)">${item.ngLabel}</button>
-        </div>
-      </div>`;
+      return '<div class="grid-item">'
+        + '<span class="grid-label">' + item.label + '</span>'
+        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '">'
+        + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)">' + item.okLabel + '</button>'
+        + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)">' + item.ngLabel + '</button>'
+        + '</div></div>';
     }
   }).join('');
 }
@@ -2353,8 +2351,8 @@ function calculateSimilarTrades(prefix) {
   // score-groupの値をdata-keyベースで取得
   const curGrMap = {};
   scoreConfig.forEach(item => {
-    const group = document.querySelector(`${modalId} .score-group[data-key="${item.key}"]`);
-    const active = group?.querySelector('.active');
+    const group = document.querySelector(modalId + ' .score-group[data-key="' + item.key + '"]');
+    const active = group && group.querySelector('.active');
     curGrMap[item.key] = active ? active.textContent.trim() : '';
   });
 
@@ -2463,25 +2461,28 @@ function calculateSimilarTrades(prefix) {
 }
 
 function calculateEntryScore() {
-  let score = 0, filled = 0;
-  const maxScore = getMaxScore();
-  document.querySelectorAll('#modal-entry .score-group').forEach(group => {
-    const active = group.querySelector('.active');
-    const configItem = scoreConfig.find(c => c.key === group.dataset.key);
+  var score = 0, filled = 0;
+  var maxScore = getMaxScore();
+  document.querySelectorAll('#modal-entry .score-group').forEach(function(group) {
+    var active = group.querySelector('.active');
+    var configItem = scoreConfig.find(function(c) { return c.key === group.dataset.key; });
     if (!active) return;
-    if (configItem?.enabled !== false) filled++;
-    if (configItem?.enabled === false) return;
-    if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
-    else score += parseFloat(group.dataset.ngScore || 0);
+    if (configItem && configItem.enabled !== false) {
+      filled++;
+      if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
+      else score += parseFloat(group.dataset.ngScore || 0);
+    }
   });
 
-  document.getElementById('checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
+  var maxLabel = maxScore;
+  document.getElementById('checker-score-val').innerHTML = score + '<span style="font-size:12px; color:#94a3b8;">/' + maxLabel + '</span>';
 
-  const box = document.getElementById('checker-status');
-  const title = document.getElementById('checker-title');
-  const msg = document.getElementById('checker-msg');
+  var box = document.getElementById('checker-status');
+  var title = document.getElementById('checker-title');
+  var msg = document.getElementById('checker-msg');
+  var enabledCount = scoreConfig.filter(function(c) { return c.enabled !== false; }).length;
 
-  if (filled < scoreConfig.filter(c => c.enabled !== false).length) {
+  if (filled < enabledCount) {
     box.className = 'checker-box';
     title.textContent = '判定待ち';
     msg.textContent = 'すべての根拠を入力してください';
@@ -2500,22 +2501,22 @@ function calculateEntryScore() {
 }
 
 function calculateEntryScoreTD() {
-  let score = 0;
-  const maxScore = getMaxScore();
-  document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
-    const active = group.querySelector('.active');
+  var score = 0;
+  var maxScore = getMaxScore();
+  document.querySelectorAll('#modal-trade-detail .score-group').forEach(function(group) {
+    var active = group.querySelector('.active');
     if (!active) return;
-    const configItem = scoreConfig.find(c => c.key === group.dataset.key);
-    if (configItem?.enabled === false) return;
+    var configItem = scoreConfig.find(function(c) { return c.key === group.dataset.key; });
+    if (configItem && configItem.enabled === false) return;
     if (active.classList.contains('cond-ok')) score += parseFloat(group.dataset.okScore || 0);
     else score += parseFloat(group.dataset.ngScore || 0);
   });
 
-  document.getElementById('td-checker-score-val').innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
-  const scoreDisplay = document.getElementById('td-score-display');
-  if (scoreDisplay) scoreDisplay.innerHTML = `${score}<span style="font-size:12px; color:#94a3b8;">/${maxScore}</span>`;
-  const box = document.getElementById('td-checker-status');
-  const msg = document.getElementById('td-checker-msg');
+  document.getElementById('td-checker-score-val').innerHTML = score + '<span style="font-size:12px; color:#94a3b8;">/' + maxScore + '</span>';
+  var scoreDisplay = document.getElementById('td-score-display');
+  if (scoreDisplay) scoreDisplay.innerHTML = score + '<span style="font-size:12px; color:#94a3b8;">/' + maxScore + '</span>';
+  var box = document.getElementById('td-checker-status');
+  var msg = document.getElementById('td-checker-msg');
   if (score >= 4) {
     box.className = 'checker-box pass';
     msg.textContent = '良好';
@@ -3048,16 +3049,16 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   setBg('td-ma-h1-20', mapMA(t['H1MA20.80_J'] || t['H1MA20.80']));
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
 
-  // Entry Grounds（configベースでdata-key属性から取得）
-  document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
-    const key = group.dataset.key;
-    const configItem = scoreConfig.find(c => c.key === key);
+  // Entry Grounds (configベースでdata-key属性から読み込み)
+  document.querySelectorAll('#modal-trade-detail .score-group').forEach(function(group) {
+    var key = group.dataset.key;
+    var configItem = scoreConfig.find(function(c) { return c.key === key; });
     if (!configItem) return;
-    const keys = [key].concat(configItem.aliases || []);
-    const val = keys.map(k => t[k]).find(v => v != null && v !== '') || '';
-    group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    var keys = [key].concat(configItem.aliases || []);
+    var val = keys.map(function(k) { return t[k]; }).find(function(v) { return v != null && v !== ''; }) || '';
+    group.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
     if (val) {
-      group.querySelectorAll('button').forEach(b => {
+      group.querySelectorAll('button').forEach(function(b) {
         if (b.textContent.trim() === String(val).trim()) b.classList.add('active');
       });
     }
@@ -3262,18 +3263,17 @@ async function saveTradeDetail() {
     const dirBtn = document.querySelector('#td-dir button.active');
     if (dirBtn) updateData['Direction'] = dirBtn.textContent.replace('▲ ', '').replace('▼ ', '').trim();
 
-    // エントリー根拠スコアボタン（configベースでdata-key属性から取得）
-    let calcScore = 0;
-    document.querySelectorAll('#modal-trade-detail .score-group').forEach(group => {
-      const key = group.dataset.key;
-      const btn = group.querySelector('button.active');
+    // エントリー根拠スコアボタン (configベース)
+    var calcScore = 0;
+    document.querySelectorAll('#modal-trade-detail .score-group').forEach(function(group) {
+      var key = group.dataset.key;
+      var btn = group.querySelector('button.active');
       if (!key || !btn) return;
-      const v = btn.textContent.trim();
+      var v = btn.textContent.trim();
       updateData[key] = v;
-      const configItem = scoreConfig.find(c => c.key === key);
-      (configItem?.aliases || []).forEach(alias => { updateData[alias] = v; });
-      const configItem = scoreConfig.find(c => c.key === key);
-      if (configItem?.enabled !== false) {
+      var configItem = scoreConfig.find(function(c) { return c.key === key; });
+      (configItem && configItem.aliases || []).forEach(function(alias) { updateData[alias] = v; });
+      if (configItem && configItem.enabled !== false) {
         if (btn.classList.contains('cond-ok')) calcScore += parseFloat(group.dataset.okScore || 0);
         else calcScore += parseFloat(group.dataset.ngScore || 0);
       }
@@ -3884,9 +3884,9 @@ async function deleteIdeaDetail() {
       closeIdeaDetail();
       showToast('削除しました 🗑️');
     } else {
-  document.getElementById('sc-new-ok-label').value = '○';
+      showToast('⚠️ 削除失敗: ' + (res.error || ''));
     }
-  document.getElementById('sc-new-ng-label').value = '✕';
+  } catch (e) {
     showToast('⚠️ 削除エラー: ' + e.message);
   }
   hideLoader();
@@ -3895,11 +3895,11 @@ async function deleteIdeaDetail() {
 // ==========================================
 // Score Config Modal
 // ==========================================
-  showToast('繧ｹ繧ｳ繧｢險ｭ螳壹ｒ菫晏ｭ倥＠縺ｾ縺励◆ ✅');
+function openScoreConfigModal() {
   renderScoreConfigList();
   document.getElementById('modal-score-config').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  if (!confirm('迴ｾ蝨ｨ縺ｮ險ｭ螳壹〒蜈ｨ繧ｨ繝ｳ繝医Μ繝ｼ縺ｮ繧ｹ繧ｳ繧｢繧貞・險育ｮ励＠縺ｾ縺吶ゅｈ繧阪＠縺・〒縺吶°・・)) return;
+}
 
 function closeScoreConfigModal() {
   document.getElementById('modal-score-config').style.display = 'none';
@@ -3908,7 +3908,7 @@ function closeScoreConfigModal() {
 
 function renderScoreConfigList() {
   const container = document.getElementById('score-config-list');
-    showToast(res.updated + '莉ｶ縺ｮ繧ｹ繧ｳ繧｢繧呈峩譁ｰ縺励∪縺励◆ ✅');
+  if (!container) return;
   if (scoreConfig.length === 0) {
     container.innerHTML = '<div style="text-align:center; color:#64748b; font-size:12px; padding:12px;">項目がありません</div>';
     return;
@@ -3970,18 +3970,11 @@ function addScoreConfigItem() {
   const okScore  = parseFloat(document.getElementById('sc-new-ok-score').value) || 0;
   const ngLabel  = document.getElementById('sc-new-ng-label').value.trim() || '✕';
   const ngScore  = parseFloat(document.getElementById('sc-new-ng-score').value) || 0;
-
   if (!label) { alert('表示名を入力してください'); return; }
-
   scoreConfig.push({ label, key, okLabel, okScore, ngLabel, ngScore, enabled: true });
   renderScoreConfigList();
-
   document.getElementById('sc-new-label').value = '';
   document.getElementById('sc-new-key').value = '';
-  document.getElementById('sc-new-ok-label').value = '〇';
-  document.getElementById('sc-new-ok-score').value = '1';
-  document.getElementById('sc-new-ng-label').value = '✕';
-  document.getElementById('sc-new-ng-score').value = '0';
 }
 
 function saveScoreConfig() {
