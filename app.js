@@ -1,4 +1,4 @@
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec';
+﻿const GAS_URL = 'https://script.google.com/macros/s/AKfycbwnK-Ype1Wq2opXzm1KvZ_WsI4YYMra9bjLsZK3i9DA4Ku04q1_BPDfCj40wlMSA7uO9g/exec';
 
 const App = {
   data: {
@@ -3884,9 +3884,9 @@ async function deleteIdeaDetail() {
       closeIdeaDetail();
       showToast('削除しました 🗑️');
     } else {
-      showToast('⚠️ 削除失敗: ' + (res.error || ''));
+  document.getElementById('sc-new-ok-label').value = '○';
     }
-  } catch (e) {
+  document.getElementById('sc-new-ng-label').value = '✕';
     showToast('⚠️ 削除エラー: ' + e.message);
   }
   hideLoader();
@@ -3895,11 +3895,11 @@ async function deleteIdeaDetail() {
 // ==========================================
 // Score Config Modal
 // ==========================================
-function openScoreConfigModal() {
+  showToast('繧ｹ繧ｳ繧｢險ｭ螳壹ｒ菫晏ｭ倥＠縺ｾ縺励◆ ✅');
   renderScoreConfigList();
   document.getElementById('modal-score-config').style.display = 'block';
   document.body.style.overflow = 'hidden';
-}
+  if (!confirm('迴ｾ蝨ｨ縺ｮ險ｭ螳壹〒蜈ｨ繧ｨ繝ｳ繝医Μ繝ｼ縺ｮ繧ｹ繧ｳ繧｢繧貞・險育ｮ励＠縺ｾ縺吶ゅｈ繧阪＠縺・〒縺吶°・・)) return;
 
 function closeScoreConfigModal() {
   document.getElementById('modal-score-config').style.display = 'none';
@@ -3908,7 +3908,7 @@ function closeScoreConfigModal() {
 
 function renderScoreConfigList() {
   const container = document.getElementById('score-config-list');
-  if (!container) return;
+    showToast(res.updated + '莉ｶ縺ｮ繧ｹ繧ｳ繧｢繧呈峩譁ｰ縺励∪縺励◆ ✅');
   if (scoreConfig.length === 0) {
     container.innerHTML = '<div style="text-align:center; color:#64748b; font-size:12px; padding:12px;">項目がありません</div>';
     return;
