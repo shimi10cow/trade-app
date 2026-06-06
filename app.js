@@ -33,6 +33,11 @@ const DEFAULT_SCORE_CONFIG = [
 
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
 
+// シートの〇(U+3007)とボタンの○(U+25CB)の表記ゆれを正規化
+function normalizeVal(v) {
+  return String(v || '').trim().replace(/〇/g, '○');
+}
+
 function loadScoreConfig() {
   try {
     var saved = localStorage.getItem('scoreConfig');
@@ -3122,8 +3127,9 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     var val = keys.map(function(k) { return t[k]; }).find(function(v) { return v != null && v !== ''; }) || '';
     group.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
     if (val) {
+      var normVal = normalizeVal(val);
       group.querySelectorAll('button').forEach(function(b) {
-        if (b.textContent.trim() === String(val).trim()) b.classList.add('active');
+        if (normalizeVal(b.textContent) === normVal) b.classList.add('active');
       });
     }
   });
