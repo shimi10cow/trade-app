@@ -2309,8 +2309,8 @@ function updateEntryJudgementText(prefix) {
   const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
   const isOk = isKairiOk || hasAnyOtherOk;
 
-  let resText = '--';
-  let resColor = '#f8fafc';
+  let resText = '🚫 エントリーNG！ 🚫';
+  let resColor = '#ef4444';
 
   if (isKairiNg) {
     const alignUp = w1 === '↑' && d1 === '↑' && h4 === '↑';
