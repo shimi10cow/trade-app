@@ -1,4 +1,4 @@
-const GAS_URL = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbwnK-Ype1Wq2opXzm1KvZ_WsI4YYMra9bjLsZK3i9DA4Ku04q1_BPDfCj40wlMSA7uO9g/exec';
+const GAS_URL = window.GAS_URL || 'https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec';
 
 const App = {
   data: {
