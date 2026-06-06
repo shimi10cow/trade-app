@@ -3977,12 +3977,18 @@ function addScoreConfigItem() {
   document.getElementById('sc-new-key').value = '';
 }
 
-function saveScoreConfig() {
+async function saveScoreConfig() {
   localStorage.setItem('scoreConfig', JSON.stringify(scoreConfig));
   buildScoreGroups('ne-score-groups-container', 'ne');
   buildScoreGroups('td-score-groups-container', 'td');
   closeScoreConfigModal();
   showToast('スコア設定を保存しました ✅');
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig })
+    });
+  } catch(e) { /* 列追加失敗は無視 */ }
 }
 
 async function recalculateAllScores() {

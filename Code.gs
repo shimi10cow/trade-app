@@ -76,6 +76,8 @@ function doPost(e) {
     result = deleteIdea(body.ideaId);
   } else if (action === 'recalculateAllScores') {
     result = recalculateAllScores(body.config);
+  } else if (action === 'ensureScoreColumns') {
+    result = ensureScoreColumns(body.config);
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -754,6 +756,31 @@ function recalculateAllScores(config) {
   try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
 
   return { success: true, updated };
+}
+
+// =============================================
+// スコア列をEntriesシートに追加（なければ）
+// =============================================
+function ensureScoreColumns(config) {
+  if (!config || !Array.isArray(config)) return { success: false, error: 'config不正' };
+
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  let added = 0;
+
+  config.forEach(item => {
+    const keys = [item.key].concat(item.aliases || []);
+    const exists = keys.some(k => headers.includes(k));
+    if (!exists) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(item.key);
+      headers.push(item.key);
+      added++;
+    }
+  });
+
+  return { success: true, added };
 }
 
 // ===== Ideas CRUD テスト関数（GASエディタから手動実行） =====
