@@ -888,6 +888,8 @@ function migrateEntryFields() {
     if (exitRef === '完璧利確' || exitRef === '適切損切り') newExitRef = '完璧決済';
     else if (exitRef === 'エントリー過ち') newExitRef = 'ルール外気づき';
     else if (exitRef === '損切り設定ミス') newExitRef = 'SL設定ミス';
+    // SL無視→SLずらし（移行後の値も念のため変換）
+    else if (exitRef === 'SL無視') newExitRef = 'SLずらし';
 
     // 書き込み
     if (newEntryRef !== entryRef) {

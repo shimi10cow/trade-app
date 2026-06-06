@@ -639,6 +639,19 @@ async function loadData() {
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
     }
+    // 既存データ移行（一回限り・localStorage管理）
+    if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFields' }) })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.success) {
+            localStorage.setItem('_entryFieldsMigrated_v1', '1');
+            showToast('データ移行完了: ' + res.updated + '件更新');
+            loadData(); // 移行後に再読み込み
+          }
+        })
+        .catch(function(){});
+    }
 
     populateFilterPairs();
 
