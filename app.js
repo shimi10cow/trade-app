@@ -38,7 +38,7 @@ let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}
 // エントリールール遵守判定
 // 完璧エントリー + 環境認識6項目すべてOK（空欄はNG扱い）
 function isEntryCompliant(t) {
-  if ((t['エントリー振り返り'] || '') !== '完璧エントリー') return false;
+  if ((t['エントリー振り返り'] || '') !== 'エントリータイミングOK') return false;
   var envKeys = ['ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定'];
   return envKeys.every(function(k) { return (t[k] || '') === 'OK'; });
 }
@@ -656,7 +656,18 @@ async function loadData() {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v1', '1');
             showToast('データ移行完了: ' + res.updated + '件更新');
-            loadData(); // 移行後に再読み込み
+            loadData();
+          }
+        })
+        .catch(function(){});
+    }
+    if (!localStorage.getItem('_entryFieldsMigrated_v2')) {
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFieldsV2' }) })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.success) {
+            localStorage.setItem('_entryFieldsMigrated_v2', '1');
+            if (res.updated > 0) { showToast('v2移行完了: ' + res.updated + '件更新'); loadData(); }
           }
         })
         .catch(function(){});
@@ -1239,7 +1250,7 @@ function updateMonthlyStats() {
     if (sl > 0) totalRR += pips / sl;
     if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
-    if (exitRef === '完璧決済') exitPerfect++;
+    if (exitRef === '決済タイミングOK') exitPerfect++;
   });
   const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
@@ -1371,7 +1382,7 @@ function applyAnalysisFilters() {
     // エントリールール遵守率: エントリー振り返り = "完璧！"
     if (isEntryCompliant(t)) entryPerfectCount++;
     // 決済ルール遵守率: 決済振り返り = "完璧利確" or "適切損切り"
-    if (exitRef === '完璧決済') exitPerfectCount++;
+    if (exitRef === '決済タイミングOK') exitPerfectCount++;
   });
 
   const winRate = totalTrades ? (wins / totalTrades * 100).toFixed(1) : 0;
@@ -2246,8 +2257,8 @@ function showEntryRevengeAlert() {
     const entryRef = last['エントリー振り返り'] || '';
     const exitRef = last['決済振り返り'] || '';
     const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '前回';
-    const isPerfectEntry = entryRef === '完璧エントリー';
-    const isPerfectExit = exitRef === '完璧決済';
+    const isPerfectEntry = entryRef === 'エントリータイミングOK';
+    const isPerfectExit = exitRef === '決済タイミングOK';
 
     if (!isPerfectEntry || !isPerfectExit) {
       const parts = [];
@@ -2830,6 +2841,9 @@ async function submitEntryData() {
       else neScore += parseFloat(group.dataset.ngScore || 0);
     });
     entryData['エントリースコア'] = neScore;
+    // 再エントリーフラグ
+    var reentryBtn = document.querySelector('#ne-reentry button.active');
+    if (reentryBtn) entryData['再エントリー'] = reentryBtn.textContent.trim();
 
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');

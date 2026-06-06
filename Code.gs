@@ -82,6 +82,8 @@ function doPost(e) {
     result = ensureNamedColumns(body.columns);
   } else if (action === 'migrateEntryFields') {
     result = migrateEntryFields();
+  } else if (action === 'migrateEntryFieldsV2') {
+    result = migrateEntryFieldsV2();
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -908,6 +910,41 @@ function migrateEntryFields() {
     if (newEntryRef !== entryRef || newExitRef !== exitRef || dow || tlPush || tlRev || tlM15 || upper || lotSl) updated++;
   });
 
+  return { success: true, updated: updated };
+}
+
+// =============================================
+// v2移行: 完璧エントリー→エントリータイミングOK、完璧決済→決済タイミングOK
+// =============================================
+function migrateEntryFieldsV2() {
+  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, updated: 0 };
+
+  var entryRefCol = headers.indexOf('エントリー振り返り');
+  var exitRefCol  = headers.indexOf('決済振り返り');
+  var updated = 0;
+  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+
+  data.forEach(function(row, i) {
+    var rowNum = i + 2;
+    if (entryRefCol >= 0) {
+      var v = String(row[entryRefCol] || '').trim();
+      if (v === '完璧エントリー') {
+        sheet.getRange(rowNum, entryRefCol + 1).setValue('エントリータイミングOK');
+        updated++;
+      }
+    }
+    if (exitRefCol >= 0) {
+      var v2 = String(row[exitRefCol] || '').trim();
+      if (v2 === '完璧決済') {
+        sheet.getRange(rowNum, exitRefCol + 1).setValue('決済タイミングOK');
+        updated++;
+      }
+    }
+  });
   return { success: true, updated: updated };
 }
 
