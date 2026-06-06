@@ -11,6 +11,7 @@ const App = {
     isOffline: !navigator.onLine,
     isMissedEntry: false,
     detailFromHistory: false,
+    historyFilterSnapshot: null,
     activeTradeIndex: null,
     modalOpenedAt: 0
   }
@@ -322,7 +323,7 @@ function renderHistoryList() {
     const borderColor = isMissed ? '#f59e0b' : (isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b'));
 
     return `
-      <div class="list-card" onclick="closeHistoryModal(); openTradeDetail(${index}, false, true)" style="cursor:pointer; border-left: 4px solid ${borderColor}">
+      <div class="list-card" onclick="openTradeDetailFromHistory(${index})" style="cursor:pointer; border-left: 4px solid ${borderColor}">
         <div style="flex:1;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
@@ -3019,6 +3020,19 @@ function previewUploadImageTD(input) {
   }
 }
 
+function openTradeDetailFromHistory(index) {
+  // 現在の履歴フィルター状態を保存してから詳細へ
+  App.state.historyFilterSnapshot = {
+    period: document.getElementById('hist-period')?.value || 'all',
+    dateFrom: document.getElementById('hist-date-from')?.value || '',
+    dateTo: document.getElementById('hist-date-to')?.value || '',
+    status: document.getElementById('hist-status')?.value || 'all',
+    baseFilter: App.state.historyBaseFilter || null
+  };
+  document.getElementById('modal-history').classList.remove('active');
+  openTradeDetail(index, false, true);
+}
+
 function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailFromHistory = fromHistory;
   App.state.pendingEntryImgDelete = null;
@@ -3232,7 +3246,27 @@ function closeTradeDetail() {
   App.state.pendingExitImgDelete = null;
   if (App.state.detailFromHistory) {
     App.state.detailFromHistory = false;
-    openHistoryModal();
+    const snap = App.state.historyFilterSnapshot;
+    if (snap) {
+      App.state.historyFilterSnapshot = null;
+      App.state.historyBaseFilter = snap.baseFilter;
+      document.getElementById('modal-history').classList.add('active');
+      App.state.modalOpenedAt = Date.now();
+      const periodEl = document.getElementById('hist-period');
+      if (periodEl) periodEl.value = snap.period;
+      toggleCustomHistDate();
+      if (snap.period === 'custom') {
+        const fromEl = document.getElementById('hist-date-from');
+        const toEl = document.getElementById('hist-date-to');
+        if (fromEl) fromEl.value = snap.dateFrom;
+        if (toEl) toEl.value = snap.dateTo;
+      }
+      const statusEl = document.getElementById('hist-status');
+      if (statusEl) statusEl.value = snap.status;
+      renderHistoryList();
+    } else {
+      openHistoryModal();
+    }
   }
 }
 
