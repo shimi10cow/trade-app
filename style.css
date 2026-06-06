@@ -162,7 +162,7 @@ textarea.form-input { resize: vertical; }
 /* Charts */
 .chart-container { background: #1e293b; border-radius: 12px; padding: 12px; height: 280px; margin-bottom: 16px; }
 
-/* Loader */
+/* Loader - full overlay (保存/削除操作用) */
 .loader-overlay {
   display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.9);
   z-index: 999; align-items: center; justify-content: center; flex-direction: column;
@@ -173,6 +173,17 @@ textarea.form-input { resize: vertical; }
   border-radius: 50%; animation: spin 1s linear infinite;
 }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Background loading bar (初回ロード・バックグラウンド再読み込み用) */
+#bg-load-bar {
+  display: none; position: fixed; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #38bdf8 100%);
+  background-size: 200% 100%;
+  animation: bgbar 1.2s linear infinite;
+  z-index: 998;
+}
+#bg-load-bar.active { display: block; }
+@keyframes bgbar { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* Monthly Stats Grid */
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; padding: 12px; background: #1e293b; border-radius: 12px; }

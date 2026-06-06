@@ -609,8 +609,11 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
 // ==========================================
 // API & Data
 // ==========================================
+function showBgBar() { document.getElementById('bg-load-bar')?.classList.add('active'); }
+function hideBgBar() { document.getElementById('bg-load-bar')?.classList.remove('active'); }
+
 async function loadData() {
-  showLoader();
+  showBgBar();
   try {
     const [pairsRes, entriesRes, ideasRes] = await Promise.all([
       fetch(`${GAS_URL}?action=getPairs`).then(r => {
@@ -654,9 +657,9 @@ async function loadData() {
     }
   } catch (err) {
     console.error('Failed to load data:', err);
-    alert('データの読み込みに失敗しました: ' + err.message + '\n\nGASのURLを確認するか、再度デプロイしてください。');
+    showToast('データ読み込みエラー: ' + err.message);
   } finally {
-    hideLoader();
+    hideBgBar();
   }
 }
 
@@ -2754,8 +2757,8 @@ async function submitEntryData() {
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
     closeEntryModal();
-    await loadData(); // データ再読み込みで即反映
     showToast('エントリーを記録しました ✅');
+    loadData(); // バックグラウンドで再読み込み
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -3514,8 +3517,8 @@ async function deleteEntry() {
     if (!res.success) throw new Error(res.error || '削除に失敗しました');
 
     closeTradeDetail();
-    await loadData();
     showToast('削除しました 🗑️');
+    loadData(); // バックグラウンドで再読み込み
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
