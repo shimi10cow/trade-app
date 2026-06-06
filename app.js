@@ -35,6 +35,14 @@ const DEFAULT_SCORE_CONFIG = [
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
 
 // シートの〇(U+3007)とボタンの○(U+25CB)の表記ゆれを正規化
+// エントリールール遵守判定
+// 完璧エントリー + 環境認識6項目すべてOK（空欄はNG扱い）
+function isEntryCompliant(t) {
+  if ((t['エントリー振り返り'] || '') !== '完璧エントリー') return false;
+  var envKeys = ['ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定'];
+  return envKeys.every(function(k) { return (t[k] || '') === 'OK'; });
+}
+
 function normalizeVal(v) {
   return String(v || '').trim().replace(/〇/g, '○');
 }
@@ -1229,7 +1237,7 @@ function updateMonthlyStats() {
     const pips = parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
     if (sl > 0) totalRR += pips / sl;
-    if ((t['エントリー振り返り'] || '') === '完璧エントリー') entryPerfect++;
+    if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
     if (exitRef === '完璧決済') exitPerfect++;
   });
@@ -1361,7 +1369,7 @@ function applyAnalysisFilters() {
     }
 
     // エントリールール遵守率: エントリー振り返り = "完璧！"
-    if (entryRef === '完璧！') entryPerfectCount++;
+    if (isEntryCompliant(t)) entryPerfectCount++;
     // 決済ルール遵守率: 決済振り返り = "完璧利確" or "適切損切り"
     if (exitRef === '完璧決済') exitPerfectCount++;
   });
