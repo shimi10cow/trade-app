@@ -200,6 +200,22 @@
 
       <!-- Heatmap -->
       <div class="section-title" style="margin-top:20px;">時間帯×曜日 ヒートマップ</div>
+      <div style="margin-bottom:6px;">
+        <div id="heatmap-cat-btns" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
+          <button class="toggle-btn active" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('all', this)">全て</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('クロス円', this)">クロス円</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('ポンド系', this)">ポンド系</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('ユーロ系', this)">ユーロ系</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('ドル系', this)">ドル系</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('オセアニア', this)">オセアニア</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('株価指数', this)">株価指数</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('コモディティ', this)">コモディティ</button>
+          <button class="toggle-btn" style="font-size:10px; padding:4px 8px;" onclick="setHeatmapCategory('仮想通貨', this)">仮想通貨</button>
+        </div>
+        <select id="heatmap-pair-select" class="form-input" style="font-size:11px; padding:4px 8px;" onchange="setHeatmapPair(this.value)">
+          <option value="">個別ペア選択...</option>
+        </select>
+      </div>
       <div class="chart-container" id="chart-heatmap" style="display:flex;align-items:center;justify-content:center;color:#64748b;">
         Canvas Heatmap (Coming Soon)
       </div>
@@ -657,12 +673,21 @@
                   <option value="DowRule外">DowRule外</option>
                 </select>
               </div>
-              <!-- 指標前エントリー -->
-              <div class="form-row" style="align-items:center;">
-                <span class="form-label" style="font-size:10px;">指標前ｴﾝﾄﾘｰ</span>
-                <div class="btn-group" id="td-indicator-entry" style="display:flex; gap:6px;">
-                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">ON</button>
-                  <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">OFF</button>
+              <!-- 指標前エントリー / 再エントリー -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+                <div class="form-row" style="align-items:center; flex-direction:column; align-items:flex-start; gap:2px;">
+                  <span class="form-label" style="font-size:10px;">指標前ｴﾝﾄﾘｰ</span>
+                  <div class="btn-group" id="td-indicator-entry" style="display:flex; gap:6px;">
+                    <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">ON</button>
+                    <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">OFF</button>
+                  </div>
+                </div>
+                <div class="form-row" style="align-items:center; flex-direction:column; align-items:flex-start; gap:2px;">
+                  <span class="form-label" style="font-size:10px;">再ｴﾝﾄﾘｰ</span>
+                  <div class="btn-group" id="td-reentry" style="display:flex; gap:6px;">
+                    <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">ON</button>
+                    <button class="toggle-btn" onclick="toggleBtn(this)" data-single="true">OFF</button>
+                  </div>
                 </div>
               </div>
               <!-- 環境認識チェック -->

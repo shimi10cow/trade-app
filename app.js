@@ -13,7 +13,8 @@ const App = {
     detailFromHistory: false,
     historyFilterSnapshot: null,
     activeTradeIndex: null,
-    modalOpenedAt: 0
+    modalOpenedAt: 0,
+    heatmapFilter: { type: 'category', value: 'all' }
   }
 };
 
@@ -637,7 +638,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
     if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
@@ -1512,7 +1513,8 @@ function applyAnalysisFilters() {
 
   renderDrawdown(filtered);
   App.state.analysisFiltered = filtered; // チャートバークリック時の絞り込みに使用
-  renderHeatmap(filtered);
+  populateHeatmapPairSelect();
+  renderHeatmapFiltered();
   renderGrowthChart(filtered);
   renderEquityCurve();
 }
@@ -1592,6 +1594,69 @@ function renderDrawdown(trades) {
       <div class="metric-sub">総利益 ÷ 最大DD（2以上が健全）</div>
     </div>
   `;
+}
+
+// ==========================================
+// ヒートマップ 通貨カテゴリ定義
+// ==========================================
+const PAIR_CATEGORIES = {
+  'クロス円':   ['AUDJPY','CADJPY','CHEJPY','EURJPY','GBPJPY','NZDJPY'],
+  'ポンド系':   ['GBPAUD','GBPCAD','GBPCHF','GBPJPY','GBPNZD','GBPUSD'],
+  'ユーロ系':   ['EURAUD','EURCAD','EURCHF','EURGBP','EURJPY','EURNZD','EURUSD'],
+  'ドル系':     ['AUDUSD','EURUSD','GBPUSD','NZDUSD','USDCAD','USDCHF'],
+  'オセアニア': ['AUDCAD','AUDCHF','AUDJPY','AUDUSD','NZDCAD','NZDCHF','NZDJPY','NZDUSD'],
+  '株価指数':   ['EU50','JP225','UK100','US500'],
+  'コモディティ':['XAGUSD','XAUEUR','XAUUSD'],
+  '仮想通貨':   ['BTCEUR','BTCGBP','BTCJPY','BTCUSD'],
+};
+
+function populateHeatmapPairSelect() {
+  var sel = document.getElementById('heatmap-pair-select');
+  if (!sel) return;
+  var pairs = App.data.pairs
+    .map(function(p) { return p['PairName（元）'] || p['PairName'] || ''; })
+    .filter(Boolean)
+    .sort();
+  var current = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  pairs.forEach(function(p) {
+    var opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+function setHeatmapCategory(category, btn) {
+  document.querySelectorAll('#heatmap-cat-btns button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('heatmap-pair-select').value = '';
+  App.state.heatmapFilter = { type: 'category', value: category };
+  renderHeatmapFiltered();
+}
+
+function setHeatmapPair(pair) {
+  document.querySelectorAll('#heatmap-cat-btns button').forEach(function(b) { b.classList.remove('active'); });
+  App.state.heatmapFilter = { type: 'pair', value: pair };
+  renderHeatmapFiltered();
+}
+
+function renderHeatmapFiltered() {
+  var all = App.state.analysisFiltered || [];
+  var filter = App.state.heatmapFilter || { type: 'category', value: 'all' };
+  var trades = all;
+  if (filter.type === 'pair' && filter.value) {
+    trades = all.filter(function(t) {
+      return (t['PairName（元）'] || t['PairName'] || '') === filter.value;
+    });
+  } else if (filter.type === 'category' && filter.value !== 'all') {
+    var catPairs = PAIR_CATEGORIES[filter.value] || [];
+    trades = all.filter(function(t) {
+      var p = (t['PairName（元）'] || t['PairName'] || '').toUpperCase();
+      return catPairs.includes(p);
+    });
+  }
+  renderHeatmap(trades);
 }
 
 function renderHeatmap(trades) {
@@ -3201,6 +3266,13 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
       b.classList.toggle('active', b.textContent.trim() === v);
     });
   })();
+  // 再エントリー
+  (function() {
+    var v = t['再エントリー'] || '';
+    document.querySelectorAll('#td-reentry button').forEach(function(b) {
+      b.classList.toggle('active', b.textContent.trim() === v);
+    });
+  })();
   // 指標決済
   (function() {
     var v = t['指標決済'] || '';
@@ -3448,6 +3520,7 @@ async function saveTradeDetail() {
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
       'エントリー時メモ': document.getElementById('td-entry-memo')?.value || '',
       '指標前エントリー': (() => { const b = document.querySelector('#td-indicator-entry button.active'); return b ? b.textContent.trim() : ''; })(),
+      '再エントリー': (() => { const b = document.querySelector('#td-reentry button.active'); return b ? b.textContent.trim() : ''; })(),
       'ダウ認識': (() => { const b = document.querySelector('#td-env-dow button.active'); return b ? b.textContent.trim() : ''; })(),
       'TL推進認識': (() => { const b = document.querySelector('#td-env-tl-push button.active'); return b ? b.textContent.trim() : ''; })(),
       'TL逆トレ認識': (() => { const b = document.querySelector('#td-env-tl-rev button.active'); return b ? b.textContent.trim() : ''; })(),
