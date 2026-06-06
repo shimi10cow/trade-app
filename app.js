@@ -625,10 +625,11 @@ async function loadData() {
     App.data.entries = entriesRes.data || [];
     App.data.ideas = ideasRes.data || [];
 
-    // スコア列・画像列の自動確認（初回のみバックグラウンドで実行）
+    // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
+      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'H1決済', 'ChartImage2'] }) }).catch(function(){});
     }
 
     populateFilterPairs();
@@ -3135,6 +3136,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
+  document.getElementById('td-m15-exit').value = t['M15決済'] || '';
+  document.getElementById('td-h1-exit').value = t['H1決済'] || '';
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -3306,6 +3309,8 @@ async function saveTradeDetail() {
       })(),
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
+      'M15決済': document.getElementById('td-m15-exit').value,
+      'H1決済': document.getElementById('td-h1-exit').value,
       'ルール準拠損益': (() => {
         const _pips = parseFloat(document.getElementById('td-pips').value);
         const _profit = parseFloat(document.getElementById('td-profit').value);
