@@ -74,6 +74,8 @@ function doPost(e) {
     result = updateIdea(body.ideaId, body.data);
   } else if (action === 'deleteIdea') {
     result = deleteIdea(body.ideaId);
+  } else if (action === 'recalculateCaseBScores') {
+    result = recalculateCaseBScores();
   } else if (action === 'recalculateAllScores') {
     result = recalculateAllScores(body.config);
   } else if (action === 'ensureScoreColumns') {
@@ -765,6 +767,62 @@ function recalculateAllScores(config) {
   try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
 
   return { success: true, updated };
+}
+
+// =============================================
+// Case B スコア直接再計算（文字コード問題を回避）
+// =============================================
+function recalculateCaseBScores() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'シートが見つかりません' };
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return { success: true, updated: 0 };
+
+  const headers = data[0].map(function(h) { return String(h).trim(); });
+
+  function colIdx(name) { return headers.indexOf(name); }
+
+  const scoreCol  = colIdx('エントリースコア');
+  const suiCol    = colIdx('水平線D1.H4');
+  const h1maCol   = colIdx('H1MAエリア');
+  const tlpCol    = colIdx('トレンドライン（推進）');
+  const tlrCol    = colIdx('トレンドライン（逆トレ）');
+  const m15Col    = colIdx('トレンドライン（M15）');
+  const h4waveCol = colIdx('H4の5波以降');
+  const riskCol   = colIdx('上位足リスク');
+
+  if (scoreCol === -1) return { success: false, error: 'エントリースコア列が見つかりません', headers: headers.join(',') };
+
+  function isOk(val) {
+    var s = String(val).trim();
+    return s === '〇' || s === '○' || s === '◎';
+  }
+
+  var updated = 0;
+  var updates = [];
+  for (var row = 1; row < data.length; row++) {
+    if (!data[row][0]) continue; // EntryIDなし行はスキップ
+    var score = 0;
+    if (suiCol >= 0    && isOk(data[row][suiCol]))    score += 1;
+    if (h1maCol >= 0   && isOk(data[row][h1maCol]))   score += 1;
+    if (tlpCol >= 0    && isOk(data[row][tlpCol]))    score += 2;
+    if (tlrCol >= 0    && isOk(data[row][tlrCol]))    score += 1;
+    if (m15Col >= 0    && isOk(data[row][m15Col]))    score += 1;
+    if (h4waveCol >= 0 && isOk(data[row][h4waveCol])) score -= 1;
+    if (riskCol >= 0   && String(data[row][riskCol]).trim() === 'アリ') score -= 1; // アリ
+    updates.push([score]);
+    updated++;
+  }
+
+  // バッチ書き込み
+  if (updates.length > 0) {
+    sheet.getRange(2, scoreCol + 1, updates.length, 1).setValues(updates);
+  }
+
+  try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
+  return { success: true, updated: updated };
 }
 
 // =============================================
