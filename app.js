@@ -3862,12 +3862,10 @@ async function runGeminiAnalysis() {
     };
   });
 
-  // 直近10件（期間内）
-  const recent10 = tradeData.slice(0, 10);
   const wins = tradeData.filter(t => t['結果'] === '勝ち').length;
   const losses = tradeData.filter(t => t['結果'] === '負け').length;
 
-  const prompt = buildAiUserPrompt(tradeData, recent10, fromVal, toVal, wins, losses);
+  const prompt = buildAiUserPrompt(tradeData, fromVal, toVal, wins, losses);
 
   // ローディング表示
   btn.disabled = true;
