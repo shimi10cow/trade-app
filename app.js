@@ -597,17 +597,18 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
     };
 
     const setMA = (idx, status) => {
-      // index: 0=480, 1=kairi, 2=H1_20, 3=H4_20
+      // index: 0=kairi, 1=480, 2=H1_20, 3=H4_20
       const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
       const mapGrp = document.querySelectorAll(`${modalId} .ma-group`)[idx];
       if (!mapGrp) return;
       mapGrp.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       if (status === '◎') mapGrp.querySelector('.cond-ok')?.classList.add('active');
-      else if (status === '✕' || status === 'NG') mapGrp.querySelector('.cond-ng')?.classList.add('active');
+      else if (status === 'NG') mapGrp.querySelector('.cond-block')?.classList.add('active');
+      else if (status === '✕') mapGrp.querySelector('.cond-ng')?.classList.add('active');
     };
 
-    setMA(0, (dir === 'Buy' && p['H4MA480.1200'] === '↑') || (dir === 'Sell' && p['H4MA480.1200'] === '↓') ? '◎' : '✕');
-    setMA(1, getMAKairi(dir, p['H4MA乖離']));
+    setMA(0, getMAKairi(dir, p['H4MA乖離']));
+    setMA(1, (dir === 'Buy' && p['H4MA480.1200'] === '↑') || (dir === 'Sell' && p['H4MA480.1200'] === '↓') ? '◎' : '✕');
     setMA(2, (dir === 'Buy' && p['H1MA20.80'] === '↑') || (dir === 'Sell' && p['H1MA20.80'] === '↓') ? '◎' : '✕');
     setMA(3, (dir === 'Buy' && p['H4MA20.80'] === '↑') || (dir === 'Sell' && p['H4MA20.80'] === '↓') ? '◎' : '✕');
   }
@@ -2375,8 +2376,8 @@ function updateEntryJudgementText(prefix) {
     return el ? el.textContent.trim() : '';
   };
 
-  const v480   = getGroupAct('.ma-group', 0);
-  const vKairi = getGroupAct('.ma-group', 1);
+  const vKairi = getGroupAct('.ma-group', 0);
+  const v480   = getGroupAct('.ma-group', 1);
   const vH1_20 = getGroupAct('.ma-group', 2);
   const vH4_20 = getGroupAct('.ma-group', 3);
   const w1 = getGroupAct('.tf-group', 1);
@@ -2483,7 +2484,7 @@ function calculateSimilarTrades(prefix) {
     if (w1 && tW1 && w1 === tW1) score += 10;
 
     // MA条件 各10点（4条件 × 10 = 40点）
-    const maKeys = ['H4MA480.1200', 'H4MA乖離', 'H1MA20.80', 'H4MA20.80'];
+    const maKeys = ['H4MA乖離', 'H4MA480.1200', 'H1MA20.80', 'H4MA20.80'];
     const curMAs = [ma1, ma2, ma3, ma4];
     let maMatchCount = 0;
     maKeys.forEach((k, i) => {
@@ -3267,8 +3268,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   // MAs assume either direct value or matching what it produced. 
   // If db has "◎" we match it. If db has "↑" we might need translation, but ideally the UI outputs ◎/✕.
   const mapMA = (v) => v === '◎' ? '◎' : (v === '✕' || v === 'NG' ? '✕' : '');
+  setBg('td-ma-kairi', t['H4MA乖離_J'] || t['H4MA乖離'] || '');  // ◎/✕/NG をそのまま表示
   setBg('td-ma-480', mapMA(t['H4MA480.1200_J'] || t['H4MA480.1200']));
-  setBg('td-ma-kairi', mapMA(t['H4MA乖離_J'] || t['H4MA乖離']));
   setBg('td-ma-h1-20', mapMA(t['H1MA20.80_J'] || t['H1MA20.80']));
   setBg('td-ma-h4-20', mapMA(t['H4MA20.80_J'] || t['H4MA20.80']));
 
