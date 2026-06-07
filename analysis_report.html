@@ -854,7 +854,111 @@ tr.danger td   { background: #200a0a; }
   </div>
 </div>
 
-<div class="updated">最終更新: 2026-06-07 ｜ データ: 78件決済済み + 34件見逃し</div>
+<!-- ════ CONCLUSION ════ -->
+<div style="margin-top:28px; border-top:2px solid #1e3a5f; padding-top:20px;">
+  <h2 style="font-size:16px;color:#f59e0b;margin-bottom:6px;">📋 総合まとめ：この分析から何がわかったか</h2>
+  <p style="font-size:12px;color:#64748b;margin-bottom:18px;">2025.01〜2026.06 ｜ 78件決済・34件見逃し</p>
+
+  <!-- 結論1行 -->
+  <div style="background:#1c1708;border:1px solid #78350f;border-radius:10px;padding:16px 18px;margin-bottom:16px;">
+    <div style="font-size:15px;font-weight:700;color:#f59e0b;margin-bottom:8px;">🔑 結論：ルールは正しい。守っていないだけ。</div>
+    <div style="font-size:13px;color:#d1c4a0;line-height:1.8;">
+      実損益は <span style="color:#ef4444;font-weight:700;">−116,814</span>（赤字）だが、
+      ルールを完全に守っていたなら <span style="color:#10b981;font-weight:700;">+487,731</span> だった。<br>
+      その差 <span style="color:#ef4444;font-weight:700;">604,545</span> がルール違反・低品質エントリー・誤った決済によって失われた損失。<br>
+      <strong style="color:#f59e0b;">トレードシステム自体は機能している。問題は実行にある。</strong>
+    </div>
+  </div>
+
+  <!-- 3大問題 -->
+  <div style="font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:8px;">▍ 損失を生んでいる3大原因</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+    <div style="background:#200a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 10px;text-align:center;">
+      <div style="font-size:22px;margin-bottom:4px;">❶</div>
+      <div style="font-weight:700;color:#ef4444;font-size:12px;">低スコアでのエントリー</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">スコア3の勝率 <strong style="color:#ef4444;">14.3%</strong><br>スコア4の勝率 <strong style="color:#10b981;">64.7%</strong><br>1スコア違いで50pt差</div>
+    </div>
+    <div style="background:#200a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 10px;text-align:center;">
+      <div style="font-size:22px;margin-bottom:4px;">❷</div>
+      <div style="font-weight:700;color:#ef4444;font-size:12px;">SL幅が狭すぎる</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">SL30p以下 WR <strong style="color:#ef4444;">0%</strong><br>SL71p+ WR <strong style="color:#10b981;">85.7%</strong><br>スコアより強力な予測因子</div>
+    </div>
+    <div style="background:#200a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 10px;text-align:center;">
+      <div style="font-size:22px;margin-bottom:4px;">❸</div>
+      <div style="font-weight:700;color:#ef4444;font-size:12px;">ルール違反エントリー</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">78件中35件＝<strong style="color:#ef4444;">45%</strong>が<br>エントリー起因の乖離<br>ルール通りなら全件見送り</div>
+    </div>
+  </div>
+
+  <!-- 重要な発見テーブル -->
+  <div style="font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:8px;">▍ 分析で明らかになった重要な数字</div>
+  <table style="margin-bottom:16px;">
+    <tr><th>カテゴリ</th><th>条件</th><th>WR</th><th>コメント</th></tr>
+    <tr class="highlight"><td>スコア×SL</td><td>スコア4+ × SL70p+</td><td class="win">88.9%（9件）</td><td>最も信頼できるセットアップ</td></tr>
+    <tr class="highlight"><td>スコア×SL</td><td>スコア4+ × SL50p+</td><td class="win">72.2%（18件）</td><td>現実的な基準線</td></tr>
+    <tr><td>ペア</td><td>株価指数（NIKKEI/DJI）</td><td class="win">77.8%（9件）</td><td>最も勝率が高いカテゴリ</td></tr>
+    <tr><td>ペア</td><td>CHF系</td><td class="loss">11.1%（18件）</td><td>SL平均29.5p→狭さが主因</td></tr>
+    <tr><td>方向</td><td>Sell</td><td class="win">40.4%</td><td>Buy（23.1%）より17pt高い</td></tr>
+    <tr><td>曜日</td><td>月曜</td><td class="loss">15.8%（19件）</td><td>73%がスコア3以下で入力</td></tr>
+    <tr><td>時間帯</td><td>T15-18（欧州朝）</td><td class="loss">11.1%</td><td>最も避けるべき時間帯</td></tr>
+    <tr><td>時間帯</td><td>T12-15（東京午後）</td><td class="win">66.7%</td><td>最も成績が良い時間帯</td></tr>
+    <tr><td>TP設定</td><td>TP200p+</td><td class="win">80.0%</td><td>大きく取れる局面のみ狙う</td></tr>
+    <tr><td>TP設定</td><td>TP60p以下</td><td class="loss">0%（全件負け）</td><td>小幅TPは即除外</td></tr>
+    <tr><td>環境</td><td>W1↑ D1↓ H4↓</td><td class="win">86%（7件）</td><td>最高勝率の環境パターン</td></tr>
+    <tr><td>近況</td><td>2026年5-6月</td><td class="loss">0%（11件）</td><td>直近11連続失敗中・要注意</td></tr>
+  </table>
+
+  <!-- 今すぐやること -->
+  <div style="font-size:13px;font-weight:700;color:#94a3b8;margin-bottom:8px;">▍ 今すぐ変えるべき3つのルール</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <div style="background:#062010;border:1px solid #065f46;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">✅</span>
+      <div>
+        <div style="font-weight:700;color:#10b981;font-size:13px;">ルール①：スコア4未満では絶対にエントリーしない</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:3px;">スコア3以下の勝率は14.3%。期待値はマイナス。どんなに相場が良く見えても見送る。</div>
+      </div>
+    </div>
+    <div style="background:#062010;border:1px solid #065f46;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">✅</span>
+      <div>
+        <div style="font-weight:700;color:#10b981;font-size:13px;">ルール②：SLは最低50p、可能なら70p以上を確保する</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:3px;">SL30p以下はスコアに関わらず全件負け。CHF系はこの問題の最大の被害者（平均SL=29.5p）。SLが確保できないなら見送る。</div>
+      </div>
+    </div>
+    <div style="background:#062010;border:1px solid #065f46;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">✅</span>
+      <div>
+        <div style="font-weight:700;color:#10b981;font-size:13px;">ルール③：チェックリストを通過しないとエントリーできない</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:3px;">記録率7.7%はほぼ未使用。エントリー前の「立ち止まり」がなく、衝動的なエントリーが損失の温床になっている。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 将来シミュレーション -->
+  <div style="background:#0c1a2e;border:1px solid #1e3a5f;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+    <div style="font-weight:700;color:#38bdf8;font-size:13px;margin-bottom:8px;">📈 条件を守ったら将来はどうなるか（試算）</div>
+    <div style="font-size:12px;color:#94a3b8;line-height:2;">
+      ・スコア4+ × SL50p+のみに絞った場合 → <span style="color:#10b981;font-weight:700;">WR=72.2%、期待値プラス</span>（18件実績）<br>
+      ・スコア4+ × SL70p+に絞った場合 → <span style="color:#10b981;font-weight:700;">WR=88.9%</span>（9件実績）<br>
+      ・全78件がルール通りだったなら → <span style="color:#10b981;font-weight:700;">+487,731</span>（実際は−116,814）<br>
+      ・月曜・CHF・T15-18を除外すると → 対象件数が減るが<span style="color:#10b981;font-weight:700;">WRは大幅に改善見込み</span>
+    </div>
+    <div style="font-size:11px;color:#475569;margin-top:8px;">※ 件数が少ないため統計的確実性は限定的。方向性の参考として活用すること。</div>
+  </div>
+
+  <!-- 最後の一言 -->
+  <div style="background:#1a1025;border:1px solid #4c1d95;border-radius:10px;padding:16px 18px;text-align:center;">
+    <div style="font-size:13px;color:#a78bfa;font-weight:700;margin-bottom:6px;">📌 この分析の本質的なメッセージ</div>
+    <div style="font-size:13px;color:#e2e8f0;line-height:1.9;">
+      負けているのは<strong>能力の問題ではなく、規律の問題</strong>。<br>
+      ルールを守ったシミュレーション損益はプラスであり、勝てるセットアップも存在している。<br>
+      やるべきことは新しい手法を探すことではなく、<br>
+      <strong style="color:#a78bfa;">今あるルールを今日から100%実行すること。</strong>
+    </div>
+  </div>
+</div>
+
+<div class="updated">最終更新: 2026-06-08 ｜ データ: 78件決済済み + 34件見逃し</div>
 
 </div><!-- /container -->
 
