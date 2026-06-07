@@ -290,3 +290,11 @@ textarea.form-input { resize: vertical; }
 .metric-value.neg { color: #f87171; }
 .metric-unit { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 2px; }
 .metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+/* ======== アイデアカード 画像スライダー ======== */
+.idea-slider { position: relative; background: #0f172a; border-radius: 6px; overflow: hidden; }
+.idea-slide-track { display: flex; transition: transform 0.3s ease; will-change: transform; }
+.idea-slide { min-width: 100%; flex-shrink: 0; }
+.idea-dot-row { display: flex; justify-content: center; gap: 6px; padding: 5px 0 4px; }
+.idea-dot { width: 7px; height: 7px; border-radius: 50%; background: #475569; cursor: pointer; transition: background 0.2s; }
+.idea-dot-active { background: #60a5fa; }

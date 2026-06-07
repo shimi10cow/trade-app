@@ -936,14 +936,7 @@
         </div>
         <div class="form-row" style="align-items:flex-start;">
           <span class="form-label">画像</span>
-          <div style="flex:1;">
-            <input type="file" id="idea-image-input" accept="image/*" style="display:none;" onchange="onIdeaImageSelected(event)">
-            <button class="btn-secondary" style="width:100%; margin-bottom:8px; padding:13px; font-size:15px;" onclick="document.getElementById('idea-image-input').click()">📷 画像を選択</button>
-            <div id="idea-image-preview" style="display:none; position:relative;">
-              <img id="idea-image-thumb" style="width:100%; border-radius:8px; max-height:220px; object-fit:contain; background:#0f172a;">
-              <button onclick="removeIdeaImage()" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:28px; height:28px; font-size:15px; cursor:pointer;">✕</button>
-            </div>
-          </div>
+          <div id="idea-new-images" style="flex:1;"></div>
         </div>
         <button class="btn-primary" style="width:100%; margin-top:12px; padding:15px; font-size:16px;" onclick="saveNewIdea()">保存</button>
       </div>
@@ -969,12 +962,7 @@
         <div class="form-row" style="align-items:flex-start;">
           <span class="form-label">画像</span>
           <div style="flex:1;">
-            <input type="file" id="idea-detail-image-input" accept="image/*" style="display:none;" onchange="onIdeaDetailImageSelected(event)">
-            <button class="btn-secondary" style="width:100%; margin-bottom:8px; padding:13px; font-size:15px;" onclick="document.getElementById('idea-detail-image-input').click()">📷 画像を変更</button>
-            <div id="idea-detail-image-preview" style="display:none; position:relative;">
-              <img id="idea-detail-image-thumb" style="width:100%; border-radius:8px; max-height:220px; object-fit:contain; background:#0f172a; cursor:pointer;" onclick="openLightbox(this.src)">
-              <button onclick="removeIdeaDetailImage()" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,0.6); color:#fff; border:none; border-radius:50%; width:28px; height:28px; font-size:15px; cursor:pointer;">✕</button>
-            </div>
+            <div id="idea-detail-images" style="width:100%;"></div>
           </div>
         </div>
         <div class="form-row">
