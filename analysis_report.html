@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>トレード分析レポート 2025-2026</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, 'Hiragino Sans', sans-serif; font-size: 14px; line-height: 1.6; }
+.container { max-width: 820px; margin: 0 auto; padding: 16px; }
+
+/* ヘッダ */
+h1 { font-size: 17px; color: #38bdf8; padding: 18px 0 10px; border-bottom: 1px solid #1e3a5f; margin-bottom: 16px; }
+
+/* サマリーグリッド */
+.sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+@media(max-width:480px){ .sum-grid { grid-template-columns: repeat(2, 1fr); } }
+.sum-card { background: #1e293b; border-radius: 8px; padding: 12px 10px; text-align: center; }
+.sum-val  { font-size: 22px; font-weight: 700; }
+.sum-lbl  { font-size: 10px; color: #64748b; margin-top: 2px; }
+.green { color: #10b981; } .red { color: #ef4444; } .blue { color: #38bdf8; } .yellow { color: #f59e0b; }
+
+/* アコーディオン */
+.acc { border: 1px solid #1e3a5f; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+.acc-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; cursor: pointer; background: #1e293b; user-select: none; }
+.acc-title { font-weight: 700; font-size: 13px; color: #f1f5f9; }
+.acc-tag { font-size: 10px; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+.tag-red   { background: #450a0a; color: #ef4444; }
+.tag-green { background: #064e3b; color: #10b981; }
+.tag-blue  { background: #0c2a4a; color: #38bdf8; }
+.tag-yellow{ background: #451a03; color: #f59e0b; }
+.acc-arrow { color: #64748b; font-size: 12px; transition: transform .2s; }
+.acc-arrow.open { transform: rotate(180deg); }
+.acc-body { display: none; padding: 14px 14px 16px; border-top: 1px solid #1e3a5f; }
+.acc-body.open { display: block; }
+
+/* 3段カード */
+.fact   { font-size: 13px; color: #94a3b8; margin-bottom: 10px; }
+.data   { margin-bottom: 12px; }
+.action { background: #0f172a; border-left: 3px solid #38bdf8; padding: 10px 12px; border-radius: 0 6px 6px 0; font-size: 12px; color: #e2e8f0; }
+.action strong { color: #38bdf8; }
+
+/* テーブル */
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+th { background: #0f172a; color: #64748b; padding: 6px 8px; text-align: left; font-size: 11px; white-space: nowrap; }
+td { padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+tr:last-child td { border-bottom: none; }
+.win { color: #10b981; font-weight: 700; }
+.loss { color: #ef4444; font-weight: 700; }
+.neutral { color: #f59e0b; }
+
+/* バー */
+.bar-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 11px; }
+.bar-lbl  { min-width: 110px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track{ flex: 1; background: #1e293b; border-radius: 3px; height: 18px; position: relative; }
+.bar-fill { height: 100%; border-radius: 3px; display: flex; align-items: center; padding-left: 5px; font-size: 10px; font-weight: 700; color: #fff; min-width: 28px; }
+.bar-val  { position: absolute; right: 4px; top: 2px; font-size: 10px; color: #94a3b8; }
+
+/* バッジ */
+.badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.b-g { background:#064e3b; color:#10b981; }
+.b-r { background:#450a0a; color:#ef4444; }
+.b-b { background:#0c2a4a; color:#38bdf8; }
+.b-y { background:#451a03; color:#f59e0b; }
+
+/* 累積グラフ（SVG簡易版） */
+.chart-wrap { width: 100%; height: 120px; background: #1e293b; border-radius: 6px; padding: 8px; margin: 8px 0; overflow: hidden; }
+
+/* ハイライト行 */
+tr.highlight td { background: #0c2a4a; }
+tr.danger td   { background: #200a0a; }
+
+.sep { border: none; border-top: 1px solid #1e293b; margin: 12px 0; }
+.note { font-size: 11px; color: #475569; margin-top: 6px; }
+.updated { font-size: 11px; color: #334155; text-align: right; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>トレード分析レポート｜2025.01〜2026.06</h1>
+
+<!-- ════ SUMMARY ════ -->
+<div class="sum-grid">
+  <div class="sum-card"><div class="sum-val">78</div><div class="sum-lbl">実トレード件数</div></div>
+  <div class="sum-card"><div class="sum-val red">34.6%</div><div class="sum-lbl">全体勝率</div></div>
+  <div class="sum-card"><div class="sum-val red">-116,814</div><div class="sum-lbl">実損益合計</div></div>
+  <div class="sum-card"><div class="sum-val green">+487,731</div><div class="sum-lbl">ルール通りの損益</div></div>
+  <div class="sum-card"><div class="sum-val red">604,545</div><div class="sum-lbl">ルールずれの損失</div></div>
+  <div class="sum-card"><div class="sum-val blue">-0.01</div><div class="sum-lbl">平均実RR</div></div>
+  <div class="sum-card"><div class="sum-val green">64.7%</div><div class="sum-lbl">スコア4の勝率 (17件)</div></div>
+  <div class="sum-card"><div class="sum-val red">14.3%</div><div class="sum-lbl">スコア3の勝率 (21件)</div></div>
+  <div class="sum-card"><div class="sum-val red">15.8%</div><div class="sum-lbl">月曜の勝率 (19件)</div></div>
+  <div class="sum-card"><div class="sum-val green">85.7%</div><div class="sum-lbl">SL71p+の勝率 (14件)</div></div>
+  <div class="sum-card"><div class="sum-val green">77.8%</div><div class="sum-lbl">株価指数の勝率 (9件)</div></div>
+  <div class="sum-card"><div class="sum-val red">11.1%</div><div class="sum-lbl">CHF系の勝率 (18件)</div></div>
+</div>
+
+<!-- スコア別バーチャート -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">スコア別サマリー（スコア4で断崖）</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-green">必読</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">スコア3（21件）とスコア4（17件）の間に勝率50pt・損益規模10倍以上の断崖がある。スコア3以下のトレードはほぼ全て損失要因。</div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">スコア6 (2件)</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#10b981;">50%</div><div class="bar-val">avg +102.5p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア5 (9件)</div><div class="bar-track"><div class="bar-fill" style="width:55.6%;background:#10b981;">55.6%</div><div class="bar-val">avg +57.6p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア4 (17件)</div><div class="bar-track"><div class="bar-fill" style="width:64.7%;background:#10b981;">64.7%</div><div class="bar-val">avg +74.6p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア3 (21件)</div><div class="bar-track"><div class="bar-fill" style="width:14.3%;background:#ef4444;">14.3%</div><div class="bar-val">avg -18.1p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア2 (11件)</div><div class="bar-track"><div class="bar-fill" style="width:18.2%;background:#ef4444;">18.2%</div><div class="bar-val">avg -19.7p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア1 (12件)</div><div class="bar-track"><div class="bar-fill" style="width:25%;background:#ef4444;">25%</div><div class="bar-val">avg -4.8p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">スコア0 (5件)</div><div class="bar-track"><div class="bar-fill" style="width:40%;background:#f59e0b;">40%</div><div class="bar-val">avg -18.8p</div></div></div>
+    </div>
+    <div class="action"><strong>→ スコア4未満は入らない</strong>。スコア1〜3の44件を除外するだけで損失の大半が消える。</div>
+  </div>
+</div>
+
+<!-- ════ A. 勝てるセットアップ ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">A. 勝てるセットアップの特定</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-green">勝率85%条件あり</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">複数条件を組み合わせた結果、最も勝率が高いセットアップは「SL70pips以上」（14件・85.7%）。スコアよりSL幅の方が勝率の予測力が高い。</div>
+    <div class="data">
+      <table>
+        <tr><th>条件</th><th>件数</th><th>勝率</th><th>avg pips</th></tr>
+        <tr class="highlight"><td>SL 71p以上</td><td>14</td><td class="win">85.7%</td><td class="win">+146.6</td></tr>
+        <tr class="highlight"><td>スコア4 × TL推進○</td><td>12</td><td class="win">66.7%</td><td class="win">+78.8</td></tr>
+        <tr><td>火曜エントリー</td><td>19</td><td class="win">63.2%</td><td class="win">+52.4</td></tr>
+        <tr><td>スコア4+ × リスクナシ</td><td>28</td><td class="win">60.7%</td><td class="win">+71.1</td></tr>
+        <tr><td>スコア4+ × TL推進○</td><td>22</td><td class="win">59.1%</td><td class="win">+73.1</td></tr>
+        <tr><td>スコア4+ × TL推進○ × リスクナシ</td><td>16</td><td class="win">56.3%</td><td class="win">+74.7</td></tr>
+        <tr><td>全体平均</td><td>78</td><td class="loss">34.6%</td><td class="loss">+0.7</td></tr>
+      </table>
+    </div>
+    <div class="action">
+      <strong>→ 理想のエントリー条件：スコア4以上 ＋ TL推進○ ＋ 上位足リスクナシ ＋ SL50p以上</strong><br>
+      SL幅の拡大は単なる損切り幅の話ではなく「チャートをきちんと読めているか」の代理指標になっている。狭いSLは根拠の浅さを示唆する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ B. 負けパターン ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">B. 負けパターンの共通点</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">月曜・木曜に集中</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">負けトレードはスコア低・月曜・木曜に集中する。ポジション条件（H4の5波以降・上位足リスク）は単独では大きな差を生まない。</div>
+    <div class="data">
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 曜日別成績</p>
+      <table>
+        <tr><th>曜日</th><th>件数</th><th>勝率</th><th>avg pips</th><th>判定</th></tr>
+        <tr><td>火曜</td><td>19</td><td class="win">63.2%</td><td class="win">+52.4</td><td class="win">◎</td></tr>
+        <tr><td>金曜</td><td>3</td><td class="win">66.7%</td><td class="win">+93.3</td><td class="neutral">△ 件数少</td></tr>
+        <tr><td>水曜</td><td>21</td><td class="neutral">33.3%</td><td class="win">+18.8</td><td>−</td></tr>
+        <tr><td>日曜</td><td>9</td><td class="loss">22.2%</td><td class="loss">-19.6</td><td class="loss">✕</td></tr>
+        <tr class="danger"><td>月曜</td><td>19</td><td class="loss">15.8%</td><td class="loss">-15.3</td><td class="loss">✕✕</td></tr>
+        <tr class="danger"><td>木曜</td><td>7</td><td class="loss">14.3%</td><td class="neutral">+1.1</td><td class="loss">✕✕</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 条件別・負けトレードでの出現率（vs 全体）</p>
+      <table>
+        <tr><th>条件</th><th>全体での率</th><th>負けのみでの率</th><th>差</th></tr>
+        <tr><td>H4の5波以降リスク</td><td>30.8%</td><td>35.3%</td><td class="loss">+4.5pt</td></tr>
+        <tr><td>TL推進なし(✕)</td><td>55.1%</td><td>68.6%</td><td class="loss">+13.5pt</td></tr>
+        <tr><td>H1MAエリア外(✕)</td><td>62.8%</td><td>76.5%</td><td class="loss">+13.7pt</td></tr>
+        <tr><td>H4MA20.80悪</td><td>48.7%</td><td>57.8%</td><td class="loss">+9.1pt</td></tr>
+      </table>
+    </div>
+    <div class="action">
+      <strong>→ 月曜・木曜はエントリー基準を上げるか休む</strong><br>
+      TL推進✕ + H1MAエリア✕の組み合わせは負け率が70%超。この2条件のどちらかが欠けたら見送りを検討する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ C. 決済の課題 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">C. 決済の課題を数字で出す</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">SL設定ミスが最大損失</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      78件のトレードを「エントリー起因」「決済起因」「問題なし」に分類した結果：<br>
+      ・エントリー起因（ルール準拠pips=0）: <strong>35件</strong>（全体の45%）WR=11.4%、損益合計 <span class="red">-236,771</span><br>
+      ・決済起因（ルール準拠pipsと5p以上乖離）: <strong>17件</strong>、取れたはずの利益 <span class="red">361,774</span> を失った<br>
+      ・問題なし: 21件（未記録5件を除く）
+    </div>
+    <div class="data">
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 決済起因の内訳（損失インパクト順）</p>
+      <table>
+        <tr><th>原因</th><th>件数</th><th>損失インパクト</th><th>主な事例</th></tr>
+        <tr class="danger"><td>SL設定ミス</td><td>6</td><td class="loss">-256,319</td><td>OIL, AUDUSD, EURCHF等</td></tr>
+        <tr><td>ビビり決済</td><td>9</td><td class="loss">-78,896</td><td>EURJPY, JP225, US500等</td></tr>
+        <tr><td>その他（利確逃し等）</td><td>1</td><td class="loss">-22,000</td><td>EURGBP</td></tr>
+        <tr><td>逆行時の早期撤退</td><td>1</td><td class="loss">-4,559</td><td>EURCHF</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ SL設定ミス上位6件（決済振り返りに「SL設定ミス」記録）</p>
+      <table>
+        <tr><th>日付</th><th>ペア</th><th>ルール準拠p</th><th>実取得p</th><th>差</th><th>インパクト</th></tr>
+        <tr class="danger"><td>2026-01-15</td><td>OIL</td><td class="win">+290</td><td class="loss">-70</td><td>360p</td><td class="loss">-81,288</td></tr>
+        <tr class="danger"><td>2026-01-14</td><td>AUDUSD</td><td class="win">+190</td><td class="loss">-38</td><td>228p</td><td class="loss">-60,000</td></tr>
+        <tr><td>2026-03-16</td><td>EURCHF</td><td class="win">+50</td><td class="loss">-21</td><td>71p</td><td class="loss">-42,262</td></tr>
+        <tr><td>2026-01-15</td><td>BRENT</td><td class="win">+240</td><td class="loss">-88</td><td>328p</td><td class="loss">-37,996</td></tr>
+        <tr><td>2026-05-25</td><td>AUDJPY</td><td class="loss">-5</td><td class="loss">-55</td><td>50p</td><td class="loss">-27,273</td></tr>
+        <tr><td>2026-03-03</td><td>USDCAD</td><td class="win">+65</td><td class="loss">-45</td><td>65p</td><td class="loss">-7,500</td></tr>
+      </table>
+    </div>
+    <div class="action">
+      <strong>→ エントリー根拠のないトレードを排除するだけで損益は+236,771改善</strong><br>
+      SL設定ミスは単独で256,319の損失。ルール外エントリー35件とSL設定ミス6件の2点だけで損失の大半が説明できる。<br>
+      <strong>ビビり決済</strong>は「勝てるトレードを早く終わらせる」問題。決済の問題は利益を逃すことであり、損失を生む問題ではない。
+    </div>
+  </div>
+</div>
+
+<!-- ════ E. メモのテキスト分析 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">E. メモのテキスト分析</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-blue">「ビビり」=勝ちトレードのサイン</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      決済メモに「ビビり」「怖」「ためらい」が含まれるトレードの勝率は76.9%（13件）。非該当は26.2%（65件）。差+50.7pt。<br>
+      逆説的に見えるが、「ビビり決済した」と記録しているトレード＝そのトレード自体は勝ちだったが早く出てしまった、という意味。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>メモのニュアンス</th><th>件数</th><th>勝率</th><th>非該当勝率</th><th>差</th></tr>
+        <tr class="highlight"><td>「ビビり・恐怖」系</td><td>13</td><td class="win">76.9%</td><td>26.2%</td><td class="win">+50.7pt</td></tr>
+        <tr class="highlight"><td>「確信・完璧」系</td><td>9</td><td class="win">66.7%</td><td>30.4%</td><td class="win">+36.3pt</td></tr>
+        <tr><td>「ルール」言及</td><td>9</td><td class="neutral">44.4%</td><td>33.3%</td><td class="neutral">+11.1pt</td></tr>
+        <tr><td>「迷い・不安」系</td><td>3</td><td class="neutral">33.3%</td><td>34.7%</td><td>-1.4pt</td></tr>
+        <tr class="danger"><td>「後悔」系</td><td>2</td><td class="loss">0.0%</td><td>35.5%</td><td class="loss">-35.5pt</td></tr>
+      </table>
+      <p class="note">※件数が少ない行（2〜3件）は参考値</p>
+    </div>
+    <div class="action">
+      <strong>→ 「ビビり決済したと感じた時」はそのトレードが正しかった証拠</strong><br>
+      勝ちトレードでビビって早く出ている。「確信を持てたとき」も高勝率。<br>
+      <strong>「後悔」のメモがあるトレード（2件）はどちらも負け</strong> — 後悔しながら持ち続けるのは最も危険なパターン。
+    </div>
+  </div>
+</div>
+
+<!-- ════ F. スコアの精度検証 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">F. エントリースコアの精度検証</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-yellow">TL推進が最重要</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      スコア4以上なのに負けたトレードが11件ある。また条件別の実績を見ると、現在のスコアリングで最も勝敗を分けているのはTL推進（+29.7pt差）、次いでH1MAエリア（+22.8pt差）。
+    </div>
+    <div class="data">
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 各条件の有無による勝率差</p>
+      <table>
+        <tr><th>条件</th><th>あり N</th><th>あり WR</th><th>なし N</th><th>なし WR</th><th>差</th></tr>
+        <tr class="highlight"><td>TL推進○</td><td>35</td><td class="win">57.1%</td><td>43</td><td>16.3%</td><td class="win">+40.8pt</td></tr>
+        <tr class="highlight"><td>H1MAエリア○</td><td>29</td><td class="win">51.7%</td><td>49</td><td>24.5%</td><td class="win">+27.2pt</td></tr>
+        <tr><td>上位足リスクナシ</td><td>54</td><td class="win">37.0%</td><td>24</td><td>29.2%</td><td>+7.8pt</td></tr>
+        <tr><td>H4の5波以降なし</td><td>54</td><td class="win">37.0%</td><td>24</td><td>29.2%</td><td>+7.8pt</td></tr>
+        <tr><td>水平線D1.H4○</td><td>75</td><td class="win">35.6%</td><td>3</td><td>22.2%</td><td>+13.4pt</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ スコア4+で負けた11件（スコアに対してパフォーマンスが乖離）</p>
+      <table>
+        <tr><th>日付</th><th>ペア</th><th>SC</th><th>TL推進</th><th>H1MAエリア</th><th>pips</th><th>決済FB</th></tr>
+        <tr><td>2026-01-14</td><td>AUDUSD</td><td>4</td><td>○</td><td>○</td><td class="loss">-38</td><td>SL設定ミス</td></tr>
+        <tr><td>2026-01-15</td><td>OIL</td><td>4</td><td>○</td><td>○</td><td class="loss">-70</td><td>SL設定ミス</td></tr>
+        <tr><td>2026-01-05</td><td>EURJPY</td><td>6</td><td>✕</td><td>○</td><td class="loss">-15</td><td>レイト</td></tr>
+        <tr><td>2026-01-14</td><td>CADCHF</td><td>5</td><td>✕</td><td>✕</td><td class="loss">-25</td><td>OK</td></tr>
+        <tr><td>2026-03-03</td><td>USDCAD</td><td>5</td><td>○</td><td>✕</td><td class="loss">-45</td><td>SL設定ミス</td></tr>
+        <tr><td>2025-11-04</td><td>NZDCHF</td><td>4</td><td>✕</td><td>✕</td><td class="loss">-40</td><td>OK</td></tr>
+        <tr><td>2025-11-04</td><td>NZDCAD</td><td>5</td><td>○</td><td>○</td><td class="loss">-40</td><td>OK</td></tr>
+        <tr><td>2025-10-22</td><td>NZDCAD</td><td>5</td><td>✕</td><td>○</td><td class="loss">-40</td><td>SL設定ミス</td></tr>
+        <tr><td>2025-11-04</td><td>EURAUD</td><td>5</td><td>○</td><td>○</td><td class="loss">-50</td><td>OK</td></tr>
+        <tr><td>2026-06-03</td><td>CADCHF</td><td>4</td><td>✕</td><td>✕</td><td class="loss">-30</td><td>OK</td></tr>
+        <tr><td>2026-05-25</td><td>AUDJPY</td><td>3</td><td>✕</td><td>✕</td><td class="loss">-55</td><td>SL設定ミス</td></tr>
+      </table>
+      <p class="note">スコア4+の負け11件のうち4件がSL設定ミス。「スコアが高いのに負けた」の多くはSL問題。</p>
+    </div>
+    <div class="action">
+      <strong>→ TL推進とH1MAエリアをスコア2点に格上げする価値がある</strong><br>
+      現状のスコアリングでは各条件が1〜2点均等だが、TL推進の差（+40.8pt）はH4の5波以降（+7.8pt）の5倍以上の予測力を持つ。<br>
+      スコア4以上でもTL推進✕の場合は「スコアを下方修正して考える」ことを習慣化する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ J. ペアカテゴリ別 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">J. ペアカテゴリ別の傾向</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">CHF系は即停止レベル</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      株価指数（JP225/US500等）が勝率77.8%（9件）で最優秀。CHF系は18件で2勝のみ（11.1%）、損益-21.1p平均と最悪。FXペアの中でJPY系も32%止まり。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">株価指数(9件)</div><div class="bar-track"><div class="bar-fill" style="width:77.8%;background:#10b981;">77.8%</div><div class="bar-val">avg +91.0p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">オセアニア系(11件)</div><div class="bar-track"><div class="bar-fill" style="width:45.5%;background:#10b981;">45.5%</div><div class="bar-val">avg +26.2p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">USD系(4件)</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#10b981;">50%</div><div class="bar-val">avg +15.5p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">JPY系(25件)</div><div class="bar-track"><div class="bar-fill" style="width:32%;background:#f59e0b;">32%</div><div class="bar-val">avg +7.4p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">コモディティ系(9件)</div><div class="bar-track"><div class="bar-fill" style="width:22.2%;background:#ef4444;">22.2%</div><div class="bar-val">avg +31.8p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">CHF系(18件)</div><div class="bar-track"><div class="bar-fill" style="width:11.1%;background:#ef4444;">11.1%</div><div class="bar-val">avg -21.1p</div></div></div>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ CHF系詳細（18件中16件が負け）</p>
+      <p style="font-size:12px;color:#94a3b8;">USDCHF・AUDCHF・CADCHF・NZDCHF・EURCHF・GBPCHFを含む。CHFは特殊な動きをする通貨で、スコアだけで判断できない可能性がある。スコア4+でもCHF系は負け6/8件。</p>
+    </div>
+    <div class="action">
+      <strong>→ CHF系は一時停止して原因を分析</strong><br>
+      株価指数は少ない件数で高勝率。取引の重心をCHF系から株価指数に移す検討をする。コモディティ（OIL/BRENT）はSL設定の難しさが問題で、商品の特性を理解してから再開する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ K. 見逃しとの比較 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">K. 見逃しトレードとの比較</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-yellow">スコア4を見逃している</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      見逃しトレード34件のスコア分布：スコア4が44.1%（15件）、スコア5が17.6%（6件）。<br>
+      実トレードではスコア4が21.8%（17件）、スコア5が11.5%（9件）。<br>
+      見逃しの方がスコアが高い傾向がある。また実トレードにはスコア0〜3が37件（47%）あるが、見逃しにはスコア0〜1が0件。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>スコア</th><th>実トレード</th><th>見逃し</th><th>解釈</th></tr>
+        <tr><td>0〜1</td><td class="loss">17件(21.8%)</td><td class="win">0件(0%)</td><td class="loss">低品質エントリーを実行</td></tr>
+        <tr><td>2〜3</td><td class="neutral">32件(41%)</td><td>13件(38.2%)</td><td>同程度</td></tr>
+        <tr class="highlight"><td>4以上</td><td>28件(35.9%)</td><td class="win">21件(61.7%)</td><td class="yellow">見逃しに高スコアが多い</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 見逃し vs 実トレードの条件分布</p>
+      <table>
+        <tr><th>条件</th><th>実トレードでの出現率</th><th>見逃しでの出現率</th><th>差</th></tr>
+        <tr><td>TL推進○</td><td>44.9%</td><td>52.9%</td><td class="win">+8.0pt</td></tr>
+        <tr><td>H1MAエリア○</td><td>37.2%</td><td>50.0%</td><td class="win">+12.8pt</td></tr>
+        <tr><td>上位足リスクナシ</td><td>69.2%</td><td>73.5%</td><td>+4.3pt</td></tr>
+        <tr><td>W1D1H4全一致</td><td>37.2%</td><td>38.2%</td><td>+1.0pt</td></tr>
+      </table>
+    </div>
+    <div class="action">
+      <strong>→ 低スコアを排除すれば、見逃しと実トレードの質が揃う</strong><br>
+      スコア4以上の見逃し21件は「入れたかもしれない良い場面」。見逃しがスコア4+に偏っているのは、高品質な環境ほど慎重になっている可能性もある。<br>
+      ただし低スコート(0〜3)での実エントリー37件は明確な改善対象。
+    </div>
+  </div>
+</div>
+
+<!-- ════ O. DowRule別 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">O. DowRule別の繰り返しパターン</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-blue">ルール別に勝てる条件が違う</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      DowRuleは1〜10まで複数存在するが、件数が多いのは限られたルール。TL推進○ × H1MAエリア○ の「最良セットアップ」はどのルールでも勝率が上がる傾向があるが、DowRule=2は特に成績が悪い。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>DowRule</th><th>件数</th><th>全体WR</th><th>TL○×H1MA○ WR</th><th>TL✕ WR</th></tr>
+        <tr class="highlight"><td>1</td><td>17</td><td class="win">47.1%</td><td class="win">62.5%</td><td>0%</td></tr>
+        <tr><td>2</td><td>6</td><td class="loss">16.7%</td><td class="neutral">—</td><td class="loss">0%</td></tr>
+        <tr><td>3</td><td>9</td><td class="neutral">33.3%</td><td class="win">66.7%</td><td>25%</td></tr>
+        <tr><td>5</td><td>8</td><td class="neutral">37.5%</td><td class="win">75.0%</td><td>0%</td></tr>
+        <tr><td>6</td><td>14</td><td class="neutral">35.7%</td><td class="win">50.0%</td><td>28.6%</td></tr>
+        <tr><td>7</td><td>11</td><td class="neutral">36.4%</td><td class="win">66.7%</td><td>0%</td></tr>
+      </table>
+      <p class="note">「TL○×H1MA○ WR」は件数2件未満のDowRuleは「—」表示</p>
+    </div>
+    <div class="action">
+      <strong>→ DowRule=2はTL推進○ + H1MAエリア○がそろっていないと機能しない</strong><br>
+      どのDowRuleでも「TL推進✕」のときはほぼ負けている。DowRuleを問わず、TL推進✕での参入は禁止に近い扱いが適切。
+    </div>
+  </div>
+</div>
+
+<!-- ════ P. SL幅 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">P. 損切り幅と結果の関係</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-green">SL広いほど勝率UP</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      SL幅と勝率の相関が非常に明確。SL30p以下のトレードはWR=5.3%（19件中1件しか勝っていない）。SL71〜100pはWR=80%、SL100p超は4件すべて勝ち。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">SL 101p+ (4件)</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:#10b981;">100%</div><div class="bar-val">avg +205.0p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">SL 71〜100p (10件)</div><div class="bar-track"><div class="bar-fill" style="width:80%;background:#10b981;">80%</div><div class="bar-val">avg +123.3p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">SL 51〜70p (13件)</div><div class="bar-track"><div class="bar-fill" style="width:38.5%;background:#f59e0b;">38.5%</div><div class="bar-val">avg -8.4p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">SL 31〜50p (28件)</div><div class="bar-track"><div class="bar-fill" style="width:32.1%;background:#ef4444;">32.1%</div><div class="bar-val">avg -8.9p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">SL 〜30p (19件)</div><div class="bar-track"><div class="bar-fill" style="width:5.3%;background:#ef4444;">5%</div><div class="bar-val">avg -20.9p</div></div></div>
+    </div>
+    <div class="data">
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ SL幅はスコアと独立した予測因子（交絡確認）</p>
+      <table>
+        <tr><th>条件</th><th>SL70p+</th><th>SL30p以下</th></tr>
+        <tr><td>スコア3以上</td><td class="win">WR=75% (12件)</td><td class="loss">WR=0% (7件)</td></tr>
+        <tr><td>スコア4以上</td><td class="win">WR=88.9% (9件)</td><td class="loss">WR=0% (1件)</td></tr>
+      </table>
+      <p class="note">SL30p以下はスコア5でも負け（1件）。SL幅はスコアと無関係に成績を規定する独立因子。</p>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ CHF系の平均SLは全体の6割（敗因との直接リンク）</p>
+      <table>
+        <tr><th></th><th>CHF系(18件)</th><th>全体平均</th></tr>
+        <tr><td>平均SL幅</td><td class="loss">29.5p</td><td>50.1p</td></tr>
+        <tr><td>平均スコア</td><td class="loss">2.8</td><td>3.2</td></tr>
+        <tr><td>TL推進○率</td><td class="loss">27.8%</td><td>38.5%</td></tr>
+      </table>
+      <p class="note">CHF系はSLが全体平均の6割しかない。CHFの高ボラでSL30p設定は刈られやすい。スコアも低く、CHF系の敗因はペア特性ではなくSL設定の問題が主因。</p>
+    </div>
+    <div class="action">
+      <strong>→ SL30p以下は理由に関わらずエントリー禁止。SLを「分析への自信度」として捉え直す</strong><br>
+      SL幅はスコアよりも成績を規定する強い因子。スコア5でもSL30p以下なら負ける。<br>
+      CHF系のWR=11.1%の真因はペア特性ではなく「SLを狭く設定しすぎていること」。CHF系を再開するなら最低SL50p以上を条件とする。
+    </div>
+  </div>
+</div>
+
+<!-- ════ U. 曜日別 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">U. 曜日別傾向</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">月・木は避ける</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      月曜（WR=15.8%、19件）と木曜（WR=14.3%、7件）が特に悪い。火曜（WR=63.2%）との差は約50pt。月曜は件数も最多で損失への影響が大きい。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">金曜(3件)</div><div class="bar-track"><div class="bar-fill" style="width:66.7%;background:#10b981;">66.7%</div><div class="bar-val">avg +93.3p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">火曜(19件)</div><div class="bar-track"><div class="bar-fill" style="width:63.2%;background:#10b981;">63.2%</div><div class="bar-val">avg +52.4p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">水曜(21件)</div><div class="bar-track"><div class="bar-fill" style="width:33.3%;background:#f59e0b;">33.3%</div><div class="bar-val">avg +18.8p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">日曜(9件)</div><div class="bar-track"><div class="bar-fill" style="width:22.2%;background:#ef4444;">22.2%</div><div class="bar-val">avg -19.6p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">月曜(19件)</div><div class="bar-track"><div class="bar-fill" style="width:15.8%;background:#ef4444;">15.8%</div><div class="bar-val">avg -15.3p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">木曜(7件)</div><div class="bar-track"><div class="bar-fill" style="width:14.3%;background:#ef4444;">14.3%</div><div class="bar-val">avg +1.1p</div></div></div>
+      <p class="note">土曜は0件。日曜（夜間）9件は相場開始直後に相当。</p>
+    </div>
+    <div class="action">
+      <strong>→ 月曜・木曜はスコア5以上のみエントリー許可、または完全に休む</strong><br>
+      火曜集中で件数は多いが勝率63%。このパターンを意識して火曜に準備を整えて臨む価値がある。<br>
+      月曜の件数が19件と多い＝週明けに「早く入りたい」バイアスがかかっている可能性。
+    </div>
+  </div>
+</div>
+
+<!-- ════ Y. 環境条件と勝敗 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">Y. 環境条件（W1/D1/H4）と勝敗</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-yellow">全売り一致がWR19%と最悪</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      W1・D1・H4が全て同方向（全足一致）の29件の勝率は24.1%で、全体平均34.6%を下回る。さらに分解すると<strong>全足↓↓↓（売り）はWR=18.8%</strong>、全足↑↑↑（買い）は30.8%と、売り方向の一致が特に悪い。2足一致（H4が逆行）の42.9%が最高勝率。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">2足一致(40件)</div><div class="bar-track"><div class="bar-fill" style="width:42.5%;background:#10b981;">42.5%</div><div class="bar-val">avg +17.4p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">バラバラ(9件)</div><div class="bar-track"><div class="bar-fill" style="width:33.3%;background:#f59e0b;">33.3%</div><div class="bar-val">avg -6.8p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">全足↑↑↑(13件)</div><div class="bar-track"><div class="bar-fill" style="width:30.8%;background:#f59e0b;">30.8%</div><div class="bar-val">avg +24.5p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">全足↓↓↓(16件)</div><div class="bar-track"><div class="bar-fill" style="width:18.8%;background:#ef4444;">18.8%</div><div class="bar-val">avg +13.8p</div></div></div>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ Buy vs Sell の全体成績（方向別）</p>
+      <table>
+        <tr><th>方向</th><th>件数</th><th>勝率</th><th>avg pips</th><th>補足</th></tr>
+        <tr class="highlight"><td>Sell（売り）</td><td>52</td><td class="win">40.4%</td><td class="win">+14.3p</td><td>全体の67%</td></tr>
+        <tr class="danger"><td>Buy（買い）</td><td>26</td><td class="loss">23.1%</td><td class="loss">-22.0p</td><td>全体の33%</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 全パターン（3件以上）</p>
+      <table>
+        <tr><th>パターン(W1|D1|H4)</th><th>件数</th><th>勝率</th><th>解釈</th></tr>
+        <tr class="highlight"><td>↑|↓|↓（W1上昇、D1H4下落）</td><td>7</td><td class="win">86%</td><td class="win">最高勝率・W1に逆らわないSell?</td></tr>
+        <tr class="highlight"><td>↑|↑|↓（押し目Buy）</td><td>14</td><td class="win">43%</td><td>W1D1上昇でH4押し目</td></tr>
+        <tr><td>→|→|↓</td><td>2</td><td class="win">100%</td><td class="neutral">件数少・参考値</td></tr>
+        <tr><td>↑|↑|↑（全買い一致）</td><td>13</td><td class="neutral">31%</td><td>順張り全足揃い</td></tr>
+        <tr><td>→|↑|↓</td><td>3</td><td class="neutral">33%</td><td></td></tr>
+        <tr class="danger"><td>↓|↓|↓（全売り一致）</td><td>16</td><td class="loss">19%</td><td class="loss">最多件数・最低勝率</td></tr>
+        <tr class="danger"><td>↑|↑|→（W1D1↑H4横）</td><td>4</td><td class="loss">0%</td><td class="loss">H4横ばいは参入禁止</td></tr>
+        <tr class="danger"><td>↓|↑|↑（W1のみ↓）</td><td>4</td><td class="loss">0%</td><td class="loss">W1に逆らうBuy</td></tr>
+        <tr class="danger"><td>→|↑|↑</td><td>3</td><td class="loss">0%</td><td class="loss"></td></tr>
+        <tr class="danger"><td>↑|→|↓</td><td>3</td><td class="loss">0%</td><td class="loss">D1横ばい</td></tr>
+      </table>
+      <p class="note">↑|↓|↓(7件)のWR=86%は件数が少なく解釈は慎重に。ただし↓|↑|↑(4件)WR=0%と対称的で、「W1方向への逆張りは危険」という示唆と一致する。</p>
+    </div>
+    <div class="action">
+      <strong>→ 「全足揃い」を条件にするな。H4横ばい・W1逆行は即除外</strong><br>
+      ①全足↓↓↓(16件WR=19%)・H4横ばい(4件WR=0%)・W1逆行Buy(4件WR=0%)の計24件は明確な負けパターン。これらを避けるだけで損失の大部分が減る。<br>
+      ②W1↑D1↑H4↓（押し目Buy 14件WR=43%）が最も再現性の高い勝ちパターン。<br>
+      ③W1↑D1↓H4↓（7件WR=86%）は件数少ないが注目。W1上昇中にD1・H4が調整している深押し目の場面。データが蓄積されれば有力な条件になりうる。<br>
+      Buy全体WR=23.1% vs Sell=40.4%の差は、全足↓↓↓での無理な売りとW1逆行Buyの両方が原因。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AB. ルール遵守 vs 実損益 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AB. ルール遵守損益と実損益の乖離原因</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">乖離総額 598,545</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      ルール通りに動いていれば+487,731だったが、実際は-116,814。その差604,545の原因を全件分析した結果、主要な4要因が判明。ルール遵守データが記録されている73件での乖離合計は598,545。
+    </div>
+    <div class="data">
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 原因別インパクト</p>
+      <div class="bar-row"><div class="bar-lbl">SL設定ミス(6件)</div><div class="bar-track"><div class="bar-fill" style="width:42.8%;background:#ef4444;">256,319</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">ルール外エントリー(21件)</div><div class="bar-track"><div class="bar-fill" style="width:22.4%;background:#ef4444;">133,821</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">DowRule外エントリー(10件)</div><div class="bar-track"><div class="bar-fill" style="width:11.8%;background:#ef4444;">70,650</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">ビビり決済(10件)</div><div class="bar-track"><div class="bar-fill" style="width:13.2%;background:#f59e0b;">78,896</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">タイミングミス(4件)</div><div class="bar-track"><div class="bar-fill" style="width:5.4%;background:#f59e0b;">32,300</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">TP前早期決済(1件)</div><div class="bar-track"><div class="bar-fill" style="width:3.7%;background:#f59e0b;">22,000</div></div></div>
+      <div class="sep"></div>
+      <table>
+        <tr><th>原因</th><th>件数</th><th>損失インパクト</th><th>対策</th></tr>
+        <tr class="danger"><td>SL設定ミス</td><td>6</td><td class="loss">-256,319</td><td>エントリー前にSL位置を明確化</td></tr>
+        <tr><td>ルール外エントリー</td><td>21</td><td class="loss">-133,821</td><td>スコア4未満は入力禁止</td></tr>
+        <tr><td>DowRule外エントリー</td><td>10</td><td class="loss">-70,650</td><td>DowRule選択を強制化</td></tr>
+        <tr><td>ビビり決済</td><td>10</td><td class="loss">-78,896</td><td>TP設定後は触らない</td></tr>
+        <tr><td>タイミングミス（レイト/アーリー）</td><td>4</td><td class="loss">-32,300</td><td>指値エントリーを活用</td></tr>
+        <tr><td>TP前早期決済</td><td>1</td><td class="loss">-22,000</td><td>TP到達まで決済禁止</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ SL設定ミス上位詳細</p>
+      <table>
+        <tr><th>日付</th><th>ペア</th><th>ルール準拠p</th><th>実際p</th><th>インパクト</th></tr>
+        <tr><td>2026-01-15</td><td>OIL</td><td class="win">+290</td><td class="loss">-70</td><td class="loss">-81,288</td></tr>
+        <tr><td>2026-01-14</td><td>AUDUSD</td><td class="win">+190</td><td class="loss">-38</td><td class="loss">-60,000</td></tr>
+        <tr><td>2026-03-16</td><td>EURCHF</td><td class="win">+50</td><td class="loss">-21</td><td class="loss">-42,262</td></tr>
+        <tr><td>2026-01-15</td><td>BRENT</td><td class="win">+240</td><td class="loss">-88</td><td class="loss">-37,996</td></tr>
+        <tr><td>2026-05-25</td><td>AUDJPY</td><td class="neutral">-5</td><td class="loss">-55</td><td class="loss">-27,273</td></tr>
+        <tr><td>2026-03-03</td><td>USDCAD</td><td class="win">+65</td><td class="loss">-45</td><td class="loss">-7,500</td></tr>
+      </table>
+    </div>
+    <div class="action">
+      <strong>→ 上位2項目（SL設定ミス + ルール外エントリー）を止めるだけで損益は約390,000改善</strong><br>
+      SL設定ミスは「SLをどこに置くかを決める前にエントリーしている」が原因。エントリー前にSL位置をメモ欄に記載するルールを追加する。<br>
+      ルール外エントリーとDowRule外の合計31件・204,471は「入るべきでない場面で入り続けた結果」。スコアとDowRule選択を強制するフロー（アプリ上のバリデーション追加）が有効。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AC. Buy vs Sell の成績差 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AC. Buy vs Sell の成績差</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">Buyは23%しか勝てない</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      全78件のうちSell（売り）が52件（67%）、Buy（買い）が26件（33%）。<br>
+      Sell WR=40.4% に対しBuy WR=23.1%と17pt差。平均pipsもBuyは-22.0pと大幅マイナス。Buyトレードが損失の大部分を占めている。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>方向</th><th>件数</th><th>勝率</th><th>avg pips</th><th>total 損益</th></tr>
+        <tr class="highlight"><td>Sell</td><td>52</td><td class="win">40.4%</td><td class="win">+14.3p</td><td class="win">概算+プラス</td></tr>
+        <tr class="danger"><td>Buy</td><td>26</td><td class="loss">23.1%</td><td class="loss">-22.0p</td><td class="loss">概算-大幅マイナス</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#64748b;margin-bottom:6px;">■ 全足パターンとBuy/Sellの組み合わせ</p>
+      <table>
+        <tr><th>パターン</th><th>方向</th><th>件数</th><th>勝率</th></tr>
+        <tr class="highlight"><td>押し目 W1↑D1↑/H4↓</td><td>Buy</td><td>14</td><td class="win">42.9%</td></tr>
+        <tr><td>全足↑↑↑</td><td>Buy</td><td>13</td><td class="neutral">30.8%</td></tr>
+        <tr class="danger"><td>全足↓↓↓</td><td>Sell</td><td>16</td><td class="loss">18.8%</td></tr>
+      </table>
+      <p class="note">Buyの中では「押し目Buy（H4が一時↓）」が最も成績が良い。全足揃いでの順張りBuyは成績が低い。</p>
+    </div>
+    <div class="action">
+      <strong>→ Buyエントリーの基準をSellより1段階上げる</strong><br>
+      Buyの場合：スコア4以上 ＋ TL推進○ ＋ H4が一時的に↓の押し目確認、の3条件を必須とする。<br>
+      全足↑↑↑での順張りBuyは「トレンドが出きった後のエントリー」の可能性が高く、スコアが揃っていても慎重に判断する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AD. 時間帯別成績 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AD. 時間帯別成績</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">T15-18（欧州朝）WR=11%</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      T15-18（欧州市場開始直後）の9件がWR=11.1%（avg -38.2p）と最悪。T12-15（東京昼間）の3件はWR=66.7%（avg +163p）。T18-2（欧州〜NY）が最多の41件でWR=31.7%。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">T12-15 昼(3件)</div><div class="bar-track"><div class="bar-fill" style="width:66.7%;background:#10b981;">66.7%</div><div class="bar-val">avg +163p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">T2-9 早朝(4件)</div><div class="bar-track"><div class="bar-fill" style="width:25%;background:#f59e0b;">25%</div><div class="bar-val">avg +7.5p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">T18-2 欧米(41件)</div><div class="bar-track"><div class="bar-fill" style="width:31.7%;background:#f59e0b;">31.7%</div><div class="bar-val">avg +0.6p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">T9-12 東京(5件)</div><div class="bar-track"><div class="bar-fill" style="width:20%;background:#ef4444;">20%</div><div class="bar-val">avg -7.0p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">T15-18 欧州朝(9件)</div><div class="bar-track"><div class="bar-fill" style="width:11.1%;background:#ef4444;">11.1%</div><div class="bar-val">avg -38.2p</div></div></div>
+      <p class="note">T12-15は件数3件で参考値。T15-18は9件あり信頼性はある。</p>
+    </div>
+    <div class="action">
+      <strong>→ T15-18（欧州市場開始直後）は見送るかスコア5以上に限定する</strong><br>
+      欧州市場が開始する15-18時は方向感が定まらず、初動の騙しに引っかかりやすい。この時間帯のエントリーは基準を上げるか、欧州方向が固まった18時以降にずらす。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AE. 月別推移（時系列トレンド） ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AE. 月別推移と直近の急落</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">2026-05,06月は0勝</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      2026年3月（15件・WR=73.3%・avg +91.3p）が最良月。しかし2026年5月（6件・WR=0%）、6月（5件・WR=0%）と直近2ヶ月は全件負け。累積損益は3月末で+95,583まで回復したが、その後5-6月で-212,397の急落。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>月</th><th>件数</th><th>勝率</th><th>avg pips</th><th>累積損益</th></tr>
+        <tr><td>2025-07</td><td>5</td><td class="neutral">40.0%</td><td class="win">+37.6</td><td>+6,278</td></tr>
+        <tr class="danger"><td>2025-08</td><td>9</td><td class="loss">22.2%</td><td class="loss">-21.0</td><td class="loss">-42,722</td></tr>
+        <tr class="highlight"><td>2025-10</td><td>14</td><td class="win">42.9%</td><td class="win">+26.3</td><td class="win">+22,078</td></tr>
+        <tr class="danger"><td>2026-01</td><td>8</td><td class="loss">12.5%</td><td class="loss">-37.0</td><td class="loss">-48,567</td></tr>
+        <tr class="highlight"><td>2026-03</td><td>15</td><td class="win">73.3%</td><td class="win">+91.3</td><td class="win">+95,583</td></tr>
+        <tr class="danger"><td>2026-05</td><td>6</td><td class="loss">0.0%</td><td class="loss">-31.0</td><td class="loss">-17,014</td></tr>
+        <tr class="danger"><td>2026-06</td><td>5</td><td class="loss">0.0%</td><td class="loss">-20.6</td><td class="loss">-116,814</td></tr>
+      </table>
+      <p class="note">2025-01〜06は件数が少ないため省略。累積損益はすべての月を含む値。</p>
+    </div>
+    <div class="action">
+      <strong>→ 直近2ヶ月の0勝は「環境変化」か「スランプ」かを判断する必要がある</strong><br>
+      3月の好調（WR73%）は直後に崩れ、5-6月は11件0勝。3月との違いを分析する：スコア分布・曜日・ペア選択・時間帯が3月と今で変わっていないか確認する。<br>
+      直近11連続負けは最大連敗12に匹敵する。強制的にトレード休止期間を設けることも選択肢。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AF. 連敗後のパフォーマンス ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AF. 連敗・連勝後のパフォーマンス</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">最大12連敗・連敗中は勝率悪化</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      過去の最大連敗は12回。連敗が続くほど次のトレードの勝率が下がる傾向がある（1連敗後26%→5連敗後15%）。逆に連勝後は勝率が上がる（1連勝後52%→3連勝後62%）。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>直前の状態</th><th>次トレードの件数</th><th>勝率</th><th>avg pips</th></tr>
+        <tr class="highlight"><td>3連勝後</td><td>8</td><td class="win">62.5%</td><td class="win">+76.9</td></tr>
+        <tr class="highlight"><td>2連勝後</td><td>14</td><td class="win">57.1%</td><td class="win">+68.4</td></tr>
+        <tr><td>1連勝後</td><td>27</td><td class="win">51.9%</td><td class="win">+42.9</td></tr>
+        <tr><td>（全体平均）</td><td>78</td><td class="neutral">34.6%</td><td class="neutral">+0.7</td></tr>
+        <tr class="danger"><td>1連敗後</td><td>50</td><td class="loss">26.0%</td><td class="neutral">+2.5</td></tr>
+        <tr class="danger"><td>3連敗後</td><td>26</td><td class="loss">23.1%</td><td class="loss">-10.7</td></tr>
+        <tr class="danger"><td>5連敗後</td><td>13</td><td class="loss">15.4%</td><td class="loss">-10.2</td></tr>
+      </table>
+      <p class="note">「N連敗後」＝直前N回以上連続して負けた後のトレードの成績。重複あり（例：3連敗後の件数には4連敗後も含む）。</p>
+    </div>
+    <div class="action">
+      <strong>→ 3連敗したら当日トレードを停止するルールを設ける</strong><br>
+      連敗後は勝率が低下しているだけでなく、感情的な焦りから低スコートでエントリーする傾向が疑われる（月曜に低スコートが集中する傾向と一致）。<br>
+      連勝後は勝率が高い=「ゾーン状態」が存在する。連勝中はポジションサイズを維持し、連敗中は縮小するか休む。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AG. TP設定と成績の関係 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AG. TP設定と成績の関係</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">TP60p以下は全件負け</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      TP設定が高いほど勝率・avg pipsともに上昇する明確な傾向がある。TP〜60p（4件）はWR=0%で全件負け。TP201p以上（5件）はWR=80%・avg +169.8p。SL幅と同様、TP設定が「セットアップの質」の代理指標になっている。
+    </div>
+    <div class="data">
+      <div class="bar-row"><div class="bar-lbl">TP 201p+ (5件)</div><div class="bar-track"><div class="bar-fill" style="width:80%;background:#10b981;">80%</div><div class="bar-val">avg +169.8p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">TP 101〜200p (12件)</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#10b981;">50%</div><div class="bar-val">avg +12.0p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">TP 61〜100p (29件)</div><div class="bar-track"><div class="bar-fill" style="width:17.2%;background:#ef4444;">17.2%</div><div class="bar-val">avg -23.9p</div></div></div>
+      <div class="bar-row"><div class="bar-lbl">TP 〜60p (4件)</div><div class="bar-track"><div class="bar-fill" style="width:3%;background:#ef4444;">0%</div><div class="bar-val">avg -26.8p</div></div></div>
+    </div>
+    <div class="action">
+      <strong>→ TP100p以下の設定を原則禁止にする（最低101p以上）</strong><br>
+      TP61〜100pの29件（全体の37%）のWR=17.2%が損失の主要源。「小さな利確目標を狙う取引」が最も成績が悪い。<br>
+      SL幅50p・TP100p以上を組み合わせると最低1:2のRRが確保でき、34.6%の勝率でも損益はプラスになる計算（34.6% × 100p - 65.4% × 50p = 1.9p/トレード）。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AH. 月曜の真因分析 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AH. 月曜WR=15.8%の真因</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-red">月曜の73%がスコア3以下</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      月曜19件のスコア分布：スコア3以下が14件（73.7%）。スコア3のWR=12.5%（8件）、スコア2が4件WR=0%。月曜の成績が悪いのは「月曜だから」ではなく「月曜に低スコートで入り続けているから」の可能性が高い。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>スコア</th><th>月曜件数</th><th>月曜WR</th><th>全曜日WR</th></tr>
+        <tr class="danger"><td>スコア0〜2</td><td>6</td><td class="loss">0.0%</td><td>19.0%</td></tr>
+        <tr class="danger"><td>スコア3</td><td>8</td><td class="loss">12.5%</td><td>14.3%</td></tr>
+        <tr class="highlight"><td>スコア4以上</td><td>4</td><td class="neutral">50.0%</td><td>62.5%</td></tr>
+      </table>
+      <div class="sep"></div>
+      <p style="font-size:11px;color:#94a3b8;">月曜にスコア4+でエントリーした4件の実際：</p>
+      <p style="font-size:12px;color:#94a3b8;">スコア4×2件→1勝1敗、スコア5→1勝、スコア6→1敗（欧州朝レイトエントリー）</p>
+    </div>
+    <div class="action">
+      <strong>→ 月曜の問題はスコート基準の緩みが原因。月曜はスコア4以上を厳守</strong><br>
+      月曜に低スコートで入るのは「週明けに早く取引したい」という心理バイアスの可能性がある。月曜のスコア4+は50%とまずまずの成績（件数は少ないが）。<br>
+      月曜専用ルール：スコア4未満は入力禁止、かつT15-18のエントリー不可。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AI. スコア4×SL50pの最強条件確認 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AI. 条件を絞った場合の成績シミュレーション</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-green">スコア4+×SL50p+はWR72%</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      スコア4以上かつSL50p以上のトレードは18件、WR=72.2%、avg pips=+104.6。これは全体平均（WR=34.6%、avg=+0.7p）の2倍以上の成績。この18件に絞ることで78件中60件の低品質トレードを除外できる。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>条件フィルター</th><th>件数</th><th>勝率</th><th>avg pips</th><th>除外件数</th></tr>
+        <tr><td>フィルターなし（全体）</td><td>78</td><td class="loss">34.6%</td><td class="neutral">+0.7p</td><td>0</td></tr>
+        <tr><td>スコア4+のみ</td><td>28</td><td class="win">60.7%</td><td class="win">+71.1p</td><td>50</td></tr>
+        <tr><td>SL50p+のみ</td><td>38</td><td class="win">50.0%</td><td class="win">+42.8p</td><td>40</td></tr>
+        <tr class="highlight"><td>スコア4+ × SL50p+</td><td>18</td><td class="win">72.2%</td><td class="win">+104.6p</td><td>60</td></tr>
+        <tr class="highlight"><td>スコア4+ × SL70p+</td><td>9</td><td class="win">88.9%</td><td class="win">+176.7p</td><td>69</td></tr>
+      </table>
+      <p class="note">SL31〜50p件数: 全体28件、SL50p+件数: 31件（一部TP/SLの記録漏れで合計は78にならない）</p>
+    </div>
+    <div class="action">
+      <strong>→ 「スコア4以上 + SL50p以上」を最低ライン、「スコア4以上 + SL70p以上」を理想条件とする</strong><br>
+      現状78件エントリーしているところを18件に絞るとWR=72.2%。取引頻度は1/4になるが勝率が2倍になり、リスクリワード改善で期待値は大幅に改善。<br>
+      「数多く取引するより、確実な場面だけに絞る」方向への転換を検討する。
+    </div>
+  </div>
+</div>
+
+<!-- ════ AJ. エントリー前チェックリストの活用状況 ════ -->
+<div class="acc">
+  <div class="acc-header" onclick="toggle(this)">
+    <span class="acc-title">AJ. エントリー前チェックリストの活用状況</span>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="acc-tag tag-yellow">記録率10%未満・活用できていない</span>
+      <span class="acc-arrow">▼</span>
+    </div>
+  </div>
+  <div class="acc-body">
+    <div class="fact">
+      アプリには「ダウに見誤りはないか」「SLルール守れているか」等6項目のエントリー前チェックリストがあるが、78件中で全チェックOKが記録されているのは6件（7.7%）のみ。チェックした6件のWR=50%、未チェック70件のWR=34.3%。
+    </div>
+    <div class="data">
+      <table>
+        <tr><th>チェック項目</th><th>確認済み件数</th><th>確認時WR</th><th>未確認WR</th><th>差</th></tr>
+        <tr class="highlight"><td>わざわざリスクある所で勝負しないか</td><td>6</td><td class="win">50.0%</td><td>33.3%</td><td class="win">+16.7pt</td></tr>
+        <tr><td>H1MA80の傾き確認</td><td>7</td><td class="win">42.9%</td><td>33.8%</td><td class="win">+9.1pt</td></tr>
+        <tr><td>SL・TP・逆行・ダウ確認（各）</td><td>8</td><td class="win">37.5%</td><td>34.3%</td><td>+3.2pt</td></tr>
+      </table>
+      <p class="note">全チェック6件は同一の6トレード。件数が少なく統計的信頼性は低いが方向性は参考になる。</p>
+    </div>
+    <div class="action">
+      <strong>→ チェックリストを義務化する（記録なしではエントリーできない仕組み）</strong><br>
+      「ダウに見誤りはないか」「わざわざリスクある所で勝負していないか」の2項目がすでにアプリにある。これをチェックせずにエントリーできる現状が低品質エントリーを生んでいる。<br>
+      チェックを強制することで、エントリー前の「立ち止まり」を習慣化できる。
+    </div>
+  </div>
+</div>
+
+<div class="updated">最終更新: 2026-06-07 ｜ データ: 78件決済済み + 34件見逃し</div>
+
+</div><!-- /container -->
+
+<script>
+function toggle(header) {
+  var body = header.nextElementSibling;
+  var arrow = header.querySelector('.acc-arrow');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+// デフォルトで最初のアコーディオン（スコアサマリー）を開く
+document.addEventListener('DOMContentLoaded', function() {
+  var first = document.querySelector('.acc-header');
+  if (first) first.click();
+});
+</script>
+</body>
+</html>
