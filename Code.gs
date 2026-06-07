@@ -745,12 +745,15 @@ function recalculateAllScores(config) {
 
     let score = 0;
     config.forEach(item => {
+      if (item.enabled === false) return; // 無効項目はスキップ
       const keys = [item.key].concat(item.aliases || []);
       let val = null;
       for (const k of keys) {
         if (entry[k] !== undefined && entry[k] !== '') { val = String(entry[k]).trim(); break; }
       }
       if (val === null) return;
+      // 〇(U+3007) と ○(U+25CB) の表記ゆれを正規化
+      val = val.replace(/〇/g, '○');
       if (val === item.okLabel) score += Number(item.okScore) || 0;
       else if (val === item.ngLabel) score += Number(item.ngScore) || 0;
     });
