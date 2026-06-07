@@ -2378,59 +2378,29 @@ function updateEntryJudgementText(prefix) {
   const v480   = getGroupAct('.ma-group', 0);
   const vH1_20 = getGroupAct('.ma-group', 2);
   const vH4_20 = getGroupAct('.ma-group', 3);
-  const w1 = getGroupAct('.tf-group', 1);
-  const d1 = getGroupAct('.tf-group', 2);
-  const h4 = getGroupAct('.tf-group', 3);
 
   const outBox = prefix === 'ne' ? document.getElementById('ne-judgement-text') : null;
   if (!outBox) return;
 
-  // 方向を取得
+  // 方向・ペアが未選択なら判定しない
   const dirEl = document.querySelector(`${modalId} #ne-dir .active, ${modalId} #td-dir .active`);
   const direction = dirEl ? (dirEl.textContent.includes('Buy') ? 'Buy' : 'Sell') : '';
-
-  // 通貨ペアタブのH4MA乖離（上アリ/下アリ）から判定
   const pairName = document.querySelector(`${modalId} select[id$="-pair"]`)?.value || '';
-  const pairData = App.data.pairs.find(p => (p['PairName（元）'] || p['PairName']) === pairName);
-  const kairiVal = pairData ? (pairData['H4MA乖離'] || '') : '';
 
-  // H4MA乖離判定（方向 × ペアデータ）
-  // 入力ナシ → 判定なし　Buy+下アリ or Sell+上アリ → ◎　Buy+上アリ or Sell+下アリ → ✕
-  let isKairiOk = false;
-  let isKairiNg = false;
-  if (direction && kairiVal) {
-    if ((direction === 'Buy' && kairiVal === '下アリ') || (direction === 'Sell' && kairiVal === '上アリ')) {
-      isKairiOk = true;
-    } else if ((direction === 'Buy' && kairiVal === '上アリ') || (direction === 'Sell' && kairiVal === '下アリ')) {
-      isKairiNg = true;
-    }
-  }
-
-  // 他3つのMA◎判定
-  const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
-  const isOk = isKairiOk || hasAnyOtherOk;
-
-  // ペアまたは方向が未選択なら判定しない
   if (!pairName || !direction) {
     outBox.textContent = '--';
     outBox.style.color = '#94a3b8';
     return;
   }
 
+  // H4MA乖離はエントリー判定から除外（表示・記録は継続）
+  // 判定条件: H4MA480.1200 / H1MA20.80 / H4MA20.80 のいずれか◎ → OK
+  const isOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
+
   let resText = '🚫 エントリーNG！ 🚫';
   let resColor = '#ef4444';
 
-  if (isKairiNg) {
-    const alignUp = w1 === '↑' && d1 === '↑' && h4 === '↑';
-    const alignDn = w1 === '↓' && d1 === '↓' && h4 === '↓';
-    if (hasAnyOtherOk && (alignUp || alignDn)) {
-      resText = "✅ エントリーOK！（特例）✅";
-      resColor = "#f59e0b";
-    } else {
-      resText = "🚫 エントリーNG！ 🚫";
-      resColor = "#ef4444";
-    }
-  } else if (isOk) {
+  if (isOk) {
     resText = "✅ エントリーOK！ ✅";
     resColor = "#10b981";
   }
