@@ -2376,13 +2376,10 @@ function updateEntryJudgementText(prefix) {
     return el ? el.textContent.trim() : '';
   };
 
-  const vKairi = getGroupAct('.ma-group', 0);
+  const vKairi = getGroupAct('.ma-group', 0); // 表示確認用（判定には使用しない）
   const v480   = getGroupAct('.ma-group', 1);
   const vH1_20 = getGroupAct('.ma-group', 2);
   const vH4_20 = getGroupAct('.ma-group', 3);
-  const w1 = getGroupAct('.tf-group', 1);
-  const d1 = getGroupAct('.tf-group', 2);
-  const h4 = getGroupAct('.tf-group', 3);
 
   const outBox = prefix === 'ne' ? document.getElementById('ne-judgement-text') : null;
   if (!outBox) return;
@@ -2398,24 +2395,15 @@ function updateEntryJudgementText(prefix) {
     return;
   }
 
-  // H4MA乖離はOKの根拠にはならない（表示・記録は継続）
-  // 判定条件: H4MA480.1200 / H1MA20.80 / H4MA20.80 のいずれか◎ → OK候補
+  // H4MA乖離はOKの根拠にもブロック条件にもならない（表示・記録は継続）
+  // 判定条件: H4MA480.1200 / H1MA20.80 / H4MA20.80 のいずれか◎ → OK
+  // ※ 2026-06 乖離NGブロック廃止。データ蓄積後に半年後再評価予定（trade_app_review.md参照）
   const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
-  const isKairiNg = vKairi === 'NG';
 
   let resText = '🚫 エントリーNG！ 🚫';
   let resColor = '#ef4444';
 
-  if (isKairiNg) {
-    // 乖離NGはブロック。特例: W1D1H4全一致 + 他3つどれか◎ のみ通過
-    const alignUp = w1 === '↑' && d1 === '↑' && h4 === '↑';
-    const alignDn = w1 === '↓' && d1 === '↓' && h4 === '↓';
-    if (hasAnyOtherOk && (alignUp || alignDn)) {
-      resText = "✅ エントリーOK！（特例）✅";
-      resColor = "#f59e0b";
-    }
-  } else if (hasAnyOtherOk) {
-    // 乖離◎単独ではOKにならない。他3つのどれか◎が必要
+  if (hasAnyOtherOk) {
     resText = "✅ エントリーOK！ ✅";
     resColor = "#10b981";
   }
