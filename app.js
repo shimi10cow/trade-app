@@ -29,7 +29,7 @@ const DEFAULT_SCORE_CONFIG = [
   { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
   { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: false },
   { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: '上位足リスク', key: '上位足リスク', okLabel: 'ナシ', okScore: 0, ngLabel: 'アリ', ngScore: -1, enabled: true },
+  { label: '上位足リスク', key: '上位足リスク', okLabel: 'アリ', okScore: -1, ngLabel: 'ナシ', ngScore: 0, enabled: true },
 ];
 
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
