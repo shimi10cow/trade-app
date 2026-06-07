@@ -2465,15 +2465,19 @@ function calculateSimilarTrades(prefix) {
 
   const getAct = (cls, idx) => {
     const el = document.querySelectorAll(`${modalId} ${cls}`)[idx]?.querySelector('.active');
-    return el ? el.textContent : '';
+    return el ? el.textContent.trim() : '';
   };
 
-  const curDir = getAct('.btn-group', 0)?.includes('Buy') ? 'Buy' : 'Sell'; // first group is Direction
+  // tf-group order: M1=0, W1=1, D1=2, H4=3, H1=4
   const w1 = getAct('.tf-group', 1);
-  const ma1 = getAct('.ma-group', 0);
-  const ma2 = getAct('.ma-group', 1);
-  const ma3 = getAct('.ma-group', 2);
-  const ma4 = getAct('.ma-group', 3);
+  const d1 = getAct('.tf-group', 2);
+  const h4 = getAct('.tf-group', 3);
+  // ma-group order: H4MA乖離=0, H4MA480=1, H1MA20.80=2, H4MA20.80=3
+  const ma1 = getAct('.ma-group', 0); // H4MA乖離
+  const ma2 = getAct('.ma-group', 1); // H4MA480.1200
+  const ma3 = getAct('.ma-group', 2); // H1MA20.80
+  const ma4 = getAct('.ma-group', 3); // H4MA20.80
+
   // score-groupの値をdata-keyベースで取得
   const curGrMap = {};
   scoreConfig.forEach(item => {
@@ -2495,42 +2499,52 @@ function calculateSimilarTrades(prefix) {
   };
 
   history.forEach(t => {
-    if (t.DowRule != curDow) return; // DowRule一致が必須条件
+    // W1+D1+H4全一致が必須条件
+    if (!w1 || !d1 || !h4) return;
+    if (w1 !== (t['W1'] || '') || d1 !== (t['D1'] || '') || h4 !== (t['H4'] || '')) return;
 
     let score = 0;
 
-    // W1トレンド一致: +10
-    const tW1 = t['W1'] || '';
-    if (w1 && tW1 && w1 === tW1) score += 10;
+    // H1MAエリア一致: 25点
+    const curH1MA = curGrMap['H1MAエリア'] || '';
+    const histH1MA = String(t['H1MAエリア'] || '').trim();
+    if (curH1MA && histH1MA && curH1MA === histH1MA) score += 25;
 
-    // MA条件 各10点（4条件 × 10 = 40点）
-    const maKeys = ['H4MA乖離', 'H4MA480.1200', 'H1MA20.80', 'H4MA20.80'];
-    const curMAs = [ma1, ma2, ma3, ma4];
-    let maMatchCount = 0;
-    maKeys.forEach((k, i) => {
-      const cur = normMA(curMAs[i]);
-      const hist = normMA(t[k + '_J'] || t[k]);
-      if (cur && hist && cur === hist) { score += 10; maMatchCount++; }
-    });
-    // 全MA一致ボーナス: +5
-    if (maMatchCount === 4 && curMAs.every(m => m)) score += 5;
+    // TL推進一致: 22点
+    const curTL = curGrMap['TL推進'] || '';
+    const histTL = String(t['TL推進'] || t['トレンドライン（推進）'] || '').trim();
+    if (curTL && histTL && curTL === histTL) score += 22;
 
-    // エントリー根拠 各5点
-    let grMatchCount = 0;
-    scoreConfig.forEach(item => {
-      const cur = curGrMap[item.key];
-      const keys = [item.key].concat(item.aliases || []);
-      const hist = keys.map(k => String(t[k] || '').trim()).find(v => v) || '';
-      if (cur && hist && cur === hist) { score += 5; grMatchCount++; }
-    });
-    // 全根拠一致ボーナス: +5
-    if (grMatchCount === scoreConfig.length && Object.values(curGrMap).every(v => v)) score += 5;
+    // 上位足リスク一致: 5点
+    const curRisk = curGrMap['上位足リスク'] || '';
+    const histRisk = String(t['上位足リスク'] || '').trim();
+    if (curRisk && histRisk && curRisk === histRisk) score += 5;
 
-    // 50点以上を類似トレードとして採用（100点満点）
-    if (score >= 50) {
-      const dateStr = String(t.EntryDate || '').replace(/\//g, '-').split('T')[0];
-      similars.push({ trade: t, score, pips: parseFloat(t['実取得pips']) || 0, dateStr });
-    }
+    // H4MA20.80一致: 3点
+    const curH4MA2080 = normMA(ma4);
+    const histH4MA2080 = normMA(t['H4MA20.80_J'] || t['H4MA20.80']);
+    if (curH4MA2080 && histH4MA2080 && curH4MA2080 === histH4MA2080) score += 3;
+
+    // ダウルール一致: 1点
+    if (curDow && t.DowRule && curDow === t.DowRule) score += 1;
+
+    // H4MA乖離一致: 1点
+    const curH4MAKairi = normMA(ma1);
+    const histH4MAKairi = normMA(t['H4MA乖離_J'] || t['H4MA乖離']);
+    if (curH4MAKairi && histH4MAKairi && curH4MAKairi === histH4MAKairi) score += 1;
+
+    // H4MA480一致: 1点
+    const curH4MA480 = normMA(ma2);
+    const histH4MA480 = normMA(t['H4MA480.1200_J'] || t['H4MA480.1200']);
+    if (curH4MA480 && histH4MA480 && curH4MA480 === histH4MA480) score += 1;
+
+    // H1MA20.80一致: 1点
+    const curH1MA2080 = normMA(ma3);
+    const histH1MA2080 = normMA(t['H1MA20.80_J'] || t['H1MA20.80']);
+    if (curH1MA2080 && histH1MA2080 && curH1MA2080 === histH1MA2080) score += 1;
+
+    const dateStr = String(t.EntryDate || '').replace(/\//g, '-').split('T')[0];
+    similars.push({ trade: t, score, pips: parseFloat(t['実取得pips']) || 0, dateStr });
   });
 
   // スコア降順、同スコアは日付降順（直近優先）
