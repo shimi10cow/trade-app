@@ -76,6 +76,8 @@ function doPost(e) {
     result = deleteIdea(body.ideaId);
   } else if (action === 'recalculateCaseBScores') {
     result = recalculateCaseBScores();
+  } else if (action === 'migrateExitRefPerfect') {
+    result = migrateExitRefPerfect();
   } else if (action === 'recalculateAllScores') {
     result = recalculateAllScores(body.config);
   } else if (action === 'ensureScoreColumns') {
@@ -831,6 +833,28 @@ function recalculateCaseBScores() {
     sheet.getRange(2, scoreCol + 1, updates.length, 1).setValues(updates);
   }
 
+  try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
+  return { success: true, updated: updated };
+}
+
+// =============================================
+// 決済振り返り「完璧！」→「決済タイミングOK」置換
+// =============================================
+function migrateExitRefPerfect() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  if (!sheet) return { success: false, error: 'シートが見つかりません' };
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0].map(function(h) { return String(h).trim(); });
+  const col = headers.indexOf('決済振り返り');
+  if (col === -1) return { success: false, error: '決済振り返り列が見つかりません' };
+  var updated = 0;
+  for (var row = 1; row < data.length; row++) {
+    if (String(data[row][col]).trim() === '完璧！') {
+      sheet.getRange(row + 1, col + 1).setValue('決済タイミングOK');
+      updated++;
+    }
+  }
   try { CacheService.getScriptCache().remove(CACHE_KEY); } catch(e) {}
   return { success: true, updated: updated };
 }

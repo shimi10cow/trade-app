@@ -745,18 +745,14 @@ function populateFilterPairs() {
   }
 
   const exitRefSel = document.getElementById('flt-exit-ref');
-  if (exitRefSel) {
-    const savedExitRef = exitRefSel.value;
-    // 「すべて」以外をクリアして重複防止
-    Array.from(exitRefSel.options).slice(1).forEach(o => o.remove());
-    const exitRefVals = [...new Set(closedTrades.map(t => t['決済振り返り'] || '').filter(Boolean))].sort();
-    exitRefVals.forEach(v => {
+  if (exitRefSel && exitRefSel.options.length <= 1) {
+    // 入力UIと同じ順で固定
+    ['決済タイミングOK', 'ビビり決済', '利確逃し', 'SLずらし', 'SL設定ミス', 'ルール外気づき'].forEach(function(v) {
       const opt = document.createElement('option');
       opt.value = v;
       opt.textContent = v;
       exitRefSel.appendChild(opt);
     });
-    exitRefSel.value = savedExitRef; // 選択状態を復元
   }
 }
 
