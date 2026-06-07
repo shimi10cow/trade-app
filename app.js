@@ -24,10 +24,10 @@ const App = {
 const DEFAULT_SCORE_CONFIG = [
   { label: '水平線D1.H4',  key: '水平線D1.H4',  okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
   { label: 'H1MAエリア',   key: 'H1MAエリア',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: 'TL推進',       key: 'TL推進',       okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（推進）'] },
+  { label: 'TL推進',       key: 'TL推進',       okLabel: '○', okScore:  2, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（推進）'] },
   { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（逆トレ）'] },
   { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
-  { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true },
+  { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: false },
   { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
   { label: '上位足リスク', key: '上位足リスク', okLabel: 'ナシ', okScore: 0, ngLabel: 'アリ', ngScore: -1, enabled: true },
 ];
@@ -50,7 +50,7 @@ function normalizeVal(v) {
 
 function loadScoreConfig() {
   try {
-    var saved = localStorage.getItem('scoreConfig');
+    var saved = localStorage.getItem('scoreConfig_v2');
     if (saved) scoreConfig = JSON.parse(saved);
   } catch(e) {
     scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
@@ -2592,26 +2592,6 @@ function calculateEntryScore() {
     title.style.color = '';
     msg.textContent = '優位性が確認されました。ルール通りに実行してください。';
     msg.style.color = '';
-  } else if (score === 3) {
-    var suisenOk = document.querySelector('#modal-entry .score-group[data-key="水平線D1.H4"] .cond-ok.active');
-    var tlSuisinOk = document.querySelector('#modal-entry .score-group[data-key="TL推進"] .cond-ok.active');
-    if (suisenOk && tlSuisinOk) {
-      box.className = 'checker-box';
-      box.style.borderColor = '#f59e0b';
-      box.style.backgroundColor = 'rgba(245,158,11,0.08)';
-      title.textContent = '⚠️ スコア3　特例エントリー検討';
-      title.style.color = '#f59e0b';
-      msg.textContent = '水平線D1.H4・TL推進が○です。ただし慎重に。';
-      msg.style.color = '#f59e0b';
-    } else {
-      box.className = 'checker-box fail';
-      box.style.borderColor = '';
-      box.style.backgroundColor = '';
-      title.textContent = '🚫 エントリー見送り';
-      title.style.color = '';
-      msg.textContent = 'スコア不足です。エントリーを見送りましょう。';
-      msg.style.color = '';
-    }
   } else {
     box.className = 'checker-box fail';
     box.style.borderColor = '';
@@ -4299,7 +4279,7 @@ function addScoreConfigItem() {
 }
 
 async function saveScoreConfig() {
-  localStorage.setItem('scoreConfig', JSON.stringify(scoreConfig));
+  localStorage.setItem('scoreConfig_v2', JSON.stringify(scoreConfig));
   buildScoreGroups('ne-score-groups-container', 'ne');
   buildScoreGroups('td-score-groups-container', 'td');
   closeScoreConfigModal();
