@@ -44,6 +44,19 @@ function isEntryCompliant(t) {
   return envKeys.every(function(k) { return (t[k] || '') === 'OK'; });
 }
 
+// エントリー遵守カテゴリ（4分類）
+// 'perfect' | 'timing_ok_env_ng' | 'timing_ng_env_ok' | 'both_ng'
+function entryComplianceCategory(t) {
+  var er = t['エントリー振り返り'] || '';
+  var timingOk = (er === 'エントリータイミングOK' || er === '完璧エントリー');
+  var envKeys = ['ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定'];
+  var envOk = envKeys.every(function(k) { return (t[k] || '') === 'OK'; });
+  if (timingOk && envOk)  return 'perfect';
+  if (timingOk && !envOk) return 'timing_ok_env_ng';
+  if (!timingOk && envOk) return 'timing_ng_env_ok';
+  return 'both_ng';
+}
+
 function normalizeVal(v) {
   return String(v || '').trim().replace(/〇/g, '○');
 }
@@ -716,18 +729,19 @@ function populateFilterPairs() {
   const closedTrades = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
 
   const entryRefSel = document.getElementById('flt-entry-ref');
-  if (entryRefSel) {
-    const savedEntryRef = entryRefSel.value;
-    // 「すべて」以外をクリアして重複防止
-    Array.from(entryRefSel.options).slice(1).forEach(o => o.remove());
-    const entryRefVals = [...new Set(closedTrades.map(t => t['エントリー振り返り'] || '').filter(Boolean))].sort();
-    entryRefVals.forEach(v => {
+  if (entryRefSel && entryRefSel.options.length <= 1) {
+    // 固定4択を初回のみ追加
+    [
+      { value: 'perfect',          text: '✅ 完全遵守' },
+      { value: 'timing_ok_env_ng', text: '⚠️ タイミングOK / 環境認識NG' },
+      { value: 'timing_ng_env_ok', text: '⚠️ タイミングNG / 環境認識OK' },
+      { value: 'both_ng',          text: '❌ タイミングNG / 環境認識NG' },
+    ].forEach(function(o) {
       const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
+      opt.value = o.value;
+      opt.textContent = o.text;
       entryRefSel.appendChild(opt);
     });
-    entryRefSel.value = savedEntryRef; // 選択状態を復元
   }
 
   const exitRefSel = document.getElementById('flt-exit-ref');
@@ -1303,7 +1317,7 @@ function applyAnalysisFilters() {
     const score = parseInt(t['エントリースコア']) || 0;
     if (fScore === 'high' && score < 4) return false;
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
-    if (fEntryRef !== 'all' && (t['エントリー振り返り'] || '') !== fEntryRef) return false;
+    if (fEntryRef !== 'all' && entryComplianceCategory(t) !== fEntryRef) return false;
     if (fExitRef !== 'all' && (t['決済振り返り'] || '') !== fExitRef) return false;
     return true;
   });
