@@ -28,8 +28,8 @@ const DEFAULT_SCORE_CONFIG = [
   { label: 'TL逆トレ',     key: 'TL逆トレ',     okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（逆トレ）'] },
   { label: 'TL(M15)',      key: 'TL(M15)',      okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: true, aliases: ['トレンドライン（M15）'] },
   { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: false },
-  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true },
-  { label: '上位足リスク', key: '上位足リスク', okLabel: 'アリ', okScore: -1, ngLabel: 'ナシ', ngScore: 0, enabled: true },
+  { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true,  invertColors: true },
+  { label: '上位足リスク', key: '上位足リスク', okLabel: 'アリ', okScore: -1, ngLabel: 'ナシ', ngScore: 0, enabled: true, invertColors: true },
 ];
 
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
@@ -84,19 +84,21 @@ function buildScoreGroups(containerId, prefix) {
   if (!container) return;
   var isNE = (prefix === 'ne');
   container.innerHTML = scoreConfig.map(function(item) {
+    var okClass = item.invertColors ? 'cond-ng' : 'cond-ok';
+    var ngClass = item.invertColors ? 'cond-ok' : 'cond-ng';
     if (isNE) {
       return '<div class="grid-item" style="width:100%;">'
         + '<span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">' + item.label + '</span>'
         + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '" style="flex:1;">'
-        + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.okLabel + '</button>'
-        + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.ngLabel + '</button>'
+        + '<button class="toggle-btn ' + okClass + '" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.okLabel + '</button>'
+        + '<button class="toggle-btn ' + ngClass + '" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.ngLabel + '</button>'
         + '</div></div>';
     } else {
       return '<div class="grid-item">'
         + '<span class="grid-label">' + item.label + '</span>'
         + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '">'
-        + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)">' + item.okLabel + '</button>'
-        + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)">' + item.ngLabel + '</button>'
+        + '<button class="toggle-btn ' + okClass + '" onclick="toggleBtn(this)">' + item.okLabel + '</button>'
+        + '<button class="toggle-btn ' + ngClass + '" onclick="toggleBtn(this)">' + item.ngLabel + '</button>'
         + '</div></div>';
     }
   }).join('');
