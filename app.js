@@ -2605,16 +2605,48 @@ function calculateEntryScore() {
 
   if (filled < enabledCount) {
     box.className = 'checker-box';
+    box.style.borderColor = '';
+    box.style.backgroundColor = '';
     title.textContent = '判定待ち';
+    title.style.color = '';
     msg.textContent = 'すべての根拠を入力してください';
+    msg.style.color = '';
   } else if (score >= 4) {
     box.className = 'checker-box pass';
+    box.style.borderColor = '';
+    box.style.backgroundColor = '';
     title.textContent = '✅ エントリースコア: 良好';
+    title.style.color = '';
     msg.textContent = '優位性が確認されました。ルール通りに実行してください。';
+    msg.style.color = '';
+  } else if (score === 3) {
+    var suisenOk = document.querySelector('#modal-entry .score-group[data-key="水平線D1.H4"] .cond-ok.active');
+    var tlSuisinOk = document.querySelector('#modal-entry .score-group[data-key="TL推進"] .cond-ok.active');
+    if (suisenOk && tlSuisinOk) {
+      box.className = 'checker-box';
+      box.style.borderColor = '#f59e0b';
+      box.style.backgroundColor = 'rgba(245,158,11,0.08)';
+      title.textContent = '⚠️ スコア3　特例エントリー検討';
+      title.style.color = '#f59e0b';
+      msg.textContent = '水平線D1.H4・TL推進が○です。ただし慎重に。';
+      msg.style.color = '#f59e0b';
+    } else {
+      box.className = 'checker-box fail';
+      box.style.borderColor = '';
+      box.style.backgroundColor = '';
+      title.textContent = '🚫 エントリー見送り';
+      title.style.color = '';
+      msg.textContent = 'スコア不足です。エントリーを見送りましょう。';
+      msg.style.color = '';
+    }
   } else {
     box.className = 'checker-box fail';
-    title.textContent = '🚫 エントリー見送り推奨';
-    msg.textContent = 'スコア不足です。エントリーの見直しを検討しましょう。';
+    box.style.borderColor = '';
+    box.style.backgroundColor = '';
+    title.textContent = '🚫 エントリー見送り';
+    title.style.color = '';
+    msg.textContent = 'スコア不足です。エントリーを見送りましょう。';
+    msg.style.color = '';
   }
 
   updateEntryJudgementText('ne');
