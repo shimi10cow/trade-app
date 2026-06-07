@@ -30,6 +30,7 @@ const DEFAULT_SCORE_CONFIG = [
   { label: '直近波理論',   key: '直近波理論',   okLabel: '○', okScore:  1, ngLabel: '✕', ngScore:  0, enabled: false },
   { label: 'H4の5波以降',  key: 'H4の5波以降',  okLabel: '○', okScore: -1, ngLabel: '✕', ngScore:  0, enabled: true,  invertColors: true },
   { label: '上位足リスク', key: '上位足リスク', okLabel: 'アリ', okScore: -1, ngLabel: 'ナシ', ngScore: 0, enabled: true, invertColors: true },
+  { label: '相関', key: '相関', okLabel: '○', okScore: 0, neutralLabel: 'ー', neutralScore: 0, ngLabel: '✕', ngScore: 0, enabled: false, threeState: true },
 ];
 
 let scoreConfig = DEFAULT_SCORE_CONFIG.map(function(c) { return Object.assign({}, c); });
@@ -86,6 +87,25 @@ function buildScoreGroups(containerId, prefix) {
   container.innerHTML = scoreConfig.map(function(item) {
     var okClass = item.invertColors ? 'cond-ng' : 'cond-ok';
     var ngClass = item.invertColors ? 'cond-ok' : 'cond-ng';
+    if (item.threeState) {
+      if (isNE) {
+        return '<div class="grid-item" style="width:100%;">'
+          + '<span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">' + item.label + '</span>'
+          + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="0" data-ng-score="0" style="flex:1;">'
+          + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.okLabel + '</button>'
+          + '<button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.neutralLabel + '</button>'
+          + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.ngLabel + '</button>'
+          + '</div></div>';
+      } else {
+        return '<div class="grid-item">'
+          + '<span class="grid-label">' + item.label + '</span>'
+          + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="0" data-ng-score="0">'
+          + '<button class="toggle-btn cond-ok" onclick="toggleBtn(this)">' + item.okLabel + '</button>'
+          + '<button class="toggle-btn" onclick="toggleBtn(this)">' + item.neutralLabel + '</button>'
+          + '<button class="toggle-btn cond-ng" onclick="toggleBtn(this)">' + item.ngLabel + '</button>'
+          + '</div></div>';
+      }
+    }
     if (isNE) {
       return '<div class="grid-item" style="width:100%;">'
         + '<span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">' + item.label + '</span>'
