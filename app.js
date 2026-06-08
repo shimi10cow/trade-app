@@ -106,17 +106,19 @@ function buildScoreGroups(containerId, prefix) {
           + '</div></div>';
       }
     }
+    var dataOkScore = item.invertColors ? item.ngScore : item.okScore;
+    var dataNgScore = item.invertColors ? item.okScore : item.ngScore;
     if (isNE) {
       return '<div class="grid-item" style="width:100%;">'
         + '<span class="grid-label" style="min-width:80px;font-size:10px;white-space:nowrap;">' + item.label + '</span>'
-        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '" style="flex:1;">'
+        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + dataOkScore + '" data-ng-score="' + dataNgScore + '" style="flex:1;">'
         + '<button class="toggle-btn ' + okClass + '" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.okLabel + '</button>'
         + '<button class="toggle-btn ' + ngClass + '" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">' + item.ngLabel + '</button>'
         + '</div></div>';
     } else {
       return '<div class="grid-item">'
         + '<span class="grid-label">' + item.label + '</span>'
-        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + item.okScore + '" data-ng-score="' + item.ngScore + '">'
+        + '<div class="btn-group score-group" data-key="' + item.key + '" data-ok-score="' + dataOkScore + '" data-ng-score="' + dataNgScore + '">'
         + '<button class="toggle-btn ' + okClass + '" onclick="toggleBtn(this)">' + item.okLabel + '</button>'
         + '<button class="toggle-btn ' + ngClass + '" onclick="toggleBtn(this)">' + item.ngLabel + '</button>'
         + '</div></div>';
