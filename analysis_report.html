@@ -857,44 +857,40 @@ tr.danger td   { background: #200a0a; }
 <!-- ════ AK ════ -->
 <div class="acc">
   <div class="acc-header" onclick="toggle(this)">
-    <span class="acc-title">AK. 勝ちトレードの「質」：85%が計画を下回る早切り</span>
+    <span class="acc-title">AK. 決済の質：「本当の取りこぼし」は15件・1,932pips</span>
     <div style="display:flex;gap:6px;align-items:center;">
-      <span class="acc-tag tag-red">勝っても計画通りに取れていない</span>
+      <span class="acc-tag tag-yellow">TPに届かない≠悪い。ルール準拠比較で判定</span>
       <span class="acc-arrow">▼</span>
     </div>
   </div>
   <div class="acc-body">
     <div class="fact">
-      勝ちトレード27件のうち、計画TPに95%以上届いたのはわずか<strong>4件（15%）</strong>。残る85%は早期決済。勝ちトレードの平均TP達成率は<strong>59.4%</strong>。つまり「勝った」トレードでも計画の60%しか取れていない。勝率34.6%に加え、勝っても計画を下回るという二重の損失が発生している。
+      TPに届かない早切り自体は問題ではない。正しい判断基準は「実取得pips ≥ ルール準拠pips か否か」。ルール準拠pipsと比較できる38件（エントリー起因除く・未記録除く）のうち、正当決済は<strong>23件（60.5%）</strong>、本当の意味での取りこぼしは<strong>15件（39.5%）</strong>。15件合計のpips損失は<strong>1,932pips</strong>。
     </div>
     <div class="data">
       <table>
-        <tr><th>TP達成状況</th><th>件数</th><th>割合</th><th>説明</th></tr>
-        <tr class="danger"><td>TP未達・損失（0%未満）</td><td>34</td><td class="loss">43.6%</td><td>普通の負けトレード</td></tr>
-        <tr class="danger"><td>TP未達・利益（0〜50%）</td><td>5</td><td class="loss">6.4%</td><td>勝ちだが計画の半分以下</td></tr>
-        <tr><td>TP未達・利益（50〜99%）</td><td>7</td><td class="neutral">9.0%</td><td>勝ちだが途中で切り上げ</td></tr>
-        <tr class="highlight"><td>TP達成（100%+）</td><td>4</td><td class="win">5.1%</td><td>計画通りに完結</td></tr>
-        <tr><td>TP未設定・集計外</td><td>28</td><td>35.9%</td><td>TP未記録</td></tr>
+        <tr><th>決済の分類</th><th>件数</th><th>説明</th></tr>
+        <tr><td>エントリー起因（ルール準拠=0）</td><td>35</td><td>そもそも入るべきでないトレード</td></tr>
+        <tr><td>未記録（空）</td><td>5</td><td>ルール準拠pips未入力</td></tr>
+        <tr class="highlight"><td>正当決済（実≥ルール準拠）</td><td class="win">23</td><td>TPに届かなくても問題なし</td></tr>
+        <tr class="danger"><td>取りこぼし（実＜ルール準拠）</td><td class="loss">15</td><td>本当に取れたはずの利益を逃した</td></tr>
       </table>
       <hr class="sep">
-      <div class="bar-row">
-        <div class="bar-lbl">勝ちのTP平均達成率</div>
-        <div class="bar-track"><div class="bar-fill" style="width:59%;background:#f59e0b;">59%</div></div>
-        <div class="bar-val">計画の41%を残している</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-lbl">TP達成した勝ち(15%)</div>
-        <div class="bar-track"><div class="bar-fill" style="width:15%;background:#10b981;">15%</div></div>
-      </div>
-      <p class="note">
-        勝ちの平均pips=113p vs 負けの平均pips=−36.8p。ペイオフレシオは約3倍あるが、WR34.6%では期待値はほぼゼロ。<br>
-        もし平均TP達成率を59%→80%に改善できれば、期待値はプラスに転換する計算。
-      </p>
+      <p style="font-size:12px;color:#f59e0b;font-weight:700;">取りこぼし15件の主な原因：</p>
+      <table>
+        <tr><th>日付</th><th>ペア</th><th>実取得</th><th>ルール準拠</th><th>差</th><th>原因</th></tr>
+        <tr class="danger"><td>2026-01-15</td><td>OIL</td><td class="loss">-70p</td><td>290p</td><td class="loss">360p</td><td>SL設定ミス</td></tr>
+        <tr class="danger"><td>2026-01-15</td><td>BRENT</td><td class="loss">-88p</td><td>240p</td><td class="loss">328p</td><td>SL設定ミス</td></tr>
+        <tr class="danger"><td>2026-01-14</td><td>AUDUSD</td><td class="loss">-38p</td><td>190p</td><td class="loss">228p</td><td>SL設定ミス</td></tr>
+        <tr><td>2026-03-04</td><td>JP225</td><td class="neutral">140p</td><td>340p</td><td class="loss">200p</td><td>ビビり決済</td></tr>
+        <tr><td>2026-03-10</td><td>US500</td><td class="neutral">3p</td><td>139p</td><td class="loss">136p</td><td>ビビり決済</td></tr>
+      </table>
+      <p class="note">取りこぼしの最大原因はSL設定ミス（916p相当）とビビり決済（負けで終わったケース含む）。正当な早切りは23件あり、これは問題なし。</p>
     </div>
     <div class="action">
-      <strong>→ 早切りを「システム的に禁止」するのではなく、条件を設ける</strong><br>
-      ビビり決済した13件のWRは76.9%（後述AKの発見）。「早切り＝悪」ではない。<br>
-      問題は<strong>根拠なく</strong>早く切ること。「H1足でダウが崩れた」「H4キャンドルが逆行確定」などの条件なしに途中決済しない、をルール化する。
+      <strong>→ 「TPに届かない」ことより「ルール準拠pipsを下回る決済」をなくすことが優先</strong><br>
+      取りこぼし15件のうちSL設定ミスが上位を占める。SLを正しく設定すれば自然に改善する部分が大きい。<br>
+      ビビり決済でも実取得がルール準拠以上なら問題なし。記録をつけて後から検証できる状態にすることが重要。
     </div>
   </div>
 </div>
@@ -1264,8 +1260,8 @@ tr.danger td   { background: #200a0a; }
     <div style="background:#062010;border:1px solid #065f46;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
       <span style="font-size:18px;flex-shrink:0;">✅</span>
       <div>
-        <div style="font-weight:700;color:#10b981;font-size:13px;">ルール③：「ビビり決済」を禁止ではなく条件付きで許可する</div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:3px;">ビビり決済のWR=76.9%。早切り自体は悪くない。ただし根拠なく切るのを禁止し「〇〇の理由で決済」と必ず記録する。</div>
+        <div style="font-weight:700;color:#10b981;font-size:13px;">ルール③：決済の基準は「TP到達」ではなく「ルール準拠pips以上取れたか」</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:3px;">TPに届かない早切りは正当（23件が正当決済）。問題は実取得がルール準拠pipsを下回る15件・1,932pips。主因はSL設定ミス。SLを正しく設定すれば自然に改善する。</div>
       </div>
     </div>
     <div style="background:#062010;border:1px solid #065f46;border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
