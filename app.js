@@ -369,7 +369,7 @@ function renderHistoryList() {
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 10;
-    const isLoss = pips < -5;
+    const isLoss = pips < -10;
     const pipsColor = isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b');
     const pipsSign = pips > 0 ? '+' : '';
     const borderColor = isMissed ? '#f59e0b' : (isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b'));
@@ -2333,7 +2333,11 @@ function analyzeMentalMode() {
   const alertBox = document.getElementById('ne-mental-alert');
   if (!alertBox) return;
 
-  const history = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）').slice().reverse();
+  const history = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）').slice().sort((a, b) => {
+    const da = String(a.EntryDate || '').replace(/\//g, '-');
+    const db = String(b.EntryDate || '').replace(/\//g, '-');
+    return db > da ? 1 : db < da ? -1 : 0;
+  });
   if (history.length === 0) {
     alertBox.style.display = 'none';
     return;
@@ -2565,7 +2569,7 @@ function calculateSimilarTrades(prefix) {
 
   similars.forEach(s => {
     totalPips += s.pips;
-    if (s.pips > 0) totalWin++;
+    if (s.pips > 10) totalWin++;
     const sl = parseFloat(s.trade['StopLossPips']) || parseFloat(s.trade['SL']) || 0;
     if (sl > 0) {
       totalRR += (s.pips / sl);
@@ -3252,7 +3256,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const scoreDisp = document.getElementById('td-score-display');
   if (scoreDisp) {
     const sc = t['エントリースコア'];
-    scoreDisp.textContent = (sc !== undefined && sc !== '') ? `${sc}/6` : '--';
+    scoreDisp.textContent = (sc !== undefined && sc !== '') ? `${sc}/${getMaxScore()}` : '--';
   }
 
   // Direction
