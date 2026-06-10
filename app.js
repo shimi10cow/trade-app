@@ -663,23 +663,39 @@ function hideBgBar() { document.getElementById('bg-load-bar')?.classList.remove(
 async function loadData() {
   showBgBar();
   try {
-    const [pairsRes, entriesRes, ideasRes] = await Promise.all([
-      fetch(`${GAS_URL}?action=getPairs`).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      }),
-      fetch(`${GAS_URL}?action=getEntries`).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      }),
-      fetch(`${GAS_URL}?action=getIdeas`).then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-    ]);
-    App.data.pairs = pairsRes.data || [];
-    App.data.entries = entriesRes.data || [];
-    App.data.ideas = ideasRes.data || [];
+    // 全リクエスト同時開始・届いた順に即レンダリング
+    const entriesP = fetch(`${GAS_URL}?action=getEntries`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }).then(res => {
+      App.data.entries = res.data || [];
+      renderPositions();   // ① ポジション（最優先）
+    });
+
+    const pairsP = fetch(`${GAS_URL}?action=getPairs`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }).then(res => {
+      App.data.pairs = res.data || [];
+      populateFilterPairs();
+      renderPairs();       // ② ペア
+    });
+
+    const ideasP = fetch(`${GAS_URL}?action=getIdeas`).then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }).then(res => {
+      App.data.ideas = res.data || [];
+      renderIdeas();
+    });
+
+    // エントリーが揃ったら分析・ギャラリー
+    await entriesP;
+    renderAnalysis();      // ③ 分析
+    renderGallery();
+
+    // 全部揃ったら記録（最後）
+    await Promise.all([pairsP, ideasP]);
 
     // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
@@ -712,14 +728,7 @@ async function loadData() {
         .catch(function(){});
     }
 
-    populateFilterPairs();
-
-    // Initial renders
-    renderPositions();
-    renderPairs();
-    renderAnalysis();
-    renderGallery();
-    renderIdeas();
+    renderHistoryList();   // ④ 記録（最後）
 
     // プルダウンリフレッシュ後のタブ復元
     const ptrTab = sessionStorage.getItem('ptr-active-tab');
