@@ -2247,21 +2247,25 @@ function loadPairAnalysisUI(pairName) {
 
 function getPairAnalysisIndicator(pairName) {
   const data = getPairAnalysis(pairName);
-  const rules = data.selectedRules || (data.selectedRule ? [data.selectedRule] : []); // 旧データ互換
+  const rules = data.selectedRules || (data.selectedRule ? [data.selectedRule] : []);
   const tlAll = data.tl_suishin && data.tl_gyaku && data.tl_h1ma;
   if (!rules.length && !tlAll) return '';
 
-  const tlMark = tlAll ? `<span style="color:#34d399;font-size:11px;font-weight:700;">✓</span>` : '';
-  const ruleLines = rules.slice(0, 2).map(id => {
+  const tlMark = tlAll
+    ? `<span style="color:#34d399;font-size:12px;font-weight:700;margin-right:4px;flex-shrink:0;">✓</span>`
+    : `<span style="margin-right:4px;width:12px;flex-shrink:0;"></span>`;
+
+  const ruleSpans = rules.map(id => {
     const r = PA_RULES.find(x => x.id === id);
-    return r ? `<span style="color:#fbbf24;font-size:10px;">${r.label}</span>` : '';
-  });
+    if (!r) return '';
+    const color = id <= 5 ? '#f87171' : '#60a5fa';
+    return `<span style="color:${color};font-size:10px;white-space:nowrap;">${r.label}</span>`;
+  }).join('');
 
-  const ruleBlock = ruleLines.length
-    ? `<span style="display:flex;flex-direction:column;gap:1px;">${ruleLines.join('')}</span>`
-    : '';
+  const cols = rules.length >= 3 ? 2 : 1;
+  const ruleGrid = `<span style="display:grid;grid-template-columns:repeat(${cols},auto);gap:1px 8px;">${ruleSpans}</span>`;
 
-  return `<span style="display:inline-flex;flex-direction:column;align-items:flex-start;margin-left:8px;gap:1px;">${tlMark}${ruleBlock}</span>`;
+  return `<span style="display:inline-flex;align-items:flex-start;margin-left:6px;">${tlMark}${ruleGrid}</span>`;
 }
 
 function openPairEdit(pairName) {
