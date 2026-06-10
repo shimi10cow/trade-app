@@ -2169,23 +2169,20 @@ function buildPairDowChips() {
 }
 
 function selectPairRule(ruleId) {
-  const chips = document.querySelectorAll('.pa-chip');
-  chips.forEach(chip => {
-    const id = parseInt(chip.dataset.rule);
-    const isSel = (id === ruleId) && !chip.classList.contains('pa-selected');
-    chip.classList.toggle('pa-selected', isSel);
-    // 買いなら（1-5）は赤、売りなら（6-10）は青
-    const isBuyRule = id <= 5;
-    if (isSel) {
-      chip.style.borderColor = isBuyRule ? '#ef4444' : '#3b82f6';
-      chip.style.background  = isBuyRule ? '#450a0a' : '#0c1a3a';
-      chip.style.color       = isBuyRule ? '#f87171' : '#60a5fa';
-    } else {
-      chip.style.borderColor = '#334155';
-      chip.style.background  = '#1e293b';
-      chip.style.color       = '#94a3b8';
-    }
-  });
+  const chip = document.querySelector(`.pa-chip[data-rule="${ruleId}"]`);
+  if (!chip) return;
+  const isSel = !chip.classList.contains('pa-selected');
+  chip.classList.toggle('pa-selected', isSel);
+  const isBuyRule = ruleId <= 5;
+  if (isSel) {
+    chip.style.borderColor = isBuyRule ? '#ef4444' : '#3b82f6';
+    chip.style.background  = isBuyRule ? '#450a0a' : '#0c1a3a';
+    chip.style.color       = isBuyRule ? '#f87171' : '#60a5fa';
+  } else {
+    chip.style.borderColor = '#334155';
+    chip.style.background  = '#1e293b';
+    chip.style.color       = '#94a3b8';
+  }
 }
 
 function togglePairTL(key) {
@@ -2200,9 +2197,10 @@ function togglePairTL(key) {
 function savePairAnalysisState() {
   const pairName = document.getElementById('pe-pair-name').value;
   if (!pairName) return;
-  const selectedChip = document.querySelector('.pa-chip.pa-selected');
+  const selectedRules = Array.from(document.querySelectorAll('.pa-chip.pa-selected'))
+    .map(c => parseInt(c.dataset.rule));
   const data = {
-    selectedRule: selectedChip ? parseInt(selectedChip.dataset.rule) : null,
+    selectedRules,
     tl_suishin: document.getElementById('pe-tl-suishin')?.classList.contains('active') || false,
     tl_gyaku:   document.getElementById('pe-tl-gyaku')?.classList.contains('active') || false,
     tl_h1ma:    document.getElementById('pe-tl-h1ma')?.classList.contains('active') || false,
@@ -2217,7 +2215,7 @@ function updatePairTLTimestamp() {
   const data = getPairAnalysis(pairName);
   const ts = document.getElementById('pe-tl-ts');
   if (!ts) return;
-  if (!data.checkedAt) { ts.textContent = '未分析（保存時に更新）'; return; }
+  if (!data.checkedAt) { ts.textContent = ''; return; }
   const mins = Math.floor((Date.now() - data.checkedAt) / 60000);
   const disp = mins < 1 ? 'たった今' : mins < 60 ? `${mins}分前` : `${Math.floor(mins/60)}時間前`;
   ts.textContent = `最終保存: ${disp}`;
@@ -2240,8 +2238,8 @@ function loadPairAnalysisUI(pairName) {
   });
 
   // 選択済みルールをチップに反映（buildPairDowChips後に呼ぶ）
-  if (data.selectedRule) {
-    setTimeout(() => selectPairRule(data.selectedRule), 60);
+  if (data.selectedRules && data.selectedRules.length) {
+    setTimeout(() => data.selectedRules.forEach(id => selectPairRule(id)), 60);
   }
 
   updatePairTLTimestamp();
@@ -2249,13 +2247,21 @@ function loadPairAnalysisUI(pairName) {
 
 function getPairAnalysisIndicator(pairName) {
   const data = getPairAnalysis(pairName);
-  const ruleNum = data.selectedRule;
+  const rules = data.selectedRules || (data.selectedRule ? [data.selectedRule] : []); // 旧データ互換
   const tlAll = data.tl_suishin && data.tl_gyaku && data.tl_h1ma;
-  if (!ruleNum && !tlAll) return '';
-  let parts = [];
-  if (ruleNum) parts.push(`<span style="color:#fbbf24;font-size:11px;">ルール${ruleNum}</span>`);
-  if (tlAll)   parts.push(`<span style="color:#34d399;font-size:11px;">✓</span>`);
-  return `<span style="margin-left:6px;">${parts.join(' ')}</span>`;
+  if (!rules.length && !tlAll) return '';
+
+  const tlMark = tlAll ? `<span style="color:#34d399;font-size:11px;font-weight:700;">✓</span>` : '';
+  const ruleLines = rules.slice(0, 2).map(id => {
+    const r = PA_RULES.find(x => x.id === id);
+    return r ? `<span style="color:#fbbf24;font-size:10px;">${r.label}</span>` : '';
+  });
+
+  const ruleBlock = ruleLines.length
+    ? `<span style="display:flex;flex-direction:column;gap:1px;">${ruleLines.join('')}</span>`
+    : '';
+
+  return `<span style="display:inline-flex;flex-direction:column;align-items:flex-start;margin-left:8px;gap:1px;">${tlMark}${ruleBlock}</span>`;
 }
 
 function openPairEdit(pairName) {
