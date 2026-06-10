@@ -2088,30 +2088,19 @@ const PA_RULES = [
   { id:10, d1:'✕', h4:'✕', label:'10: D1✕H4✕　D1出入口' },
 ];
 
-// 日本時間の直近の朝6時（UTC）を返す
-function getLastJST6am() {
-  const JST = 9 * 3600000;
-  const nowJST = new Date(Date.now() + JST);
-  const y = nowJST.getUTCFullYear(), m = nowJST.getUTCMonth(), d = nowJST.getUTCDate();
-  const h = nowJST.getUTCHours();
-  // 今日の朝6時JST をUTCで表現: UTC = JST - 9h → 6:00JST = -3:00UTC = 前日21:00UTC
-  const today6amUTC = Date.UTC(y, m, d, 6) - JST;
-  return h >= 6 ? today6amUTC : today6amUTC - 86400000;
-}
-
-function isPairAnalysisExpired(checkedAt) {
-  if (!checkedAt) return true;
-  return checkedAt < getLastJST6am();
-}
 
 function getPairAnalysis(pairName) {
   try {
     const raw = localStorage.getItem('pa_' + pairName);
     if (!raw) return {};
     const data = JSON.parse(raw);
-    if (isPairAnalysisExpired(data.checkedAt)) {
-      localStorage.removeItem('pa_' + pairName);
-      return {};
+    // 分析チェック（TL）のみ24時間で消える。ダウルール選択は消えない。
+    if (data.checkedAt && Date.now() - data.checkedAt > 24 * 60 * 60 * 1000) {
+      data.tl_suishin = false;
+      data.tl_gyaku   = false;
+      data.tl_h1ma    = false;
+      data.checkedAt  = null;
+      localStorage.setItem('pa_' + pairName, JSON.stringify(data));
     }
     return data;
   } catch(e) { return {}; }
