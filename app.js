@@ -2129,11 +2129,18 @@ function paCircle(tfDir, tradeDir) {
   return null;
 }
 
-function buildPairDowChips() {
+function buildPairDowChips(preSelectedIds) {
   const d1 = (document.querySelector('#pe-tf-d1 .toggle-btn.active') || {}).textContent || '';
   const h4 = (document.querySelector('#pe-tf-h4 .toggle-btn.active') || {}).textContent || '';
   const container = document.getElementById('pe-dow-chips');
   if (!container) return;
+
+  // preSelectedIds未指定の場合はlocalStorageから取得（TF変更時などの再ビルド用）
+  if (preSelectedIds === undefined) {
+    const pairName = document.getElementById('pe-pair-name').value;
+    const saved = pairName ? getPairAnalysis(pairName) : {};
+    preSelectedIds = saved.selectedRules || (saved.selectedRule ? [saved.selectedRule] : []);
+  }
 
   // →のときは候補なし
   if (!d1 || !h4 || d1.trim() === '→' || h4.trim() === '→') {
@@ -2144,26 +2151,21 @@ function buildPairDowChips() {
   const buyIds  = PA_RULES.filter(r => r.d1 === paCircle(d1.trim(),'buy')  && r.h4 === paCircle(h4.trim(),'buy')).map(r=>r.id);
   const sellIds = PA_RULES.filter(r => r.d1 === paCircle(d1.trim(),'sell') && r.h4 === paCircle(h4.trim(),'sell')).map(r=>r.id);
 
-  // 現在の選択済みルールIDを保持
-  const selectedChip = document.querySelector('.pa-chip.pa-selected');
-  const selectedId = selectedChip ? parseInt(selectedChip.dataset.rule) : null;
+  const chipHtml = (id, isBuy) => {
+    const r = PA_RULES.find(x=>x.id===id);
+    const sel = preSelectedIds.includes(id);
+    const activeColor = isBuy ? { border:'#ef4444', bg:'#450a0a', text:'#f87171' } : { border:'#3b82f6', bg:'#0c1a3a', text:'#60a5fa' };
+    return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?activeColor.border:'#334155'};background:${sel?activeColor.bg:'#1e293b'};color:${sel?activeColor.text:'#94a3b8'};">${r.label}</div>`;
+  };
 
   let html = '';
   if (buyIds.length) {
     html += `<div style="font-size:11px;color:#64748b;margin-bottom:4px;">買いなら</div>`;
-    html += buyIds.map(id => {
-      const r = PA_RULES.find(x=>x.id===id);
-      const sel = id === selectedId;
-      return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?'#ef4444':'#334155'};background:${sel?'#450a0a':'#1e293b'};color:${sel?'#f87171':'#94a3b8'};">${r.label}</div>`;
-    }).join('');
+    html += buyIds.map(id => chipHtml(id, true)).join('');
   }
   if (sellIds.length) {
     html += `<div style="font-size:11px;color:#64748b;margin-top:6px;margin-bottom:4px;">売りなら</div>`;
-    html += sellIds.map(id => {
-      const r = PA_RULES.find(x=>x.id===id);
-      const sel = id === selectedId;
-      return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?'#3b82f6':'#334155'};background:${sel?'#0c1a3a':'#1e293b'};color:${sel?'#60a5fa':'#94a3b8'};">${r.label}</div>`;
-    }).join('');
+    html += sellIds.map(id => chipHtml(id, false)).join('');
   }
   container.innerHTML = html;
 }
@@ -2237,10 +2239,7 @@ function loadPairAnalysisUI(pairName) {
     }
   });
 
-  // 選択済みルールをチップに反映（buildPairDowChips後に呼ぶ）
-  if (data.selectedRules && data.selectedRules.length) {
-    setTimeout(() => data.selectedRules.forEach(id => selectPairRule(id)), 60);
-  }
+  // 選択済みルールはbuildPairDowChipsでpreSelectedIdsとして渡すため不要
 
   updatePairTLTimestamp();
 }
@@ -2265,7 +2264,7 @@ function getPairAnalysisIndicator(pairName) {
   const cols = rules.length >= 3 ? 2 : 1;
   const ruleGrid = `<span style="display:grid;grid-template-columns:repeat(${cols},auto);gap:1px 8px;">${ruleSpans}</span>`;
 
-  return `<span style="display:inline-flex;align-items:flex-start;margin-left:6px;">${tlMark}${ruleGrid}</span>`;
+  return `<span style="display:inline-flex;align-items:center;margin-left:6px;">${tlMark}${ruleGrid}</span>`;
 }
 
 function openPairEdit(pairName) {
@@ -2296,9 +2295,11 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
 
-  // ダウルール候補 & 分析チェックUIを構築
+  // ダウルール候補 & 分析チェックUIを構築（保存済み選択ルールを渡す）
   setTimeout(() => {
-    buildPairDowChips();
+    const saved = getPairAnalysis(pairName);
+    const preSelected = saved.selectedRules || (saved.selectedRule ? [saved.selectedRule] : []);
+    buildPairDowChips(preSelected);
     loadPairAnalysisUI(pairName);
   }, 50);
 
