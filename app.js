@@ -2088,20 +2088,30 @@ const PA_RULES = [
   { id:10, d1:'✕', h4:'✕', label:'10: D1✕H4✕　D1出入口' },
 ];
 
+// 日本時間の直近の朝6時（UTC）を返す
+function getLastJST6am() {
+  const JST = 9 * 3600000;
+  const nowJST = new Date(Date.now() + JST);
+  const y = nowJST.getUTCFullYear(), m = nowJST.getUTCMonth(), d = nowJST.getUTCDate();
+  const h = nowJST.getUTCHours();
+  // 今日の朝6時JST をUTCで表現: UTC = JST - 9h → 6:00JST = -3:00UTC = 前日21:00UTC
+  const today6amUTC = Date.UTC(y, m, d, 6) - JST;
+  return h >= 6 ? today6amUTC : today6amUTC - 86400000;
+}
+
+function isPairAnalysisExpired(checkedAt) {
+  if (!checkedAt) return true;
+  return checkedAt < getLastJST6am();
+}
+
 function getPairAnalysis(pairName) {
   try {
     const raw = localStorage.getItem('pa_' + pairName);
     if (!raw) return {};
     const data = JSON.parse(raw);
-    // 24時間平日のみ有効
-    if (data.checkedAt) {
-      const now = Date.now();
-      const dow = new Date().getDay(); // 0=日,6=土
-      const isWeekday = dow !== 0 && dow !== 6;
-      if (isWeekday && now - data.checkedAt > 24 * 60 * 60 * 1000) {
-        localStorage.removeItem('pa_' + pairName);
-        return {};
-      }
+    if (isPairAnalysisExpired(data.checkedAt)) {
+      localStorage.removeItem('pa_' + pairName);
+      return {};
     }
     return data;
   } catch(e) { return {}; }
@@ -2109,7 +2119,7 @@ function getPairAnalysis(pairName) {
 
 function setPairAnalysis(pairName, data) {
   try {
-    localStorage.setItem('pa_' + pairName, JSON.stringify({ ...data, checkedAt: Date.now() }));
+    localStorage.setItem('pa_' + pairName, JSON.stringify(data));
   } catch(e) {}
 }
 
@@ -2125,7 +2135,7 @@ function buildPairDowChips() {
   const container = document.getElementById('pe-dow-chips');
   if (!container) return;
 
-  // →のときは非表示
+  // →のときは候補なし
   if (!d1 || !h4 || d1.trim() === '→' || h4.trim() === '→') {
     container.innerHTML = '<div style="font-size:12px;color:#475569;padding:4px 0;">D1・H4が確定したら候補を表示します</div>';
     return;
@@ -2134,91 +2144,69 @@ function buildPairDowChips() {
   const buyIds  = PA_RULES.filter(r => r.d1 === paCircle(d1.trim(),'buy')  && r.h4 === paCircle(h4.trim(),'buy')).map(r=>r.id);
   const sellIds = PA_RULES.filter(r => r.d1 === paCircle(d1.trim(),'sell') && r.h4 === paCircle(h4.trim(),'sell')).map(r=>r.id);
 
+  // 現在の選択済みルールIDを保持
+  const selectedChip = document.querySelector('.pa-chip.pa-selected');
+  const selectedId = selectedChip ? parseInt(selectedChip.dataset.rule) : null;
+
   let html = '';
   if (buyIds.length) {
     html += `<div style="font-size:11px;color:#64748b;margin-bottom:4px;">買いなら</div>`;
     html += buyIds.map(id => {
       const r = PA_RULES.find(x=>x.id===id);
-      return `<div class="pa-chip" data-rule="${id}" data-buy="true" data-sell="false" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;border:1px solid #334155;background:#1e293b;color:#94a3b8;margin-bottom:4px;transition:all 0.2s;">${r.label}</div>`;
+      const sel = id === selectedId;
+      return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?'#ef4444':'#334155'};background:${sel?'#450a0a':'#1e293b'};color:${sel?'#f87171':'#94a3b8'};">${r.label}</div>`;
     }).join('');
   }
   if (sellIds.length) {
     html += `<div style="font-size:11px;color:#64748b;margin-top:6px;margin-bottom:4px;">売りなら</div>`;
     html += sellIds.map(id => {
       const r = PA_RULES.find(x=>x.id===id);
-      return `<div class="pa-chip" data-rule="${id}" data-buy="false" data-sell="true" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;border:1px solid #334155;background:#1e293b;color:#94a3b8;margin-bottom:4px;transition:all 0.2s;">${r.label}</div>`;
+      const sel = id === selectedId;
+      return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?'#3b82f6':'#334155'};background:${sel?'#0c1a3a':'#1e293b'};color:${sel?'#60a5fa':'#94a3b8'};">${r.label}</div>`;
     }).join('');
   }
   container.innerHTML = html;
-
-  // 方向感が選択済みなら再適用
-  const activeDir = document.querySelector('#pe-dir-buy.pa-active') ? 'buy' : document.querySelector('#pe-dir-sell.pa-active') ? 'sell' : null;
-  if (activeDir) applyPairDir(activeDir);
 }
 
-function applyPairDir(dir) {
-  document.querySelectorAll('.pa-chip').forEach(chip => {
-    const matches = chip.dataset[dir] === 'true';
-    if (matches) {
-      if (dir === 'buy') { chip.style.background='#450a0a'; chip.style.color='#f87171'; chip.style.borderColor='#ef4444'; chip.style.opacity='1'; }
-      else               { chip.style.background='#0c1a3a'; chip.style.color='#60a5fa'; chip.style.borderColor='#3b82f6'; chip.style.opacity='1'; }
+function selectPairRule(ruleId) {
+  const chips = document.querySelectorAll('.pa-chip');
+  chips.forEach(chip => {
+    const id = parseInt(chip.dataset.rule);
+    const isSel = (id === ruleId) && !chip.classList.contains('pa-selected');
+    chip.classList.toggle('pa-selected', isSel);
+    // 買いなら（1-5）は赤、売りなら（6-10）は青
+    const isBuyRule = id <= 5;
+    if (isSel) {
+      chip.style.borderColor = isBuyRule ? '#ef4444' : '#3b82f6';
+      chip.style.background  = isBuyRule ? '#450a0a' : '#0c1a3a';
+      chip.style.color       = isBuyRule ? '#f87171' : '#60a5fa';
     } else {
-      chip.style.background='#1e293b'; chip.style.color='#94a3b8'; chip.style.borderColor='#334155'; chip.style.opacity='0.25';
+      chip.style.borderColor = '#334155';
+      chip.style.background  = '#1e293b';
+      chip.style.color       = '#94a3b8';
     }
   });
-}
-
-function togglePairDir(dir) {
-  const buyBtn  = document.getElementById('pe-dir-buy');
-  const sellBtn = document.getElementById('pe-dir-sell');
-  const isActive = document.getElementById('pe-dir-' + dir).classList.contains('pa-active');
-
-  // reset both
-  [buyBtn, sellBtn].forEach(b => {
-    b.classList.remove('pa-active');
-    b.style.background='#1e293b'; b.style.color='#475569'; b.style.borderColor='#334155';
-  });
-
-  if (isActive) {
-    // 解除：チップをデフォルトに戻す
-    document.querySelectorAll('.pa-chip').forEach(c => {
-      c.style.background='#1e293b'; c.style.color='#94a3b8'; c.style.borderColor='#334155'; c.style.opacity='1';
-    });
-    savePairAnalysisState();
-    return;
-  }
-
-  const btn = document.getElementById('pe-dir-' + dir);
-  btn.classList.add('pa-active');
-  if (dir === 'buy') { btn.style.background='#450a0a'; btn.style.color='#f87171'; btn.style.borderColor='#ef4444'; }
-  else               { btn.style.background='#0c1a3a'; btn.style.color='#60a5fa'; btn.style.borderColor='#3b82f6'; }
-
-  applyPairDir(dir);
-  savePairAnalysisState();
 }
 
 function togglePairTL(key) {
   const btn = document.getElementById('pe-tl-' + key);
   if (!btn) return;
   btn.classList.toggle('active');
-  if (btn.classList.contains('active')) {
-    btn.textContent = '✓ ' + btn.textContent.replace('✓ ', '');
-  } else {
-    btn.textContent = btn.textContent.replace('✓ ', '');
-  }
-  savePairAnalysisState();
-  updatePairTLTimestamp();
+  const tlMap = { suishin: 'TL推進方向', gyaku: 'TL逆トレ', h1ma: 'H1MAエリア' };
+  btn.textContent = btn.classList.contains('active') ? '✓ ' + tlMap[key] : tlMap[key];
 }
 
+// 保存時のみ呼ぶ（checkedAtをここで更新）
 function savePairAnalysisState() {
   const pairName = document.getElementById('pe-pair-name').value;
   if (!pairName) return;
-  const dir = document.querySelector('#pe-dir-buy.pa-active') ? 'buy' : document.querySelector('#pe-dir-sell.pa-active') ? 'sell' : '';
+  const selectedChip = document.querySelector('.pa-chip.pa-selected');
   const data = {
-    direction: dir,
+    selectedRule: selectedChip ? parseInt(selectedChip.dataset.rule) : null,
     tl_suishin: document.getElementById('pe-tl-suishin')?.classList.contains('active') || false,
     tl_gyaku:   document.getElementById('pe-tl-gyaku')?.classList.contains('active') || false,
     tl_h1ma:    document.getElementById('pe-tl-h1ma')?.classList.contains('active') || false,
+    checkedAt:  Date.now(),
   };
   setPairAnalysis(pairName, data);
 }
@@ -2226,30 +2214,17 @@ function savePairAnalysisState() {
 function updatePairTLTimestamp() {
   const pairName = document.getElementById('pe-pair-name').value;
   if (!pairName) return;
-  const raw = localStorage.getItem('pa_' + pairName);
-  if (!raw) { document.getElementById('pe-tl-ts').textContent = '未分析'; return; }
-  const data = JSON.parse(raw);
-  if (!data.checkedAt) { document.getElementById('pe-tl-ts').textContent = '未分析'; return; }
+  const data = getPairAnalysis(pairName);
+  const ts = document.getElementById('pe-tl-ts');
+  if (!ts) return;
+  if (!data.checkedAt) { ts.textContent = '未分析（保存時に更新）'; return; }
   const mins = Math.floor((Date.now() - data.checkedAt) / 60000);
   const disp = mins < 1 ? 'たった今' : mins < 60 ? `${mins}分前` : `${Math.floor(mins/60)}時間前`;
-  document.getElementById('pe-tl-ts').textContent = `最終分析: ${disp}`;
+  ts.textContent = `最終保存: ${disp}`;
 }
 
 function loadPairAnalysisUI(pairName) {
   const data = getPairAnalysis(pairName);
-
-  // 方向感
-  ['buy','sell'].forEach(dir => {
-    const btn = document.getElementById('pe-dir-' + dir);
-    btn.classList.remove('pa-active');
-    btn.style.background='#1e293b'; btn.style.color='#475569'; btn.style.borderColor='#334155';
-  });
-  if (data.direction) {
-    const btn = document.getElementById('pe-dir-' + data.direction);
-    btn.classList.add('pa-active');
-    if (data.direction === 'buy') { btn.style.background='#450a0a'; btn.style.color='#f87171'; btn.style.borderColor='#ef4444'; }
-    else                          { btn.style.background='#0c1a3a'; btn.style.color='#60a5fa'; btn.style.borderColor='#3b82f6'; }
-  }
 
   // TLチェック
   const tlMap = { suishin: 'TL推進方向', gyaku: 'TL逆トレ', h1ma: 'H1MAエリア' };
@@ -2264,16 +2239,23 @@ function loadPairAnalysisUI(pairName) {
     }
   });
 
+  // 選択済みルールをチップに反映（buildPairDowChips後に呼ぶ）
+  if (data.selectedRule) {
+    setTimeout(() => selectPairRule(data.selectedRule), 60);
+  }
+
   updatePairTLTimestamp();
 }
 
 function getPairAnalysisIndicator(pairName) {
   const data = getPairAnalysis(pairName);
-  const hasDir = !!data.direction;
-  const tlCount = ['tl_suishin','tl_gyaku','tl_h1ma'].filter(k => data[k]).length;
-  if (!hasDir && tlCount === 0) return '';
-  if (tlCount === 3 && hasDir) return '<span style="color:#34d399;font-size:11px;margin-left:6px;">✓分析済</span>';
-  return '<span style="color:#fbbf24;font-size:11px;margin-left:6px;">◑分析中</span>';
+  const ruleNum = data.selectedRule;
+  const tlAll = data.tl_suishin && data.tl_gyaku && data.tl_h1ma;
+  if (!ruleNum && !tlAll) return '';
+  let parts = [];
+  if (ruleNum) parts.push(`<span style="color:#fbbf24;font-size:11px;">ルール${ruleNum}</span>`);
+  if (tlAll)   parts.push(`<span style="color:#34d399;font-size:11px;">✓</span>`);
+  return `<span style="margin-left:6px;">${parts.join(' ')}</span>`;
 }
 
 function openPairEdit(pairName) {
@@ -2356,6 +2338,7 @@ async function savePairEdit() {
     // ローカルにも反映
     Object.assign(p, updateData);
 
+    savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
     closePairEdit();
     renderPairs();
     showToast('ペア情報を更新しました');
