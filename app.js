@@ -2396,6 +2396,8 @@ function toggleBtn(btn, siblingSelector = '') {
   // Recalculate score on any click inside entry or detail
   if (btn.closest('#modal-entry')) calculateEntryScore();
   if (btn.closest('#modal-trade-detail')) calculateEntryScoreTD();
+  // ペア編集モーダル内のTF変更時にダウルール候補を再構築
+  if (btn.closest('#modal-pair-edit')) buildPairDowChips();
 }
 
 // ==========================================
