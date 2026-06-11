@@ -18,6 +18,7 @@ const GAS_ACTIONS = {
   getPairs:         () => getPairs(),
   getAnalysisStats: () => getAnalysisStats(),
   getIdeas:         () => getIdeas(),
+  getReviews:       () => getReviews(),
 };
 
 function doGet(e) {
@@ -74,6 +75,10 @@ function doPost(e) {
     result = updateIdea(body.ideaId, body.data);
   } else if (action === 'deleteIdea') {
     result = deleteIdea(body.ideaId);
+  } else if (action === 'saveReview') {
+    result = saveReview(body.data);
+  } else if (action === 'updateReview') {
+    result = updateReview(body.reviewId, body.data);
   } else if (action === 'recalculateCaseBScores') {
     result = recalculateCaseBScores();
   } else if (action === 'migrateExitRefPerfect') {
@@ -734,6 +739,82 @@ function deleteIdea(ideaId) {
   return { success: true };
 }
 // =============================================
+
+// =============================================
+// 週次・月次レビュー (Reviews シート)
+// 列: A=ID, B=種別(weekly/monthly), C=期間キー, D=メモ, E=約束, F=約束判定(JSON), G=作成日
+// =============================================
+const REVIEWS_SHEET = 'Reviews';
+
+function getOrCreateReviewsSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(REVIEWS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(REVIEWS_SHEET);
+    sheet.getRange(1, 1, 1, 7).setValues([['ID','種別','期間キー','メモ','約束','約束判定','作成日']]);
+  }
+  return sheet;
+}
+
+function getReviews() {
+  const sheet = getOrCreateReviewsSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  return rows
+    .filter(r => r[0] !== '')
+    .map(r => ({
+      id:        String(r[0]),
+      種別:      String(r[1] || ''),
+      期間キー:  r[2] instanceof Date
+                   ? Utilities.formatDate(r[2], 'Asia/Tokyo', 'yyyy-MM-dd')
+                   : String(r[2] || ''),
+      メモ:      String(r[3] || ''),
+      約束:      String(r[4] || ''),
+      約束判定:  String(r[5] || ''),
+      作成日:    r[6] instanceof Date
+                   ? Utilities.formatDate(r[6], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+                   : String(r[6] || ''),
+    }));
+}
+
+function saveReview(data) {
+  const sheet = getOrCreateReviewsSheet();
+  const id = String(Date.now());
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7);
+  range.setNumberFormat('@');
+  range.setValues([[
+    id,
+    data['種別'] || 'weekly',
+    data['期間キー'] || '',
+    data['メモ'] || '',
+    data['約束'] || '',
+    data['約束判定'] || '',
+    Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+  ]]);
+  return { success: true, id: id };
+}
+
+function updateReview(reviewId, data) {
+  const sheet = getOrCreateReviewsSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: false, error: 'Not found' };
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const rowIdx = ids.findIndex(id => String(id) === String(reviewId));
+  if (rowIdx === -1) return { success: false, error: 'Not found' };
+  const row = rowIdx + 2;
+  const current = sheet.getRange(row, 1, 1, 7).getValues()[0];
+  sheet.getRange(row, 1, 1, 7).setValues([[
+    String(reviewId),
+    data['種別']     !== undefined ? data['種別']     : current[1],
+    data['期間キー'] !== undefined ? data['期間キー'] : current[2],
+    data['メモ']     !== undefined ? data['メモ']     : current[3],
+    data['約束']     !== undefined ? data['約束']     : current[4],
+    data['約束判定'] !== undefined ? data['約束判定'] : current[5],
+    current[6],
+  ]]);
+  return { success: true };
+}
 
 // =============================================
 // スコア全件再計算

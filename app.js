@@ -4,7 +4,9 @@ const App = {
   data: {
     entries: [],
     pairs: [],
-    ideas: []
+    ideas: [],
+    reviews: [],
+    calendar: []
   },
   state: {
     currentTab: 'positions',
@@ -729,6 +731,21 @@ function openEntryModal(isMissed = false) {
   const eventWarning = document.getElementById('ne-event-warning');
   if (eventWarning) eventWarning.style.display = 'none';
 
+  // 今週意識すること（常設表示）
+  const promiseLine = document.getElementById('ne-promise-line');
+  if (promiseLine) {
+    const promise = getCurrentPromise();
+    if (promise) {
+      promiseLine.innerHTML = '🎯 今週: ' + promise.split('\n').map(s => s.trim().replace(/^→\s*/, '')).filter(Boolean).join(' / ');
+      promiseLine.style.display = 'block';
+    } else {
+      promiseLine.style.display = 'none';
+    }
+  }
+  // 週次レビュー未完了の注意
+  const reviewWarning = document.getElementById('ne-review-warning');
+  if (reviewWarning) reviewWarning.style.display = getPendingReviewKey() ? 'block' : 'none';
+
   // CLEAR ALL FORM FIELDS
   const modal = document.getElementById('modal-entry');
   modal.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(el => {
@@ -901,13 +918,26 @@ async function loadData() {
       renderIdeas();
     });
 
+    // レビュー（週次・月次）: 取得後にバナー・POP・月次総括を判定
+    const reviewsP = gasGet('getReviews').then(res => {
+      App.data.reviews = res.data || [];
+    }).catch(() => { App.data.reviews = App.data.reviews || []; });
+
     // エントリーが揃ったら分析・ギャラリー
     await entriesP;
     renderAnalysis();      // ③ 分析
     renderGallery();
 
     // 全部揃ったら記録（最後）
-    await Promise.all([pairsP, ideasP]);
+    await Promise.all([pairsP, ideasP, reviewsP]);
+
+    // レビュー関連UI（バナー → 月次総括 → 約束POP の優先順）
+    updateReviewUI();
+    if (!App.state._reviewPopupsShown) {
+      App.state._reviewPopupsShown = true;
+      const monthlyShown = maybeShowMonthlySummary();
+      if (!monthlyShown) maybeShowPromisePop();
+    }
 
     // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
@@ -1258,6 +1288,405 @@ function clearPlanImage() {
   if (lt) lt.textContent = '📷 シナリオ画像を追加';
   const inp = document.getElementById('pe-plan-image-upload');
   if (inp) inp.value = '';
+}
+
+// ==========================================
+// 週次レビュー・月次総括・今週意識することPOP
+// 週 = 月曜〜土曜。レビューは対象週の土曜6:00(市場クローズ後)に解放
+// ==========================================
+function fmtYmd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// その日を含む週の月曜0:00（日曜は前週扱い）
+function getWeekStart(d) {
+  const dt = new Date(d);
+  const day = dt.getDay(); // 0=日
+  dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1));
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+// 現時点で「レビュー可能な最新の週」の月曜を返す
+function getReviewableWeekStart() {
+  const now = new Date();
+  const thisMon = getWeekStart(now);
+  const sat6 = new Date(thisMon);
+  sat6.setDate(sat6.getDate() + 5);
+  sat6.setHours(6, 0, 0, 0);
+  if (now >= sat6) return thisMon; // 土曜6:00以降 → 今週が対象
+  const prevMon = new Date(thisMon);
+  prevMon.setDate(prevMon.getDate() - 7);
+  return prevMon; // それ以前 → 前週が対象
+}
+
+function findReview(type, periodKey) {
+  return (App.data.reviews || []).find(r => r['種別'] === type && r['期間キー'] === periodKey);
+}
+
+function getWeeklyReviewsSorted() {
+  return (App.data.reviews || [])
+    .filter(r => r['種別'] === 'weekly')
+    .sort((a, b) => (a['期間キー'] < b['期間キー'] ? 1 : -1)); // 新しい順
+}
+
+// 対象週のトレードを抽出（月曜〜日曜・決済/見逃し決済/保有中すべて）
+function getWeekTrades(weekStart) {
+  const from = fmtYmd(weekStart);
+  const toDate = new Date(weekStart);
+  toDate.setDate(toDate.getDate() + 6);
+  const to = fmtYmd(toDate);
+  return App.data.entries.filter(t => {
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+    return d >= from && d <= to;
+  });
+}
+
+// 直近の完了済みレビューの「来週の約束」（POP・エントリー画面用）
+function getCurrentPromise() {
+  const list = getWeeklyReviewsSorted();
+  return list.length ? String(list[0]['約束'] || '').trim() : '';
+}
+
+// 対象週より前の最新レビューの約束（判定対象）
+function getPreviousPromise(targetKey) {
+  const prev = getWeeklyReviewsSorted().find(r => r['期間キー'] < targetKey);
+  return prev ? String(prev['約束'] || '').trim() : '';
+}
+
+// 未レビューの対象週キーを返す（レビュー不要なら null）
+function getPendingReviewKey() {
+  const weekStart = getReviewableWeekStart();
+  const key = fmtYmd(weekStart);
+  if (findReview('weekly', key)) return null;
+  // トレードゼロ かつ 判定すべき約束もない週はレビュー不要
+  const hadTrades = getWeekTrades(weekStart).length > 0;
+  const hasPromise = getPreviousPromise(key) !== '';
+  return (hadTrades || hasPromise) ? key : null;
+}
+
+// バナー・エントリーフォーム警告の表示更新
+function updateReviewUI() {
+  const pending = getPendingReviewKey();
+  const banner = document.getElementById('review-banner');
+  if (banner) banner.style.display = pending ? 'block' : 'none';
+}
+
+// ---- 週次レビューモーダル ----
+function openReviewModal() {
+  const weekStart = getReviewableWeekStart();
+  const key = fmtYmd(weekStart);
+  const existing = findReview('weekly', key);
+  App.state.reviewTargetKey = key;
+
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 5);
+  document.getElementById('review-period').textContent =
+    `${weekStart.getFullYear()}/${weekStart.getMonth() + 1}/${weekStart.getDate()}（月）〜 ${endDate.getMonth() + 1}/${endDate.getDate()}（土）`;
+
+  // ── 成績自動集計（実トレードの決済のみ） ──
+  const weekTrades = getWeekTrades(weekStart);
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  let wins = 0, profit = 0, slSum = 0, slN = 0, entryOk = 0, exitOk = 0;
+  closed.forEach(t => {
+    const pips = parseFloat(t['実取得pips']) || 0;
+    if (pips > 10) wins++;
+    profit += parseFloat(t['損益']) || 0;
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (sl > 0) { slSum += sl; slN++; }
+    if (isEntryCompliant(t)) entryOk++;
+    const er = t['決済振り返り'] || '';
+    if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
+  });
+  const n = closed.length;
+  const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:16px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  const avgSl = slN ? (slSum / slN) : 0;
+  document.getElementById('review-stats').innerHTML =
+    stat('トレード', `${n}回`) +
+    stat('勝率', n ? Math.round(wins / n * 100) + '%' : '--', n && wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
+    stat('ｴﾝﾄﾘｰ遵守', n ? Math.round(entryOk / n * 100) + '%' : '--') +
+    stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
+    stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
+
+  // ── トレード一覧 ──
+  document.getElementById('review-trades').innerHTML = weekTrades.length === 0
+    ? '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">今週のトレードはありません</div>'
+    : weekTrades.map(t => {
+        const pips = parseFloat(t['実取得pips']) || 0;
+        const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+        const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+        const isMissed = (t['ステータス'] || '').includes('見逃し');
+        return `<div style="display:flex; justify-content:space-between; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:12px;">
+          <span style="color:#94a3b8;">${d}</span>
+          <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃し</span>' : ''}</span>
+          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+        </div>`;
+      }).join('');
+
+  // ── 先週の約束（自動抽出 + 判定） ──
+  const prevPromise = getPreviousPromise(key);
+  let savedJudgments = [];
+  if (existing && existing['約束判定']) {
+    try { savedJudgments = JSON.parse(existing['約束判定']); } catch(e) {}
+  }
+  const lines = prevPromise ? prevPromise.split('\n').map(s => s.trim()).filter(Boolean) : [];
+  App.state.reviewJudgments = lines.map((text, i) => ({
+    text,
+    result: (savedJudgments[i] && savedJudgments[i].text === text) ? savedJudgments[i].result : ''
+  }));
+  renderReviewPromises();
+  renderPromiseRate();
+
+  // ── 入力欄（既存レビューがあれば編集モード） ──
+  document.getElementById('review-memo').value = existing ? (existing['メモ'] || '') : '';
+  document.getElementById('review-next-promise').value = existing ? (existing['約束'] || '') : '';
+
+  document.getElementById('modal-review').classList.add('active');
+}
+
+function renderReviewPromises() {
+  const box = document.getElementById('review-promises');
+  const js = App.state.reviewJudgments || [];
+  if (js.length === 0) {
+    box.innerHTML = '<div style="color:#64748b; font-size:12px; padding:6px 0;">先週の約束はありません</div>';
+    return;
+  }
+  box.innerHTML = js.map((j, i) => `
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:6px;">
+      <div style="font-size:13px; color:#e2e8f0; margin-bottom:8px;">${j.text}</div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="setPromiseJudge(${i}, '守れた')" style="flex:1; padding:7px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; ${j.result === '守れた' ? 'background:#10b981; color:#0f172a; border:none;' : 'background:transparent; color:#10b981; border:1px solid #10b981;'}">守れた</button>
+        <button onclick="setPromiseJudge(${i}, '破れた')" style="flex:1; padding:7px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; ${j.result === '破れた' ? 'background:#ef4444; color:#0f172a; border:none;' : 'background:transparent; color:#ef4444; border:1px solid #ef4444;'}">破れた</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setPromiseJudge(idx, result) {
+  const js = App.state.reviewJudgments || [];
+  if (!js[idx]) return;
+  js[idx].result = (js[idx].result === result) ? '' : result; // 再タップで解除
+  renderReviewPromises();
+}
+
+// 約束遵守率（全週次レビューの判定の累計）
+function renderPromiseRate() {
+  const el = document.getElementById('review-promise-rate');
+  if (!el) return;
+  let kept = 0, broken = 0;
+  (App.data.reviews || []).filter(r => r['種別'] === 'weekly' && r['約束判定']).forEach(r => {
+    try {
+      JSON.parse(r['約束判定']).forEach(j => {
+        if (j.result === '守れた') kept++;
+        if (j.result === '破れた') broken++;
+      });
+    } catch(e) {}
+  });
+  const total = kept + broken;
+  el.textContent = total > 0 ? `約束遵守率（累計）: ${Math.round(kept / total * 100)}%（守れた${kept} / 破れた${broken}）` : '';
+}
+
+function closeReviewModal() {
+  document.getElementById('modal-review').classList.remove('active');
+}
+
+async function completeReview() {
+  const key = App.state.reviewTargetKey;
+  if (!key) return;
+  const existing = findReview('weekly', key);
+  const data = {
+    '種別': 'weekly',
+    '期間キー': key,
+    'メモ': document.getElementById('review-memo').value,
+    '約束': document.getElementById('review-next-promise').value,
+    '約束判定': JSON.stringify(App.state.reviewJudgments || []),
+  };
+  showLoader();
+  try {
+    let res;
+    if (existing) {
+      res = await gasPostQueued({ action: 'updateReview', reviewId: existing.id, data }, '週次レビュー更新');
+      if (res.success) Object.assign(existing, data);
+    } else {
+      res = await gasPostQueued({ action: 'saveReview', data }, '週次レビュー保存');
+      if (res.success) App.data.reviews.push(Object.assign({ id: res.id || ('local-' + Date.now()) }, data));
+    }
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+    closeReviewModal();
+    updateReviewUI();
+    showToast(res.queued ? '📥 レビューを保存待ちに追加しました' : '✅ レビュー完了！来週も振り返ろう');
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+// ---- 今週意識することPOP ----
+function maybeShowPromisePop() {
+  const s = getAppSettings();
+  if (s.popFreq === 'off') return false;
+  const promise = getCurrentPromise();
+  if (!promise) return false;
+  const today = fmtYmd(new Date());
+  if (s.popFreq === 'daily' && localStorage.getItem('popShownDate') === today) return false;
+
+  document.getElementById('pop-promises').innerHTML = promise
+    .split('\n').map(s2 => s2.trim()).filter(Boolean)
+    .map(line => `<div style="padding:4px 0;">${line.startsWith('→') ? line : '→ ' + line}</div>`)
+    .join('');
+  document.getElementById('modal-promise-pop').classList.add('active');
+  return true;
+}
+
+function ackPromisePop() {
+  localStorage.setItem('popShownDate', fmtYmd(new Date()));
+  document.getElementById('modal-promise-pop').classList.remove('active');
+}
+
+async function editPromiseFromPop() {
+  const latest = getWeeklyReviewsSorted()[0];
+  if (!latest) return;
+  const edited = prompt('今週の約束を編集:', latest['約束'] || '');
+  if (edited === null) return;
+  latest['約束'] = edited;
+  document.getElementById('pop-promises').innerHTML = edited
+    .split('\n').map(s => s.trim()).filter(Boolean)
+    .map(line => `<div style="padding:4px 0;">${line.startsWith('→') ? line : '→ ' + line}</div>`)
+    .join('');
+  gasPostQueued({ action: 'updateReview', reviewId: latest.id, data: { '約束': edited } }, '約束編集').catch(() => {});
+}
+
+// ---- 月次総括 ----
+function maybeShowMonthlySummary() {
+  const { last } = getDataMonthRange(); // 例: '2026-05'
+  if (findReview('monthly', last)) return false; // 保存済み
+  const monthTrades = App.data.entries.filter(t => {
+    if (t['ステータス'] !== '決済') return false;
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+    return d.startsWith(last);
+  });
+  if (monthTrades.length === 0) return false; // トレードのない月は出さない
+
+  App.state.monthlyTargetKey = last;
+  document.getElementById('monthly-title').textContent = `🏆 ${last.replace('-', '年')}月の総括`;
+
+  // ── 自動集計 ──
+  let wins = 0, profit = 0, entryOk = 0, exitOk = 0;
+  let cum = 0, peak = 0, maxDD = 0;
+  monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1).forEach(t => {
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const pl = parseFloat(t['損益']) || 0;
+    if (pips > 10) wins++;
+    profit += pl;
+    cum += pl;
+    if (cum > peak) peak = cum;
+    if (peak - cum > maxDD) maxDD = peak - cum;
+    if (isEntryCompliant(t)) entryOk++;
+    const er = t['決済振り返り'] || '';
+    if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
+  });
+  const n = monthTrades.length;
+  const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:15px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  document.getElementById('monthly-stats').innerHTML =
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
+    stat('勝率', Math.round(wins / n * 100) + '%') +
+    stat('トレード', n + '回') +
+    stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80') +
+    stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
+    stat('決済遵守', Math.round(exitOk / n * 100) + '%');
+
+  // ── 先月の約束判定サマリー ──
+  let kept = 0, broken = 0;
+  (App.data.reviews || []).filter(r => r['種別'] === 'weekly' && r['期間キー'].startsWith(last) && r['約束判定']).forEach(r => {
+    try {
+      JSON.parse(r['約束判定']).forEach(j => {
+        if (j.result === '守れた') kept++;
+        if (j.result === '破れた') broken++;
+      });
+    } catch(e) {}
+  });
+  document.getElementById('monthly-promise-summary').textContent =
+    (kept + broken > 0) ? `先月の約束: 守れた${kept} / 破れた${broken}（遵守率${Math.round(kept / (kept + broken) * 100)}%）` : '';
+
+  document.getElementById('monthly-memo').value = '';
+  document.getElementById('modal-monthly').classList.add('active');
+  return true;
+}
+
+function closeMonthlyModal() {
+  document.getElementById('modal-monthly').classList.remove('active');
+}
+
+async function saveMonthlySummary() {
+  const key = App.state.monthlyTargetKey;
+  if (!key) return;
+  const data = {
+    '種別': 'monthly',
+    '期間キー': key,
+    'メモ': document.getElementById('monthly-memo').value,
+    '約束': '',
+    '約束判定': '',
+  };
+  showLoader();
+  try {
+    const res = await gasPostQueued({ action: 'saveReview', data }, '月次総括保存');
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+    App.data.reviews.push(Object.assign({ id: res.id || ('local-' + Date.now()) }, data));
+    closeMonthlyModal();
+    showToast(res.queued ? '📥 総括を保存待ちに追加しました' : '🏆 月次総括を保存しました');
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+// ---- レビュー履歴 ----
+function openReviewHistoryModal() {
+  const list = document.getElementById('review-history-list');
+  const reviews = (App.data.reviews || []).slice().sort((a, b) => (a['期間キー'] < b['期間キー'] ? 1 : -1));
+  if (reviews.length === 0) {
+    list.innerHTML = '<div style="color:#64748b; text-align:center; padding:20px; font-size:13px;">レビューがまだありません</div>';
+  } else {
+    list.innerHTML = reviews.map(r => {
+      const isMonthly = r['種別'] === 'monthly';
+      let judgeHtml = '';
+      if (r['約束判定']) {
+        try {
+          const js = JSON.parse(r['約束判定']);
+          judgeHtml = js.filter(j => j.text).map(j =>
+            `<div style="font-size:11px; color:${j.result === '守れた' ? '#10b981' : j.result === '破れた' ? '#ef4444' : '#64748b'};">${j.result === '守れた' ? '✅' : j.result === '破れた' ? '❌' : '─'} ${j.text}</div>`
+          ).join('');
+        } catch(e) {}
+      }
+      return `
+        <div style="background:#0f172a; border:1px solid ${isMonthly ? '#f59e0b' : '#334155'}; border-radius:10px; padding:12px; margin-bottom:8px;">
+          <div style="font-size:13px; font-weight:700; color:${isMonthly ? '#f59e0b' : '#38bdf8'}; margin-bottom:6px;">
+            ${isMonthly ? '🏆 ' + r['期間キー'] + ' 月次総括' : '📋 ' + r['期間キー'] + ' 週'}
+          </div>
+          ${r['メモ'] ? `<div style="font-size:12px; color:#cbd5e1; white-space:pre-wrap; margin-bottom:6px;">${r['メモ']}</div>` : ''}
+          ${r['約束'] ? `<div style="font-size:12px; color:#6ee7b7; white-space:pre-wrap; margin-bottom:6px;">🎯 ${r['約束']}</div>` : ''}
+          ${judgeHtml}
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('modal-review-history').classList.add('active');
+}
+
+function closeReviewHistoryModal() {
+  document.getElementById('modal-review-history').classList.remove('active');
 }
 
 

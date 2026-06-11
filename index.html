@@ -45,6 +45,12 @@
     
     <!-- Screen: Positions -->
     <div id="screen-positions" class="screen active">
+
+      <!-- 週次レビュー未完了バナー -->
+      <div id="review-banner" onclick="openReviewModal()" style="display:none; background:#2d2308; border:1.5px solid #f59e0b; border-radius:10px; padding:12px 14px; margin-bottom:12px; font-size:13px; font-weight:700; color:#f59e0b; cursor:pointer;">
+        📋 先週のレビューが未完了です — タップして振り返る
+      </div>
+
       <div class="section">
         <div class="section-title">保有中ポジション</div>
         <div id="positions-list"></div>
@@ -323,6 +329,11 @@
         <button class="action-btn" onclick="openIdeaHistoryModal()" style="font-size:14px; padding:13px;">📋 メモ履歴を見る</button>
       </div>
 
+      <!-- レビュー履歴 -->
+      <div style="margin-bottom:16px; padding:0 0 4px;">
+        <button class="action-btn" onclick="openReviewHistoryModal()" style="font-size:14px; padding:13px; background:linear-gradient(135deg,#1e3a5f,#1e293b); border:1px solid #38bdf8; color:#38bdf8;">🗓 週次・月次レビュー履歴</button>
+      </div>
+
       <!-- ギャラリー -->
       <div class="section">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
@@ -371,6 +382,12 @@
         <div class="modal-close" onclick="closeEntryModal()">✕</div>
       </div>
       <div class="modal-body">
+
+        <!-- 今週意識すること（常設） -->
+        <div id="ne-promise-line" style="display:none; background:rgba(16,185,129,0.10); border:1px solid #10b981; border-radius:8px; padding:8px 12px; margin-bottom:12px; font-size:12px; color:#6ee7b7; line-height:1.5;"></div>
+
+        <!-- 週次レビュー未完了の注意 -->
+        <div id="ne-review-warning" onclick="closeEntryModal(); openReviewModal();" style="display:none; background:rgba(245,158,11,0.10); border:1px solid #f59e0b; border-radius:8px; padding:8px 12px; margin-bottom:12px; font-size:12px; color:#fcd34d; cursor:pointer;">⚠ 先週のレビューが未完了です（タップでレビューへ）</div>
 
         <!-- プラン発動バナー -->
         <div id="ne-plan-banner" style="display:none; background:rgba(56,189,248,0.12); border:1px solid #38bdf8; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px; color:#38bdf8; font-weight:700;"></div>
@@ -1128,6 +1145,87 @@
       <button onclick="saveScoreConfig()" style="width:100%; padding:13px; background:linear-gradient(135deg,#38bdf8,#2563eb); color:white; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; margin-bottom:8px;">💾 設定を保存</button>
       <button onclick="recalculateAllScores()" style="width:100%; padding:13px; background:transparent; border:1px solid #f59e0b; color:#f59e0b; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer;">🔄 データ更新（全件再計算）</button>
       <div style="font-size:11px; color:#64748b; text-align:center; margin-top:8px;">過去の全エントリーのスコアをGAS側で再計算して保存します</div>
+    </div>
+  </div>
+
+  <!-- 週次レビューモーダル -->
+  <div id="modal-review" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">📋 今週のレビュー</div>
+        <div class="modal-close" onclick="closeReviewModal()">✕</div>
+      </div>
+      <div class="modal-body">
+        <div id="review-period" style="text-align:center; font-size:13px; color:#94a3b8; margin-bottom:14px;"></div>
+
+        <div class="section-title">今週の成績（自動集計）</div>
+        <div id="review-stats" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;"></div>
+
+        <div class="section-title">今週のトレード</div>
+        <div id="review-trades" style="margin-bottom:14px;"></div>
+
+        <div class="section-title">先週の約束（守れた？）</div>
+        <div id="review-promises" style="margin-bottom:6px;"></div>
+        <div id="review-promise-rate" style="font-size:12px; color:#f59e0b; margin-bottom:14px;"></div>
+
+        <div class="section-title">今週の気づき・反省</div>
+        <textarea id="review-memo" class="form-input" rows="3" style="width:100%; margin-bottom:14px;" placeholder="連敗時の心理、うまくいったこと…"></textarea>
+
+        <div class="section-title">来週の自分への約束</div>
+        <div style="font-size:11px; color:#64748b; margin-bottom:6px;">来週1週間、起動時POPとエントリー画面に表示され、次のレビューで判定されます</div>
+        <textarea id="review-next-promise" class="form-input" rows="2" style="width:100%; margin-bottom:14px;" placeholder="→ SL50p未満の注文は出さない&#10;→ 月曜はエントリーしない"></textarea>
+
+        <button onclick="completeReview()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;">✅ レビューを完了する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 月次総括モーダル -->
+  <div id="modal-monthly" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="monthly-title">🏆 先月の総括</div>
+        <div class="modal-close" onclick="closeMonthlyModal()">✕</div>
+      </div>
+      <div class="modal-body">
+        <div class="section-title">先月の成績（自動集計）</div>
+        <div id="monthly-stats" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;"></div>
+        <div id="monthly-promise-summary" style="font-size:12px; color:#94a3b8; margin-bottom:14px;"></div>
+
+        <div class="section-title">今月の総括メモ</div>
+        <textarea id="monthly-memo" class="form-input" rows="4" style="width:100%; margin-bottom:14px;" placeholder="先月をひとことで言うと…&#10;今月のテーマ…"></textarea>
+
+        <button onclick="saveMonthlySummary()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; margin-bottom:8px;">💾 総括を保存</button>
+        <button onclick="closeMonthlyModal()" style="width:100%; padding:11px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:10px; font-size:13px; cursor:pointer;">あとで（次回起動時に再表示）</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 今週意識することPOP -->
+  <div id="modal-promise-pop" class="modal-overlay" style="z-index:1000;">
+    <div class="modal-content" style="max-height:70vh;">
+      <div class="modal-body" style="padding:24px 20px;">
+        <div style="text-align:center; font-size:18px; font-weight:800; color:#10b981; margin-bottom:16px;">🎯 今週意識すること</div>
+        <div id="pop-promises" style="font-size:15px; color:#f8fafc; line-height:1.9; margin-bottom:20px;"></div>
+        <button onclick="ackPromisePop()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;">OK、意識する</button>
+        <div style="display:flex; justify-content:center; gap:20px; margin-top:12px;">
+          <span onclick="editPromiseFromPop()" style="font-size:12px; color:#64748b; cursor:pointer;">✏️ 編集</span>
+          <span onclick="ackPromisePop(); openSettingsModal();" style="font-size:12px; color:#64748b; cursor:pointer;">⚙️ 表示設定</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- レビュー履歴モーダル -->
+  <div id="modal-review-history" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">🗓 レビュー履歴</div>
+        <div class="modal-close" onclick="closeReviewHistoryModal()">✕</div>
+      </div>
+      <div class="modal-body">
+        <div id="review-history-list"></div>
+      </div>
     </div>
   </div>
 
