@@ -17,6 +17,7 @@
   <!-- Header -->
   <header class="header">
     <h1>📈 Trade Tracker</h1>
+    <span id="queue-status" class="badge bg-amber hidden" onclick="flushQueue()" style="cursor:pointer;"></span>
     <span id="network-status" class="badge bg-green hidden">Online</span>
   </header>
 
@@ -88,6 +89,11 @@
         <div class="stat-box" style="grid-column: span 2;">
           <div class="lbl">今月 実RR (合計)</div>
           <div class="val" id="top-rr">0.00</div>
+        </div>
+        <div class="stat-box" style="grid-column: span 2;">
+          <div class="lbl">今月 ルール通りなら（準拠損益）</div>
+          <div class="val" id="top-rule-profit">--</div>
+          <div class="sub" id="top-rule-diff"></div>
         </div>
       </div>
 

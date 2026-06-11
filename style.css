@@ -57,6 +57,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
 .badge.sell { background: rgba(239,68,68,0.2); color: #ef4444; }
 .badge.bg-green { background: #10b981; color: white; }
 .badge.bg-red { background: #ef4444; color: white; }
+.badge.bg-amber { background: #f59e0b; color: white; }
 
 /* ======== List Cards ======== */
 .list-card {
@@ -192,6 +193,9 @@ textarea.form-input { resize: vertical; }
 .stat-box .val { font-size: 22px; font-weight: 800; color: #f8fafc; }
 .stat-box .val.pos { color: #10b981; }
 .stat-box .val.neg { color: #ef4444; }
+.stat-box .sub { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.4; }
+.stat-box .sub.pos { color: #10b981; }
+.stat-box .sub.neg { color: #f87171; }
 
 /* btn-group for chart type toggle */
 .btn-group { display: flex; gap: 4px; }

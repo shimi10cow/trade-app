@@ -19,6 +19,157 @@ const App = {
 };
 
 // ==========================================
+// 通信レイヤー: タイムアウト・リトライ・オフラインキュー
+// ==========================================
+const FETCH_TIMEOUT_MS = 30000;          // GASは応答が遅いことがあるため30秒
+const FETCH_RETRY_DELAYS = [2000, 4000]; // リトライ間隔（初回+2回 = 計3回試行）
+
+function fetchWithTimeout(url, options) {
+  options = options || {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+    .finally(() => clearTimeout(timer));
+}
+
+async function fetchRetry(url, options) {
+  let lastErr;
+  for (let attempt = 0; attempt <= FETCH_RETRY_DELAYS.length; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, options);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < FETCH_RETRY_DELAYS.length) {
+        await new Promise(r => setTimeout(r, FETCH_RETRY_DELAYS[attempt]));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+// GAS GET/POST（タイムアウト・リトライ付き）
+function gasGet(action) {
+  return fetchRetry(`${GAS_URL}?action=${action}`).then(r => r.json());
+}
+
+function gasPost(payload) {
+  return fetchRetry(GAS_URL, { method: 'POST', body: JSON.stringify(payload) }).then(r => r.json());
+}
+
+// ---- オフライン保存キュー (IndexedDB) ----
+// オフライン時・リトライ全滅時に書き込み系POSTを退避し、再接続時に自動送信する
+const QUEUE_DB_NAME = 'trade-app-queue';
+const QUEUE_STORE = 'pending';
+const QUEUE_MAX_ATTEMPTS = 5; // サーバーに拒否され続けたデータの破棄閾値
+
+function openQueueDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(QUEUE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function queueOp(mode, fn) {
+  return openQueueDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(QUEUE_STORE, mode);
+    const req = fn(tx.objectStore(QUEUE_STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onabort = () => db.close();
+  }));
+}
+
+function queueAdd(payload, label) {
+  return queueOp('readwrite', s => s.add({
+    payload, label, attempts: 0, createdAt: new Date().toISOString()
+  })).then(updateQueueBadge);
+}
+function queueGetAll()      { return queueOp('readonly',  s => s.getAll()); }
+function queueDelete(id)    { return queueOp('readwrite', s => s.delete(id)); }
+function queueUpdate(item)  { return queueOp('readwrite', s => s.put(item)); }
+
+// 書き込み系POST: 通信不可ならキューに退避（queued:true で返る）
+async function gasPostQueued(payload, label) {
+  if (!navigator.onLine) {
+    await queueAdd(payload, label);
+    return { success: true, queued: true };
+  }
+  try {
+    return await gasPost(payload);
+  } catch (e) {
+    // リトライ全滅 = ネットワーク起因とみなしキューへ
+    // （サーバーの論理エラーは res.success:false でそのまま呼び元に返る）
+    await queueAdd(payload, label);
+    return { success: true, queued: true };
+  }
+}
+
+let _queueFlushing = false;
+async function flushQueue() {
+  if (_queueFlushing || !navigator.onLine) return;
+  let items;
+  try { items = await queueGetAll(); } catch (e) { return; }
+  if (!items.length) { updateQueueBadge(); return; }
+
+  _queueFlushing = true;
+  let sent = 0, dropped = 0;
+  try {
+    for (const item of items) {
+      let res;
+      try {
+        res = await gasPost(item.payload);
+      } catch (e) {
+        break; // まだ通信不可 → 残りは次回再試行
+      }
+      if (res && res.success) {
+        await queueDelete(item.id);
+        sent++;
+      } else {
+        item.attempts = (item.attempts || 0) + 1;
+        if (item.attempts >= QUEUE_MAX_ATTEMPTS) {
+          await queueDelete(item.id);
+          dropped++;
+          console.error('Queue item dropped (server rejected):', item.label, res && res.error);
+        } else {
+          await queueUpdate(item);
+        }
+      }
+    }
+  } finally {
+    _queueFlushing = false;
+  }
+
+  updateQueueBadge();
+  if (sent > 0) {
+    showToast(`📥 オフライン保存 ${sent}件を同期しました ✅`);
+    loadData();
+  }
+  if (dropped > 0) {
+    alert(`⚠️ ${dropped}件の保存データがサーバーに拒否され破棄されました。スプレッドシートを確認してください。`);
+  }
+}
+
+async function updateQueueBadge() {
+  const badge = document.getElementById('queue-status');
+  if (!badge) return;
+  let count = 0;
+  try { count = (await queueGetAll()).length; } catch (e) {}
+  if (count > 0) {
+    badge.textContent = `📥 未送信 ${count}件`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+// ==========================================
 // Score Config
 // ==========================================
 const DEFAULT_SCORE_CONFIG = [
@@ -135,8 +286,14 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
+  flushQueue();          // 前回オフライン時の未送信データを先に同期
   loadData();
   updateImgBBStatusBar();
+});
+
+// アプリ復帰時にも未送信キューを同期
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') flushQueue();
 });
 
 // ── プルダウンリフレッシュ ──
@@ -245,6 +402,7 @@ function updateNetworkStatus(isOnline) {
     badge.className = 'badge bg-green';
     badge.textContent = 'Online';
     setTimeout(() => badge.classList.add('hidden'), 2000);
+    flushQueue(); // 再接続 → 未送信キューを自動同期
   } else {
     badge.className = 'badge bg-red';
     badge.textContent = 'Offline';
@@ -663,28 +821,19 @@ function hideBgBar() { document.getElementById('bg-load-bar')?.classList.remove(
 async function loadData() {
   showBgBar();
   try {
-    // 全リクエスト同時開始・届いた順に即レンダリング
-    const entriesP = fetch(`${GAS_URL}?action=getEntries`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    // 全リクエスト同時開始・届いた順に即レンダリング（タイムアウト・リトライ付き）
+    const entriesP = gasGet('getEntries').then(res => {
       App.data.entries = res.data || [];
       renderPositions();   // ① ポジション（最優先）
     });
 
-    const pairsP = fetch(`${GAS_URL}?action=getPairs`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    const pairsP = gasGet('getPairs').then(res => {
       App.data.pairs = res.data || [];
       populateFilterPairs();
       renderPairs();       // ② ペア
     });
 
-    const ideasP = fetch(`${GAS_URL}?action=getIdeas`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    const ideasP = gasGet('getIdeas').then(res => {
       App.data.ideas = res.data || [];
       renderIdeas();
     });
@@ -700,13 +849,12 @@ async function loadData() {
     // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
+      gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
     if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFields' }) })
-        .then(function(r) { return r.json(); })
+      gasPost({ action: 'migrateEntryFields' })
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v1', '1');
@@ -717,8 +865,7 @@ async function loadData() {
         .catch(function(){});
     }
     if (!localStorage.getItem('_entryFieldsMigrated_v2')) {
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFieldsV2' }) })
-        .then(function(r) { return r.json(); })
+      gasPost({ action: 'migrateEntryFieldsV2' })
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v2', '1');
@@ -946,7 +1093,7 @@ async function uploadToImgBB(dataUrl) {
   // キーはGASスクリプトプロパティから取得（メモリキャッシュ）
   if (!App.state.imgbbKey) {
     try {
-      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const res = await gasPost({ action: 'getImgBBKey' });
       App.state.imgbbKey = res.key || '';
     } catch(e) { App.state.imgbbKey = ''; }
   }
@@ -964,6 +1111,8 @@ async function uploadToImgBB(dataUrl) {
 
 // ImgBB優先アップロード：失敗時はDrive→base64の順でフォールバック
 async function uploadImageSmart(dataUrl, filename) {
+  // 0) オフライン時は即base64フォールバック（無駄なリトライ待ちを回避）
+  if (!navigator.onLine) return compressForSpreadsheet(dataUrl);
   // 1) ImgBB（高画質・ブラウザから直接）
   try {
     const url = await uploadToImgBB(dataUrl);
@@ -974,10 +1123,7 @@ async function uploadImageSmart(dataUrl, filename) {
   // 2) Drive経由（GAS）
   try {
     const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'uploadImage', base64Data: compressed, filename })
-    }).then(r => r.json());
+    const res = await gasPost({ action: 'uploadImage', base64Data: compressed, filename });
     if (res.success && res.fileId) {
       return 'drive_images/' + res.fileId + '.jpg';
     }
@@ -993,7 +1139,7 @@ async function updateImgBBStatusBar() {
   if (!bar) return;
   if (!App.state.imgbbKey) {
     try {
-      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const res = await gasPost({ action: 'getImgBBKey' });
       App.state.imgbbKey = res.key || '';
     } catch(e) { App.state.imgbbKey = ''; }
   }
@@ -1091,7 +1237,7 @@ async function resolvePathImages(container) {
   for (const el of todo) {
     const path = el.dataset.path;
     try {
-      const res = await fetch(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
+      const res = await fetchRetry(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
       const json = await res.json();
       const url = json?.data?.url || '';
       _imgUrlCache[path] = url;
@@ -1288,8 +1434,11 @@ function updateMonthlyStats() {
   });
   let totalProfit = 0, totalPips = 0, totalRR = 0;
   let entryPerfect = 0, exitPerfect = 0;
+  // ルール準拠損益との差分（準拠損益が入力済みのトレードのみ集計）
+  let ruleDiff = 0, ruleCount = 0;
   monthTrades.forEach(t => {
-    totalProfit += parseFloat(t['損益']) || 0;
+    const profit = parseFloat(t['損益']) || 0;
+    totalProfit += profit;
     totalPips += parseFloat(t['実取得pips']) || 0;
     const pips = parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
@@ -1297,6 +1446,11 @@ function updateMonthlyStats() {
     if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
     if (exitRef === '決済タイミングOK' || exitRef === '完璧決済') exitPerfect++;
+    const rawRuleProfit = t['ルール準拠損益'];
+    if (rawRuleProfit !== undefined && rawRuleProfit !== '' && rawRuleProfit !== null) {
+      const rp = parseFloat(rawRuleProfit);
+      if (!isNaN(rp)) { ruleDiff += rp - profit; ruleCount++; }
+    }
   });
   const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
@@ -1314,6 +1468,33 @@ function updateMonthlyStats() {
   document.getElementById('top-exit-rate').className = 'val ' + (exitRate !== '--' ? clsRate(parseFloat(exitRate)) : '');
   document.getElementById('top-rr').textContent = totalRR.toFixed(2);
   document.getElementById('top-rr').className = 'val ' + cls(totalRR);
+
+  // ルール通りなら比較ウィジェット
+  // 準拠損益が未入力のトレードは実損益＝準拠損益とみなす（差分のみ加算する方式）
+  const ruleProfit = totalProfit + ruleDiff;
+  const ruleProfitEl = document.getElementById('top-rule-profit');
+  const ruleDiffEl = document.getElementById('top-rule-diff');
+  if (ruleProfitEl && ruleDiffEl) {
+    if (ruleCount === 0) {
+      ruleProfitEl.textContent = '--';
+      ruleProfitEl.className = 'val';
+      ruleDiffEl.textContent = 'ルール準拠損益の入力データがありません';
+      ruleDiffEl.className = 'sub';
+    } else {
+      ruleProfitEl.textContent = fmtCur(ruleProfit);
+      ruleProfitEl.className = 'val ' + cls(ruleProfit);
+      if (ruleDiff > 0) {
+        ruleDiffEl.innerHTML = `⚠️ ルールを破ったことで <b>${fmtCur(ruleDiff)}</b> 失っています`;
+        ruleDiffEl.className = 'sub neg';
+      } else if (ruleDiff < 0) {
+        ruleDiffEl.innerHTML = `ルール以上の結果 <b>+${fmtCur(Math.abs(ruleDiff))}</b>（実損益が準拠損益を上回っています）`;
+        ruleDiffEl.className = 'sub pos';
+      } else {
+        ruleDiffEl.textContent = '✅ ルール通りの結果です';
+        ruleDiffEl.className = 'sub pos';
+      }
+    }
+  }
 }
 
 // ==========================================
@@ -2338,10 +2519,7 @@ async function savePairEdit() {
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
     };
 
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updatePair', pairName, data: updateData })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
     if (!res.success) throw new Error(res.error || '保存失敗');
 
     // ローカルにも反映
@@ -2350,7 +2528,7 @@ async function savePairEdit() {
     savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
     closePairEdit();
     renderPairs();
-    showToast('ペア情報を更新しました');
+    showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : 'ペア情報を更新しました');
   } catch (e) {
     alert('エラーが発生しました: ' + e.message);
   } finally {
@@ -3098,17 +3276,18 @@ async function submitEntryData() {
       entryData['ChartImage2'] = await uploadImageSmart(imgPreview2.src, 'entry2_' + Date.now() + '.jpg');
     }
 
-    // GAS に saveEntry POST
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveEntry', data: entryData })
-    }).then(r => r.json());
+    // GAS に saveEntry POST（オフライン時はキューに退避）
+    const res = await gasPostQueued({ action: 'saveEntry', data: entryData }, 'エントリー記録: ' + pairName);
 
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
     closeEntryModal();
-    showToast('エントリーを記録しました ✅');
-    loadData(); // バックグラウンドで再読み込み
+    if (res.queued) {
+      showToast('📥 オフラインのため保存待ちに追加しました（再接続時に自動送信）');
+    } else {
+      showToast('エントリーを記録しました ✅');
+      loadData(); // バックグラウンドで再読み込み
+    }
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -3862,11 +4041,8 @@ async function saveTradeDetail() {
       }
     }
 
-    // GAS updateEntry を呼び出す
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateEntry', entryId: entryId, data: updateData })
-    }).then(r => r.json());
+    // GAS updateEntry を呼び出す（オフライン時はキューに退避）
+    const res = await gasPostQueued({ action: 'updateEntry', entryId: entryId, data: updateData }, 'トレード更新: ' + entryId);
 
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
@@ -3881,7 +4057,7 @@ async function saveTradeDetail() {
 
     closeTradeDetail();
     renderPositions();
-    showToast('保存しました ✅');
+    showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -3905,16 +4081,20 @@ async function deleteEntry() {
 
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'deleteEntry', entryId: entryId })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'deleteEntry', entryId: entryId }, '削除: ' + pairName);
 
     if (!res.success) throw new Error(res.error || '削除に失敗しました');
 
     closeTradeDetail();
-    showToast('削除しました 🗑️');
-    loadData(); // バックグラウンドで再読み込み
+    if (res.queued) {
+      // ローカルからも除去して即時反映（サーバーへは再接続時に送信）
+      App.data.entries = App.data.entries.filter(x => x['EntryID'] !== entryId);
+      renderPositions();
+      showToast('📥 削除を保存待ちに追加しました');
+    } else {
+      showToast('削除しました 🗑️');
+      loadData(); // バックグラウンドで再読み込み
+    }
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -4130,10 +4310,7 @@ async function runGeminiAnalysis() {
 
   try {
     // GASからGroq APIキーを取得
-    const keyRes = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getGroqKey' })
-    }).then(r => r.json());
+    const keyRes = await gasPost({ action: 'getGroqKey' });
     const apiKey = keyRes.key || '';
     if (!apiKey) throw new Error('Groq APIキーがGASに設定されていません（Script PropertiesにGROQ_API_KEYを設定してください）');
 
@@ -4330,7 +4507,7 @@ async function ideaOnImageSelected(event, prefix, idx) {
     renderIdeaImageSlots(prefix);
     const base64 = e.target.result.split(',')[1];
     try {
-      const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const keyRes = await gasPost({ action: 'getImgBBKey' });
       const apiKey = keyRes.key || '';
       if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); uploading[idx] = false; renderIdeaImageSlots(prefix); return; }
       const form = new FormData();
@@ -4387,15 +4564,17 @@ async function saveNewIdea() {
   };
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveIdea', data: data })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'saveIdea', data: data }, 'アイデアメモ保存');
     if (res.success) {
-      App.data.ideas.push(Object.assign({ id: res.id }, data));
-      renderIdeas();
-      closeNewIdeaModal();
-      showToast('保存しました ✅');
+      if (res.queued) {
+        closeNewIdeaModal();
+        showToast('📥 オフラインのため保存待ちに追加しました（同期後に表示されます）');
+      } else {
+        App.data.ideas.push(Object.assign({ id: res.id }, data));
+        renderIdeas();
+        closeNewIdeaModal();
+        showToast('保存しました ✅');
+      }
     } else {
       showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
@@ -4438,16 +4617,13 @@ async function saveIdeaDetail() {
   };
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateIdea', ideaId: id, data: data })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'updateIdea', ideaId: id, data: data }, 'アイデアメモ更新');
     if (res.success) {
       const idx = App.data.ideas.findIndex(function(i) { return i.id === id; });
       if (idx !== -1) App.data.ideas[idx] = Object.assign({ id: id }, data);
       renderIdeas();
       closeIdeaDetail();
-      showToast('保存しました ✅');
+      showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
     } else {
       showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
@@ -4462,15 +4638,12 @@ async function deleteIdeaDetail() {
   const id = App.state.currentIdeaId;
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'deleteIdea', ideaId: id })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'deleteIdea', ideaId: id }, 'アイデアメモ削除');
     if (res.success) {
       App.data.ideas = App.data.ideas.filter(function(i) { return i.id !== id; });
       renderIdeas();
       closeIdeaDetail();
-      showToast('削除しました 🗑️');
+      showToast(res.queued ? '📥 削除を保存待ちに追加しました' : '削除しました 🗑️');
     } else {
       showToast('⚠️ 削除失敗: ' + (res.error || ''));
     }
@@ -4572,10 +4745,7 @@ async function saveScoreConfig() {
   closeScoreConfigModal();
   showToast('スコア設定を保存しました ✅');
   try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig })
-    });
+    await gasPost({ action: 'ensureScoreColumns', config: scoreConfig });
   } catch(e) { /* 列追加失敗は無視 */ }
 }
 
@@ -4583,10 +4753,7 @@ async function recalculateAllScores() {
   if (!confirm('現在の設定で全エントリーのスコアを再計算します。よろしいですか？')) return;
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'recalculateAllScores', config: scoreConfig })
-    }).then(r => r.json());
+    const res = await gasPost({ action: 'recalculateAllScores', config: scoreConfig });
     if (!res.success) throw new Error(res.error || '再計算に失敗しました');
     await loadData();
     showToast(`${res.updated}件のスコアを更新しました ✅`);
