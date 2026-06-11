@@ -1260,6 +1260,14 @@
         <div class="section-title">📅 経済指標の警告</div>
         <div style="font-size:11px; color:#64748b; margin-bottom:8px;">エントリー時刻と指標が近いとき警告し「指標前エントリー」を自動セットします</div>
         <div class="form-row">
+          <span class="form-label">表示指標</span>
+          <div class="btn-group" id="set-cal-scope">
+            <button class="toggle-btn" data-val="curated" onclick="setSettingBtn(this)">厳選のみ</button>
+            <button class="toggle-btn" data-val="all" onclick="setSettingBtn(this)">すべて</button>
+          </div>
+        </div>
+        <div style="font-size:10px; color:#64748b; margin:-2px 0 8px;">厳選 = 米雇用統計・CPI・FOMC・パウエル発言+各国中銀の政策金利（日本語表示）</div>
+        <div class="form-row">
           <span class="form-label">警告範囲</span>
           <div class="btn-group" id="set-cal-window">
             <button class="toggle-btn" data-val="1" onclick="setSettingBtn(this)">前後1h</button>
@@ -1268,7 +1276,7 @@
           </div>
         </div>
         <div class="form-row">
-          <span class="form-label">対象</span>
+          <span class="form-label">「すべて」時の対象</span>
           <div class="btn-group" id="set-cal-importance">
             <button class="toggle-btn" data-val="high" onclick="setSettingBtn(this)">Highのみ</button>
             <button class="toggle-btn" data-val="medhigh" onclick="setSettingBtn(this)">High+Med</button>

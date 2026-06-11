@@ -178,7 +178,8 @@ const APP_SETTINGS_KEY = 'appSettings_v1';
 const APP_SETTINGS_DEFAULTS = {
   popFreq: 'always',     // 今週意識することPOP: always | daily | off
   calWindow: 2,          // 指標警告ウィンドウ（前後N時間）
-  calImportance: 'high', // 指標対象: high | medhigh
+  calImportance: 'high', // 指標対象: high | medhigh（「すべて」モード時のみ使用）
+  calScope: 'curated',   // 表示範囲: curated（厳選） | all
 };
 
 function getAppSettings() {
@@ -199,6 +200,7 @@ function openSettingsModal() {
   apply('set-pop-freq', s.popFreq);
   apply('set-cal-window', s.calWindow);
   apply('set-cal-importance', s.calImportance);
+  apply('set-cal-scope', s.calScope);
   document.getElementById('modal-settings').classList.add('active');
 }
 
@@ -220,10 +222,14 @@ function saveSettingsModal() {
     popFreq: pick('set-pop-freq', APP_SETTINGS_DEFAULTS.popFreq),
     calWindow: parseInt(pick('set-cal-window', APP_SETTINGS_DEFAULTS.calWindow)) || 2,
     calImportance: pick('set-cal-importance', APP_SETTINGS_DEFAULTS.calImportance),
+    calScope: pick('set-cal-scope', APP_SETTINGS_DEFAULTS.calScope),
   };
   localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(s));
   closeSettingsModal();
   showToast('設定を保存しました ✅');
+  // 指標の表示範囲が変わった可能性 → 再描画
+  renderWeekEvents();
+  renderTodayEvents();
 }
 
 // ==========================================
@@ -1325,9 +1331,54 @@ function pairCurrencies(pair) {
   return [];
 }
 
+// 厳選指標リスト（Forex Factoryの英語タイトル → 日本語名の対訳を兼ねる）
+// 米3大イベント + 取引通貨の中銀政策金利
+const CALENDAR_CURATED = [
+  { cur: 'USD', re: /Non-Farm Employment Change|Unemployment Rate|Average Hourly Earnings/i, ja: '🇺🇸 米雇用統計' },
+  { cur: 'USD', re: /CPI/i,                                  ja: '🇺🇸 米CPI（消費者物価指数）' },
+  { cur: 'USD', re: /Federal Funds Rate|FOMC/i,              ja: '🇺🇸 FOMC（米政策金利）' },
+  { cur: 'USD', re: /Fed Chair Powell/i,                     ja: '🇺🇸 パウエルFRB議長 発言' },
+  { cur: 'JPY', re: /BOJ|Monetary Policy Statement|Policy Rate/i, ja: '🇯🇵 日銀 金融政策' },
+  { cur: 'GBP', re: /Official Bank Rate|MPC|Monetary Policy Summary/i, ja: '🇬🇧 BOE（英中銀）政策金利' },
+  { cur: 'EUR', re: /Main Refinancing Rate|Monetary Policy Statement|ECB Press Conference/i, ja: '🇪🇺 ECB（欧州中銀）政策金利' },
+  { cur: 'CHF', re: /SNB/i,                                  ja: '🇨🇭 SNB（スイス中銀）政策金利' },
+  { cur: 'AUD', re: /Cash Rate|RBA/i,                        ja: '🇦🇺 RBA（豪中銀）政策金利' },
+  { cur: 'NZD', re: /Official Cash Rate|RBNZ/i,              ja: '🇳🇿 RBNZ（NZ中銀）政策金利' },
+  { cur: 'CAD', re: /Overnight Rate|BOC/i,                   ja: '🇨🇦 BOC（カナダ中銀）政策金利' },
+];
+
+// イベントの日本語名（厳選リストに一致すれば日本語、なければ原文）
+function eventJa(ev) {
+  const hit = CALENDAR_CURATED.find(c => c.cur === ev.currency && c.re.test(ev.title));
+  return hit ? hit.ja : null;
+}
+
 function passesImportance(ev) {
   const s = getAppSettings();
   return ev.impact === 'High' || (s.calImportance === 'medhigh' && ev.impact === 'Medium');
+}
+
+// 表示・警告の対象となるイベント（設定の表示範囲を適用）
+// 厳選モード: リスト一致のみ（重要度不問） / すべて: High（設定によりMedium含む）
+function isTargetEvent(ev) {
+  const s = getAppSettings();
+  if (s.calScope === 'all') return passesImportance(ev);
+  return eventJa(ev) !== null;
+}
+
+// 同一指標（同時刻・同名）の重複をまとめる（例: 雇用統計はNFP+失業率+平均時給の3行→1行）
+function dedupeEvents(events) {
+  const seen = new Set();
+  return events.filter(ev => {
+    const key = `${ev.datetime}_${eventJa(ev) || ev.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function eventDisplayName(ev) {
+  return eventJa(ev) || ev.title;
 }
 
 function eventDate(ev) {
@@ -1342,11 +1393,11 @@ function findNearbyEvents(pair, dateStr, timeStr) {
   const entryTime = new Date(`${dateStr}T${timeStr}:00`);
   if (isNaN(entryTime)) return [];
   const windowMs = (getAppSettings().calWindow || 2) * 3600 * 1000;
-  return (App.data.calendar || []).filter(ev =>
-    passesImportance(ev) &&
+  return dedupeEvents((App.data.calendar || []).filter(ev =>
+    isTargetEvent(ev) &&
     currencies.includes(ev.currency) &&
     Math.abs(eventDate(ev) - entryTime) <= windowMs
-  );
+  ));
 }
 
 // エントリーフォーム: 指標警告バナー + 指標前エントリー自動セット
@@ -1364,7 +1415,7 @@ function checkEntryEventWarning() {
   }
   const s = getAppSettings();
   box.innerHTML = `⚠ <b>エントリー前後${s.calWindow}時間に重要指標があります</b><br>`
-    + hits.map(ev => `・${ev.datetime.slice(11)} ${ev.currency} ${ev.title}（${ev.impact}）`).join('<br>')
+    + hits.map(ev => `・${ev.datetime.slice(11)} ${eventDisplayName(ev)}`).join('<br>')
     + `<br><span style="color:#fcd34d;">→「指標前エントリー」を自動でONにします</span>`;
   box.style.display = 'block';
 }
@@ -1381,8 +1432,11 @@ function renderWeekEvents() {
     list.innerHTML = `<div style="color:#f59e0b; font-size:11px; padding:6px 0; line-height:1.6;">⚠ 指標データを取得できませんでした（${App.state.calendarError}）${isOldGas ? '<br>→ <b>Code.gsの再デプロイが必要です</b>（GASエディタに最新Code.gsを貼り付け→デプロイを管理→新しいバージョンでデプロイ）' : ''}</div>`;
     return;
   }
-  const events = (App.data.calendar || []).filter(passesImportance)
-    .sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  // 終了した指標は表示しない・厳選フィルタ・重複統合
+  const now = new Date();
+  const events = dedupeEvents(
+    (App.data.calendar || []).filter(ev => isTargetEvent(ev) && eventDate(ev) >= now)
+  ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
   if (events.length === 0) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
@@ -1391,14 +1445,13 @@ function renderWeekEvents() {
   const dows = ['日', '月', '火', '水', '木', '金', '土'];
   list.innerHTML = events.map(ev => {
     const isToday = ev.datetime.startsWith(todayStr);
-    const isPast = eventDate(ev) < new Date();
     const d = eventDate(ev);
     const impactColor = ev.impact === 'High' ? '#ef4444' : '#f59e0b';
     return `
-      <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; background:${isToday ? 'rgba(239,68,68,0.08)' : '#1e293b'}; border:1px solid ${isToday ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px; ${isPast ? 'opacity:0.45;' : ''}">
+      <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; background:${isToday ? 'rgba(239,68,68,0.08)' : '#1e293b'}; border:1px solid ${isToday ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px;">
         <span style="color:#94a3b8; min-width:86px;">${ev.datetime.slice(5, 10).replace('-', '/')}(${dows[d.getDay()]}) ${ev.datetime.slice(11)}</span>
         <span style="font-weight:700; color:${impactColor}; min-width:34px;">${ev.currency}</span>
-        <span style="flex:1; color:#e2e8f0;">${ev.title}</span>
+        <span style="flex:1; color:#e2e8f0;">${eventDisplayName(ev)}</span>
         ${isToday ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">今日</span>' : ''}
       </div>`;
   }).join('');
@@ -1419,10 +1472,13 @@ function renderTodayEvents() {
   const list = document.getElementById('today-events-list');
   if (!section || !list) return;
 
+  // 今日の未終了分のみ・厳選フィルタ・重複統合
   const todayStr = fmtYmd(new Date());
-  const events = (App.data.calendar || [])
-    .filter(ev => passesImportance(ev) && ev.datetime.startsWith(todayStr))
-    .sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  const now = new Date();
+  const events = dedupeEvents(
+    (App.data.calendar || [])
+      .filter(ev => isTargetEvent(ev) && ev.datetime.startsWith(todayStr) && eventDate(ev) >= now)
+  ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
   if (events.length === 0) { section.style.display = 'none'; return; }
 
   // 保有中ポジションの構成通貨
@@ -1434,12 +1490,11 @@ function renderTodayEvents() {
   section.style.display = 'block';
   list.innerHTML = events.map(ev => {
     const held = heldCurrencies.has(ev.currency);
-    const isPast = eventDate(ev) < new Date();
     return `
-      <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:${held ? 'rgba(239,68,68,0.10)' : '#1e293b'}; border:1px solid ${held ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px; ${isPast ? 'opacity:0.45;' : ''}">
+      <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:${held ? 'rgba(239,68,68,0.10)' : '#1e293b'}; border:1px solid ${held ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px;">
         <span style="color:#94a3b8; min-width:40px;">${ev.datetime.slice(11)}</span>
         <span style="font-weight:700; color:${ev.impact === 'High' ? '#ef4444' : '#f59e0b'}; min-width:34px;">${ev.currency}</span>
-        <span style="flex:1; color:#e2e8f0;">${ev.title}</span>
+        <span style="flex:1; color:#e2e8f0;">${eventDisplayName(ev)}</span>
         ${held ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">⚠ 保有ペア</span>' : ''}
       </div>`;
   }).join('');
