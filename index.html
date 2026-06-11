@@ -80,6 +80,15 @@
 
     <!-- Screen: Pairs -->
     <div id="screen-pairs" class="screen">
+      <!-- 今週の重要指標 -->
+      <div class="section" id="calendar-week-section" style="display:none; margin-bottom:14px;">
+        <div class="section-title" onclick="toggleWeekEvents()" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span id="calendar-week-title">📅 今週の重要指標</span>
+          <span id="calendar-week-arrow" style="color:#64748b;">▾</span>
+        </div>
+        <div id="calendar-week-list"></div>
+      </div>
+
       <div class="section">
         <div class="section-title">監視ペア一覧</div>
         <div id="pairs-list"></div>
@@ -401,11 +410,11 @@
           <!-- ROW 1 -->
           <div class="form-row">
             <span class="form-label">日付</span>
-            <input type="date" class="form-input" id="ne-date">
+            <input type="date" class="form-input" id="ne-date" onchange="checkEntryEventWarning()">
           </div>
           <div class="form-row">
             <span class="form-label">時間帯</span>
-            <input type="time" class="form-input" id="ne-time">
+            <input type="time" class="form-input" id="ne-time" onchange="checkEntryEventWarning()">
           </div>
           <div class="form-row">
             <span class="form-label">ペア</span>

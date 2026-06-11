@@ -730,6 +730,7 @@ function openEntryModal(isMissed = false) {
   if (planBanner) planBanner.style.display = 'none';
   const eventWarning = document.getElementById('ne-event-warning');
   if (eventWarning) eventWarning.style.display = 'none';
+  App.state.entryEventFlag = false;
 
   // 今週意識すること（常設表示）
   const promiseLine = document.getElementById('ne-promise-line');
@@ -830,6 +831,8 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
     } else {
       preMemoBox.textContent = p['事前メモ'] || p['環境認識メモ'] || p['メモ'] || '(事前メモなし)';
     }
+
+    checkEntryEventWarning(); // ペア変更時に指標警告を再判定
   }
 
   // --- Auto populate Trend Direction ---
@@ -922,6 +925,19 @@ async function loadData() {
     const reviewsP = gasGet('getReviews').then(res => {
       App.data.reviews = res.data || [];
     }).catch(() => { App.data.reviews = App.data.reviews || []; });
+
+    // 経済指標カレンダー（失敗しても他機能に影響なし）
+    gasGet('getCalendar').then(res => {
+      const data = res.data || {};
+      App.data.calendar = data.events || [];
+      App.state.calendarError = data.error || '';
+      renderWeekEvents();
+      renderTodayEvents();
+    }).catch(() => {
+      App.data.calendar = [];
+      App.state.calendarError = '取得失敗';
+      renderWeekEvents();
+    });
 
     // エントリーが揃ったら分析・ギャラリー
     await entriesP;
@@ -1288,6 +1304,143 @@ function clearPlanImage() {
   if (lt) lt.textContent = '📷 シナリオ画像を追加';
   const inp = document.getElementById('pe-plan-image-upload');
   if (inp) inp.value = '';
+}
+
+// ==========================================
+// 経済指標カレンダー
+// ==========================================
+// 特殊シンボル → 構成通貨のマッピング（通常6文字ペアは自動分解）
+const SYMBOL_CURRENCIES = {
+  'JP225': ['JPY'], 'US500': ['USD'], 'UK100': ['GBP'], 'EU50': ['EUR'],
+  'OIL': ['USD'], 'BRENT': ['USD'], 'WTI': ['USD'],
+  'XAUUSD': ['USD'], 'XAGUSD': ['USD'], 'XAUEUR': ['EUR'],
+  'BTCUSD': ['USD'], 'BTCJPY': ['JPY'], 'BTCEUR': ['EUR'], 'BTCGBP': ['GBP'],
+};
+
+function pairCurrencies(pair) {
+  const up = String(pair || '').toUpperCase().trim();
+  if (SYMBOL_CURRENCIES[up]) return SYMBOL_CURRENCIES[up];
+  if (/^[A-Z]{6}$/.test(up)) return [up.slice(0, 3), up.slice(3)];
+  return [];
+}
+
+function passesImportance(ev) {
+  const s = getAppSettings();
+  return ev.impact === 'High' || (s.calImportance === 'medhigh' && ev.impact === 'Medium');
+}
+
+function eventDate(ev) {
+  return new Date(String(ev.datetime).replace(' ', 'T'));
+}
+
+// エントリー日時±設定時間内 かつ ペアの構成通貨に一致する指標
+function findNearbyEvents(pair, dateStr, timeStr) {
+  if (!pair || !dateStr || !timeStr) return [];
+  const currencies = pairCurrencies(pair);
+  if (currencies.length === 0) return [];
+  const entryTime = new Date(`${dateStr}T${timeStr}:00`);
+  if (isNaN(entryTime)) return [];
+  const windowMs = (getAppSettings().calWindow || 2) * 3600 * 1000;
+  return (App.data.calendar || []).filter(ev =>
+    passesImportance(ev) &&
+    currencies.includes(ev.currency) &&
+    Math.abs(eventDate(ev) - entryTime) <= windowMs
+  );
+}
+
+// エントリーフォーム: 指標警告バナー + 指標前エントリー自動セット
+function checkEntryEventWarning() {
+  const box = document.getElementById('ne-event-warning');
+  if (!box) return;
+  const pair = document.getElementById('ne-pair')?.value || '';
+  const dateStr = document.getElementById('ne-date')?.value || '';
+  const timeStr = document.getElementById('ne-time')?.value || '';
+  const hits = findNearbyEvents(pair, dateStr, timeStr);
+  App.state.entryEventFlag = hits.length > 0;
+  if (hits.length === 0) {
+    box.style.display = 'none';
+    return;
+  }
+  const s = getAppSettings();
+  box.innerHTML = `⚠ <b>エントリー前後${s.calWindow}時間に重要指標があります</b><br>`
+    + hits.map(ev => `・${ev.datetime.slice(11)} ${ev.currency} ${ev.title}（${ev.impact}）`).join('<br>')
+    + `<br><span style="color:#fcd34d;">→「指標前エントリー」を自動でONにします</span>`;
+  box.style.display = 'block';
+}
+
+// 通貨ペアタブ: 今週の重要指標リスト
+function renderWeekEvents() {
+  const section = document.getElementById('calendar-week-section');
+  const list = document.getElementById('calendar-week-list');
+  if (!section || !list) return;
+
+  if (App.state.calendarError && (App.data.calendar || []).length === 0) {
+    section.style.display = 'block';
+    list.innerHTML = `<div style="color:#64748b; font-size:11px; padding:6px 0;">指標データを取得できませんでした（${App.state.calendarError}）</div>`;
+    return;
+  }
+  const events = (App.data.calendar || []).filter(passesImportance)
+    .sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  if (events.length === 0) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  document.getElementById('calendar-week-title').textContent = `📅 今週の重要指標（${events.length}件）`;
+  const todayStr = fmtYmd(new Date());
+  const dows = ['日', '月', '火', '水', '木', '金', '土'];
+  list.innerHTML = events.map(ev => {
+    const isToday = ev.datetime.startsWith(todayStr);
+    const isPast = eventDate(ev) < new Date();
+    const d = eventDate(ev);
+    const impactColor = ev.impact === 'High' ? '#ef4444' : '#f59e0b';
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; background:${isToday ? 'rgba(239,68,68,0.08)' : '#1e293b'}; border:1px solid ${isToday ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px; ${isPast ? 'opacity:0.45;' : ''}">
+        <span style="color:#94a3b8; min-width:86px;">${ev.datetime.slice(5, 10).replace('-', '/')}(${dows[d.getDay()]}) ${ev.datetime.slice(11)}</span>
+        <span style="font-weight:700; color:${impactColor}; min-width:34px;">${ev.currency}</span>
+        <span style="flex:1; color:#e2e8f0;">${ev.title}</span>
+        ${isToday ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">今日</span>' : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleWeekEvents() {
+  const list = document.getElementById('calendar-week-list');
+  const arrow = document.getElementById('calendar-week-arrow');
+  if (!list) return;
+  const hidden = list.style.display === 'none';
+  list.style.display = hidden ? 'block' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▾' : '▸';
+}
+
+// ポジションタブ下部: 今日の重要指標（保有ペア関連は赤強調）
+function renderTodayEvents() {
+  const section = document.getElementById('today-events-section');
+  const list = document.getElementById('today-events-list');
+  if (!section || !list) return;
+
+  const todayStr = fmtYmd(new Date());
+  const events = (App.data.calendar || [])
+    .filter(ev => passesImportance(ev) && ev.datetime.startsWith(todayStr))
+    .sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  if (events.length === 0) { section.style.display = 'none'; return; }
+
+  // 保有中ポジションの構成通貨
+  const heldCurrencies = new Set();
+  App.data.entries
+    .filter(t => (t['ステータス'] || '').startsWith('保有中'))
+    .forEach(t => pairCurrencies(t['PairName（元）'] || t.PairName || '').forEach(c => heldCurrencies.add(c)));
+
+  section.style.display = 'block';
+  list.innerHTML = events.map(ev => {
+    const held = heldCurrencies.has(ev.currency);
+    const isPast = eventDate(ev) < new Date();
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:${held ? 'rgba(239,68,68,0.10)' : '#1e293b'}; border:1px solid ${held ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px; ${isPast ? 'opacity:0.45;' : ''}">
+        <span style="color:#94a3b8; min-width:40px;">${ev.datetime.slice(11)}</span>
+        <span style="font-weight:700; color:${ev.impact === 'High' ? '#ef4444' : '#f59e0b'}; min-width:34px;">${ev.currency}</span>
+        <span style="flex:1; color:#e2e8f0;">${ev.title}</span>
+        ${held ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">⚠ 保有ペア</span>' : ''}
+      </div>`;
+  }).join('');
 }
 
 // ==========================================
@@ -4290,6 +4443,11 @@ async function submitEntryData() {
     if (planCtx && planCtx.pairName === pairName) {
       entryData['計画エントリー'] = 'ON';
       if (planCtx.image) entryData['事前チャート'] = planCtx.image;
+    }
+
+    // 指標警告が出ていたら「指標前エントリー」を自動セット
+    if (App.state.entryEventFlag) {
+      entryData['指標前エントリー'] = 'ON';
     }
 
     // 画像保存：Drive優先、失敗時はbase64フォールバック

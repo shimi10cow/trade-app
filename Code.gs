@@ -19,6 +19,7 @@ const GAS_ACTIONS = {
   getAnalysisStats: () => getAnalysisStats(),
   getIdeas:         () => getIdeas(),
   getReviews:       () => getReviews(),
+  getCalendar:      () => getCalendarEvents(),
 };
 
 function doGet(e) {
@@ -739,6 +740,44 @@ function deleteIdea(ideaId) {
   return { success: true };
 }
 // =============================================
+
+// =============================================
+// 経済指標カレンダー（Forex Factory 週間JSON・非公式）
+// 6時間キャッシュ。取得失敗時は error を返すだけ（フォールバックなし）
+// =============================================
+const CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+const CALENDAR_CACHE_KEY = 'calendar_cache_v1';
+
+function getCalendarEvents() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(CALENDAR_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+
+  try {
+    const res = UrlFetchApp.fetch(CALENDAR_URL, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) {
+      return { error: 'HTTP ' + res.getResponseCode(), events: [] };
+    }
+    const raw = JSON.parse(res.getContentText());
+    const events = raw
+      .filter(e => e && e.date && e.country)
+      .map(e => ({
+        title:    String(e.title || ''),
+        currency: String(e.country || '').toUpperCase(),
+        datetime: Utilities.formatDate(new Date(e.date), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+        impact:   String(e.impact || ''),
+      }))
+      .filter(e => e.impact === 'High' || e.impact === 'Medium');
+
+    const result = { events: events };
+    try { cache.put(CALENDAR_CACHE_KEY, JSON.stringify(result), 21600); } catch(e) {} // 6時間
+    return result;
+  } catch(e) {
+    return { error: e.message, events: [] };
+  }
+}
 
 // =============================================
 // 週次・月次レビュー (Reviews シート)
