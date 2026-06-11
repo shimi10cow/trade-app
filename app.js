@@ -1338,6 +1338,8 @@ const CALENDAR_CURATED = [
   { cur: 'USD', re: /CPI/i,                                  ja: '🇺🇸 米CPI（消費者物価指数）' },
   { cur: 'USD', re: /Federal Funds Rate|FOMC/i,              ja: '🇺🇸 FOMC（米政策金利）' },
   { cur: 'USD', re: /Fed Chair Powell/i,                     ja: '🇺🇸 パウエルFRB議長 発言' },
+  { cur: 'USD', re: /ISM Manufacturing PMI/i,                ja: '🇺🇸 ISM製造業景況指数' },
+  { cur: 'USD', re: /ISM Services PMI|ISM Non-Manufacturing PMI/i, ja: '🇺🇸 ISMサービス業景況指数' },
   { cur: 'JPY', re: /BOJ|Monetary Policy Statement|Policy Rate/i, ja: '🇯🇵 日銀 金融政策' },
   { cur: 'GBP', re: /Official Bank Rate|MPC|Monetary Policy Summary/i, ja: '🇬🇧 BOE（英中銀）政策金利' },
   { cur: 'EUR', re: /Main Refinancing Rate|Monetary Policy Statement|ECB Press Conference/i, ja: '🇪🇺 ECB（欧州中銀）政策金利' },
