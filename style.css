@@ -295,6 +295,17 @@ textarea.form-input { resize: vertical; }
 .metric-unit { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 2px; }
 .metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
 
+/* ======== 折りたたみセクション（分析タブ統計） ======== */
+.collapse-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+.collapse-arrow { font-size: 12px; color: #64748b; transition: transform 0.2s; }
+.collapse-section .collapse-body { margin-top: 8px; }
+.collapse-section.collapsed .collapse-body { display: none; }
+.collapse-section.collapsed .collapse-arrow { transform: rotate(-90deg); }
+
+/* ======== モンテカルロ ======== */
+.mc-label { display: block; font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.3px; }
+.mc-input { width: 100%; padding: 8px; font-size: 13px; }
+
 /* ======== アイデアカード 画像スライダー ======== */
 .idea-slider { position: relative; background: #0f172a; border-radius: 6px; overflow: hidden; }
 .idea-slide-track { display: flex; transition: transform 0.3s ease; will-change: transform; }

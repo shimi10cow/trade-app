@@ -283,6 +283,7 @@ function buildScoreGroups(containerId, prefix) {
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   loadScoreConfig();
+  loadMcConfig();
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
@@ -1642,7 +1643,7 @@ function applyAnalysisFilters() {
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
-    <div class="metrics-section-header">📊 基本統計</div>
+    ${csOpen('basic', '📊 基本統計')}
     <div class="metric-card">
       <div class="metric-label">エントリー数</div>
       <div class="metric-value">${totalTrades}<span class="metric-unit">回</span></div>
@@ -1676,7 +1677,8 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(parseFloat(totalRR))}">${totalRR}</div>
     </div>
 
-    <div class="metrics-section-header">📋 ルール遵守</div>
+    ${csClose()}
+    ${csOpen('rules', '📋 ルール遵守')}
     <div class="metric-card">
       <div class="metric-label">エントリールール遵守率</div>
       <div class="metric-value ${entryComplianceRate !== '--' ? classForNum(parseFloat(entryComplianceRate) - 70) : ''}">${entryComplianceRate}${entryComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
@@ -1686,7 +1688,8 @@ function applyAnalysisFilters() {
       <div class="metric-value ${exitComplianceRate !== '--' ? classForNum(parseFloat(exitComplianceRate) - 70) : ''}">${exitComplianceRate}${exitComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
     </div>
 
-    <div class="metrics-section-header">📈 pips統計</div>
+    ${csClose()}
+    ${csOpen('pips', '📈 pips統計')}
     <div class="metric-card">
       <div class="metric-label">総取得pips</div>
       <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
@@ -1712,7 +1715,8 @@ function applyAnalysisFilters() {
       <div class="metric-value neg">${avgLossPips}<span class="metric-unit">pips</span></div>
     </div>
 
-    <div class="metrics-section-header">💴 収支統計</div>
+    ${csClose()}
+    ${csOpen('profit', '💴 収支統計')}
     <div class="metric-card">
       <div class="metric-label">総収支</div>
       <div class="metric-value ${classForNum(totalProfit)}" style="font-size:16px;">${fmtCurrency(totalProfit)}</div>
@@ -1738,7 +1742,8 @@ function applyAnalysisFilters() {
       <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(parseInt(avgLossProfit))}</div>
     </div>
 
-    <div class="metrics-section-header">🔮 理論値</div>
+    ${csClose()}
+    ${csOpen('theory', '🔮 理論値')}
     <div class="metric-card">
       <div class="metric-label">理論pips</div>
       <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
@@ -1755,7 +1760,9 @@ function applyAnalysisFilters() {
       <div class="metric-label">ルール外乖離額</div>
       <div class="metric-value ${classForNum(deviationProfit)}" style="font-size:15px;">${deviationProfit >= 0 ? '+' : ''}${fmtCurrency(Math.round(deviationProfit))}</div>
     </div>
+    ${csClose()}
   `;
+  syncCollapseSections();
 
   renderDrawdown(filtered);
   App.state.analysisFiltered = filtered; // チャートバークリック時の絞り込みに使用
@@ -1763,6 +1770,43 @@ function applyAnalysisFilters() {
   renderHeatmapFiltered();
   renderGrowthChart(filtered);
   renderEquityCurve();
+  renderRRDistribution(filtered);
+}
+
+// ==========================================
+// 折りたたみセクション（分析タブ統計）
+// ==========================================
+function getCollapsedSections() {
+  try { return JSON.parse(localStorage.getItem('analysisCollapsed_v1') || '{}'); } catch(e) { return {}; }
+}
+
+function csOpen(key, title) {
+  const collapsed = getCollapsedSections()[key] ? ' collapsed' : '';
+  return `<div class="collapse-section${collapsed}" data-collapse-key="${key}">`
+    + `<div class="metrics-section-header collapse-toggle" onclick="toggleAnalysisSection('${key}')">${title}<span class="collapse-arrow">▾</span></div>`
+    + `<div class="metrics-grid collapse-body">`;
+}
+
+function csClose() {
+  return `</div></div>`;
+}
+
+function toggleAnalysisSection(key) {
+  const el = document.querySelector(`.collapse-section[data-collapse-key="${key}"]`);
+  if (!el) return;
+  el.classList.toggle('collapsed');
+  const state = getCollapsedSections();
+  state[key] = el.classList.contains('collapsed');
+  localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
+}
+
+// 静的セクション（ドローダウン分析）にも保存済みの開閉状態を反映
+function syncCollapseSections() {
+  const state = getCollapsedSections();
+  document.querySelectorAll('#screen-analysis .collapse-section').forEach(el => {
+    const key = el.dataset.collapseKey;
+    el.classList.toggle('collapsed', !!state[key]);
+  });
 }
 
 function renderDrawdown(trades) {
@@ -1840,6 +1884,251 @@ function renderDrawdown(trades) {
       <div class="metric-sub">総利益 ÷ 最大DD（2以上が健全）</div>
     </div>
   `;
+}
+
+// ==========================================
+// 実RR分布
+// ==========================================
+// 実RR = 実取得pips / StopLossPips（分析タブの平均実RRと同一定義）
+function getRRValues(trades) {
+  const rs = [];
+  trades.forEach(t => {
+    const pips = parseFloat(t['実取得pips']);
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (!isNaN(pips) && sl > 0) rs.push(pips / sl);
+  });
+  return rs;
+}
+
+const RR_BINS = [
+  { label: '-1未満', test: v => v < -1,            color: '#ef4444' },
+  { label: '-1〜0',  test: v => v >= -1 && v < 0,  color: '#b91c1c' },
+  { label: '0〜1',   test: v => v >= 0 && v < 1,   color: '#10b981' },
+  { label: '1〜2',   test: v => v >= 1 && v < 2,   color: '#10b981' },
+  { label: '2〜3',   test: v => v >= 2 && v < 3,   color: '#10b981' },
+  { label: '3+',     test: v => v >= 3,            color: '#10b981' },
+];
+
+function renderRRDistribution(trades) {
+  const chips = document.getElementById('rr-dist-chips');
+  const chart = document.getElementById('rr-dist-chart');
+  if (!chips || !chart) return;
+
+  const rs = getRRValues(trades);
+  App.state.rrValues = rs; // モンテカルロの抽出元
+
+  if (rs.length === 0) {
+    chips.innerHTML = '';
+    chart.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">データがありません</div>';
+    return;
+  }
+
+  const avg = rs.reduce((s, v) => s + v, 0) / rs.length;
+  const winsR = rs.filter(v => v > 0);
+  const lossR = rs.filter(v => v < 0);
+  const avgWin = winsR.length ? winsR.reduce((s, v) => s + v, 0) / winsR.length : null;
+  const avgLoss = lossR.length ? lossR.reduce((s, v) => s + v, 0) / lossR.length : null;
+  const clsNum = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+
+  chips.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">平均RR</div>
+      <div class="metric-value ${clsNum(avg)}">${avg >= 0 ? '+' : ''}${avg.toFixed(2)}</div>
+      <div class="metric-sub">${rs.length}件</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ち平均RR</div>
+      <div class="metric-value pos">${avgWin !== null ? '+' + avgWin.toFixed(2) : '--'}</div>
+      <div class="metric-sub">${winsR.length}件</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負け平均RR</div>
+      <div class="metric-value neg">${avgLoss !== null ? avgLoss.toFixed(2) : '--'}</div>
+      <div class="metric-sub">${lossR.length}件</div>
+    </div>
+  `;
+
+  const counts = RR_BINS.map(b => rs.filter(b.test).length);
+  const maxN = Math.max(...counts, 1);
+  const barH = 140;
+  chart.innerHTML = `
+    <div style="display:flex; align-items:flex-end; gap:6px; height:${barH + 50}px; padding:0 2px;">
+      ${RR_BINS.map((b, i) => {
+        const h = Math.max(counts[i] > 0 ? 6 : 2, Math.round(counts[i] / maxN * barH));
+        return `
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+            <div style="font-size:12px; font-weight:700; color:#e2e8f0; margin-bottom:3px;">${counts[i]}</div>
+            <div style="width:100%; height:${h}px; background:${counts[i] > 0 ? b.color : '#1e293b'}; border-radius:5px 5px 0 0;"></div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:5px; white-space:nowrap;">${b.label}</div>
+          </div>`;
+      }).join('')}
+    </div>
+    <div style="border-top:1px solid #334155; margin-top:-26px;"></div>
+  `;
+}
+
+// ==========================================
+// モンテカルロ・シミュレーション
+// ==========================================
+const MC_CONFIG_KEY = 'mcConfig_v1';
+const MC_FIELDS = ['mc-risk', 'mc-trades', 'mc-sims', 'mc-capital', 'mc-ddline', 'mc-ruinpct'];
+
+function loadMcConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MC_CONFIG_KEY) || '{}');
+    MC_FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && saved[id] !== undefined) el.value = saved[id];
+    });
+  } catch(e) {}
+}
+
+function saveMcConfig() {
+  const conf = {};
+  MC_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) conf[id] = el.value;
+  });
+  localStorage.setItem(MC_CONFIG_KEY, JSON.stringify(conf));
+}
+
+function mcNum(id, def, min, max) {
+  let v = parseFloat(document.getElementById(id)?.value);
+  if (isNaN(v)) v = def;
+  v = Math.max(min, Math.min(max, v));
+  const el = document.getElementById(id);
+  if (el) el.value = v;
+  return v;
+}
+
+function runMonteCarlo() {
+  const rs = App.state.rrValues || [];
+  if (rs.length < 5) {
+    showToast(`⚠️ データ不足: 現在のフィルタ条件の実RRは${rs.length}件です（5件以上必要）`);
+    return;
+  }
+
+  const risk    = mcNum('mc-risk',    30000,   1, 10000000);
+  const nT      = mcNum('mc-trades',  100,    10, 1000);
+  const nS      = mcNum('mc-sims',    1000,  100, 5000);
+  const capital = mcNum('mc-capital', 2000000, 1, 1000000000);
+  const ddLine  = mcNum('mc-ddline',  120000,  1, 1000000000);
+  const ruinPct = mcNum('mc-ruinpct', 30,      1, 100);
+  saveMcConfig();
+
+  const ruinLine = capital * ruinPct / 100;
+
+  // バンドチャート用に最大100点へ間引いて記録
+  const step = Math.max(1, Math.ceil(nT / 100));
+  const sampleIdx = [];
+  for (let t = 0; t <= nT; t += step) sampleIdx.push(t);
+  if (sampleIdx[sampleIdx.length - 1] !== nT) sampleIdx.push(nT);
+
+  const finals = [], maxDDs = [], sampled = [];
+  let ddExceed = 0, ruined = 0;
+
+  for (let s = 0; s < nS; s++) {
+    let eq = 0, peak = 0, mdd = 0, minEq = 0;
+    const path = [0];
+    let nextSample = 1; // sampleIdx[0]=0 は記録済み
+    for (let t = 1; t <= nT; t++) {
+      eq += rs[Math.floor(Math.random() * rs.length)] * risk;
+      if (eq > peak) peak = eq;
+      const dd = peak - eq;
+      if (dd > mdd) mdd = dd;
+      if (eq < minEq) minEq = eq;
+      if (t === sampleIdx[nextSample]) { path.push(eq); nextSample++; }
+    }
+    finals.push(eq);
+    maxDDs.push(mdd);
+    sampled.push(path);
+    if (mdd > ddLine) ddExceed++;
+    if (minEq <= -ruinLine) ruined++;
+  }
+
+  finals.sort((a, b) => a - b);
+  const pct = (p) => finals[Math.min(nS - 1, Math.floor(p / 100 * (nS - 1)))];
+  const pDD = ddExceed / nS * 100;
+  const pRuin = ruined / nS * 100;
+
+  // トレード番号ごとのパーセンタイル帯
+  const band = { 5: [], 25: [], 50: [], 75: [], 95: [] };
+  for (let i = 0; i < sampleIdx.length; i++) {
+    const col = sampled.map(p => p[i]).sort((a, b) => a - b);
+    [5, 25, 50, 75, 95].forEach(q => band[q].push(col[Math.min(nS - 1, Math.floor(q / 100 * (nS - 1)))]));
+  }
+
+  renderMcResult({ nT, nS, risk, ddLine, ruinPct, ruinLine, sampleCount: rs.length,
+                   p5: pct(5), p50: pct(50), p95: pct(95), pDD, pRuin, band, sampleIdx });
+}
+
+function renderMcResult(r) {
+  const box = document.getElementById('mc-result');
+  if (!box) return;
+  const fmt = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const clsNum = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  const probColor = (p) => p >= 50 ? '#ef4444' : (p >= 20 ? '#f59e0b' : '#10b981');
+
+  // ── バンドチャート（SVG・資産推移と同方式） ──
+  const n = r.sampleIdx.length - 1;
+  const allVals = [...r.band[5], ...r.band[95], 0];
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const range = (maxV - minV) || 1;
+  const pL = 14, pR = 99, pT = 5, pB = 72;
+  const X = (i) => pL + (i / n) * (pR - pL);
+  const Y = (v) => pB - ((v - minV) / range) * (pB - pT);
+  const linePts = (qs) => r.sampleIdx.map((_, i) => `${X(i).toFixed(2)},${Y(r.band[qs][i]).toFixed(2)}`);
+  const poly = (qHigh, qLow) => [...linePts(qHigh), ...linePts(qLow).reverse()].join(' ');
+  let yLabels = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + range * i / 4;
+    const lbl = Math.abs(v) >= 10000 ? (v / 10000).toFixed(0) + '万' : Math.round(v).toLocaleString();
+    yLabels += `<text x="${pL - 1}" y="${Y(v).toFixed(2)}" fill="#64748b" font-size="3" text-anchor="end" dominant-baseline="middle">${lbl}</text>`;
+  }
+  const medianPath = r.sampleIdx.map((_, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(2)},${Y(r.band[50][i]).toFixed(2)}`).join(' ');
+  const chartSVG = `
+    <svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none" style="overflow:visible;">
+      <text x="${pL}" y="3" fill="#64748b" font-size="2.8">(円)</text>
+      ${yLabels}
+      <polygon points="${poly(95, 5)}" fill="rgba(56,189,248,0.10)" />
+      <polygon points="${poly(75, 25)}" fill="rgba(56,189,248,0.18)" />
+      <line x1="${pL}" y1="${Y(0).toFixed(2)}" x2="${pR}" y2="${Y(0).toFixed(2)}" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,1.5" />
+      <path d="${medianPath}" fill="none" stroke="#38bdf8" stroke-width="1" stroke-linejoin="round" />
+      <text x="${pR}" y="${(Y(r.band[95][n]) + 2.5).toFixed(2)}" fill="#475569" font-size="2.6" text-anchor="end">上位5%</text>
+      <text x="${pR}" y="${(Y(r.band[5][n]) - 1.2).toFixed(2)}" fill="#475569" font-size="2.6" text-anchor="end">下位5%</text>
+    </svg>`;
+
+  box.innerHTML = `
+    <div style="font-size:10px; color:#64748b; margin-bottom:8px;">
+      実行条件: 実RR ${r.sampleCount}件 × ${r.nT}トレード × ${r.nS}試行 / リスク¥${fmt(r.risk)}/回（${new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})} 実行）
+    </div>
+    <div class="chart-container" style="height:220px; padding:10px 4px 4px; margin-bottom:10px; background:#0f172a;">${chartSVG}</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+      <div class="metric-card">
+        <div class="metric-label">最終損益 上位5%</div>
+        <div class="metric-value ${clsNum(r.p95)}" style="font-size:14px;">${r.p95 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p95))}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">最終損益 中央値</div>
+        <div class="metric-value ${clsNum(r.p50)}" style="font-size:14px;">${r.p50 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p50))}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">最終損益 下位5%</div>
+        <div class="metric-value ${clsNum(r.p5)}" style="font-size:14px;">${r.p5 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p5))}</div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; border:1.5px solid ${probColor(r.pDD)}; border-radius:10px; padding:10px 14px;">
+        <div style="font-size:12px; color:#e2e8f0;">最大DDが ¥${fmt(r.ddLine)} を超える確率</div>
+        <div style="font-size:20px; font-weight:800; color:${probColor(r.pDD)};">${r.pDD.toFixed(0)}%</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; border:1.5px solid ${probColor(r.pRuin)}; border-radius:10px; padding:10px 14px;">
+        <div style="font-size:12px; color:#e2e8f0;">破産確率<span style="color:#64748b; font-size:10px;">（資金${r.ruinPct}%減 = -¥${fmt(r.ruinLine)} 到達）</span></div>
+        <div style="font-size:20px; font-weight:800; color:${probColor(r.pRuin)};">${r.pRuin.toFixed(1)}%</div>
+      </div>
+    </div>
+  `;
+  box.style.display = 'block';
 }
 
 // ==========================================

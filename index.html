@@ -163,17 +163,17 @@
         <button class="filter-btn" onclick="applyAnalysisFilters()">📊 この条件で分析</button>
       </div>
 
-      <!-- Analysis Metrics Cards -->
+      <!-- Analysis Metrics Cards（各セクション折りたたみ可・ドローダウン分析含む） -->
       <div class="analysis-table-wrapper">
-        <div id="analysis-tbody" class="metrics-grid">
+        <div id="analysis-tbody">
           <!-- Populated by JS -->
         </div>
-      </div>
-
-      <!-- Drawdown -->
-      <div class="section-title">📉 ドローダウン分析</div>
-      <div id="drawdown-section" class="metrics-grid" style="margin-bottom:16px;">
-        <!-- Populated by JS -->
+        <div class="collapse-section" data-collapse-key="drawdown">
+          <div class="metrics-section-header collapse-toggle" onclick="toggleAnalysisSection('drawdown')">📉 ドローダウン分析<span class="collapse-arrow">▾</span></div>
+          <div id="drawdown-section" class="metrics-grid collapse-body">
+            <!-- Populated by JS -->
+          </div>
+        </div>
       </div>
 
       <!-- Monthly Chart -->
@@ -203,6 +203,29 @@
       <div style="position:relative;">
         <div class="chart-container" id="chart-equity" style="color:#64748b; padding:10px 4px 4px; height:260px;"></div>
         <div id="equity-tooltip" style="display:none; position:absolute; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px 10px; font-size:11px; color:#e2e8f0; pointer-events:none; z-index:10; min-width:130px;"></div>
+      </div>
+
+      <!-- 実RR分布 -->
+      <div class="section-title" style="margin-top:20px;">📊 実RR分布</div>
+      <div class="analysis-table-wrapper">
+        <div id="rr-dist-chips" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;"></div>
+        <div id="rr-dist-chart"></div>
+      </div>
+
+      <!-- モンテカルロ・シミュレーション -->
+      <div class="section-title" style="margin-top:20px;">🎲 モンテカルロ・シミュレーション</div>
+      <div class="analysis-table-wrapper">
+        <div style="font-size:11px; color:#64748b; margin-bottom:10px; line-height:1.5;">現在のフィルタ条件の実RR分布から復元抽出 — この成績のまま打ち続けたら資金はどうなるか？</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div><label class="mc-label">リスク/回（円）</label><input type="number" id="mc-risk" class="form-input mc-input" value="30000" min="1"></div>
+          <div><label class="mc-label">トレード数</label><input type="number" id="mc-trades" class="form-input mc-input" value="100" min="10" max="1000"></div>
+          <div><label class="mc-label">試行回数</label><input type="number" id="mc-sims" class="form-input mc-input" value="1000" min="100" max="5000"></div>
+          <div><label class="mc-label">資金（円）</label><input type="number" id="mc-capital" class="form-input mc-input" value="2000000" min="1"></div>
+          <div><label class="mc-label">DDライン（円）</label><input type="number" id="mc-ddline" class="form-input mc-input" value="120000" min="1"></div>
+          <div><label class="mc-label">破産定義（資金−%）</label><input type="number" id="mc-ruinpct" class="form-input mc-input" value="30" min="1" max="100"></div>
+        </div>
+        <button onclick="runMonteCarlo()" style="width:100%; padding:12px; background:#38bdf8; border:none; color:#0f172a; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer;">▶ 実行</button>
+        <div id="mc-result" style="display:none; margin-top:12px;"></div>
       </div>
 
       <!-- Heatmap -->
