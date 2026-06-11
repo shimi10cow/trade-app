@@ -84,6 +84,8 @@ function doPost(e) {
     result = ensureScoreColumns(body.config);
   } else if (action === 'ensureColumns') {
     result = ensureNamedColumns(body.columns);
+  } else if (action === 'ensurePairColumns') {
+    result = ensurePairColumns(body.columns);
   } else if (action === 'migrateEntryFields') {
     result = migrateEntryFields();
   } else if (action === 'migrateEntryFieldsV2') {
@@ -866,6 +868,25 @@ function ensureNamedColumns(columns) {
   if (!columns || !Array.isArray(columns)) return { success: false, error: 'columns不正' };
   const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  let added = 0;
+  columns.forEach(col => {
+    if (!headers.includes(col)) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(col);
+      headers.push(col);
+      added++;
+    }
+  });
+  return { success: true, added };
+}
+
+// =============================================
+// 任意の列名をPairsシートに追加（なければ）
+// =============================================
+function ensurePairColumns(columns) {
+  if (!columns || !Array.isArray(columns)) return { success: false, error: 'columns不正' };
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+  if (!sheet) return { success: false, error: 'Pairsシートが見つかりません' };
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   let added = 0;
   columns.forEach(col => {

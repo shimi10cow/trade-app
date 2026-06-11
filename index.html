@@ -17,8 +17,11 @@
   <!-- Header -->
   <header class="header">
     <h1>📈 Trade Tracker</h1>
-    <span id="queue-status" class="badge bg-amber hidden" onclick="flushQueue()" style="cursor:pointer;"></span>
-    <span id="network-status" class="badge bg-green hidden">Online</span>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span id="queue-status" class="badge bg-amber hidden" onclick="flushQueue()" style="cursor:pointer;"></span>
+      <span id="network-status" class="badge bg-green hidden">Online</span>
+      <span onclick="openSettingsModal()" style="font-size:20px; cursor:pointer; padding:4px;">⚙️</span>
+    </div>
   </header>
 
   <!-- Tabs -->
@@ -54,6 +57,18 @@
       
       <div style="text-align: center; margin-bottom: 20px;">
         <button onclick="openHistoryModal()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴</button>
+      </div>
+
+      <!-- トレードプラン一覧（Pairsシートのプラン設定済みペアを表示） -->
+      <div class="section" id="plans-section" style="display:none; padding:0 16px;">
+        <div class="section-title">📋 トレードプラン</div>
+        <div id="plans-list"></div>
+      </div>
+
+      <!-- 今日の重要指標（カレンダー機能） -->
+      <div class="section" id="today-events-section" style="display:none; padding:0 16px; margin-top:8px;">
+        <div class="section-title">📅 今日の重要指標</div>
+        <div id="today-events-list"></div>
       </div>
     </div>
 
@@ -159,6 +174,11 @@
         <select id="flt-exit-ref">
           <option value="all">決済振り返り：全て</option>
           <!-- populated dynamically -->
+        </select>
+        <select id="flt-plan">
+          <option value="all">計画/衝動：全て</option>
+          <option value="plan">📋 計画エントリーのみ</option>
+          <option value="direct">衝動（直接）のみ</option>
         </select>
         <button class="filter-btn" onclick="applyAnalysisFilters()">📊 この条件で分析</button>
       </div>
@@ -351,6 +371,12 @@
         <div class="modal-close" onclick="closeEntryModal()">✕</div>
       </div>
       <div class="modal-body">
+
+        <!-- プラン発動バナー -->
+        <div id="ne-plan-banner" style="display:none; background:rgba(56,189,248,0.12); border:1px solid #38bdf8; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px; color:#38bdf8; font-weight:700;"></div>
+
+        <!-- 指標警告バナー -->
+        <div id="ne-event-warning" style="display:none; background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12px; color:#fca5a5; line-height:1.5;"></div>
 
         <!-- Basic Info -->
         <div class="section">
@@ -585,6 +611,26 @@
               <button onclick="document.getElementById('pe-memo').value=''" style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#334155;color:#94a3b8;border:none;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
             </div>
           </div>
+
+          <!-- トレードプラン -->
+          <div class="section-title" style="margin-top:16px;">📋 トレードプラン</div>
+          <div style="font-size:11px; color:#64748b; margin-bottom:8px;">方向を設定するとプランとして扱われます（もう一度タップで解除）</div>
+          <div class="form-row">
+            <span class="form-label">方向</span>
+            <div class="btn-group" id="pe-plan-dir">
+              <button class="toggle-btn dir-buy" onclick="toggleBtn(this)">▲ Buy</button>
+              <button class="toggle-btn dir-sell" onclick="toggleBtn(this)">▼ Sell</button>
+            </div>
+          </div>
+          <label class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
+            <span id="pe-plan-image-label-text">📷 シナリオ画像を追加</span>
+            <input type="file" id="pe-plan-image-upload" accept="image/*" style="display:none;" onchange="onPlanImageSelected(this)">
+          </label>
+          <div id="pe-plan-image-container" style="display:none; margin-top:8px; position:relative;">
+            <img id="pe-plan-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
+            <button onclick="clearPlanImage()" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.85);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;">🗑️ 削除</button>
+          </div>
+          <div id="pe-plan-date" style="font-size:11px; color:#64748b; margin-top:6px;"></div>
         </div>
         <button onclick="savePairEdit()" style="width:100%; padding:14px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:16px; margin-top:10px; cursor:pointer;">💾 ペア情報を更新</button>
       </div>
@@ -833,6 +879,12 @@
                 </label>
               </div>
 
+              <!-- 事前チャート（トレードプラン時のシナリオ画像） -->
+              <div id="td-plan-image-area" style="display:none; margin-top:10px;">
+                <div style="font-size:11px; color:#38bdf8; margin-bottom:4px;">📋 事前チャート（プラン時）</div>
+                <img id="td-plan-image-preview" style="width:100%; border-radius:8px; border:1px solid #38bdf8;" referrerpolicy="no-referrer">
+              </div>
+
               <!-- エントリー画像スロット（常に表示、反省の直後） -->
               <div id="td-top-image-area" style="display:none; margin-top:10px; position:relative;">
                 <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
@@ -1076,6 +1128,46 @@
       <button onclick="saveScoreConfig()" style="width:100%; padding:13px; background:linear-gradient(135deg,#38bdf8,#2563eb); color:white; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; margin-bottom:8px;">💾 設定を保存</button>
       <button onclick="recalculateAllScores()" style="width:100%; padding:13px; background:transparent; border:1px solid #f59e0b; color:#f59e0b; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer;">🔄 データ更新（全件再計算）</button>
       <div style="font-size:11px; color:#64748b; text-align:center; margin-top:8px;">過去の全エントリーのスコアをGAS側で再計算して保存します</div>
+    </div>
+  </div>
+
+  <!-- アプリ設定モーダル（歯車） -->
+  <div id="modal-settings" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ アプリ設定</div>
+        <div class="modal-close" onclick="closeSettingsModal()">✕</div>
+      </div>
+      <div class="modal-body">
+
+        <div class="section-title">🎯 今週意識することPOP</div>
+        <div style="font-size:11px; color:#64748b; margin-bottom:8px;">週次レビューで書いた約束を起動時に表示します</div>
+        <div class="btn-group" id="set-pop-freq" style="margin-bottom:16px;">
+          <button class="toggle-btn" data-val="always" onclick="setSettingBtn(this)">毎回</button>
+          <button class="toggle-btn" data-val="daily" onclick="setSettingBtn(this)">1日1回</button>
+          <button class="toggle-btn" data-val="off" onclick="setSettingBtn(this)">オフ</button>
+        </div>
+
+        <div class="section-title">📅 経済指標の警告</div>
+        <div style="font-size:11px; color:#64748b; margin-bottom:8px;">エントリー時刻と指標が近いとき警告し「指標前エントリー」を自動セットします</div>
+        <div class="form-row">
+          <span class="form-label">警告範囲</span>
+          <div class="btn-group" id="set-cal-window">
+            <button class="toggle-btn" data-val="1" onclick="setSettingBtn(this)">前後1h</button>
+            <button class="toggle-btn" data-val="2" onclick="setSettingBtn(this)">前後2h</button>
+            <button class="toggle-btn" data-val="3" onclick="setSettingBtn(this)">前後3h</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <span class="form-label">対象</span>
+          <div class="btn-group" id="set-cal-importance">
+            <button class="toggle-btn" data-val="high" onclick="setSettingBtn(this)">Highのみ</button>
+            <button class="toggle-btn" data-val="medhigh" onclick="setSettingBtn(this)">High+Med</button>
+          </div>
+        </div>
+
+        <button onclick="saveSettingsModal()" style="width:100%; padding:13px; background:linear-gradient(135deg,#38bdf8,#2563eb); color:white; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; margin-top:12px;">💾 保存</button>
+      </div>
     </div>
   </div>
 

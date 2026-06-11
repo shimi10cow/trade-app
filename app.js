@@ -170,6 +170,61 @@ async function updateQueueBadge() {
 }
 
 // ==========================================
+// アプリ設定（歯車モーダル）
+// ==========================================
+const APP_SETTINGS_KEY = 'appSettings_v1';
+const APP_SETTINGS_DEFAULTS = {
+  popFreq: 'always',     // 今週意識することPOP: always | daily | off
+  calWindow: 2,          // 指標警告ウィンドウ（前後N時間）
+  calImportance: 'high', // 指標対象: high | medhigh
+};
+
+function getAppSettings() {
+  try {
+    return Object.assign({}, APP_SETTINGS_DEFAULTS, JSON.parse(localStorage.getItem(APP_SETTINGS_KEY) || '{}'));
+  } catch(e) {
+    return Object.assign({}, APP_SETTINGS_DEFAULTS);
+  }
+}
+
+function openSettingsModal() {
+  const s = getAppSettings();
+  const apply = (groupId, val) => {
+    document.querySelectorAll(`#${groupId} button`).forEach(b => {
+      b.classList.toggle('active', String(b.dataset.val) === String(val));
+    });
+  };
+  apply('set-pop-freq', s.popFreq);
+  apply('set-cal-window', s.calWindow);
+  apply('set-cal-importance', s.calImportance);
+  document.getElementById('modal-settings').classList.add('active');
+}
+
+function closeSettingsModal() {
+  document.getElementById('modal-settings').classList.remove('active');
+}
+
+function setSettingBtn(btn) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function saveSettingsModal() {
+  const pick = (groupId, def) => {
+    const b = document.querySelector(`#${groupId} button.active`);
+    return b ? b.dataset.val : def;
+  };
+  const s = {
+    popFreq: pick('set-pop-freq', APP_SETTINGS_DEFAULTS.popFreq),
+    calWindow: parseInt(pick('set-cal-window', APP_SETTINGS_DEFAULTS.calWindow)) || 2,
+    calImportance: pick('set-cal-importance', APP_SETTINGS_DEFAULTS.calImportance),
+  };
+  localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(s));
+  closeSettingsModal();
+  showToast('設定を保存しました ✅');
+}
+
+// ==========================================
 // Score Config
 // ==========================================
 const DEFAULT_SCORE_CONFIG = [
@@ -668,6 +723,11 @@ function renderAnalysis() {
 
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
+  App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
+  const planBanner = document.getElementById('ne-plan-banner');
+  if (planBanner) planBanner.style.display = 'none';
+  const eventWarning = document.getElementById('ne-event-warning');
+  if (eventWarning) eventWarning.style.display = 'none';
 
   // CLEAR ALL FORM FIELDS
   const modal = document.getElementById('modal-entry');
@@ -732,6 +792,7 @@ function openEntryModal(isMissed = false) {
 
 function closeEntryModal() {
   document.getElementById('modal-entry').classList.remove('active');
+  App.state.planContext = null; // キャンセル時はプランを残す（クリアは保存成功後のみ）
 }
 
 function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
@@ -832,6 +893,7 @@ async function loadData() {
       App.data.pairs = res.data || [];
       populateFilterPairs();
       renderPairs();       // ② ペア
+      renderPlans();       // ポジションタブのプラン一覧
     });
 
     const ideasP = gasGet('getIdeas').then(res => {
@@ -851,7 +913,8 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート'] }).catch(function(){});
+      gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
     if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
@@ -964,6 +1027,8 @@ function toggleCustomDate() {
 function renderPositions() {
   const container = document.getElementById('positions-list');
 
+  renderPlans(); // トレードプラン一覧（履歴ボタンの下）も同時更新
+
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
 
@@ -987,9 +1052,10 @@ function renderPositions() {
       <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#3b82f6'}">
         <div>
           <div style="font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
-            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'} 
+            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
+            ${t['計画エントリー'] === 'ON' ? '<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">📋 計画</span>' : ''}
           </div>
           <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
@@ -1044,18 +1110,154 @@ function renderPairs() {
       }
 
       const analysisIndicator = getPairAnalysisIndicator(pairName);
+      const planDir = (p['プラン方向'] || '').trim();
+      const planBadge = planDir
+        ? `<span class="badge ${planDir === 'Buy' ? 'buy' : 'sell'}" style="margin-left:6px;">📋 ${planDir === 'Buy' ? '▲' : '▼'}${planDir}</span>`
+        : '';
+      const planButtons = planDir
+        ? `<div style="display:flex; gap:6px; margin:0 0 8px; padding:0 4px;">
+             <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:8px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
+             <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:8px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
+             <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:8px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕ 解除</button>
+           </div>`
+        : '';
       html += `
-        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:4px; border-radius:8px; border:1px solid #1e293b;">
+        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:${planDir ? '0' : '4px'}; border-radius:8px; border:1px solid ${planDir ? '#38bdf8' : '#1e293b'};">
           <div style="font-weight:700; font-size:15px; display:flex; align-items:center; color:${color};">
-            ${pairName} ${arrowHtml} ${analysisIndicator}
+            ${pairName} ${arrowHtml} ${analysisIndicator} ${planBadge}
           </div>
           <div style="color:#64748b; font-size:18px;">›</div>
         </div>
+        ${planButtons}
       `;
     });
   });
 
   container.innerHTML = html;
+}
+
+// ==========================================
+// トレードプラン（Pairsシートのプラン列を使用）
+// ==========================================
+function getPlannedPairs() {
+  return App.data.pairs.filter(p => (p['プラン方向'] || '').trim() !== '');
+}
+
+function planAgeLabel(p) {
+  const d = String(p['プラン設定日'] || '').split('T')[0].replace(/\//g, '-');
+  if (!d) return '';
+  const days = Math.floor((new Date() - new Date(d + 'T00:00:00')) / 86400000);
+  if (isNaN(days) || days < 0) return '';
+  if (days === 0) return '⏳ 今日';
+  return `⏳ ${days}日前${days >= 7 ? ' ⚠' : ''}`;
+}
+
+// ポジションタブの「📋 トレードプラン」一覧
+function renderPlans() {
+  const section = document.getElementById('plans-section');
+  const list = document.getElementById('plans-list');
+  if (!section || !list) return;
+
+  const planned = getPlannedPairs();
+  if (planned.length === 0) {
+    section.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  section.style.display = 'block';
+
+  list.innerHTML = planned.map(p => {
+    const pairName = p['PairName（元）'] || p['PairName'] || '';
+    const dir = (p['プラン方向'] || '').trim();
+    const memo = (p['環境認識メモ'] || p['メモ'] || '').split('\n')[0].slice(0, 40);
+    return `
+      <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; flex-direction:column; align-items:stretch; gap:8px; border-left:4px solid ${dir === 'Buy' ? '#10b981' : '#ef4444'};">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
+            ${pairName}
+            <span class="badge ${dir === 'Buy' ? 'buy' : 'sell'}">${dir === 'Buy' ? '▲' : '▼'} ${dir}</span>
+          </div>
+          <div style="font-size:11px; color:#94a3b8;">${planAgeLabel(p)}</div>
+        </div>
+        ${memo ? `<div style="font-size:11px; color:#94a3b8;">"${memo}"</div>` : ''}
+        <div style="display:flex; gap:6px;">
+          <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:9px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
+          <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:9px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
+          <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:9px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// プラン発動: エントリーフォームをプランモードで開く（ペア・方向・事前情報入り）
+function activatePlan(pairName, mode) {
+  const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
+  if (!p) return;
+  const dir = (p['プラン方向'] || '').trim();
+
+  openEntryModal(mode === 'missed');
+
+  // openEntryModalがフォームをクリアした後にプラン情報を流し込む
+  App.state.planContext = { pairName, dir, image: p['プラン画像'] || '' };
+
+  document.getElementById('ne-pair').value = pairName;
+  autoLoadPairInfo('ne');
+  document.querySelectorAll('#ne-dir button').forEach(b => {
+    b.classList.toggle('active', b.textContent.includes(dir));
+  });
+
+  const banner = document.getElementById('ne-plan-banner');
+  if (banner) {
+    banner.textContent = `📋 プラン発動: ${pairName} ${dir === 'Buy' ? '▲' : '▼'}${dir}（保存時に計画エントリーとして記録されます）`;
+    banner.style.display = 'block';
+  }
+}
+
+// シナリオ崩れ: プラン欄をクリアするだけ
+async function clearPlan(pairName) {
+  if (!confirm(`${pairName} のプランを解除しますか？（シナリオ崩れ）`)) return;
+  await clearPlanFields(pairName);
+  showToast('プランを解除しました');
+}
+
+// Pairsシートのプラン3列をクリアして再描画
+async function clearPlanFields(pairName) {
+  const clearData = { 'プラン方向': '', 'プラン画像': '', 'プラン設定日': '' };
+  try {
+    await gasPostQueued({ action: 'updatePair', pairName, data: clearData }, 'プラン解除: ' + pairName);
+  } catch(e) { /* キュー退避済み */ }
+  const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
+  if (p) Object.assign(p, clearData);
+  renderPairs();
+  renderPlans();
+}
+
+// ペア編集モーダル内のプラン画像アップロード
+function onPlanImageSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const img = document.getElementById('pe-plan-image-preview');
+    img.src = e.target.result;
+    document.getElementById('pe-plan-image-container').style.display = 'block';
+    const lt = document.getElementById('pe-plan-image-label-text');
+    if (lt) lt.textContent = '⏳ アップロード中...';
+    App.state.pePlanImage = await uploadImageSmart(e.target.result, 'plan_' + Date.now() + '.jpg');
+    if (lt) lt.textContent = '✅ シナリオ画像選択済み（タップで変更）';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function clearPlanImage() {
+  App.state.pePlanImage = '';
+  const img = document.getElementById('pe-plan-image-preview');
+  if (img) img.src = '';
+  document.getElementById('pe-plan-image-container').style.display = 'none';
+  const lt = document.getElementById('pe-plan-image-label-text');
+  if (lt) lt.textContent = '📷 シナリオ画像を追加';
+  const inp = document.getElementById('pe-plan-image-upload');
+  if (inp) inp.value = '';
 }
 
 
@@ -1510,6 +1712,7 @@ function applyAnalysisFilters() {
   const fScore = document.getElementById('flt-score').value;
   const fEntryRef = document.getElementById('flt-entry-ref')?.value || 'all';
   const fExitRef = document.getElementById('flt-exit-ref')?.value || 'all';
+  const fPlan = document.getElementById('flt-plan')?.value || 'all';
   const dFrom = document.getElementById('flt-date-from').value;
   const dTo = document.getElementById('flt-date-to').value;
 
@@ -1550,6 +1753,13 @@ function applyAnalysisFilters() {
     }
     return true;
   });
+
+  // 計画vs衝動 比較ブロック用（計画フィルタ適用前のセット）
+  const prePlanFiltered = filtered.slice();
+
+  // 計画/衝動フィルタ
+  if (fPlan === 'plan')   filtered = filtered.filter(t => t['計画エントリー'] === 'ON');
+  if (fPlan === 'direct') filtered = filtered.filter(t => t['計画エントリー'] !== 'ON');
 
   let totalTrades = 0, wins = 0, losses = 0, evens = 0;
   let totalPips = 0, winPips = 0, lossPips = 0;
@@ -1761,6 +1971,9 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(deviationProfit)}" style="font-size:15px;">${deviationProfit >= 0 ? '+' : ''}${fmtCurrency(Math.round(deviationProfit))}</div>
     </div>
     ${csClose()}
+    ${csOpen('plan', '📋 計画 vs 衝動')}
+    ${buildPlanComparisonHTML(prePlanFiltered)}
+    ${csClose()}
   `;
   syncCollapseSections();
 
@@ -1771,6 +1984,56 @@ function applyAnalysisFilters() {
   renderGrowthChart(filtered);
   renderEquityCurve();
   renderRRDistribution(filtered);
+}
+
+// ==========================================
+// 計画 vs 衝動 比較ブロック（計画エントリー列で識別）
+// ==========================================
+function buildPlanComparisonHTML(trades) {
+  const calc = (subset) => {
+    const n = subset.length;
+    let wins = 0, pips = 0, rrSum = 0, rrN = 0;
+    subset.forEach(t => {
+      const p = parseFloat(t['実取得pips']) || 0;
+      pips += p;
+      if (p > 10) wins++;
+      const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+      if (sl > 0) { rrSum += p / sl; rrN++; }
+    });
+    return {
+      n,
+      winRate: n ? (wins / n * 100).toFixed(0) : '--',
+      avgPips: n ? (pips / n).toFixed(1) : '--',
+      avgRR: rrN ? (rrSum / rrN).toFixed(2) : '--',
+    };
+  };
+  const plan = calc(trades.filter(t => t['計画エントリー'] === 'ON'));
+  const direct = calc(trades.filter(t => t['計画エントリー'] !== 'ON'));
+  const cls = (v) => parseFloat(v) > 0 ? 'color:#4ade80;' : (parseFloat(v) < 0 ? 'color:#f87171;' : '');
+
+  if (plan.n === 0 && direct.n === 0) {
+    return `<div style="grid-column:1/-1; color:#64748b; font-size:12px; text-align:center; padding:12px;">データがありません</div>`;
+  }
+  const row = (label, pv, dv, style) => `
+    <tr>
+      <td style="padding:7px 4px; color:#64748b; font-size:11px;">${label}</td>
+      <td style="padding:7px 4px; text-align:center; font-weight:700; ${style ? cls(pv) : ''}">${pv}</td>
+      <td style="padding:7px 4px; text-align:center; font-weight:700; ${style ? cls(dv) : ''}">${dv}</td>
+    </tr>`;
+  return `
+    <div style="grid-column:1/-1; background:#0f172a; border:1px solid #334155; border-radius:10px; padding:6px 10px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; color:#f8fafc;">
+        <tr>
+          <td style="padding:7px 4px;"></td>
+          <td style="padding:7px 4px; text-align:center; color:#38bdf8; font-size:11px; font-weight:700;">📋 計画経由</td>
+          <td style="padding:7px 4px; text-align:center; color:#94a3b8; font-size:11px; font-weight:700;">衝動（直接）</td>
+        </tr>
+        ${row('件数', plan.n + '件', direct.n + '件', false)}
+        ${row('勝率', plan.winRate + '%', direct.winRate + '%', false)}
+        ${row('平均pips', plan.avgPips, direct.avgPips, true)}
+        ${row('平均実RR', plan.avgRR, direct.avgRR, true)}
+      </table>
+    </div>`;
 }
 
 // ==========================================
@@ -2763,6 +3026,30 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
 
+  // トレードプラン欄
+  const planDir = (p['プラン方向'] || '').trim();
+  document.querySelectorAll('#pe-plan-dir button').forEach(b => {
+    b.classList.toggle('active', planDir !== '' && b.textContent.includes(planDir));
+  });
+  App.state.pePlanImage = p['プラン画像'] || '';
+  const planImg = document.getElementById('pe-plan-image-preview');
+  const planImgBox = document.getElementById('pe-plan-image-container');
+  const planImgLabel = document.getElementById('pe-plan-image-label-text');
+  const planImgUrl = App.state.pePlanImage;
+  if (planImgUrl && (planImgUrl.startsWith('http') || planImgUrl.startsWith('data:'))) {
+    planImg.src = planImgUrl;
+    planImgBox.style.display = 'block';
+    if (planImgLabel) planImgLabel.textContent = '✅ シナリオ画像選択済み（タップで変更）';
+  } else {
+    planImg.src = '';
+    planImgBox.style.display = 'none';
+    if (planImgLabel) planImgLabel.textContent = '📷 シナリオ画像を追加';
+  }
+  const planImgInput = document.getElementById('pe-plan-image-upload');
+  if (planImgInput) planImgInput.value = '';
+  const planDateEl = document.getElementById('pe-plan-date');
+  if (planDateEl) planDateEl.textContent = p['プラン設定日'] ? `プラン設定日: ${formatDateDisplay(p['プラン設定日'])} ${planAgeLabel(p)}` : '';
+
   // ダウルール候補 & 分析チェックUIを構築（保存済み選択ルールを渡す）
   setTimeout(() => {
     const saved = getPairAnalysis(pairName);
@@ -2808,6 +3095,19 @@ async function savePairEdit() {
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
     };
 
+    // トレードプラン（方向ボタンのテキスト「▲ Buy」→「Buy」に正規化）
+    const planBtnVal = getBtnVal('pe-plan-dir');
+    const newPlanDir = planBtnVal.includes('Buy') ? 'Buy' : (planBtnVal.includes('Sell') ? 'Sell' : '');
+    const prevPlanDir = (p['プラン方向'] || '').trim();
+    updateData['プラン方向'] = newPlanDir;
+    updateData['プラン画像'] = newPlanDir ? (App.state.pePlanImage || '') : '';
+    if (newPlanDir === '') {
+      updateData['プラン設定日'] = '';
+    } else if (newPlanDir !== prevPlanDir || !p['プラン設定日']) {
+      const now = new Date();
+      updateData['プラン設定日'] = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+    }
+
     const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
     if (!res.success) throw new Error(res.error || '保存失敗');
 
@@ -2817,6 +3117,7 @@ async function savePairEdit() {
     savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
     closePairEdit();
     renderPairs();
+    renderPlans();
     showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : 'ペア情報を更新しました');
   } catch (e) {
     alert('エラーが発生しました: ' + e.message);
@@ -3555,6 +3856,13 @@ async function submitEntryData() {
     var reentryBtn = document.querySelector('#ne-reentry button.active');
     if (reentryBtn) entryData['再エントリー'] = reentryBtn.textContent.trim();
 
+    // トレードプラン経由のエントリー: 計画フラグ＋事前チャートを引き継ぐ
+    const planCtx = App.state.planContext;
+    if (planCtx && planCtx.pairName === pairName) {
+      entryData['計画エントリー'] = 'ON';
+      if (planCtx.image) entryData['事前チャート'] = planCtx.image;
+    }
+
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
@@ -3571,6 +3879,10 @@ async function submitEntryData() {
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
     closeEntryModal();
+    // プラン経由なら、保存成功後にペアのプラン欄をクリア
+    if (planCtx && planCtx.pairName === pairName) {
+      clearPlanFields(planCtx.pairName);
+    }
     if (res.queued) {
       showToast('📥 オフラインのため保存待ちに追加しました（再接続時に自動送信）');
     } else {
@@ -4042,6 +4354,26 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const rawEntryImg = findEntryImageField(t);
   const rawExitImg = findExitImageField(t);
 
+  // 事前チャート（トレードプラン時のシナリオ画像・読み取り専用）
+  const planImgArea = document.getElementById('td-plan-image-area');
+  const planImgEl = document.getElementById('td-plan-image-preview');
+  if (planImgArea && planImgEl) {
+    const rawPlanImg = String(t['事前チャート'] || '').trim();
+    planImgEl.removeAttribute('data-path');
+    if (rawPlanImg && (rawPlanImg.startsWith('http') || rawPlanImg.startsWith('data:'))) {
+      planImgEl.src = rawPlanImg;
+      planImgArea.style.display = 'block';
+      makeTappable(planImgEl);
+    } else if (rawPlanImg && rawPlanImg.includes('/')) {
+      planImgEl.src = '';
+      planImgEl.dataset.path = rawPlanImg;
+      planImgArea.style.display = 'block';
+    } else {
+      planImgEl.src = '';
+      planImgArea.style.display = 'none';
+    }
+  }
+
   // 常にエントリー画像=上スロット、決済画像=下スロット
   const topRaw = rawEntryImg;
   const botRaw = rawExitImg;
@@ -4090,7 +4422,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
 
   // パスベース画像を非同期で解決
-  if (topIsPath || botIsPath) {
+  const planIsPath = planImgEl && planImgEl.dataset.path;
+  if (topIsPath || botIsPath || planIsPath) {
     resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
