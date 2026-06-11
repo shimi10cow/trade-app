@@ -136,6 +136,13 @@ textarea.form-input { resize: vertical; }
 }
 .modal-body { padding: 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
 
+/* モーダル内 画面固定フッター（スクロールしても下部に張り付く） */
+.sticky-footer {
+  position: sticky; bottom: -16px; z-index: 5;
+  margin: 12px -16px -16px; padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  background: #0f172a; border-top: 1px solid #1e293b;
+}
+
 /* ======== Checker Box ======== */
 .checker-box { background: #1e293b; padding: 16px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #334155; }
 .checker-box.pass { border-color: #10b981; background: rgba(16,185,129,0.1); }

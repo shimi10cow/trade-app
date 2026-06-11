@@ -930,12 +930,13 @@ async function loadData() {
     gasGet('getCalendar').then(res => {
       const data = res.data || {};
       App.data.calendar = data.events || [];
-      App.state.calendarError = data.error || '';
+      // GAS未再デプロイ（Unknown action）やフェッチ失敗を画面に出す
+      App.state.calendarError = data.error || (res.success === false ? (res.error || '取得失敗') : '');
       renderWeekEvents();
       renderTodayEvents();
-    }).catch(() => {
+    }).catch((e) => {
       App.data.calendar = [];
-      App.state.calendarError = '取得失敗';
+      App.state.calendarError = '通信失敗: ' + (e && e.message || '');
       renderWeekEvents();
     });
 
@@ -1375,8 +1376,9 @@ function renderWeekEvents() {
   if (!section || !list) return;
 
   if (App.state.calendarError && (App.data.calendar || []).length === 0) {
+    const isOldGas = /Unknown action/i.test(App.state.calendarError);
     section.style.display = 'block';
-    list.innerHTML = `<div style="color:#64748b; font-size:11px; padding:6px 0;">指標データを取得できませんでした（${App.state.calendarError}）</div>`;
+    list.innerHTML = `<div style="color:#f59e0b; font-size:11px; padding:6px 0; line-height:1.6;">⚠ 指標データを取得できませんでした（${App.state.calendarError}）${isOldGas ? '<br>→ <b>Code.gsの再デプロイが必要です</b>（GASエディタに最新Code.gsを貼り付け→デプロイを管理→新しいバージョンでデプロイ）' : ''}</div>`;
     return;
   }
   const events = (App.data.calendar || []).filter(passesImportance)
@@ -1532,6 +1534,16 @@ function openReviewModal() {
   const existing = findReview('weekly', key);
   App.state.reviewTargetKey = key;
 
+  // トレード詳細へ飛んだ際に退避した下書きがあれば復元対象にする
+  const draft = App.state.reviewDraft || null;
+  App.state.reviewDraft = null;
+
+  // 対象週が今のカレンダー週なら「今週」、そうでなければ「先週」
+  const weekLabel = key === fmtYmd(getWeekStart(new Date())) ? '今週' : '先週';
+  document.getElementById('review-modal-title').textContent = `📋 ${weekLabel}のレビュー`;
+  document.getElementById('review-stats-title').textContent = `${weekLabel}の成績（自動集計）`;
+  document.getElementById('review-trades-title').textContent = `${weekLabel}のトレード`;
+
   const endDate = new Date(weekStart);
   endDate.setDate(endDate.getDate() + 5);
   document.getElementById('review-period').textContent =
@@ -1567,18 +1579,19 @@ function openReviewModal() {
     stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
     stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
 
-  // ── トレード一覧 ──
+  // ── トレード一覧（タップで該当トレードの詳細へ） ──
   document.getElementById('review-trades').innerHTML = weekTrades.length === 0
-    ? '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">今週のトレードはありません</div>'
+    ? '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">対象週のトレードはありません</div>'
     : weekTrades.map(t => {
+        const idx = App.data.entries.indexOf(t);
         const pips = parseFloat(t['実取得pips']) || 0;
         const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
         const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
         const isMissed = (t['ステータス'] || '').includes('見逃し');
-        return `<div style="display:flex; justify-content:space-between; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:12px;">
+        return `<div onclick="openTradeDetailFromReview(${idx})" style="display:flex; justify-content:space-between; align-items:center; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:12px; cursor:pointer;">
           <span style="color:#94a3b8;">${d}</span>
           <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃し</span>' : ''}</span>
-          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span><span style="color:#475569;">›</span></span>
         </div>`;
       }).join('');
 
@@ -1593,14 +1606,28 @@ function openReviewModal() {
     text,
     result: (savedJudgments[i] && savedJudgments[i].text === text) ? savedJudgments[i].result : ''
   }));
+  if (draft && Array.isArray(draft.judgments) && draft.judgments.length === lines.length) {
+    App.state.reviewJudgments = draft.judgments;
+  }
   renderReviewPromises();
   renderPromiseRate();
 
-  // ── 入力欄（既存レビューがあれば編集モード） ──
-  document.getElementById('review-memo').value = existing ? (existing['メモ'] || '') : '';
-  document.getElementById('review-next-promise').value = existing ? (existing['約束'] || '') : '';
+  // ── 入力欄（下書き > 既存レビュー > 空 の優先で復元） ──
+  document.getElementById('review-memo').value = draft ? draft.memo : (existing ? (existing['メモ'] || '') : '');
+  document.getElementById('review-next-promise').value = draft ? draft.promise : (existing ? (existing['約束'] || '') : '');
 
   document.getElementById('modal-review').classList.add('active');
+}
+
+// レビュー中のトレードタップ → 入力途中の内容を退避して詳細モーダルへ
+function openTradeDetailFromReview(index) {
+  App.state.reviewDraft = {
+    memo: document.getElementById('review-memo').value,
+    promise: document.getElementById('review-next-promise').value,
+    judgments: App.state.reviewJudgments,
+  };
+  closeReviewModal();
+  openTradeDetail(index, false, true);
 }
 
 function renderReviewPromises() {
@@ -2797,18 +2824,19 @@ function renderRRDistribution(trades) {
   const maxN = Math.max(...counts, 1);
   const barH = 140;
   chart.innerHTML = `
-    <div style="display:flex; align-items:flex-end; gap:6px; height:${barH + 50}px; padding:0 2px;">
+    <div style="display:flex; align-items:flex-end; gap:6px; height:${barH + 26}px; padding:0 2px;">
       ${RR_BINS.map((b, i) => {
         const h = Math.max(counts[i] > 0 ? 6 : 2, Math.round(counts[i] / maxN * barH));
         return `
-          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;">
             <div style="font-size:12px; font-weight:700; color:#e2e8f0; margin-bottom:3px;">${counts[i]}</div>
             <div style="width:100%; height:${h}px; background:${counts[i] > 0 ? b.color : '#1e293b'}; border-radius:5px 5px 0 0;"></div>
-            <div style="font-size:10px; color:#94a3b8; margin-top:5px; white-space:nowrap;">${b.label}</div>
           </div>`;
       }).join('')}
     </div>
-    <div style="border-top:1px solid #334155; margin-top:-26px;"></div>
+    <div style="display:flex; gap:6px; padding:0 2px; border-top:1px solid #334155;">
+      ${RR_BINS.map(b => `<div style="flex:1; text-align:center; font-size:10px; color:#94a3b8; padding-top:5px; white-space:nowrap;">${b.label}</div>`).join('')}
+    </div>
   `;
 }
 
