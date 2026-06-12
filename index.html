@@ -325,7 +325,11 @@
       <div class="collapse-section" data-collapse-key="g-memo">
         <div class="section-title collapse-toggle" onclick="toggleAnalysisSection('g-memo')" style="margin-bottom:10px;">💡 アイデアメモ<span class="collapse-arrow">▾</span></div>
         <div class="collapse-body">
-          <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+          <div style="display:flex; gap:6px; margin-bottom:10px;">
+            <select id="idea-sort" class="form-input" style="flex:1; font-size:12px; padding:7px 10px;" onchange="renderIdeas()">
+              <option value="date">新しい順</option>
+              <option value="fav">⭐ お気に入り優先</option>
+            </select>
             <button class="btn-primary" onclick="openNewIdeaModal()" style="padding:6px 14px; font-size:13px; white-space:nowrap;">＋ 新規</button>
           </div>
           <div id="idea-list">
@@ -367,11 +371,11 @@
           <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">実RR</div>
           <div style="display:flex; gap:4px; flex-wrap:wrap;">
             <button class="toggle-btn active" onclick="galleryFilterBtn(this,'rr','all')" data-gf-rr="all" style="padding:4px 8px; font-size:12px;">すべて</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','3up')" data-gf-rr="3up" style="padding:4px 8px; font-size:12px;">3以上</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','2to3')" data-gf-rr="2to3" style="padding:4px 8px; font-size:12px;">2〜3</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','1to2')" data-gf-rr="1to2" style="padding:4px 8px; font-size:12px;">1〜2</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','minus')" data-gf-rr="minus" style="padding:4px 8px; font-size:12px;">-1〜0</button>
             <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','0to1')" data-gf-rr="0to1" style="padding:4px 8px; font-size:12px;">0〜1</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','minus')" data-gf-rr="minus" style="padding:4px 8px; font-size:12px;">-1以下</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','1to2')" data-gf-rr="1to2" style="padding:4px 8px; font-size:12px;">1〜2</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','2to3')" data-gf-rr="2to3" style="padding:4px 8px; font-size:12px;">2〜3</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','3up')" data-gf-rr="3up" style="padding:4px 8px; font-size:12px;">3以上</button>
           </div>
         </div>
         <!-- 勝敗・振り返り・お気に入りフィルター -->
@@ -399,7 +403,7 @@
             <option value="SL設定ミス">SL設定ミス</option>
             <option value="ルール外気づき">ルール外気づき</option>
           </select>
-          <button id="gf-fav" class="toggle-btn" onclick="this.classList.toggle('active'); renderGallery();" style="padding:6px 12px; font-size:12px;">✓ お気に入りのみ</button>
+          <button id="gf-fav" class="toggle-btn" onclick="this.classList.toggle('active'); renderGallery();" style="padding:6px 12px; font-size:12px;">✓ 要確認のみ</button>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
           <!-- Images dynamically inserted here -->
@@ -416,7 +420,10 @@
     <div class="modal-content has-sticky">
       <div class="modal-header">
         <div class="modal-title">新規エントリー記録</div>
-        <div class="modal-close" onclick="closeEntryModal()">✕</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div id="ne-fav-btn" onclick="toggleEntryFavorite()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
+          <div class="modal-close" onclick="closeEntryModal()">✕</div>
+        </div>
       </div>
       <div class="modal-body">
 
@@ -707,7 +714,7 @@
 
   <!-- Trade Detail Modal -->
   <div id="modal-trade-detail" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content tight-bottom">
       <div class="modal-header">
         <div class="modal-title" id="td-title">ポジション詳細</div>
         <div style="display:flex; gap:8px; align-items:center;">

@@ -755,9 +755,25 @@ function renderAnalysis() {
   }
 }
 
+// 新規エントリーモーダルの✓（要確認マーク）: 保存時にお気に入り列へ反映
+function toggleEntryFavorite() {
+  App.state.neFavorite = !App.state.neFavorite;
+  updateNeFavButton();
+}
+
+function updateNeFavButton() {
+  const b = document.getElementById('ne-fav-btn');
+  if (!b) return;
+  const on = !!App.state.neFavorite;
+  b.style.color = on ? '#10b981' : '#475569';
+  b.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+}
+
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
+  App.state.neFavorite = false;
+  updateNeFavButton();
   const planBanner = document.getElementById('ne-plan-banner');
   if (planBanner) planBanner.style.display = 'none';
   const eventWarning = document.getElementById('ne-event-warning');
@@ -4717,6 +4733,9 @@ async function submitEntryData() {
     const indBtn = document.querySelector('#ne-indicator-entry button.active');
     if (indBtn) entryData['指標前エントリー'] = indBtn.textContent.trim();
 
+    // ✓（要確認マーク）
+    if (App.state.neFavorite) entryData['お気に入り'] = 'ON';
+
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
@@ -5858,12 +5877,15 @@ function renderIdeas() {
     if (active.length === 0) {
       list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">メモがありません</div>';
     } else {
-      // お気に入りを先頭に、その後は日付降順
+      // 並び順: 通常は日付降順、「⭐優先」選択時のみお気に入りを先頭に
+      const sortMode = document.getElementById('idea-sort')?.value || 'date';
       list.innerHTML = active
         .sort((a, b) => {
-          const fa = a['お気に入り'] === 'ON' ? 1 : 0;
-          const fb = b['お気に入り'] === 'ON' ? 1 : 0;
-          if (fa !== fb) return fb - fa;
+          if (sortMode === 'fav') {
+            const fa = a['お気に入り'] === 'ON' ? 1 : 0;
+            const fb = b['お気に入り'] === 'ON' ? 1 : 0;
+            if (fa !== fb) return fb - fa;
+          }
           return b['日付'] > a['日付'] ? 1 : -1;
         })
         .map(idea => ideaCard(idea))
