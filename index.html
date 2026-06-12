@@ -519,13 +519,24 @@
           <div class="calc-info" id="ne-rr-display">RR: --</div>
         </div>
         
-        <!-- 再エントリー -->
+        <!-- 指標前エントリー / 再エントリー -->
         <div class="section">
-          <div class="section-title">再エントリー</div>
-          <div class="btn-group" id="ne-reentry" style="display:flex; gap:4px;">
-              <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:6px;">ON</button>
-              <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:6px;">OFF</button>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div>
+              <div class="section-title">指標前ｴﾝﾄﾘｰ</div>
+              <div class="btn-group" id="ne-indicator-entry" style="display:flex; gap:4px;">
+                <button class="toggle-btn" onclick="toggleBtn(this); App.state._indicatorAutoSet = false;" style="flex:1; font-size:11px; padding:6px;">ON</button>
+                <button class="toggle-btn" onclick="toggleBtn(this); App.state._indicatorAutoSet = false;" style="flex:1; font-size:11px; padding:6px;">OFF</button>
+              </div>
             </div>
+            <div>
+              <div class="section-title">再エントリー</div>
+              <div class="btn-group" id="ne-reentry" style="display:flex; gap:4px;">
+                <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:6px;">ON</button>
+                <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:6px;">OFF</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Chart & Memo -->
@@ -1251,36 +1262,33 @@
 
         <div class="section-title">🎯 今週意識することPOP</div>
         <div style="font-size:11px; color:#64748b; margin-bottom:8px;">週次レビューで書いた約束を起動時に表示します</div>
-        <div class="btn-group" id="set-pop-freq" style="margin-bottom:16px;">
-          <button class="toggle-btn" data-val="always" onclick="setSettingBtn(this)">毎回</button>
-          <button class="toggle-btn" data-val="daily" onclick="setSettingBtn(this)">1日1回</button>
-          <button class="toggle-btn" data-val="off" onclick="setSettingBtn(this)">オフ</button>
+        <div class="btn-group" id="set-pop-freq" style="display:flex; width:100%; gap:6px; margin-bottom:16px;">
+          <button class="toggle-btn" data-val="always" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">毎回</button>
+          <button class="toggle-btn" data-val="daily" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">1日1回</button>
+          <button class="toggle-btn" data-val="off" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">オフ</button>
         </div>
 
         <div class="section-title">📅 経済指標の警告</div>
-        <div style="font-size:11px; color:#64748b; margin-bottom:8px;">エントリー時刻と指標が近いとき警告し「指標前エントリー」を自動セットします</div>
-        <div class="form-row">
-          <span class="form-label">表示指標</span>
-          <div class="btn-group" id="set-cal-scope">
-            <button class="toggle-btn" data-val="curated" onclick="setSettingBtn(this)">厳選のみ</button>
-            <button class="toggle-btn" data-val="all" onclick="setSettingBtn(this)">すべて</button>
-          </div>
+        <div style="font-size:11px; color:#64748b; margin-bottom:10px;">エントリー警告と「指標前エントリー」の自動セットは、表示設定に関わらず常に厳選指標のみが対象です（フォームで手動変更可）</div>
+
+        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">表示指標（一覧の表示範囲）</div>
+        <div class="btn-group" id="set-cal-scope" style="display:flex; width:100%; gap:6px; margin-bottom:4px;">
+          <button class="toggle-btn" data-val="curated" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">厳選のみ</button>
+          <button class="toggle-btn" data-val="all" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">すべて</button>
         </div>
-        <div style="font-size:10px; color:#64748b; margin:-2px 0 8px;">厳選 = 米雇用統計・CPI・FOMC・パウエル発言+各国中銀の政策金利（日本語表示）</div>
-        <div class="form-row">
-          <span class="form-label">警告範囲</span>
-          <div class="btn-group" id="set-cal-window">
-            <button class="toggle-btn" data-val="1" onclick="setSettingBtn(this)">前後1h</button>
-            <button class="toggle-btn" data-val="2" onclick="setSettingBtn(this)">前後2h</button>
-            <button class="toggle-btn" data-val="3" onclick="setSettingBtn(this)">前後3h</button>
-          </div>
+        <div style="font-size:10px; color:#64748b; margin-bottom:12px;">厳選 = 雇用統計 / CPI / FOMC / パウエル議長発言 / ISM製造業 / ISMサービス業</div>
+
+        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">警告範囲</div>
+        <div class="btn-group" id="set-cal-window" style="display:flex; width:100%; gap:6px; margin-bottom:12px;">
+          <button class="toggle-btn" data-val="1" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後1h</button>
+          <button class="toggle-btn" data-val="2" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後2h</button>
+          <button class="toggle-btn" data-val="3" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後3h</button>
         </div>
-        <div class="form-row">
-          <span class="form-label">「すべて」時の対象</span>
-          <div class="btn-group" id="set-cal-importance">
-            <button class="toggle-btn" data-val="high" onclick="setSettingBtn(this)">Highのみ</button>
-            <button class="toggle-btn" data-val="medhigh" onclick="setSettingBtn(this)">High+Med</button>
-          </div>
+
+        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">「すべて」表示時の対象</div>
+        <div class="btn-group" id="set-cal-importance" style="display:flex; width:100%; gap:6px; margin-bottom:4px;">
+          <button class="toggle-btn" data-val="high" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">Highのみ</button>
+          <button class="toggle-btn" data-val="medhigh" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">High+Med</button>
         </div>
 
         <button onclick="saveSettingsModal()" style="width:100%; padding:13px; background:linear-gradient(135deg,#38bdf8,#2563eb); color:white; border:none; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; margin-top:12px;">💾 保存</button>

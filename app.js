@@ -736,7 +736,7 @@ function openEntryModal(isMissed = false) {
   if (planBanner) planBanner.style.display = 'none';
   const eventWarning = document.getElementById('ne-event-warning');
   if (eventWarning) eventWarning.style.display = 'none';
-  App.state.entryEventFlag = false;
+  App.state._indicatorAutoSet = false;
 
   // 今週意識すること（常設表示）
   const promiseLine = document.getElementById('ne-promise-line');
@@ -1168,7 +1168,7 @@ function renderPairs() {
         ? `<span class="badge ${planDir === 'Buy' ? 'buy' : 'sell'}" style="margin-left:6px;">📋 ${planDir === 'Buy' ? '▲' : '▼'}${planDir}</span>`
         : '';
       const planButtons = planDir
-        ? `<div style="display:flex; gap:6px; margin:0 0 8px; padding:0 4px;">
+        ? `<div style="display:flex; gap:6px; margin:6px 0 14px; padding:0 4px 0 12px;">
              <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:8px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
              <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:8px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
              <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:8px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕ 解除</button>
@@ -1332,7 +1332,7 @@ function pairCurrencies(pair) {
 }
 
 // 厳選指標リスト（Forex Factoryの英語タイトル → 日本語名の対訳を兼ねる）
-// 米3大イベント + 取引通貨の中銀政策金利
+// 米国の6大イベントのみ。警告・指標前エントリー自動セットは常にこのリスト基準
 const CALENDAR_CURATED = [
   { cur: 'USD', re: /Non-Farm Employment Change|Unemployment Rate|Average Hourly Earnings/i, ja: '🇺🇸 米雇用統計' },
   { cur: 'USD', re: /CPI/i,                                  ja: '🇺🇸 米CPI（消費者物価指数）' },
@@ -1340,13 +1340,6 @@ const CALENDAR_CURATED = [
   { cur: 'USD', re: /Fed Chair Powell/i,                     ja: '🇺🇸 パウエルFRB議長 発言' },
   { cur: 'USD', re: /ISM Manufacturing PMI/i,                ja: '🇺🇸 ISM製造業景況指数' },
   { cur: 'USD', re: /ISM Services PMI|ISM Non-Manufacturing PMI/i, ja: '🇺🇸 ISMサービス業景況指数' },
-  { cur: 'JPY', re: /BOJ|Monetary Policy Statement|Policy Rate/i, ja: '🇯🇵 日銀 金融政策' },
-  { cur: 'GBP', re: /Official Bank Rate|MPC|Monetary Policy Summary/i, ja: '🇬🇧 BOE（英中銀）政策金利' },
-  { cur: 'EUR', re: /Main Refinancing Rate|Monetary Policy Statement|ECB Press Conference/i, ja: '🇪🇺 ECB（欧州中銀）政策金利' },
-  { cur: 'CHF', re: /SNB/i,                                  ja: '🇨🇭 SNB（スイス中銀）政策金利' },
-  { cur: 'AUD', re: /Cash Rate|RBA/i,                        ja: '🇦🇺 RBA（豪中銀）政策金利' },
-  { cur: 'NZD', re: /Official Cash Rate|RBNZ/i,              ja: '🇳🇿 RBNZ（NZ中銀）政策金利' },
-  { cur: 'CAD', re: /Overnight Rate|BOC/i,                   ja: '🇨🇦 BOC（カナダ中銀）政策金利' },
 ];
 
 // イベントの日本語名（厳選リストに一致すれば日本語、なければ原文）
@@ -1388,6 +1381,7 @@ function eventDate(ev) {
 }
 
 // エントリー日時±設定時間内 かつ ペアの構成通貨に一致する指標
+// ※ 警告と自動セットは表示設定に関わらず常に「厳選リスト」基準
 function findNearbyEvents(pair, dateStr, timeStr) {
   if (!pair || !dateStr || !timeStr) return [];
   const currencies = pairCurrencies(pair);
@@ -1396,13 +1390,14 @@ function findNearbyEvents(pair, dateStr, timeStr) {
   if (isNaN(entryTime)) return [];
   const windowMs = (getAppSettings().calWindow || 2) * 3600 * 1000;
   return dedupeEvents((App.data.calendar || []).filter(ev =>
-    isTargetEvent(ev) &&
+    eventJa(ev) !== null &&
     currencies.includes(ev.currency) &&
     Math.abs(eventDate(ev) - entryTime) <= windowMs
   ));
 }
 
 // エントリーフォーム: 指標警告バナー + 指標前エントリー自動セット
+// 自動でONにするが、手動でタッチしたら以後ユーザーの選択を優先する
 function checkEntryEventWarning() {
   const box = document.getElementById('ne-event-warning');
   if (!box) return;
@@ -1410,15 +1405,32 @@ function checkEntryEventWarning() {
   const dateStr = document.getElementById('ne-date')?.value || '';
   const timeStr = document.getElementById('ne-time')?.value || '';
   const hits = findNearbyEvents(pair, dateStr, timeStr);
-  App.state.entryEventFlag = hits.length > 0;
+
+  const group = document.getElementById('ne-indicator-entry');
+  const activeBtn = group ? group.querySelector('button.active') : null;
+
   if (hits.length === 0) {
     box.style.display = 'none';
+    // 自動セットしたONだけ解除（手動選択は触らない）
+    if (group && App.state._indicatorAutoSet && activeBtn && activeBtn.textContent.trim() === 'ON') {
+      activeBtn.classList.remove('active');
+      App.state._indicatorAutoSet = false;
+    }
     return;
   }
+
+  // 未選択なら自動でONをセット
+  if (group && !activeBtn) {
+    group.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.textContent.trim() === 'ON');
+    });
+    App.state._indicatorAutoSet = true;
+  }
+
   const s = getAppSettings();
   box.innerHTML = `⚠ <b>エントリー前後${s.calWindow}時間に重要指標があります</b><br>`
     + hits.map(ev => `・${ev.datetime.slice(11)} ${eventDisplayName(ev)}`).join('<br>')
-    + `<br><span style="color:#fcd34d;">→「指標前エントリー」を自動でONにします</span>`;
+    + `<br><span style="color:#fcd34d;">→「指標前エントリー」をONにしました（下のボタンで変更可）</span>`;
   box.style.display = 'block';
 }
 
@@ -4530,10 +4542,9 @@ async function submitEntryData() {
       if (planCtx.image) entryData['事前チャート'] = planCtx.image;
     }
 
-    // 指標警告が出ていたら「指標前エントリー」を自動セット
-    if (App.state.entryEventFlag) {
-      entryData['指標前エントリー'] = 'ON';
-    }
+    // 指標前エントリー: フォームのボタン状態をそのまま保存（自動ON後の手動変更も反映）
+    const indBtn = document.querySelector('#ne-indicator-entry button.active');
+    if (indBtn) entryData['指標前エントリー'] = indBtn.textContent.trim();
 
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
