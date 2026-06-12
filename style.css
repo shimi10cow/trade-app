@@ -144,8 +144,8 @@ textarea.form-input { resize: vertical; }
 }
 /* 固定フッター持ちモーダルはセーフエリア余白をフッター側に一本化（二重余白で浮くのを防ぐ） */
 .modal-content.has-sticky { padding-bottom: 0; }
-/* 下余白を詰めるモーダル（トレード詳細など） */
-.modal-content.tight-bottom { padding-bottom: 0; }
+/* 下余白を詰めるモーダル（トレード詳細など）: 削除ボタンが見切れない最小限の余白 */
+.modal-content.tight-bottom { padding-bottom: 12px; }
 
 /* ======== Checker Box ======== */
 .checker-box { background: #1e293b; padding: 16px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #334155; }
