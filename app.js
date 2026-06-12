@@ -347,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   loadScoreConfig();
   loadMcConfig();
+  syncCollapseSections(); // 記録タブ等の静的折りたたみ状態を復元
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
@@ -512,6 +513,27 @@ function openHistoryModal() {
   document.getElementById('hist-period').value = 'all';
   toggleCustomHistDate();
   renderHistoryList();
+}
+
+// 任意のトレード配列をベースに履歴モーダルを開く（チャートタップ用）
+function openHistoryWithBase(trades) {
+  if (!trades || trades.length === 0) return;
+  App.state.modalOpenedAt = Date.now();
+  App.state.historyBaseFilter = trades;
+  const _hm = document.getElementById('modal-history');
+  _hm.classList.add('active');
+  requestAnimationFrame(() => { _hm.querySelector('.modal-body').scrollTop = 0; });
+  document.getElementById('hist-period').value = 'all';
+  toggleCustomHistDate();
+  renderHistoryList();
+}
+
+function openHistoryForRRBin(i) {
+  openHistoryWithBase((App.state.rrBinTrades || [])[i] || []);
+}
+
+function openHistoryForHeatmapCell(key) {
+  openHistoryWithBase((App.state.heatmapCellTrades || {})[key] || []);
 }
 
 function openHistoryForMonth(monthKey) {
@@ -838,6 +860,26 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
       preMemoBox.textContent = p['事前メモ'] || p['環境認識メモ'] || p['メモ'] || '(事前メモなし)';
     }
 
+    // このペアに紐付く未解決アイデアメモを表示
+    const relatedBox = document.getElementById('ne-related-ideas');
+    if (relatedBox) {
+      const related = pairName
+        ? App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && (i['ペア'] || '') === pairName)
+        : [];
+      if (related.length === 0) {
+        relatedBox.style.display = 'none';
+        relatedBox.innerHTML = '';
+      } else {
+        relatedBox.innerHTML = `
+          <div style="font-size:11px; color:#38bdf8; font-weight:700; margin-bottom:4px;">💡 このペアの関連メモ（${related.length}件）</div>
+          ${related.slice(0, 3).map(i => {
+            const firstLine = String(i['本文'] || '').split('\n')[0].slice(0, 60);
+            return `<div style="font-size:12px; color:#cbd5e1; background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:6px 10px; margin-bottom:4px;">${(i['日付'] || '').slice(5).replace('-', '/')} ${firstLine}</div>`;
+          }).join('')}`;
+        relatedBox.style.display = 'block';
+      }
+    }
+
     checkEntryEventWarning(); // ペア変更時に指標警告を再判定
   }
 
@@ -966,7 +1008,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート'] }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り'] }).catch(function(){});
       gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
@@ -2140,6 +2182,18 @@ async function resolvePathImages(container) {
   }
 }
 
+// お気に入り（⭐）トグル: ローカル即時反映+バックグラウンド保存
+function toggleFavorite(index, el) {
+  const t = App.data.entries[index];
+  if (!t || !t['EntryID']) return;
+  const newVal = t['お気に入り'] === 'ON' ? '' : 'ON';
+  t['お気に入り'] = newVal;
+  if (el) el.textContent = newVal === 'ON' ? '⭐' : '☆';
+  gasPostQueued({ action: 'updateEntry', entryId: t['EntryID'], data: { 'お気に入り': newVal } }, 'お気に入り更新')
+    .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
+    .catch(() => {});
+}
+
 function galleryFilterBtn(btn, group, val) {
   // 同グループのアクティブを外して選択
   document.querySelectorAll(`[data-gf-${group}]`).forEach(b => b.classList.remove('active'));
@@ -2147,16 +2201,28 @@ function galleryFilterBtn(btn, group, val) {
   renderGallery();
 }
 
+// 表示画像モードに応じた画像フィールド取得
+function galleryImageFor(t, imgMode) {
+  if (imgMode === 'entry') return findEntryImageField(t);
+  if (imgMode === 'plan')  return String(t['事前チャート'] || '').trim();
+  return findExitImageField(t) || findEntryImageField(t); // exit: 決済優先（従来動作）
+}
+
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const scoreVal = document.querySelector('[data-gf-score].active')?.dataset.gfScore || 'all';
   const rrVal    = document.querySelector('[data-gf-rr].active')?.dataset.gfRr || 'all';
+  const imgMode  = document.querySelector('[data-gf-img].active')?.dataset.gfImg || 'exit';
+  const winLoss  = document.getElementById('gf-winloss')?.value || 'all';
+  const exitRef  = document.getElementById('gf-exitref')?.value || 'all';
+  const origin   = document.getElementById('gf-origin')?.value || 'all';
+  const favOnly  = document.getElementById('gf-fav')?.classList.contains('active') || false;
 
-  // 決済済みのみ・画像あり
+  // 決済済みのみ・表示モードの画像あり
   let galleryTrades = App.data.entries.filter(t => {
     const st = t['ステータス'] || '';
     if (st !== '決済' && st !== '決済（見逃し）') return false;
-    const img = findExitImageField(t) || findEntryImageField(t);
+    const img = galleryImageFor(t, imgMode);
     return img && img.trim() !== '';
   });
 
@@ -2179,6 +2245,24 @@ function renderGallery() {
     });
   }
 
+  // 勝敗・決済振り返り・起点・お気に入りフィルター
+  if (winLoss !== 'all') {
+    galleryTrades = galleryTrades.filter(t => {
+      const pips = parseFloat(t['実取得pips']) || 0;
+      return winLoss === 'win' ? pips > 10 : pips < -10;
+    });
+  }
+  if (exitRef !== 'all') {
+    galleryTrades = galleryTrades.filter(t => (t['決済振り返り'] || '') === exitRef);
+  }
+  if (origin !== 'all') {
+    galleryTrades = galleryTrades.filter(t =>
+      origin === 'plan' ? t['計画エントリー'] === 'ON' : t['計画エントリー'] !== 'ON');
+  }
+  if (favOnly) {
+    galleryTrades = galleryTrades.filter(t => t['お気に入り'] === 'ON');
+  }
+
   // ソート: 日付降順（固定）
   galleryTrades.sort((a, b) => {
     const da = String(a.EntryDate || '').replace(/\//g, '-');
@@ -2197,29 +2281,31 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = findExitImageField(t) || findEntryImageField(t);
+    const rawUrl = galleryImageFor(t, imgMode);
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
     const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
+    const isFav = t['お気に入り'] === 'ON';
 
     const imgTag = (imgUrl || isPath)
       ? `<img src="${imgUrl}" ${isPath ? `data-path="${rawUrl}"` : ''} style="width:100%;height:100%;object-fit:cover;${imgUrl ? '' : 'display:none;'}" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.parentNode.querySelector('.no-img-cam').style.display='flex';">`
       : '';
 
     html += `
-      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
+      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${isFav ? '#f59e0b' : '#334155'}; cursor:pointer;">
         <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
           ${imgTag}
           <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
+          <div onclick="event.stopPropagation(); toggleFavorite(${index}, this)" style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:14px; cursor:pointer;">${isFav ? '⭐' : '☆'}</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
         </div>
         <div style="padding:8px;">
-          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''}</div>
+          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''} ${t['計画エントリー'] === 'ON' ? '📋' : ''}</div>
           <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · RR: ${t['実リスクリワード'] || '-'}</div>
           <div style="font-size:10px; color:#64748b;">${formatDateDisplay(t.EntryDate)}</div>
         </div>
@@ -2741,10 +2827,10 @@ function toggleAnalysisSection(key) {
   localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
 }
 
-// 静的セクション（ドローダウン分析）にも保存済みの開閉状態を反映
+// 静的セクション（ドローダウン分析・記録タブ）にも保存済みの開閉状態を反映
 function syncCollapseSections() {
   const state = getCollapsedSections();
-  document.querySelectorAll('#screen-analysis .collapse-section').forEach(el => {
+  document.querySelectorAll('#screen-analysis .collapse-section, #screen-gallery .collapse-section').forEach(el => {
     const key = el.dataset.collapseKey;
     el.classList.toggle('collapsed', !!state[key]);
   });
@@ -2889,7 +2975,19 @@ function renderRRDistribution(trades) {
     </div>
   `;
 
-  const counts = RR_BINS.map(b => rs.filter(b.test).length);
+  // ビンごとのトレード配列（バータップ→履歴表示用）
+  const binTrades = RR_BINS.map(() => []);
+  trades.forEach(t => {
+    const pips = parseFloat(t['実取得pips']);
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (isNaN(pips) || sl <= 0) return;
+    const r = pips / sl;
+    const bi = RR_BINS.findIndex(b => b.test(r));
+    if (bi >= 0) binTrades[bi].push(t);
+  });
+  App.state.rrBinTrades = binTrades;
+
+  const counts = binTrades.map(arr => arr.length);
   const maxN = Math.max(...counts, 1);
   const barH = 140;
   chart.innerHTML = `
@@ -2897,7 +2995,7 @@ function renderRRDistribution(trades) {
       ${RR_BINS.map((b, i) => {
         const h = Math.max(counts[i] > 0 ? 6 : 2, Math.round(counts[i] / maxN * barH));
         return `
-          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;">
+          <div ${counts[i] > 0 ? `onclick="openHistoryForRRBin(${i})"` : ''} style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; ${counts[i] > 0 ? 'cursor:pointer;' : ''}">
             <div style="font-size:12px; font-weight:700; color:#e2e8f0; margin-bottom:3px;">${counts[i]}</div>
             <div style="width:100%; height:${h}px; background:${counts[i] > 0 ? b.color : '#1e293b'}; border-radius:5px 5px 0 0;"></div>
           </div>`;
@@ -2906,6 +3004,7 @@ function renderRRDistribution(trades) {
     <div style="display:flex; gap:6px; padding:0 2px; border-top:1px solid #334155;">
       ${RR_BINS.map(b => `<div style="flex:1; text-align:center; font-size:10px; color:#94a3b8; padding-top:5px; white-space:nowrap;">${b.label}</div>`).join('')}
     </div>
+    <div style="text-align:center; font-size:10px; color:#475569; margin-top:6px;">バーをタップで該当トレードを表示</div>
   `;
 }
 
@@ -3146,7 +3245,7 @@ function renderHeatmap(trades) {
   // Aggregate by hour (0-23) and weekday (0=Mon..4=Fri)
   const grid = {};
   let plottedCount = 0;
-  for (let h = 0; h < 24; h++) for (let d = 0; d < 5; d++) grid[`${h}-${d}`] = { count: 0, pips: 0 };
+  for (let h = 0; h < 24; h++) for (let d = 0; d < 5; d++) grid[`${h}-${d}`] = { count: 0, pips: 0, trades: [] };
 
   trades.forEach(t => {
     // EntryTime: GASはtime cellを'1899/12/30'等で返す場合がある → HH:MMのみ受け付ける
@@ -3168,8 +3267,13 @@ function renderHeatmap(trades) {
     const key = `${hour}-${dow - 1}`;
     grid[key].count++;
     grid[key].pips += parseFloat(t['実取得pips']) || 0;
+    grid[key].trades.push(t);
     plottedCount++;
   });
+
+  // セルタップ→履歴表示用に保持
+  App.state.heatmapCellTrades = {};
+  Object.keys(grid).forEach(k => { App.state.heatmapCellTrades[k] = grid[k].trades; });
 
   // 時刻データが1件もない場合はメッセージ表示
   if (plottedCount === 0) {
@@ -3193,7 +3297,7 @@ function renderHeatmap(trades) {
         const intensity = Math.min(cell.count / maxCount, 1) * 0.6 + 0.25;
         color = cell.pips >= 0 ? `rgba(16,185,129,${intensity})` : `rgba(239,68,68,${intensity})`;
       }
-      html += `<div style="background:${color}; border-radius:2px; min-height:7px; border:1px solid #1e293b;"></div>`;
+      html += `<div ${cell.count > 0 ? `onclick="openHistoryForHeatmapCell('${h}-${d}')"` : ''} style="background:${color}; border-radius:2px; min-height:7px; border:1px solid #1e293b; ${cell.count > 0 ? 'cursor:pointer;' : ''}"></div>`;
     }
   }
   html += '</div>';
@@ -5673,13 +5777,21 @@ async function runGeminiAnalysis() {
 // ==========================================
 
 function renderIdeas() {
-  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
-  const done   = App.data.ideas.filter(i => i['ステータス'] === '解決済み');
+  const query = (document.getElementById('idea-search')?.value || '').trim().toLowerCase();
+  let active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
+
+  // 全文検索（本文+ペア）
+  if (query) {
+    active = active.filter(i =>
+      String(i['本文'] || '').toLowerCase().includes(query) ||
+      String(i['ペア'] || '').toLowerCase().includes(query)
+    );
+  }
 
   const list = document.getElementById('idea-list');
   if (list) {
     if (active.length === 0) {
-      list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">メモがありません</div>';
+      list.innerHTML = `<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">${query ? '検索に一致するメモがありません' : 'メモがありません'}</div>`;
     } else {
       list.innerHTML = active
         .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
@@ -5690,10 +5802,28 @@ function renderIdeas() {
 
 }
 
+// アイデアモーダルのペアselectに監視ペア一覧を流し込む
+function populateIdeaPairSelect(selectId, value) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">（指定なし）</option>';
+  const pairs = [...new Set(App.data.pairs.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
+  pairs.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  sel.value = value || '';
+}
+
 function ideaCard(idea) {
   const text = idea['本文'] || '';
   const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
+  const pairChip = idea['ペア']
+    ? `<span style="background:rgba(56,189,248,0.15); color:#38bdf8; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; margin-left:6px;">${idea['ペア']}</span>`
+    : '';
   const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
   let imgHtml = '';
   if (urls.length === 1) {
@@ -5715,7 +5845,7 @@ function ideaCard(idea) {
   }
   return `
     <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
-      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${dateStr}</div>
+      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${dateStr}${pairChip}</div>
       <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
       ${imgHtml}
     </div>`;
@@ -5846,6 +5976,7 @@ function openNewIdeaModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
+  populateIdeaPairSelect('idea-pair', '');
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
   renderIdeaImageSlots('new');
@@ -5865,7 +5996,8 @@ async function saveNewIdea() {
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
-    'ステータス': '未解決'
+    'ステータス': '未解決',
+    'ペア': document.getElementById('idea-pair')?.value || ''
   };
   showLoader();
   try {
@@ -5900,6 +6032,7 @@ function openIdeaDetail(id) {
   document.getElementById('idea-detail-date').value = idea['日付'] || '';
   document.getElementById('idea-detail-text').value = idea['本文'] || '';
   document.getElementById('idea-detail-status').value = idea['ステータス'] || '未解決';
+  populateIdeaPairSelect('idea-detail-pair', idea['ペア'] || '');
   renderIdeaImageSlots('detail');
   document.getElementById('modal-idea-detail').style.display = 'flex';
 }
@@ -5918,7 +6051,8 @@ async function saveIdeaDetail() {
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
-    'ステータス': document.getElementById('idea-detail-status').value
+    'ステータス': document.getElementById('idea-detail-status').value,
+    'ペア': document.getElementById('idea-detail-pair')?.value || ''
   };
   showLoader();
   try {

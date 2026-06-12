@@ -651,7 +651,7 @@ function updateWinLossColumn() {
 
 // =============================================
 // アイデアメモ (Ideas シート)
-// 列: A=ID, B=日付, C=本文, D=画像URL, E=ステータス, F=画像URL2, G=画像URL3
+// 列: A=ID, B=日付, C=本文, D=画像URL, E=ステータス, F=画像URL2, G=画像URL3, H=ペア
 // =============================================
 const IDEAS_SHEET = 'Ideas';
 
@@ -660,12 +660,13 @@ function getOrCreateIdeasSheet() {
   let sheet = ss.getSheetByName(IDEAS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(IDEAS_SHEET);
-    sheet.getRange(1, 1, 1, 7).setValues([['ID','日付','本文','画像URL','ステータス','画像URL2','画像URL3']]);
+    sheet.getRange(1, 1, 1, 8).setValues([['ID','日付','本文','画像URL','ステータス','画像URL2','画像URL3','ペア']]);
   } else {
-    // 既存シートに列F,Gが無ければ追加
+    // 既存シートに列F,G,Hが無ければ追加
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     if (headers.indexOf('画像URL2') === -1) sheet.getRange(1, 6).setValue('画像URL2');
     if (headers.indexOf('画像URL3') === -1) sheet.getRange(1, 7).setValue('画像URL3');
+    if (headers.indexOf('ペア') === -1) sheet.getRange(1, 8).setValue('ペア');
   }
   return sheet;
 }
@@ -674,7 +675,7 @@ function getIdeas() {
   const sheet = getOrCreateIdeasSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const cols = Math.max(sheet.getLastColumn(), 7);
+  const cols = Math.max(sheet.getLastColumn(), 8);
   const rows = sheet.getRange(2, 1, lastRow - 1, cols).getValues();
   return rows
     .filter(r => r[0] !== '')
@@ -688,13 +689,14 @@ function getIdeas() {
       ステータス: String(r[4] || '未解決'),
       画像URL2:   String(r[5] || ''),
       画像URL3:   String(r[6] || ''),
+      ペア:       String(r[7] || ''),
     }));
 }
 
 function saveIdea(data) {
   const sheet = getOrCreateIdeasSheet();
   const id = String(Date.now());
-  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7);
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 8);
   range.setNumberFormat('@');
   range.setValues([[
     id,
@@ -704,6 +706,7 @@ function saveIdea(data) {
     data['ステータス'] || '未解決',
     data['画像URL2'] || '',
     data['画像URL3'] || '',
+    data['ペア'] || '',
   ]]);
   return { success: true, id: id };
 }
@@ -716,7 +719,7 @@ function updateIdea(ideaId, data) {
   const rowIdx = ids.findIndex(id => String(id) === String(ideaId));
   if (rowIdx === -1) return { success: false, error: 'Not found' };
   const row = rowIdx + 2;
-  sheet.getRange(row, 1, 1, 7).setValues([[
+  sheet.getRange(row, 1, 1, 8).setValues([[
     String(ideaId),
     data['日付'] || '',
     data['本文'] || '',
@@ -724,6 +727,7 @@ function updateIdea(ideaId, data) {
     data['ステータス'] || '未解決',
     data['画像URL2'] || '',
     data['画像URL3'] || '',
+    data['ペア'] || '',
   ]]);
   return { success: true };
 }
