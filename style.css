@@ -139,7 +139,7 @@ textarea.form-input { resize: vertical; }
 /* モーダル内 画面固定フッター（スクロールしても下部に張り付く） */
 .sticky-footer {
   position: sticky; bottom: -16px; z-index: 5;
-  margin: 12px -16px -16px; padding: 8px 16px max(10px, calc(env(safe-area-inset-bottom) - 14px));
+  margin: 12px -16px -16px; padding: 8px 16px 10px;
   background: #0f172a; border-top: 1px solid #1e293b;
 }
 /* 固定フッター持ちモーダルはセーフエリア余白をフッター側に一本化（二重余白で浮くのを防ぐ） */
