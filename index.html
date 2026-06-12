@@ -250,7 +250,6 @@
       <!-- モンテカルロ・シミュレーション -->
       <div class="section-title" style="margin-top:20px;">🎲 モンテカルロ・シミュレーション</div>
       <div class="analysis-table-wrapper">
-        <div style="font-size:11px; color:#64748b; margin-bottom:10px; line-height:1.5;">現在のフィルタ条件の実RR分布から復元抽出 — この成績のまま打ち続けたら資金はどうなるか？</div>
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
           <div><label class="mc-label">リスク/回（円）</label><input type="number" id="mc-risk" class="form-input mc-input" value="30000" min="1"></div>
           <div><label class="mc-label">トレード数</label><input type="number" id="mc-trades" class="form-input mc-input" value="100" min="10" max="1000"></div>
@@ -326,8 +325,7 @@
       <div class="collapse-section" data-collapse-key="g-memo">
         <div class="section-title collapse-toggle" onclick="toggleAnalysisSection('g-memo')" style="margin-bottom:10px;">💡 アイデアメモ<span class="collapse-arrow">▾</span></div>
         <div class="collapse-body">
-          <div style="display:flex; gap:6px; margin-bottom:10px;">
-            <input type="text" id="idea-search" class="form-input" placeholder="🔍 メモを検索..." style="flex:1; padding:8px 10px; font-size:13px;" oninput="renderIdeas()">
+          <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
             <button class="btn-primary" onclick="openNewIdeaModal()" style="padding:6px 14px; font-size:13px; white-space:nowrap;">＋ 新規</button>
           </div>
           <div id="idea-list">
@@ -376,13 +374,22 @@
             <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','minus')" data-gf-rr="minus" style="padding:4px 8px; font-size:12px;">-1以下</button>
           </div>
         </div>
-        <!-- 勝敗・決済振り返り・起点・お気に入りフィルター -->
+        <!-- 勝敗・振り返り・お気に入りフィルター -->
         <div style="display:flex; gap:6px; margin-bottom:8px;">
           <select id="gf-winloss" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
             <option value="all">勝敗: 全て</option>
             <option value="win">勝ちのみ</option>
             <option value="loss">負けのみ</option>
           </select>
+          <select id="gf-entryref" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
+            <option value="all">ｴﾝﾄﾘｰ振り返り: 全て</option>
+            <option value="エントリータイミングOK">エントリータイミングOK</option>
+            <option value="アーリー">アーリー</option>
+            <option value="レイト">レイト</option>
+            <option value="DowRule外">DowRule外</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
           <select id="gf-exitref" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
             <option value="all">決済振り返り: 全て</option>
             <option value="決済タイミングOK">決済タイミングOK</option>
@@ -392,23 +399,7 @@
             <option value="SL設定ミス">SL設定ミス</option>
             <option value="ルール外気づき">ルール外気づき</option>
           </select>
-        </div>
-        <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
-          <select id="gf-origin" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
-            <option value="all">起点: 全て</option>
-            <option value="plan">📋 計画のみ</option>
-            <option value="direct">衝動（直接）のみ</option>
-          </select>
-          <button id="gf-fav" class="toggle-btn" onclick="this.classList.toggle('active'); renderGallery();" style="padding:6px 12px; font-size:12px;">⭐ お気に入りのみ</button>
-        </div>
-        <!-- 表示画像切替 -->
-        <div style="margin-bottom:10px;">
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">表示画像</div>
-          <div style="display:flex; gap:4px;">
-            <button class="toggle-btn active" onclick="galleryFilterBtn(this,'img','exit')" data-gf-img="exit" style="flex:1; padding:4px 8px; font-size:12px;">決済</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'img','entry')" data-gf-img="entry" style="flex:1; padding:4px 8px; font-size:12px;">エントリー</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'img','plan')" data-gf-img="plan" style="flex:1; padding:4px 8px; font-size:12px;">事前ﾁｬｰﾄ</button>
-          </div>
+          <button id="gf-fav" class="toggle-btn" onclick="this.classList.toggle('active'); renderGallery();" style="padding:6px 12px; font-size:12px;">✓ お気に入りのみ</button>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
           <!-- Images dynamically inserted here -->
@@ -422,7 +413,7 @@
 
   <!-- Entry Modal -->
   <div id="modal-entry" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content has-sticky">
       <div class="modal-header">
         <div class="modal-title">新規エントリー記録</div>
         <div class="modal-close" onclick="closeEntryModal()">✕</div>
@@ -603,8 +594,6 @@
             </div>
           </div>
 
-          <!-- このペアの関連アイデアメモ（未解決のみ） -->
-          <div id="ne-related-ideas" style="display:none; margin-top:8px;"></div>
           
           <div class="form-row" style="align-items:flex-start;">
             <span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span>
@@ -632,7 +621,7 @@
 
   <!-- Pair Edit Modal -->
   <div id="modal-pair-edit" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content has-sticky">
       <div class="modal-header">
         <div class="modal-title" id="pe-title">ペア編集</div>
         <div class="modal-close" onclick="closePairEdit()">✕</div>
@@ -721,7 +710,10 @@
     <div class="modal-content">
       <div class="modal-header">
         <div class="modal-title" id="td-title">ポジション詳細</div>
-        <div class="modal-close" onclick="closeTradeDetail()">✕</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div id="td-fav-btn" onclick="toggleFavoriteDetail()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
+          <div class="modal-close" onclick="closeTradeDetail()">✕</div>
+        </div>
       </div>
       <div class="modal-body">
 
@@ -1105,12 +1097,6 @@
           <span class="form-label">日付</span>
           <input type="date" id="idea-date" class="form-input">
         </div>
-        <div class="form-row">
-          <span class="form-label">ペア</span>
-          <select id="idea-pair" class="form-input">
-            <option value="">（指定なし）</option>
-          </select>
-        </div>
         <div class="form-row" style="align-items:flex-start;">
           <span class="form-label">メモ</span>
           <textarea id="idea-text" class="form-input" rows="6" placeholder="トレードアイデアを入力..."></textarea>
@@ -1135,12 +1121,6 @@
         <div class="form-row">
           <span class="form-label">日付</span>
           <input type="date" id="idea-detail-date" class="form-input">
-        </div>
-        <div class="form-row">
-          <span class="form-label">ペア</span>
-          <select id="idea-detail-pair" class="form-input">
-            <option value="">（指定なし）</option>
-          </select>
         </div>
         <div class="form-row" style="align-items:flex-start;">
           <span class="form-label">メモ</span>
@@ -1300,6 +1280,22 @@
       <div class="modal-body">
         <div id="review-history-list"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ギャラリー フリップビューア（事前/エントリー/決済を切替表示） -->
+  <div id="gallery-flip" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:400; flex-direction:column; align-items:center; justify-content:center;"
+       ontouchstart="flipTouchStart(event)" ontouchend="flipTouchEnd(event)">
+    <div style="position:absolute; top:calc(14px + env(safe-area-inset-top)); left:16px; right:16px; display:flex; justify-content:space-between; align-items:center;">
+      <div id="gallery-flip-label" style="font-size:14px; font-weight:700; color:#38bdf8;"></div>
+      <div onclick="closeGalleryFlip()" style="width:36px; height:36px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:16px; cursor:pointer;">✕</div>
+    </div>
+    <img id="gallery-flip-img" style="max-width:100%; max-height:70vh; object-fit:contain;" referrerpolicy="no-referrer">
+    <div id="gallery-flip-dots" style="display:flex; gap:8px; margin-top:14px;"></div>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button onclick="flipNav(-1)" style="padding:10px 22px; background:#1e293b; border:1px solid #334155; color:#94a3b8; border-radius:10px; font-size:14px; cursor:pointer;">‹ 前</button>
+      <button onclick="openTradeDetailFromFlip()" style="padding:10px 18px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:10px; font-size:13px; cursor:pointer;">詳細を見る</button>
+      <button onclick="flipNav(1)" style="padding:10px 22px; background:#1e293b; border:1px solid #334155; color:#94a3b8; border-radius:10px; font-size:14px; cursor:pointer;">次 ›</button>
     </div>
   </div>
 

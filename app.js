@@ -715,6 +715,10 @@ function setupModalInteractions() {
         // モーダルごとの状態クリーンアップ
         if (overlay?.id === 'modal-trade-detail') {
           App.state.detailFromHistory = false; // 履歴フラグをリセット
+          if (App.state.returnToReview) {      // レビュー由来ならレビューに戻る
+            App.state.returnToReview = false;
+            openReviewModal();
+          }
         }
       }, 300);
     } else {
@@ -858,26 +862,6 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
       preMemoBox.textContent = '(ペアを選択すると表示されます)';
     } else {
       preMemoBox.textContent = p['事前メモ'] || p['環境認識メモ'] || p['メモ'] || '(事前メモなし)';
-    }
-
-    // このペアに紐付く未解決アイデアメモを表示
-    const relatedBox = document.getElementById('ne-related-ideas');
-    if (relatedBox) {
-      const related = pairName
-        ? App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && (i['ペア'] || '') === pairName)
-        : [];
-      if (related.length === 0) {
-        relatedBox.style.display = 'none';
-        relatedBox.innerHTML = '';
-      } else {
-        relatedBox.innerHTML = `
-          <div style="font-size:11px; color:#38bdf8; font-weight:700; margin-bottom:4px;">💡 このペアの関連メモ（${related.length}件）</div>
-          ${related.slice(0, 3).map(i => {
-            const firstLine = String(i['本文'] || '').split('\n')[0].slice(0, 60);
-            return `<div style="font-size:12px; color:#cbd5e1; background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.3); border-radius:6px; padding:6px 10px; margin-bottom:4px;">${(i['日付'] || '').slice(5).replace('-', '/')} ${firstLine}</div>`;
-          }).join('')}`;
-        relatedBox.style.display = 'block';
-      }
     }
 
     checkEntryEventWarning(); // ペア変更時に指標警告を再判定
@@ -1071,10 +1055,10 @@ function populateFilterPairs() {
   if (entryRefSel && entryRefSel.options.length <= 1) {
     // 固定4択を初回のみ追加
     [
-      { value: 'perfect',          text: '✅ 完全遵守' },
-      { value: 'timing_ok_env_ng', text: '⚠️ タイミングOK / 環境認識NG' },
-      { value: 'timing_ng_env_ok', text: '⚠️ タイミングNG / 環境認識OK' },
-      { value: 'both_ng',          text: '❌ タイミングNG / 環境認識NG' },
+      { value: 'perfect',          text: '完全遵守' },
+      { value: 'timing_ok_env_ng', text: 'タイミングOK / 環境認識NG' },
+      { value: 'timing_ng_env_ok', text: 'タイミングNG / 環境認識OK' },
+      { value: 'both_ng',          text: 'タイミングNG / 環境認識NG' },
     ].forEach(function(o) {
       const opt = document.createElement('option');
       opt.value = o.value;
@@ -1731,14 +1715,16 @@ function openReviewModal() {
 }
 
 // レビュー中のトレードタップ → 入力途中の内容を退避して詳細モーダルへ
+// 詳細を閉じるとレビューに戻る（下書きは openReviewModal が復元）
 function openTradeDetailFromReview(index) {
   App.state.reviewDraft = {
     memo: document.getElementById('review-memo').value,
     promise: document.getElementById('review-next-promise').value,
     judgments: App.state.reviewJudgments,
   };
+  App.state.returnToReview = true;
   closeReviewModal();
-  openTradeDetail(index, false, true);
+  openTradeDetail(index);
 }
 
 function renderReviewPromises() {
@@ -2182,16 +2168,110 @@ async function resolvePathImages(container) {
   }
 }
 
-// お気に入り（⭐）トグル: ローカル即時反映+バックグラウンド保存
+// お気に入り（✓）トグル: ローカル即時反映+バックグラウンド保存
 function toggleFavorite(index, el) {
   const t = App.data.entries[index];
   if (!t || !t['EntryID']) return;
   const newVal = t['お気に入り'] === 'ON' ? '' : 'ON';
   t['お気に入り'] = newVal;
-  if (el) el.textContent = newVal === 'ON' ? '⭐' : '☆';
+  if (el) el.style.color = newVal === 'ON' ? '#10b981' : '#475569';
   gasPostQueued({ action: 'updateEntry', entryId: t['EntryID'], data: { 'お気に入り': newVal } }, 'お気に入り更新')
     .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
     .catch(() => {});
+}
+
+// トレード詳細ヘッダーの✓トグル
+function toggleFavoriteDetail() {
+  const index = parseInt(document.getElementById('td-index').value);
+  if (isNaN(index)) return;
+  toggleFavorite(index, null);
+  updateDetailFavButton(App.data.entries[index]);
+  renderGallery();
+}
+
+function updateDetailFavButton(t) {
+  const btn = document.getElementById('td-fav-btn');
+  if (!btn) return;
+  const on = t && t['お気に入り'] === 'ON';
+  btn.style.color = on ? '#10b981' : '#475569';
+  btn.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+}
+
+// ==========================================
+// ギャラリー フリップビューア（事前/エントリー/決済の切替）
+// ==========================================
+function openGalleryFlip(index) {
+  const t = App.data.entries[index];
+  if (!t) return;
+  const imgs = [];
+  const add = (label, raw) => {
+    raw = String(raw || '').trim();
+    if (raw && raw !== 'undefined') imgs.push({ label, raw });
+  };
+  add('📋 事前チャート', t['事前チャート']);
+  add('📷 エントリー1', findEntryImageField(t));
+  add('📷 エントリー2', t['ChartImage2']);
+  add('🏁 決済', findExitImageField(t));
+  if (imgs.length === 0) return;
+
+  App.state.flipImgs = imgs;
+  App.state.flipTradeIndex = index;
+  // 決済画像があればそこから表示（ギャラリーのサムネと一致）
+  const exitIdx = imgs.findIndex(i => i.label === '🏁 決済');
+  App.state.flipIdx = exitIdx >= 0 ? exitIdx : 0;
+  renderGalleryFlip();
+  document.getElementById('gallery-flip').style.display = 'flex';
+}
+
+function renderGalleryFlip() {
+  const imgs = App.state.flipImgs || [];
+  const idx = App.state.flipIdx || 0;
+  const cur = imgs[idx];
+  if (!cur) return;
+
+  document.getElementById('gallery-flip-label').textContent = `${cur.label}（${idx + 1}/${imgs.length}）`;
+
+  const img = document.getElementById('gallery-flip-img');
+  img.removeAttribute('data-path');
+  const isPath = cur.raw.includes('/') && !cur.raw.startsWith('http') && !cur.raw.startsWith('data:');
+  if (isPath) {
+    img.src = _imgUrlCache[cur.raw] || '';
+    if (!img.src) {
+      img.dataset.path = cur.raw;
+      resolvePathImages(document.getElementById('gallery-flip'));
+    }
+  } else {
+    img.src = cur.raw;
+  }
+
+  document.getElementById('gallery-flip-dots').innerHTML = imgs.map((_, i) =>
+    `<span onclick="App.state.flipIdx=${i}; renderGalleryFlip();" style="width:8px; height:8px; border-radius:50%; background:${i === idx ? '#38bdf8' : '#334155'}; cursor:pointer;"></span>`
+  ).join('');
+}
+
+function flipNav(dir) {
+  const n = (App.state.flipImgs || []).length;
+  if (n === 0) return;
+  App.state.flipIdx = (App.state.flipIdx + dir + n) % n;
+  renderGalleryFlip();
+}
+
+var _flipTouchX = 0;
+function flipTouchStart(e) { _flipTouchX = e.touches[0].clientX; }
+function flipTouchEnd(e) {
+  const dx = e.changedTouches[0].clientX - _flipTouchX;
+  if (Math.abs(dx) < 40) return;
+  flipNav(dx < 0 ? 1 : -1);
+}
+
+function closeGalleryFlip() {
+  document.getElementById('gallery-flip').style.display = 'none';
+}
+
+function openTradeDetailFromFlip() {
+  const index = App.state.flipTradeIndex;
+  closeGalleryFlip();
+  if (index !== undefined && index !== null) openTradeDetail(index);
 }
 
 function galleryFilterBtn(btn, group, val) {
@@ -2201,28 +2281,20 @@ function galleryFilterBtn(btn, group, val) {
   renderGallery();
 }
 
-// 表示画像モードに応じた画像フィールド取得
-function galleryImageFor(t, imgMode) {
-  if (imgMode === 'entry') return findEntryImageField(t);
-  if (imgMode === 'plan')  return String(t['事前チャート'] || '').trim();
-  return findExitImageField(t) || findEntryImageField(t); // exit: 決済優先（従来動作）
-}
-
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const scoreVal = document.querySelector('[data-gf-score].active')?.dataset.gfScore || 'all';
   const rrVal    = document.querySelector('[data-gf-rr].active')?.dataset.gfRr || 'all';
-  const imgMode  = document.querySelector('[data-gf-img].active')?.dataset.gfImg || 'exit';
   const winLoss  = document.getElementById('gf-winloss')?.value || 'all';
+  const entryRef = document.getElementById('gf-entryref')?.value || 'all';
   const exitRef  = document.getElementById('gf-exitref')?.value || 'all';
-  const origin   = document.getElementById('gf-origin')?.value || 'all';
   const favOnly  = document.getElementById('gf-fav')?.classList.contains('active') || false;
 
-  // 決済済みのみ・表示モードの画像あり
+  // 決済済みのみ・画像あり
   let galleryTrades = App.data.entries.filter(t => {
     const st = t['ステータス'] || '';
     if (st !== '決済' && st !== '決済（見逃し）') return false;
-    const img = galleryImageFor(t, imgMode);
+    const img = findExitImageField(t) || findEntryImageField(t);
     return img && img.trim() !== '';
   });
 
@@ -2245,19 +2317,18 @@ function renderGallery() {
     });
   }
 
-  // 勝敗・決済振り返り・起点・お気に入りフィルター
+  // 勝敗・エントリー振り返り・決済振り返り・お気に入りフィルター
   if (winLoss !== 'all') {
     galleryTrades = galleryTrades.filter(t => {
       const pips = parseFloat(t['実取得pips']) || 0;
       return winLoss === 'win' ? pips > 10 : pips < -10;
     });
   }
+  if (entryRef !== 'all') {
+    galleryTrades = galleryTrades.filter(t => (t['エントリー振り返り'] || '') === entryRef);
+  }
   if (exitRef !== 'all') {
     galleryTrades = galleryTrades.filter(t => (t['決済振り返り'] || '') === exitRef);
-  }
-  if (origin !== 'all') {
-    galleryTrades = galleryTrades.filter(t =>
-      origin === 'plan' ? t['計画エントリー'] === 'ON' : t['計画エントリー'] !== 'ON');
   }
   if (favOnly) {
     galleryTrades = galleryTrades.filter(t => t['お気に入り'] === 'ON');
@@ -2281,7 +2352,7 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = galleryImageFor(t, imgMode);
+    const rawUrl = findExitImageField(t) || findEntryImageField(t);
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -2295,11 +2366,11 @@ function renderGallery() {
       : '';
 
     html += `
-      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${isFav ? '#f59e0b' : '#334155'}; cursor:pointer;">
-        <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
+      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${isFav ? '#10b981' : '#334155'}; cursor:pointer;">
+        <div onclick="event.stopPropagation(); openGalleryFlip(${index})" style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
           ${imgTag}
           <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
-          <div onclick="event.stopPropagation(); toggleFavorite(${index}, this)" style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:14px; cursor:pointer;">${isFav ? '⭐' : '☆'}</div>
+          <div onclick="event.stopPropagation(); toggleFavorite(${index}, this)" style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 8px; border-radius:4px; font-size:14px; font-weight:800; color:${isFav ? '#10b981' : '#475569'}; cursor:pointer;">✓</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
@@ -3004,7 +3075,6 @@ function renderRRDistribution(trades) {
     <div style="display:flex; gap:6px; padding:0 2px; border-top:1px solid #334155;">
       ${RR_BINS.map(b => `<div style="flex:1; text-align:center; font-size:10px; color:#94a3b8; padding-top:5px; white-space:nowrap;">${b.label}</div>`).join('')}
     </div>
-    <div style="text-align:center; font-size:10px; color:#475569; margin-top:6px;">バーをタップで該当トレードを表示</div>
   `;
 }
 
@@ -3140,9 +3210,6 @@ function renderMcResult(r) {
     </svg>`;
 
   box.innerHTML = `
-    <div style="font-size:10px; color:#64748b; margin-bottom:8px;">
-      実行条件: 実RR ${r.sampleCount}件 × ${r.nT}トレード × ${r.nS}試行 / リスク¥${fmt(r.risk)}/回（${new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'})} 実行）
-    </div>
     <div class="chart-container" style="height:220px; padding:10px 4px 4px; margin-bottom:10px; background:#0f172a;">${chartSVG}</div>
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
       <div class="metric-card">
@@ -5016,6 +5083,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-index').value = index;
   document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
+  updateDetailFavButton(t);
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
 
   // Basic info
@@ -5259,6 +5327,12 @@ function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
   App.state.pendingEntryImgDelete = null;
   App.state.pendingExitImgDelete = null;
+  // レビューから開いた詳細 → 閉じたらレビューに戻る
+  if (App.state.returnToReview) {
+    App.state.returnToReview = false;
+    openReviewModal();
+    return;
+  }
   if (App.state.detailFromHistory) {
     App.state.detailFromHistory = false;
     const snap = App.state.historyFilterSnapshot;
@@ -5777,24 +5851,21 @@ async function runGeminiAnalysis() {
 // ==========================================
 
 function renderIdeas() {
-  const query = (document.getElementById('idea-search')?.value || '').trim().toLowerCase();
-  let active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
-
-  // 全文検索（本文+ペア）
-  if (query) {
-    active = active.filter(i =>
-      String(i['本文'] || '').toLowerCase().includes(query) ||
-      String(i['ペア'] || '').toLowerCase().includes(query)
-    );
-  }
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
 
   const list = document.getElementById('idea-list');
   if (list) {
     if (active.length === 0) {
-      list.innerHTML = `<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">${query ? '検索に一致するメモがありません' : 'メモがありません'}</div>`;
+      list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">メモがありません</div>';
     } else {
+      // お気に入りを先頭に、その後は日付降順
       list.innerHTML = active
-        .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
+        .sort((a, b) => {
+          const fa = a['お気に入り'] === 'ON' ? 1 : 0;
+          const fb = b['お気に入り'] === 'ON' ? 1 : 0;
+          if (fa !== fb) return fb - fa;
+          return b['日付'] > a['日付'] ? 1 : -1;
+        })
         .map(idea => ideaCard(idea))
         .join('');
     }
@@ -5802,28 +5873,31 @@ function renderIdeas() {
 
 }
 
-// アイデアモーダルのペアselectに監視ペア一覧を流し込む
-function populateIdeaPairSelect(selectId, value) {
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
-  sel.innerHTML = '<option value="">（指定なし）</option>';
-  const pairs = [...new Set(App.data.pairs.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
-  pairs.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p;
-    opt.textContent = p;
-    sel.appendChild(opt);
-  });
-  sel.value = value || '';
+// メモのお気に入り（⭐）トグル: ローカル即時反映+バックグラウンド保存
+function toggleIdeaFavorite(id, ev) {
+  if (ev) ev.stopPropagation();
+  const idea = App.data.ideas.find(i => i.id === id);
+  if (!idea) return;
+  idea['お気に入り'] = idea['お気に入り'] === 'ON' ? '' : 'ON';
+  renderIdeas();
+  gasPostQueued({ action: 'updateIdea', ideaId: id, data: {
+    '日付': idea['日付'] || '',
+    '本文': idea['本文'] || '',
+    '画像URL': idea['画像URL'] || '',
+    'ステータス': idea['ステータス'] || '未解決',
+    '画像URL2': idea['画像URL2'] || '',
+    '画像URL3': idea['画像URL3'] || '',
+    'お気に入り': idea['お気に入り'] || '',
+  }}, 'メモお気に入り')
+    .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
+    .catch(() => {});
 }
 
 function ideaCard(idea) {
   const text = idea['本文'] || '';
   const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
-  const pairChip = idea['ペア']
-    ? `<span style="background:rgba(56,189,248,0.15); color:#38bdf8; border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; margin-left:6px;">${idea['ペア']}</span>`
-    : '';
+  const isFav = idea['お気に入り'] === 'ON';
   const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
   let imgHtml = '';
   if (urls.length === 1) {
@@ -5844,8 +5918,11 @@ function ideaCard(idea) {
     </div>`;
   }
   return `
-    <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
-      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${dateStr}${pairChip}</div>
+    <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid ${isFav ? '#f59e0b' : '#334155'}; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:11px; color:#64748b;">${dateStr}</span>
+        <span onclick="toggleIdeaFavorite('${idea.id}', event)" style="font-size:16px; cursor:pointer; padding:0 4px; ${isFav ? '' : 'filter:grayscale(1); opacity:0.4;'}">⭐</span>
+      </div>
       <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
       ${imgHtml}
     </div>`;
@@ -5976,7 +6053,6 @@ function openNewIdeaModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
-  populateIdeaPairSelect('idea-pair', '');
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
   renderIdeaImageSlots('new');
@@ -5997,7 +6073,7 @@ async function saveNewIdea() {
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
     'ステータス': '未解決',
-    'ペア': document.getElementById('idea-pair')?.value || ''
+    'お気に入り': ''
   };
   showLoader();
   try {
@@ -6032,7 +6108,6 @@ function openIdeaDetail(id) {
   document.getElementById('idea-detail-date').value = idea['日付'] || '';
   document.getElementById('idea-detail-text').value = idea['本文'] || '';
   document.getElementById('idea-detail-status').value = idea['ステータス'] || '未解決';
-  populateIdeaPairSelect('idea-detail-pair', idea['ペア'] || '');
   renderIdeaImageSlots('detail');
   document.getElementById('modal-idea-detail').style.display = 'flex';
 }
@@ -6052,7 +6127,7 @@ async function saveIdeaDetail() {
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
     'ステータス': document.getElementById('idea-detail-status').value,
-    'ペア': document.getElementById('idea-detail-pair')?.value || ''
+    'お気に入り': (App.data.ideas.find(i => i.id === id) || {})['お気に入り'] || ''
   };
   showLoader();
   try {

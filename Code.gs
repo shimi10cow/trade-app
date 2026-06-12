@@ -651,63 +651,74 @@ function updateWinLossColumn() {
 
 // =============================================
 // アイデアメモ (Ideas シート)
-// 列: A=ID, B=日付, C=本文, D=画像URL, E=ステータス, F=画像URL2, G=画像URL3, H=ペア
+// 列はヘッダー名で解決（ID, 日付, 本文, 画像URL, ステータス, 画像URL2, 画像URL3, お気に入り）
 // =============================================
 const IDEAS_SHEET = 'Ideas';
+const IDEA_FIELDS = ['日付','本文','画像URL','ステータス','画像URL2','画像URL3','お気に入り'];
 
 function getOrCreateIdeasSheet() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(IDEAS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(IDEAS_SHEET);
-    sheet.getRange(1, 1, 1, 8).setValues([['ID','日付','本文','画像URL','ステータス','画像URL2','画像URL3','ペア']]);
+    sheet.getRange(1, 1, 1, 1 + IDEA_FIELDS.length).setValues([['ID'].concat(IDEA_FIELDS)]);
   } else {
-    // 既存シートに列F,G,Hが無ければ追加
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    if (headers.indexOf('画像URL2') === -1) sheet.getRange(1, 6).setValue('画像URL2');
-    if (headers.indexOf('画像URL3') === -1) sheet.getRange(1, 7).setValue('画像URL3');
-    if (headers.indexOf('ペア') === -1) sheet.getRange(1, 8).setValue('ペア');
+    // 足りないヘッダーを末尾に追加
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    IDEA_FIELDS.forEach(f => {
+      if (headers.indexOf(f) === -1) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(f);
+        headers.push(f);
+      }
+    });
   }
   return sheet;
+}
+
+// ヘッダー名 → 0始まり列indexのマップ
+function ideaHeaderMap(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const map = {};
+  headers.forEach((h, i) => { if (h) map[h] = i; });
+  return map;
 }
 
 function getIdeas() {
   const sheet = getOrCreateIdeasSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const cols = Math.max(sheet.getLastColumn(), 8);
-  const rows = sheet.getRange(2, 1, lastRow - 1, cols).getValues();
+  const map = ideaHeaderMap(sheet);
+  const rows = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
   return rows
-    .filter(r => r[0] !== '')
-    .map(r => ({
-      id:         String(r[0]),
-      日付:       r[1] instanceof Date
-                    ? Utilities.formatDate(r[1], 'Asia/Tokyo', 'yyyy-MM-dd')
-                    : String(r[1] || ''),
-      本文:       String(r[2] || ''),
-      画像URL:    String(r[3] || ''),
-      ステータス: String(r[4] || '未解決'),
-      画像URL2:   String(r[5] || ''),
-      画像URL3:   String(r[6] || ''),
-      ペア:       String(r[7] || ''),
-    }));
+    .filter(r => r[map['ID'] || 0] !== '')
+    .map(r => {
+      const obj = { id: String(r[map['ID'] || 0]) };
+      IDEA_FIELDS.forEach(f => {
+        let v = map[f] !== undefined ? r[map[f]] : '';
+        if (v instanceof Date) v = Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+        obj[f] = String(v || (f === 'ステータス' ? '未解決' : ''));
+      });
+      return obj;
+    });
+}
+
+function ideaRowValues(sheet, map, id, data) {
+  const row = new Array(sheet.getLastColumn()).fill('');
+  row[map['ID'] || 0] = String(id);
+  IDEA_FIELDS.forEach(f => {
+    if (map[f] !== undefined) row[map[f]] = data[f] !== undefined ? data[f] : '';
+  });
+  return row;
 }
 
 function saveIdea(data) {
   const sheet = getOrCreateIdeasSheet();
+  const map = ideaHeaderMap(sheet);
   const id = String(Date.now());
-  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 8);
+  if (!data['ステータス']) data['ステータス'] = '未解決';
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, sheet.getLastColumn());
   range.setNumberFormat('@');
-  range.setValues([[
-    id,
-    data['日付'] || '',
-    data['本文'] || '',
-    data['画像URL']  || '',
-    data['ステータス'] || '未解決',
-    data['画像URL2'] || '',
-    data['画像URL3'] || '',
-    data['ペア'] || '',
-  ]]);
+  range.setValues([ideaRowValues(sheet, map, id, data)]);
   return { success: true, id: id };
 }
 
@@ -715,20 +726,14 @@ function updateIdea(ideaId, data) {
   const sheet = getOrCreateIdeasSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: false, error: 'Not found' };
-  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const map = ideaHeaderMap(sheet);
+  const idCol = (map['ID'] || 0) + 1;
+  const ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues().flat();
   const rowIdx = ids.findIndex(id => String(id) === String(ideaId));
   if (rowIdx === -1) return { success: false, error: 'Not found' };
-  const row = rowIdx + 2;
-  sheet.getRange(row, 1, 1, 8).setValues([[
-    String(ideaId),
-    data['日付'] || '',
-    data['本文'] || '',
-    data['画像URL']  || '',
-    data['ステータス'] || '未解決',
-    data['画像URL2'] || '',
-    data['画像URL3'] || '',
-    data['ペア'] || '',
-  ]]);
+  if (!data['ステータス']) data['ステータス'] = '未解決';
+  sheet.getRange(rowIdx + 2, 1, 1, sheet.getLastColumn())
+    .setValues([ideaRowValues(sheet, map, ideaId, data)]);
   return { success: true };
 }
 
