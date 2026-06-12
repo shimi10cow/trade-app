@@ -1168,7 +1168,7 @@ function renderPairs() {
         ? `<span class="badge ${planDir === 'Buy' ? 'buy' : 'sell'}" style="margin-left:6px;">📋 ${planDir === 'Buy' ? '▲' : '▼'}${planDir}</span>`
         : '';
       const planButtons = planDir
-        ? `<div style="display:flex; gap:6px; margin:6px 0 14px; padding:0 4px 0 12px;">
+        ? `<div style="display:flex; gap:6px; margin:6px 0; padding:0 4px 0 12px;">
              <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:8px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
              <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:8px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
              <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:8px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕ 解除</button>
