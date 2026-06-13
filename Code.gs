@@ -18,6 +18,8 @@ const GAS_ACTIONS = {
   getPairs:         () => getPairs(),
   getAnalysisStats: () => getAnalysisStats(),
   getIdeas:         () => getIdeas(),
+  getReviews:       () => getReviews(),
+  getCalendar:      () => getCalendarEvents(),
 };
 
 function doGet(e) {
@@ -74,6 +76,10 @@ function doPost(e) {
     result = updateIdea(body.ideaId, body.data);
   } else if (action === 'deleteIdea') {
     result = deleteIdea(body.ideaId);
+  } else if (action === 'saveReview') {
+    result = saveReview(body.data);
+  } else if (action === 'updateReview') {
+    result = updateReview(body.reviewId, body.data);
   } else if (action === 'recalculateCaseBScores') {
     result = recalculateCaseBScores();
   } else if (action === 'migrateExitRefPerfect') {
@@ -84,6 +90,8 @@ function doPost(e) {
     result = ensureScoreColumns(body.config);
   } else if (action === 'ensureColumns') {
     result = ensureNamedColumns(body.columns);
+  } else if (action === 'ensurePairColumns') {
+    result = ensurePairColumns(body.columns);
   } else if (action === 'migrateEntryFields') {
     result = migrateEntryFields();
   } else if (action === 'migrateEntryFieldsV2') {
@@ -643,60 +651,74 @@ function updateWinLossColumn() {
 
 // =============================================
 // アイデアメモ (Ideas シート)
-// 列: A=ID, B=日付, C=本文, D=画像URL, E=ステータス, F=画像URL2, G=画像URL3
+// 列はヘッダー名で解決（ID, 日付, 本文, 画像URL, ステータス, 画像URL2, 画像URL3, お気に入り）
 // =============================================
 const IDEAS_SHEET = 'Ideas';
+const IDEA_FIELDS = ['日付','本文','画像URL','ステータス','画像URL2','画像URL3','お気に入り'];
 
 function getOrCreateIdeasSheet() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(IDEAS_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(IDEAS_SHEET);
-    sheet.getRange(1, 1, 1, 7).setValues([['ID','日付','本文','画像URL','ステータス','画像URL2','画像URL3']]);
+    sheet.getRange(1, 1, 1, 1 + IDEA_FIELDS.length).setValues([['ID'].concat(IDEA_FIELDS)]);
   } else {
-    // 既存シートに列F,Gが無ければ追加
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    if (headers.indexOf('画像URL2') === -1) sheet.getRange(1, 6).setValue('画像URL2');
-    if (headers.indexOf('画像URL3') === -1) sheet.getRange(1, 7).setValue('画像URL3');
+    // 足りないヘッダーを末尾に追加
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    IDEA_FIELDS.forEach(f => {
+      if (headers.indexOf(f) === -1) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(f);
+        headers.push(f);
+      }
+    });
   }
   return sheet;
+}
+
+// ヘッダー名 → 0始まり列indexのマップ
+function ideaHeaderMap(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const map = {};
+  headers.forEach((h, i) => { if (h) map[h] = i; });
+  return map;
 }
 
 function getIdeas() {
   const sheet = getOrCreateIdeasSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const cols = Math.max(sheet.getLastColumn(), 7);
-  const rows = sheet.getRange(2, 1, lastRow - 1, cols).getValues();
+  const map = ideaHeaderMap(sheet);
+  const rows = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
   return rows
-    .filter(r => r[0] !== '')
-    .map(r => ({
-      id:         String(r[0]),
-      日付:       r[1] instanceof Date
-                    ? Utilities.formatDate(r[1], 'Asia/Tokyo', 'yyyy-MM-dd')
-                    : String(r[1] || ''),
-      本文:       String(r[2] || ''),
-      画像URL:    String(r[3] || ''),
-      ステータス: String(r[4] || '未解決'),
-      画像URL2:   String(r[5] || ''),
-      画像URL3:   String(r[6] || ''),
-    }));
+    .filter(r => r[map['ID'] || 0] !== '')
+    .map(r => {
+      const obj = { id: String(r[map['ID'] || 0]) };
+      IDEA_FIELDS.forEach(f => {
+        let v = map[f] !== undefined ? r[map[f]] : '';
+        if (v instanceof Date) v = Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd');
+        obj[f] = String(v || (f === 'ステータス' ? '未解決' : ''));
+      });
+      return obj;
+    });
+}
+
+function ideaRowValues(sheet, map, id, data) {
+  const row = new Array(sheet.getLastColumn()).fill('');
+  row[map['ID'] || 0] = String(id);
+  IDEA_FIELDS.forEach(f => {
+    if (map[f] !== undefined) row[map[f]] = data[f] !== undefined ? data[f] : '';
+  });
+  return row;
 }
 
 function saveIdea(data) {
   const sheet = getOrCreateIdeasSheet();
+  const map = ideaHeaderMap(sheet);
   const id = String(Date.now());
-  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7);
+  if (!data['ステータス']) data['ステータス'] = '未解決';
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, sheet.getLastColumn());
   range.setNumberFormat('@');
-  range.setValues([[
-    id,
-    data['日付'] || '',
-    data['本文'] || '',
-    data['画像URL']  || '',
-    data['ステータス'] || '未解決',
-    data['画像URL2'] || '',
-    data['画像URL3'] || '',
-  ]]);
+  range.setValues([ideaRowValues(sheet, map, id, data)]);
   return { success: true, id: id };
 }
 
@@ -704,19 +726,14 @@ function updateIdea(ideaId, data) {
   const sheet = getOrCreateIdeasSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: false, error: 'Not found' };
-  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const map = ideaHeaderMap(sheet);
+  const idCol = (map['ID'] || 0) + 1;
+  const ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues().flat();
   const rowIdx = ids.findIndex(id => String(id) === String(ideaId));
   if (rowIdx === -1) return { success: false, error: 'Not found' };
-  const row = rowIdx + 2;
-  sheet.getRange(row, 1, 1, 7).setValues([[
-    String(ideaId),
-    data['日付'] || '',
-    data['本文'] || '',
-    data['画像URL']  || '',
-    data['ステータス'] || '未解決',
-    data['画像URL2'] || '',
-    data['画像URL3'] || '',
-  ]]);
+  if (!data['ステータス']) data['ステータス'] = '未解決';
+  sheet.getRange(rowIdx + 2, 1, 1, sheet.getLastColumn())
+    .setValues([ideaRowValues(sheet, map, ideaId, data)]);
   return { success: true };
 }
 
@@ -732,6 +749,131 @@ function deleteIdea(ideaId) {
   return { success: true };
 }
 // =============================================
+
+// =============================================
+// 経済指標カレンダー（Forex Factory 週間JSON・非公式）
+// 6時間キャッシュ。取得失敗時は error を返すだけ（フォールバックなし）
+// =============================================
+const CALENDAR_URL_THISWEEK = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+const CALENDAR_URL_NEXTWEEK = 'https://nfs.faireconomy.media/ff_calendar_nextweek.json';
+const CALENDAR_CACHE_KEY = 'calendar_cache_v1';
+const CALENDAR_NEXT_CACHE_KEY = 'calendar_next_cache_v1';
+
+function getCalendarEvents() {
+  // 土日（日本時間）は来週データを返す
+  const now = new Date();
+  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const dow = jstHour.getUTCDay(); // 0=日, 6=土
+  const isWeekend = (dow === 0 || dow === 6);
+
+  const cacheKey = isWeekend ? CALENDAR_NEXT_CACHE_KEY : CALENDAR_CACHE_KEY;
+  const url      = isWeekend ? CALENDAR_URL_NEXTWEEK   : CALENDAR_URL_THISWEEK;
+
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch(e) {}
+  }
+
+  try {
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) {
+      return { error: 'HTTP ' + res.getResponseCode(), events: [], isNextWeek: isWeekend };
+    }
+    const raw = JSON.parse(res.getContentText());
+    const events = raw
+      .filter(e => e && e.date && e.country)
+      .map(e => ({
+        title:    String(e.title || ''),
+        currency: String(e.country || '').toUpperCase(),
+        datetime: Utilities.formatDate(new Date(e.date), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+        impact:   String(e.impact || ''),
+      }))
+      .filter(e => e.impact === 'High' || e.impact === 'Medium');
+
+    const result = { events: events, isNextWeek: isWeekend };
+    try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch(e) {} // 6時間
+    return result;
+  } catch(e) {
+    return { error: e.message, events: [], isNextWeek: isWeekend };
+  }
+}
+
+// =============================================
+// 週次・月次レビュー (Reviews シート)
+// 列: A=ID, B=種別(weekly/monthly), C=期間キー, D=メモ, E=約束, F=約束判定(JSON), G=作成日
+// =============================================
+const REVIEWS_SHEET = 'Reviews';
+
+function getOrCreateReviewsSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(REVIEWS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(REVIEWS_SHEET);
+    sheet.getRange(1, 1, 1, 7).setValues([['ID','種別','期間キー','メモ','約束','約束判定','作成日']]);
+  }
+  return sheet;
+}
+
+function getReviews() {
+  const sheet = getOrCreateReviewsSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  return rows
+    .filter(r => r[0] !== '')
+    .map(r => ({
+      id:        String(r[0]),
+      種別:      String(r[1] || ''),
+      期間キー:  r[2] instanceof Date
+                   ? Utilities.formatDate(r[2], 'Asia/Tokyo', 'yyyy-MM-dd')
+                   : String(r[2] || ''),
+      メモ:      String(r[3] || ''),
+      約束:      String(r[4] || ''),
+      約束判定:  String(r[5] || ''),
+      作成日:    r[6] instanceof Date
+                   ? Utilities.formatDate(r[6], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+                   : String(r[6] || ''),
+    }));
+}
+
+function saveReview(data) {
+  const sheet = getOrCreateReviewsSheet();
+  const id = String(Date.now());
+  const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7);
+  range.setNumberFormat('@');
+  range.setValues([[
+    id,
+    data['種別'] || 'weekly',
+    data['期間キー'] || '',
+    data['メモ'] || '',
+    data['約束'] || '',
+    data['約束判定'] || '',
+    Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+  ]]);
+  return { success: true, id: id };
+}
+
+function updateReview(reviewId, data) {
+  const sheet = getOrCreateReviewsSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: false, error: 'Not found' };
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+  const rowIdx = ids.findIndex(id => String(id) === String(reviewId));
+  if (rowIdx === -1) return { success: false, error: 'Not found' };
+  const row = rowIdx + 2;
+  const current = sheet.getRange(row, 1, 1, 7).getValues()[0];
+  sheet.getRange(row, 1, 1, 7).setValues([[
+    String(reviewId),
+    data['種別']     !== undefined ? data['種別']     : current[1],
+    data['期間キー'] !== undefined ? data['期間キー'] : current[2],
+    data['メモ']     !== undefined ? data['メモ']     : current[3],
+    data['約束']     !== undefined ? data['約束']     : current[4],
+    data['約束判定'] !== undefined ? data['約束判定'] : current[5],
+    current[6],
+  ]]);
+  return { success: true };
+}
 
 // =============================================
 // スコア全件再計算
@@ -866,6 +1008,25 @@ function ensureNamedColumns(columns) {
   if (!columns || !Array.isArray(columns)) return { success: false, error: 'columns不正' };
   const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  let added = 0;
+  columns.forEach(col => {
+    if (!headers.includes(col)) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(col);
+      headers.push(col);
+      added++;
+    }
+  });
+  return { success: true, added };
+}
+
+// =============================================
+// 任意の列名をPairsシートに追加（なければ）
+// =============================================
+function ensurePairColumns(columns) {
+  if (!columns || !Array.isArray(columns)) return { success: false, error: 'columns不正' };
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+  if (!sheet) return { success: false, error: 'Pairsシートが見つかりません' };
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   let added = 0;
   columns.forEach(col => {

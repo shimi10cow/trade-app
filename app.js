@@ -4,7 +4,9 @@ const App = {
   data: {
     entries: [],
     pairs: [],
-    ideas: []
+    ideas: [],
+    reviews: [],
+    calendar: []
   },
   state: {
     currentTab: 'positions',
@@ -17,6 +19,218 @@ const App = {
     heatmapFilter: { type: 'category', value: 'all' }
   }
 };
+
+// ==========================================
+// 通信レイヤー: タイムアウト・リトライ・オフラインキュー
+// ==========================================
+const FETCH_TIMEOUT_MS = 30000;          // GASは応答が遅いことがあるため30秒
+const FETCH_RETRY_DELAYS = [2000, 4000]; // リトライ間隔（初回+2回 = 計3回試行）
+
+function fetchWithTimeout(url, options) {
+  options = options || {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+    .finally(() => clearTimeout(timer));
+}
+
+async function fetchRetry(url, options) {
+  let lastErr;
+  for (let attempt = 0; attempt <= FETCH_RETRY_DELAYS.length; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, options);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < FETCH_RETRY_DELAYS.length) {
+        await new Promise(r => setTimeout(r, FETCH_RETRY_DELAYS[attempt]));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+// GAS GET/POST（タイムアウト・リトライ付き）
+function gasGet(action) {
+  return fetchRetry(`${GAS_URL}?action=${action}`).then(r => r.json());
+}
+
+function gasPost(payload) {
+  return fetchRetry(GAS_URL, { method: 'POST', body: JSON.stringify(payload) }).then(r => r.json());
+}
+
+// ---- オフライン保存キュー (IndexedDB) ----
+// オフライン時・リトライ全滅時に書き込み系POSTを退避し、再接続時に自動送信する
+const QUEUE_DB_NAME = 'trade-app-queue';
+const QUEUE_STORE = 'pending';
+const QUEUE_MAX_ATTEMPTS = 5; // サーバーに拒否され続けたデータの破棄閾値
+
+function openQueueDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(QUEUE_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function queueOp(mode, fn) {
+  return openQueueDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(QUEUE_STORE, mode);
+    const req = fn(tx.objectStore(QUEUE_STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onabort = () => db.close();
+  }));
+}
+
+function queueAdd(payload, label) {
+  return queueOp('readwrite', s => s.add({
+    payload, label, attempts: 0, createdAt: new Date().toISOString()
+  })).then(updateQueueBadge);
+}
+function queueGetAll()      { return queueOp('readonly',  s => s.getAll()); }
+function queueDelete(id)    { return queueOp('readwrite', s => s.delete(id)); }
+function queueUpdate(item)  { return queueOp('readwrite', s => s.put(item)); }
+
+// 書き込み系POST: 通信不可ならキューに退避（queued:true で返る）
+async function gasPostQueued(payload, label) {
+  if (!navigator.onLine) {
+    await queueAdd(payload, label);
+    return { success: true, queued: true };
+  }
+  try {
+    return await gasPost(payload);
+  } catch (e) {
+    // リトライ全滅 = ネットワーク起因とみなしキューへ
+    // （サーバーの論理エラーは res.success:false でそのまま呼び元に返る）
+    await queueAdd(payload, label);
+    return { success: true, queued: true };
+  }
+}
+
+let _queueFlushing = false;
+async function flushQueue() {
+  if (_queueFlushing || !navigator.onLine) return;
+  let items;
+  try { items = await queueGetAll(); } catch (e) { return; }
+  if (!items.length) { updateQueueBadge(); return; }
+
+  _queueFlushing = true;
+  let sent = 0, dropped = 0;
+  try {
+    for (const item of items) {
+      let res;
+      try {
+        res = await gasPost(item.payload);
+      } catch (e) {
+        break; // まだ通信不可 → 残りは次回再試行
+      }
+      if (res && res.success) {
+        await queueDelete(item.id);
+        sent++;
+      } else {
+        item.attempts = (item.attempts || 0) + 1;
+        if (item.attempts >= QUEUE_MAX_ATTEMPTS) {
+          await queueDelete(item.id);
+          dropped++;
+          console.error('Queue item dropped (server rejected):', item.label, res && res.error);
+        } else {
+          await queueUpdate(item);
+        }
+      }
+    }
+  } finally {
+    _queueFlushing = false;
+  }
+
+  updateQueueBadge();
+  if (sent > 0) {
+    showToast(`📥 オフライン保存 ${sent}件を同期しました ✅`);
+    loadData();
+  }
+  if (dropped > 0) {
+    alert(`⚠️ ${dropped}件の保存データがサーバーに拒否され破棄されました。スプレッドシートを確認してください。`);
+  }
+}
+
+async function updateQueueBadge() {
+  const badge = document.getElementById('queue-status');
+  if (!badge) return;
+  let count = 0;
+  try { count = (await queueGetAll()).length; } catch (e) {}
+  if (count > 0) {
+    badge.textContent = `📥 未送信 ${count}件`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+// ==========================================
+// アプリ設定（歯車モーダル）
+// ==========================================
+const APP_SETTINGS_KEY = 'appSettings_v1';
+const APP_SETTINGS_DEFAULTS = {
+  popFreq: 'always',     // 今週意識することPOP: always | daily | off
+  calWindow: 2,          // 指標警告ウィンドウ（前後N時間）
+  calImportance: 'high', // 指標対象: high | medhigh（「すべて」モード時のみ使用）
+  calScope: 'curated',   // 表示範囲: curated（厳選） | all
+};
+
+function getAppSettings() {
+  try {
+    return Object.assign({}, APP_SETTINGS_DEFAULTS, JSON.parse(localStorage.getItem(APP_SETTINGS_KEY) || '{}'));
+  } catch(e) {
+    return Object.assign({}, APP_SETTINGS_DEFAULTS);
+  }
+}
+
+function openSettingsModal() {
+  const s = getAppSettings();
+  const apply = (groupId, val) => {
+    document.querySelectorAll(`#${groupId} button`).forEach(b => {
+      b.classList.toggle('active', String(b.dataset.val) === String(val));
+    });
+  };
+  apply('set-pop-freq', s.popFreq);
+  apply('set-cal-window', s.calWindow);
+  apply('set-cal-importance', s.calImportance);
+  apply('set-cal-scope', s.calScope);
+  document.getElementById('modal-settings').classList.add('active');
+}
+
+function closeSettingsModal() {
+  document.getElementById('modal-settings').classList.remove('active');
+}
+
+function setSettingBtn(btn) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function saveSettingsModal() {
+  const pick = (groupId, def) => {
+    const b = document.querySelector(`#${groupId} button.active`);
+    return b ? b.dataset.val : def;
+  };
+  const s = {
+    popFreq: pick('set-pop-freq', APP_SETTINGS_DEFAULTS.popFreq),
+    calWindow: parseInt(pick('set-cal-window', APP_SETTINGS_DEFAULTS.calWindow)) || 2,
+    calImportance: pick('set-cal-importance', APP_SETTINGS_DEFAULTS.calImportance),
+    calScope: pick('set-cal-scope', APP_SETTINGS_DEFAULTS.calScope),
+  };
+  localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(s));
+  closeSettingsModal();
+  showToast('設定を保存しました ✅');
+  // 指標の表示範囲が変わった可能性 → 再描画
+  renderWeekEvents();
+  renderTodayEvents();
+}
 
 // ==========================================
 // Score Config
@@ -132,11 +346,19 @@ function buildScoreGroups(containerId, prefix) {
 document.addEventListener('DOMContentLoaded', () => {
   initServiceWorker();
   loadScoreConfig();
+  loadMcConfig();
+  syncCollapseSections(); // 記録タブ等の静的折りたたみ状態を復元
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
+  flushQueue();          // 前回オフライン時の未送信データを先に同期
   loadData();
   updateImgBBStatusBar();
+});
+
+// アプリ復帰時にも未送信キューを同期
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') flushQueue();
 });
 
 // ── プルダウンリフレッシュ ──
@@ -245,6 +467,7 @@ function updateNetworkStatus(isOnline) {
     badge.className = 'badge bg-green';
     badge.textContent = 'Online';
     setTimeout(() => badge.classList.add('hidden'), 2000);
+    flushQueue(); // 再接続 → 未送信キューを自動同期
   } else {
     badge.className = 'badge bg-red';
     badge.textContent = 'Offline';
@@ -290,6 +513,27 @@ function openHistoryModal() {
   document.getElementById('hist-period').value = 'all';
   toggleCustomHistDate();
   renderHistoryList();
+}
+
+// 任意のトレード配列をベースに履歴モーダルを開く（チャートタップ用）
+function openHistoryWithBase(trades) {
+  if (!trades || trades.length === 0) return;
+  App.state.modalOpenedAt = Date.now();
+  App.state.historyBaseFilter = trades;
+  const _hm = document.getElementById('modal-history');
+  _hm.classList.add('active');
+  requestAnimationFrame(() => { _hm.querySelector('.modal-body').scrollTop = 0; });
+  document.getElementById('hist-period').value = 'all';
+  toggleCustomHistDate();
+  renderHistoryList();
+}
+
+function openHistoryForRRBin(i) {
+  openHistoryWithBase((App.state.rrBinTrades || [])[i] || []);
+}
+
+function openHistoryForHeatmapCell(key) {
+  openHistoryWithBase((App.state.heatmapCellTrades || {})[key] || []);
 }
 
 function openHistoryForMonth(monthKey) {
@@ -470,7 +714,15 @@ function setupModalInteractions() {
         closedModal.style.transform = ''; // 次回open用にリセット
         // モーダルごとの状態クリーンアップ
         if (overlay?.id === 'modal-trade-detail') {
-          App.state.detailFromHistory = false; // 履歴フラグをリセット
+          App.state.detailFromHistory = false;
+          if (App.state.returnToRetroReview) {
+            const key = App.state.returnToRetroReview;
+            App.state.returnToRetroReview = null;
+            openRetroReviewModal(key);
+          } else if (App.state.returnToReview) {
+            App.state.returnToReview = false;
+            openReviewModal();
+          }
         }
       }, 300);
     } else {
@@ -507,8 +759,45 @@ function renderAnalysis() {
   }
 }
 
+// 新規エントリーモーダルの✓（要確認マーク）: 保存時にお気に入り列へ反映
+function toggleEntryFavorite() {
+  App.state.neFavorite = !App.state.neFavorite;
+  updateNeFavButton();
+}
+
+function updateNeFavButton() {
+  const b = document.getElementById('ne-fav-btn');
+  if (!b) return;
+  const on = !!App.state.neFavorite;
+  b.style.color = on ? '#10b981' : '#475569';
+  b.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+}
+
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
+  App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
+  App.state.neFavorite = false;
+  updateNeFavButton();
+  const planBanner = document.getElementById('ne-plan-banner');
+  if (planBanner) planBanner.style.display = 'none';
+  const eventWarning = document.getElementById('ne-event-warning');
+  if (eventWarning) eventWarning.style.display = 'none';
+  App.state._indicatorAutoSet = false;
+
+  // 今週意識すること（常設表示）
+  const promiseLine = document.getElementById('ne-promise-line');
+  if (promiseLine) {
+    const promise = getCurrentPromise();
+    if (promise) {
+      promiseLine.innerHTML = '🎯 今週: ' + promise.split('\n').map(s => s.trim().replace(/^→\s*/, '')).filter(Boolean).join(' / ');
+      promiseLine.style.display = 'block';
+    } else {
+      promiseLine.style.display = 'none';
+    }
+  }
+  // 週次レビュー未完了の注意
+  const reviewWarning = document.getElementById('ne-review-warning');
+  if (reviewWarning) reviewWarning.style.display = getPendingReviewKey() ? 'block' : 'none';
 
   // CLEAR ALL FORM FIELDS
   const modal = document.getElementById('modal-entry');
@@ -573,6 +862,7 @@ function openEntryModal(isMissed = false) {
 
 function closeEntryModal() {
   document.getElementById('modal-entry').classList.remove('active');
+  App.state.planContext = null; // キャンセル時はプランを残す（クリアは保存成功後のみ）
 }
 
 function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
@@ -593,6 +883,8 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
     } else {
       preMemoBox.textContent = p['事前メモ'] || p['環境認識メモ'] || p['メモ'] || '(事前メモなし)';
     }
+
+    checkEntryEventWarning(); // ペア変更時に指標警告を再判定
   }
 
   // --- Auto populate Trend Direction ---
@@ -663,30 +955,43 @@ function hideBgBar() { document.getElementById('bg-load-bar')?.classList.remove(
 async function loadData() {
   showBgBar();
   try {
-    // 全リクエスト同時開始・届いた順に即レンダリング
-    const entriesP = fetch(`${GAS_URL}?action=getEntries`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    // 全リクエスト同時開始・届いた順に即レンダリング（タイムアウト・リトライ付き）
+    const entriesP = gasGet('getEntries').then(res => {
       App.data.entries = res.data || [];
       renderPositions();   // ① ポジション（最優先）
     });
 
-    const pairsP = fetch(`${GAS_URL}?action=getPairs`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    const pairsP = gasGet('getPairs').then(res => {
       App.data.pairs = res.data || [];
       populateFilterPairs();
       renderPairs();       // ② ペア
+      renderPlans();       // ポジションタブのプラン一覧
     });
 
-    const ideasP = fetch(`${GAS_URL}?action=getIdeas`).then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    }).then(res => {
+    const ideasP = gasGet('getIdeas').then(res => {
       App.data.ideas = res.data || [];
       renderIdeas();
+    });
+
+    // レビュー（週次・月次）: 取得後にバナー・POP・月次総括を判定
+    const reviewsP = gasGet('getReviews').then(res => {
+      App.data.reviews = res.data || [];
+    }).catch(() => { App.data.reviews = App.data.reviews || []; });
+
+    // 経済指標カレンダー（失敗しても他機能に影響なし）
+    gasGet('getCalendar').then(res => {
+      const data = res.data || {};
+      App.data.calendar = data.events || [];
+      App.data.calendarIsNextWeek = !!data.isNextWeek;
+      // GAS未再デプロイ（Unknown action）やフェッチ失敗を画面に出す
+      App.state.calendarError = data.error || (res.success === false ? (res.error || '取得失敗') : '');
+      renderWeekEvents();
+      renderTodayEvents();
+    }).catch((e) => {
+      App.data.calendar = [];
+      App.data.calendarIsNextWeek = false;
+      App.state.calendarError = '通信失敗: ' + (e && e.message || '');
+      renderWeekEvents();
     });
 
     // エントリーが揃ったら分析・ギャラリー
@@ -695,18 +1000,26 @@ async function loadData() {
     renderGallery();
 
     // 全部揃ったら記録（最後）
-    await Promise.all([pairsP, ideasP]);
+    await Promise.all([pairsP, ideasP, reviewsP]);
+
+    // レビュー関連UI（バナー → 月次総括 → 約束POP の優先順）
+    updateReviewUI();
+    if (!App.state._reviewPopupsShown) {
+      App.state._reviewPopupsShown = true;
+      const monthlyShown = maybeShowMonthlySummary();
+      if (!monthlyShown) maybeShowPromisePop();
+    }
 
     // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig }) }).catch(function(){});
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済'] }) }).catch(function(){});
+      gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
+      gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
     if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFields' }) })
-        .then(function(r) { return r.json(); })
+      gasPost({ action: 'migrateEntryFields' })
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v1', '1');
@@ -717,8 +1030,7 @@ async function loadData() {
         .catch(function(){});
     }
     if (!localStorage.getItem('_entryFieldsMigrated_v2')) {
-      fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'migrateEntryFieldsV2' }) })
-        .then(function(r) { return r.json(); })
+      gasPost({ action: 'migrateEntryFieldsV2' })
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v2', '1');
@@ -765,10 +1077,10 @@ function populateFilterPairs() {
   if (entryRefSel && entryRefSel.options.length <= 1) {
     // 固定4択を初回のみ追加
     [
-      { value: 'perfect',          text: '✅ 完全遵守' },
-      { value: 'timing_ok_env_ng', text: '⚠️ タイミングOK / 環境認識NG' },
-      { value: 'timing_ng_env_ok', text: '⚠️ タイミングNG / 環境認識OK' },
-      { value: 'both_ng',          text: '❌ タイミングNG / 環境認識NG' },
+      { value: 'perfect',          text: '完全遵守' },
+      { value: 'timing_ok_env_ng', text: 'タイミングOK / 環境認識NG' },
+      { value: 'timing_ng_env_ok', text: 'タイミングNG / 環境認識OK' },
+      { value: 'both_ng',          text: 'タイミングNG / 環境認識NG' },
     ].forEach(function(o) {
       const opt = document.createElement('option');
       opt.value = o.value;
@@ -816,6 +1128,8 @@ function toggleCustomDate() {
 function renderPositions() {
   const container = document.getElementById('positions-list');
 
+  renderPlans(); // トレードプラン一覧（履歴ボタンの下）も同時更新
+
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
 
@@ -839,9 +1153,10 @@ function renderPositions() {
       <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#3b82f6'}">
         <div>
           <div style="font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
-            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'} 
+            ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
+            ${t['計画エントリー'] === 'ON' ? '<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">📋 計画</span>' : ''}
           </div>
           <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
         </div>
@@ -896,18 +1211,985 @@ function renderPairs() {
       }
 
       const analysisIndicator = getPairAnalysisIndicator(pairName);
+      const planDir = (p['プラン方向'] || '').trim();
+      const planBadge = planDir
+        ? `<span class="badge ${planDir === 'Buy' ? 'buy' : 'sell'}" style="margin-left:6px;">📋 ${planDir === 'Buy' ? '▲' : '▼'}${planDir}</span>`
+        : '';
+      const planButtons = planDir
+        ? `<div style="display:flex; gap:6px; margin:6px 0; padding:0 4px 0 12px;">
+             <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:8px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
+             <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:8px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
+             <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:8px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕ 解除</button>
+           </div>`
+        : '';
       html += `
-        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:4px; border-radius:8px; border:1px solid #1e293b;">
+        <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:${planDir ? '0' : '4px'}; border-radius:8px; border:1px solid ${planDir ? '#38bdf8' : '#1e293b'};">
           <div style="font-weight:700; font-size:15px; display:flex; align-items:center; color:${color};">
-            ${pairName} ${arrowHtml} ${analysisIndicator}
+            ${pairName} ${arrowHtml} ${analysisIndicator} ${planBadge}
           </div>
           <div style="color:#64748b; font-size:18px;">›</div>
         </div>
+        ${planButtons}
       `;
     });
   });
 
   container.innerHTML = html;
+}
+
+// ==========================================
+// トレードプラン（Pairsシートのプラン列を使用）
+// ==========================================
+function getPlannedPairs() {
+  return App.data.pairs.filter(p => (p['プラン方向'] || '').trim() !== '');
+}
+
+function planAgeLabel(p) {
+  const d = String(p['プラン設定日'] || '').split('T')[0].replace(/\//g, '-');
+  if (!d) return '';
+  const days = Math.floor((new Date() - new Date(d + 'T00:00:00')) / 86400000);
+  if (isNaN(days) || days < 0) return '';
+  if (days === 0) return '⏳ 今日';
+  return `⏳ ${days}日前${days >= 7 ? ' ⚠' : ''}`;
+}
+
+// ポジションタブの「📋 トレードプラン」一覧
+function renderPlans() {
+  const section = document.getElementById('plans-section');
+  const list = document.getElementById('plans-list');
+  if (!section || !list) return;
+
+  const planned = getPlannedPairs();
+  if (planned.length === 0) {
+    section.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  section.style.display = 'block';
+
+  list.innerHTML = planned.map(p => {
+    const pairName = p['PairName（元）'] || p['PairName'] || '';
+    const dir = (p['プラン方向'] || '').trim();
+    const memo = (p['環境認識メモ'] || p['メモ'] || '').split('\n')[0].slice(0, 40);
+    return `
+      <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; flex-direction:column; align-items:stretch; gap:8px; border-left:4px solid ${dir === 'Buy' ? '#10b981' : '#ef4444'};">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
+            ${pairName}
+            <span class="badge ${dir === 'Buy' ? 'buy' : 'sell'}">${dir === 'Buy' ? '▲' : '▼'} ${dir}</span>
+          </div>
+          <div style="font-size:11px; color:#94a3b8;">${planAgeLabel(p)}</div>
+        </div>
+        ${memo ? `<div style="font-size:11px; color:#94a3b8;">"${memo}"</div>` : ''}
+        <div style="display:flex; gap:6px;">
+          <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'entry')" style="flex:2; padding:9px; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">▶ エントリー</button>
+          <button onclick="event.stopPropagation(); activatePlan('${pairName}', 'missed')" style="flex:2; padding:9px; background:rgba(245,158,11,0.12); border:1px solid #f59e0b; color:#f59e0b; border-radius:8px; font-size:12px; cursor:pointer;">👀 見逃した</button>
+          <button onclick="event.stopPropagation(); clearPlan('${pairName}')" style="flex:1; padding:9px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:8px; font-size:12px; cursor:pointer;">✕</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// プラン発動: エントリーフォームをプランモードで開く（ペア・方向・事前情報入り）
+function activatePlan(pairName, mode) {
+  const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
+  if (!p) return;
+  const dir = (p['プラン方向'] || '').trim();
+
+  openEntryModal(mode === 'missed');
+
+  // openEntryModalがフォームをクリアした後にプラン情報を流し込む
+  App.state.planContext = { pairName, dir, image: p['プラン画像'] || '' };
+
+  document.getElementById('ne-pair').value = pairName;
+  autoLoadPairInfo('ne');
+  document.querySelectorAll('#ne-dir button').forEach(b => {
+    b.classList.toggle('active', b.textContent.includes(dir));
+  });
+
+  const banner = document.getElementById('ne-plan-banner');
+  if (banner) {
+    banner.textContent = `📋 プラン発動: ${pairName} ${dir === 'Buy' ? '▲' : '▼'}${dir}（保存時に計画エントリーとして記録されます）`;
+    banner.style.display = 'block';
+  }
+}
+
+// シナリオ崩れ: プラン欄をクリアするだけ
+async function clearPlan(pairName) {
+  if (!confirm(`${pairName} のプランを解除しますか？（シナリオ崩れ）`)) return;
+  await clearPlanFields(pairName);
+  showToast('プランを解除しました');
+}
+
+// Pairsシートのプラン3列をクリアして再描画
+async function clearPlanFields(pairName) {
+  const clearData = { 'プラン方向': '', 'プラン画像': '', 'プラン設定日': '' };
+  try {
+    await gasPostQueued({ action: 'updatePair', pairName, data: clearData }, 'プラン解除: ' + pairName);
+  } catch(e) { /* キュー退避済み */ }
+  const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
+  if (p) Object.assign(p, clearData);
+  renderPairs();
+  renderPlans();
+}
+
+// ペア編集モーダル内のプラン画像アップロード
+function onPlanImageSelected(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const img = document.getElementById('pe-plan-image-preview');
+    img.src = e.target.result;
+    document.getElementById('pe-plan-image-container').style.display = 'block';
+    const lt = document.getElementById('pe-plan-image-label-text');
+    if (lt) lt.textContent = '⏳ アップロード中...';
+    App.state.pePlanImage = await uploadImageSmart(e.target.result, 'plan_' + Date.now() + '.jpg');
+    if (lt) lt.textContent = '✅ シナリオ画像選択済み（タップで変更）';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function clearPlanImage() {
+  App.state.pePlanImage = '';
+  const img = document.getElementById('pe-plan-image-preview');
+  if (img) img.src = '';
+  document.getElementById('pe-plan-image-container').style.display = 'none';
+  const lt = document.getElementById('pe-plan-image-label-text');
+  if (lt) lt.textContent = '📷 シナリオ画像を追加';
+  const inp = document.getElementById('pe-plan-image-upload');
+  if (inp) inp.value = '';
+}
+
+// ==========================================
+// 経済指標カレンダー
+// ==========================================
+// 特殊シンボル → 構成通貨のマッピング（通常6文字ペアは自動分解）
+const SYMBOL_CURRENCIES = {
+  'JP225': ['JPY'], 'US500': ['USD'], 'UK100': ['GBP'], 'EU50': ['EUR'],
+  'OIL': ['USD'], 'BRENT': ['USD'], 'WTI': ['USD'],
+  'XAUUSD': ['USD'], 'XAGUSD': ['USD'], 'XAUEUR': ['EUR'],
+  'BTCUSD': ['USD'], 'BTCJPY': ['JPY'], 'BTCEUR': ['EUR'], 'BTCGBP': ['GBP'],
+};
+
+function pairCurrencies(pair) {
+  const up = String(pair || '').toUpperCase().trim();
+  if (SYMBOL_CURRENCIES[up]) return SYMBOL_CURRENCIES[up];
+  if (/^[A-Z]{6}$/.test(up)) return [up.slice(0, 3), up.slice(3)];
+  return [];
+}
+
+// 厳選指標リスト（Forex Factoryの英語タイトル → 日本語名の対訳を兼ねる）
+// 米国の6大イベントのみ。警告・指標前エントリー自動セットは常にこのリスト基準
+const CALENDAR_CURATED = [
+  { cur: 'USD', re: /Non-Farm Employment Change|Unemployment Rate|Average Hourly Earnings/i, ja: '🇺🇸 米雇用統計' },
+  { cur: 'USD', re: /CPI/i,                                  ja: '🇺🇸 米CPI（消費者物価指数）' },
+  { cur: 'USD', re: /Federal Funds Rate|FOMC/i,              ja: '🇺🇸 FOMC（米政策金利）' },
+  { cur: 'USD', re: /Fed Chair Powell/i,                     ja: '🇺🇸 パウエルFRB議長 発言' },
+  { cur: 'USD', re: /ISM Manufacturing PMI/i,                ja: '🇺🇸 ISM製造業景況指数' },
+  { cur: 'USD', re: /ISM Services PMI|ISM Non-Manufacturing PMI/i, ja: '🇺🇸 ISMサービス業景況指数' },
+];
+
+// イベントの日本語名（厳選リストに一致すれば日本語、なければ原文）
+function eventJa(ev) {
+  const hit = CALENDAR_CURATED.find(c => c.cur === ev.currency && c.re.test(ev.title));
+  return hit ? hit.ja : null;
+}
+
+function passesImportance(ev) {
+  const s = getAppSettings();
+  return ev.impact === 'High' || (s.calImportance === 'medhigh' && ev.impact === 'Medium');
+}
+
+// 表示・警告の対象となるイベント（設定の表示範囲を適用）
+// 厳選モード: リスト一致のみ（重要度不問） / すべて: High（設定によりMedium含む）
+function isTargetEvent(ev) {
+  const s = getAppSettings();
+  if (s.calScope === 'all') return passesImportance(ev);
+  return eventJa(ev) !== null;
+}
+
+// 同一指標（同時刻・同名）の重複をまとめる（例: 雇用統計はNFP+失業率+平均時給の3行→1行）
+function dedupeEvents(events) {
+  const seen = new Set();
+  return events.filter(ev => {
+    const key = `${ev.datetime}_${eventJa(ev) || ev.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function eventDisplayName(ev) {
+  return eventJa(ev) || ev.title;
+}
+
+function eventDate(ev) {
+  return new Date(String(ev.datetime).replace(' ', 'T'));
+}
+
+// エントリー日時±設定時間内 かつ ペアの構成通貨に一致する指標
+// ※ 警告と自動セットは表示設定に関わらず常に「厳選リスト」基準
+function findNearbyEvents(pair, dateStr, timeStr) {
+  if (!pair || !dateStr || !timeStr) return [];
+  const currencies = pairCurrencies(pair);
+  if (currencies.length === 0) return [];
+  const entryTime = new Date(`${dateStr}T${timeStr}:00`);
+  if (isNaN(entryTime)) return [];
+  const windowMs = (getAppSettings().calWindow || 2) * 3600 * 1000;
+  return dedupeEvents((App.data.calendar || []).filter(ev =>
+    eventJa(ev) !== null &&
+    currencies.includes(ev.currency) &&
+    Math.abs(eventDate(ev) - entryTime) <= windowMs
+  ));
+}
+
+// エントリーフォーム: 指標警告バナー + 指標前エントリー自動セット
+// 自動でONにするが、手動でタッチしたら以後ユーザーの選択を優先する
+function checkEntryEventWarning() {
+  const box = document.getElementById('ne-event-warning');
+  if (!box) return;
+  const pair = document.getElementById('ne-pair')?.value || '';
+  const dateStr = document.getElementById('ne-date')?.value || '';
+  const timeStr = document.getElementById('ne-time')?.value || '';
+  const hits = findNearbyEvents(pair, dateStr, timeStr);
+
+  const group = document.getElementById('ne-indicator-entry');
+  const activeBtn = group ? group.querySelector('button.active') : null;
+
+  if (hits.length === 0) {
+    box.style.display = 'none';
+    // 自動セットしたONだけ解除（手動選択は触らない）
+    if (group && App.state._indicatorAutoSet && activeBtn && activeBtn.textContent.trim() === 'ON') {
+      activeBtn.classList.remove('active');
+      App.state._indicatorAutoSet = false;
+    }
+    return;
+  }
+
+  // 未選択なら自動でONをセット
+  if (group && !activeBtn) {
+    group.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.textContent.trim() === 'ON');
+    });
+    App.state._indicatorAutoSet = true;
+  }
+
+  const s = getAppSettings();
+  box.innerHTML = `⚠ <b>エントリー前後${s.calWindow}時間に重要指標があります</b><br>`
+    + hits.map(ev => `・${ev.datetime.slice(11)} ${eventDisplayName(ev)}`).join('<br>')
+    + `<br><span style="color:#fcd34d;">→「指標前エントリー」をONにしました（下のボタンで変更可）</span>`;
+  box.style.display = 'block';
+}
+
+// 通貨ペアタブ: 今週/来週の重要指標リスト
+function renderWeekEvents() {
+  const section = document.getElementById('calendar-week-section');
+  const list = document.getElementById('calendar-week-list');
+  if (!section || !list) return;
+
+  if (App.state.calendarError && (App.data.calendar || []).length === 0) {
+    const isOldGas = /Unknown action/i.test(App.state.calendarError);
+    section.style.display = 'block';
+    list.innerHTML = `<div style="color:#f59e0b; font-size:11px; padding:6px 0; line-height:1.6;">⚠ 指標データを取得できませんでした（${App.state.calendarError}）${isOldGas ? '<br>→ <b>Code.gsの再デプロイが必要です</b>（GASエディタに最新Code.gsを貼り付け→デプロイを管理→新しいバージョンでデプロイ）' : ''}</div>`;
+    return;
+  }
+  const isNextWeek = !!App.data.calendarIsNextWeek;
+  // 来週データは全件表示（過去フィルタ不要）、今週データは現在時刻以降のみ
+  const now = new Date();
+  const events = dedupeEvents(
+    (App.data.calendar || []).filter(ev => isTargetEvent(ev) && (isNextWeek || eventDate(ev) >= now))
+  ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  if (events.length === 0) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  const weekLabel = isNextWeek ? '来週' : '今週';
+  document.getElementById('calendar-week-title').textContent = `📅 ${weekLabel}の重要指標（${events.length}件）`;
+  const todayStr = fmtYmd(new Date());
+  const dows = ['日', '月', '火', '水', '木', '金', '土'];
+  list.innerHTML = events.map(ev => {
+    const isToday = ev.datetime.startsWith(todayStr);
+    const d = eventDate(ev);
+    const impactColor = ev.impact === 'High' ? '#ef4444' : '#f59e0b';
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; background:${isToday ? 'rgba(239,68,68,0.08)' : '#1e293b'}; border:1px solid ${isToday ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px;">
+        <span style="color:#94a3b8; min-width:86px;">${ev.datetime.slice(5, 10).replace('-', '/')}(${dows[d.getDay()]}) ${ev.datetime.slice(11)}</span>
+        <span style="font-weight:700; color:${impactColor}; min-width:34px;">${ev.currency}</span>
+        <span style="flex:1; color:#e2e8f0;">${eventDisplayName(ev)}</span>
+        ${isToday ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">今日</span>' : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleWeekEvents() {
+  const list = document.getElementById('calendar-week-list');
+  const arrow = document.getElementById('calendar-week-arrow');
+  if (!list) return;
+  const hidden = list.style.display === 'none';
+  list.style.display = hidden ? 'block' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▾' : '▸';
+}
+
+// ポジションタブ下部: 今日の重要指標（保有ペア関連は赤強調）
+function renderTodayEvents() {
+  const section = document.getElementById('today-events-section');
+  const list = document.getElementById('today-events-list');
+  if (!section || !list) return;
+
+  // 今日の未終了分のみ・厳選フィルタ・重複統合
+  const todayStr = fmtYmd(new Date());
+  const now = new Date();
+  const events = dedupeEvents(
+    (App.data.calendar || [])
+      .filter(ev => isTargetEvent(ev) && ev.datetime.startsWith(todayStr) && eventDate(ev) >= now)
+  ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
+  if (events.length === 0) { section.style.display = 'none'; return; }
+
+  // 保有中ポジションの構成通貨
+  const heldCurrencies = new Set();
+  App.data.entries
+    .filter(t => (t['ステータス'] || '').startsWith('保有中'))
+    .forEach(t => pairCurrencies(t['PairName（元）'] || t.PairName || '').forEach(c => heldCurrencies.add(c)));
+
+  section.style.display = 'block';
+  list.innerHTML = events.map(ev => {
+    const held = heldCurrencies.has(ev.currency);
+    return `
+      <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:${held ? 'rgba(239,68,68,0.10)' : '#1e293b'}; border:1px solid ${held ? '#ef4444' : '#334155'}; border-radius:8px; margin-bottom:4px; font-size:12px;">
+        <span style="color:#94a3b8; min-width:40px;">${ev.datetime.slice(11)}</span>
+        <span style="font-weight:700; color:${ev.impact === 'High' ? '#ef4444' : '#f59e0b'}; min-width:34px;">${ev.currency}</span>
+        <span style="flex:1; color:#e2e8f0;">${eventDisplayName(ev)}</span>
+        ${held ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">⚠ 保有ペア</span>' : ''}
+      </div>`;
+  }).join('');
+}
+
+// ==========================================
+// 週次レビュー・月次総括・今週意識することPOP
+// 週 = 月曜〜土曜。レビューは対象週の土曜6:00(市場クローズ後)に解放
+// ==========================================
+function fmtYmd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// その日を含む週の月曜0:00（日曜は前週扱い）
+function getWeekStart(d) {
+  const dt = new Date(d);
+  const day = dt.getDay(); // 0=日
+  dt.setDate(dt.getDate() - (day === 0 ? 6 : day - 1));
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+// 現時点で「レビュー可能な最新の週」の月曜を返す
+function getReviewableWeekStart() {
+  const now = new Date();
+  const thisMon = getWeekStart(now);
+  const sat6 = new Date(thisMon);
+  sat6.setDate(sat6.getDate() + 5);
+  sat6.setHours(6, 0, 0, 0);
+  if (now >= sat6) return thisMon; // 土曜6:00以降 → 今週が対象
+  const prevMon = new Date(thisMon);
+  prevMon.setDate(prevMon.getDate() - 7);
+  return prevMon; // それ以前 → 前週が対象
+}
+
+function findReview(type, periodKey) {
+  return (App.data.reviews || []).find(r => r['種別'] === type && r['期間キー'] === periodKey);
+}
+
+function getWeeklyReviewsSorted() {
+  return (App.data.reviews || [])
+    .filter(r => r['種別'] === 'weekly')
+    .sort((a, b) => (a['期間キー'] < b['期間キー'] ? 1 : -1)); // 新しい順
+}
+
+// 対象週のトレードを抽出（月曜〜日曜・決済/見逃し決済/保有中すべて）
+function getWeekTrades(weekStart) {
+  const from = fmtYmd(weekStart);
+  const toDate = new Date(weekStart);
+  toDate.setDate(toDate.getDate() + 6);
+  const to = fmtYmd(toDate);
+  return App.data.entries.filter(t => {
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+    return d >= from && d <= to;
+  });
+}
+
+// 直近の完了済みレビューの「来週の約束」（POP・エントリー画面用）
+function getCurrentPromise() {
+  const list = getWeeklyReviewsSorted();
+  return list.length ? String(list[0]['約束'] || '').trim() : '';
+}
+
+// 対象週より前の最新レビューの約束（判定対象）
+function getPreviousPromise(targetKey) {
+  const prev = getWeeklyReviewsSorted().find(r => r['期間キー'] < targetKey);
+  return prev ? String(prev['約束'] || '').trim() : '';
+}
+
+// 未完了のレビュー一覧を返す [{key, type, weekStart}]
+// type: 'retro'=先々週本格振り返り, 'weekly'=先週レビュー
+function getPendingReviewKeys() {
+  const pending = [];
+  const weekStart = getReviewableWeekStart(); // 先週の月曜
+  const weekKey = fmtYmd(weekStart);
+
+  // 先々週（トレードがある週のみ対象）
+  const retroStart = new Date(weekStart);
+  retroStart.setDate(retroStart.getDate() - 7);
+  const retroKey = fmtYmd(retroStart);
+  if (!findReview('retro', retroKey) && getWeekTrades(retroStart).length > 0) {
+    pending.push({ key: retroKey, type: 'retro', weekStart: new Date(retroStart) });
+  }
+
+  // 先週（土曜6:00以降に解放、トレードなしでも必須）
+  const now = new Date();
+  const sat6 = new Date(weekStart);
+  sat6.setDate(sat6.getDate() + 5);
+  sat6.setHours(6, 0, 0, 0);
+  if (now >= sat6 && !findReview('weekly', weekKey)) {
+    pending.push({ key: weekKey, type: 'weekly', weekStart: new Date(weekStart) });
+  }
+
+  return pending;
+}
+
+// 後方互換（単一キーを返す）
+function getPendingReviewKey() {
+  const pending = getPendingReviewKeys();
+  return pending.length > 0 ? pending[pending.length - 1].key : null;
+}
+
+// バナー・エントリーフォーム警告の表示更新
+function updateReviewUI() {
+  const pending = getPendingReviewKeys();
+  const banner = document.getElementById('review-banner');
+  if (banner) {
+    if (pending.length === 0) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'block';
+      const dows = ['日', '月', '火', '水', '木', '金', '土'];
+      banner.innerHTML = pending.map((p, i) => {
+        const end = new Date(p.weekStart);
+        end.setDate(end.getDate() + 5);
+        const range = `${p.weekStart.getMonth() + 1}/${p.weekStart.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
+        const label = p.type === 'retro' ? `📝 先々週の本格振り返り（${range}）` : `📋 先週のレビュー（${range}）`;
+        const fn = p.type === 'retro' ? `openRetroReviewModal('${p.key}')` : `openReviewModal('${p.key}')`;
+        return `<div onclick="${fn}" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; ${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid #92400e;' : ''}">${label}<span>›</span></div>`;
+      }).join('');
+    }
+  }
+  const reviewWarning = document.getElementById('ne-review-warning');
+  if (reviewWarning) reviewWarning.style.display = pending.length > 0 ? 'block' : 'none';
+}
+
+// エントリーフォームからレビューを開く（未完了のうち最初のものを開く）
+function openPendingReview() {
+  const pending = getPendingReviewKeys();
+  if (pending.length === 0) return;
+  const p = pending[0];
+  if (p.type === 'retro') openRetroReviewModal(p.key);
+  else openReviewModal(p.key);
+}
+
+// ---- 週次レビューモーダル ----
+function openReviewModal(weekKey) {
+  // 最新データを反映（土日にトレード入力した場合も対応）
+  gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
+
+  let weekStart;
+  if (weekKey) {
+    weekStart = new Date(weekKey + 'T00:00:00');
+  } else {
+    weekStart = getReviewableWeekStart();
+  }
+  const key = fmtYmd(weekStart);
+  const existing = findReview('weekly', key);
+  App.state.reviewTargetKey = key;
+
+  // トレード詳細へ飛んだ際に退避した下書きがあれば復元対象にする
+  const draft = App.state.reviewDraft || null;
+  App.state.reviewDraft = null;
+
+  // 対象週が今のカレンダー週なら「今週」、そうでなければ「先週」
+  const weekLabel = key === fmtYmd(getWeekStart(new Date())) ? '今週' : '先週';
+  document.getElementById('review-modal-title').textContent = `📋 ${weekLabel}のレビュー`;
+  document.getElementById('review-stats-title').textContent = `${weekLabel}の成績（自動集計）`;
+  document.getElementById('review-trades-title').textContent = `${weekLabel}のトレード`;
+
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 5);
+  document.getElementById('review-period').textContent =
+    `${weekStart.getFullYear()}/${weekStart.getMonth() + 1}/${weekStart.getDate()}（月）〜 ${endDate.getMonth() + 1}/${endDate.getDate()}（土）`;
+
+  // ── 成績自動集計（実トレードの決済のみ） ──
+  const weekTrades = getWeekTrades(weekStart);
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  let wins = 0, profit = 0, slSum = 0, slN = 0, entryOk = 0, exitOk = 0;
+  closed.forEach(t => {
+    const pips = parseFloat(t['実取得pips']) || 0;
+    if (pips > 10) wins++;
+    profit += parseFloat(t['損益']) || 0;
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (sl > 0) { slSum += sl; slN++; }
+    if (isEntryCompliant(t)) entryOk++;
+    const er = t['決済振り返り'] || '';
+    if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
+  });
+  const n = closed.length;
+  const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:16px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  const avgSl = slN ? (slSum / slN) : 0;
+  document.getElementById('review-stats').innerHTML =
+    stat('トレード', `${n}回`) +
+    stat('勝率', n ? Math.round(wins / n * 100) + '%' : '--', n && wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
+    stat('ｴﾝﾄﾘｰ遵守', n ? Math.round(entryOk / n * 100) + '%' : '--') +
+    stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
+    stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
+
+  // ── トレード一覧（タップで該当トレードの詳細へ） ──
+  document.getElementById('review-trades').innerHTML = weekTrades.length === 0
+    ? '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">対象週のトレードはありません</div>'
+    : weekTrades.map(t => {
+        const idx = App.data.entries.indexOf(t);
+        const pips = parseFloat(t['実取得pips']) || 0;
+        const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+        const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+        const isMissed = (t['ステータス'] || '').includes('見逃し');
+        return `<div onclick="openTradeDetailFromReview(${idx})" style="display:flex; justify-content:space-between; align-items:center; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:12px; cursor:pointer;">
+          <span style="color:#94a3b8;">${d}</span>
+          <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃し</span>' : ''}</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span><span style="color:#475569;">›</span></span>
+        </div>`;
+      }).join('');
+
+  // ── 先週の約束（自動抽出 + 判定） ──
+  const prevPromise = getPreviousPromise(key);
+  let savedJudgments = [];
+  if (existing && existing['約束判定']) {
+    try { savedJudgments = JSON.parse(existing['約束判定']); } catch(e) {}
+  }
+  const lines = prevPromise ? prevPromise.split('\n').map(s => s.trim()).filter(Boolean) : [];
+  App.state.reviewJudgments = lines.map((text, i) => ({
+    text,
+    result: (savedJudgments[i] && savedJudgments[i].text === text) ? savedJudgments[i].result : ''
+  }));
+  if (draft && Array.isArray(draft.judgments) && draft.judgments.length === lines.length) {
+    App.state.reviewJudgments = draft.judgments;
+  }
+  renderReviewPromises();
+  renderPromiseRate();
+
+  // ── 入力欄（下書き > 既存レビュー > 空 の優先で復元） ──
+  document.getElementById('review-memo').value = draft ? draft.memo : (existing ? (existing['メモ'] || '') : '');
+  document.getElementById('review-next-promise').value = draft ? draft.promise : (existing ? (existing['約束'] || '') : '');
+
+  document.getElementById('modal-review').classList.add('active');
+}
+
+// レビュー中のトレードタップ → 入力途中の内容を退避して詳細モーダルへ
+// 詳細を閉じるとレビューに戻る（下書きは openReviewModal が復元）
+function openTradeDetailFromReview(index) {
+  App.state.reviewDraft = {
+    memo: document.getElementById('review-memo').value,
+    promise: document.getElementById('review-next-promise').value,
+    judgments: App.state.reviewJudgments,
+  };
+  App.state.returnToReview = true;
+  closeReviewModal();
+  openTradeDetail(index);
+}
+
+function renderReviewPromises() {
+  const box = document.getElementById('review-promises');
+  const js = App.state.reviewJudgments || [];
+  if (js.length === 0) {
+    box.innerHTML = '<div style="color:#64748b; font-size:12px; padding:6px 0;">先週の約束はありません</div>';
+    return;
+  }
+  box.innerHTML = js.map((j, i) => `
+    <div style="background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:6px;">
+      <div style="font-size:13px; color:#e2e8f0; margin-bottom:8px;">${j.text}</div>
+      <div style="display:flex; gap:8px;">
+        <button onclick="setPromiseJudge(${i}, '守れた')" style="flex:1; padding:7px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; ${j.result === '守れた' ? 'background:#10b981; color:#0f172a; border:none;' : 'background:transparent; color:#10b981; border:1px solid #10b981;'}">守れた</button>
+        <button onclick="setPromiseJudge(${i}, '破れた')" style="flex:1; padding:7px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; ${j.result === '破れた' ? 'background:#ef4444; color:#0f172a; border:none;' : 'background:transparent; color:#ef4444; border:1px solid #ef4444;'}">破れた</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setPromiseJudge(idx, result) {
+  const js = App.state.reviewJudgments || [];
+  if (!js[idx]) return;
+  js[idx].result = (js[idx].result === result) ? '' : result; // 再タップで解除
+  renderReviewPromises();
+}
+
+// 約束遵守率（全週次レビューの判定の累計）
+function renderPromiseRate() {
+  const el = document.getElementById('review-promise-rate');
+  if (!el) return;
+  let kept = 0, broken = 0;
+  (App.data.reviews || []).filter(r => r['種別'] === 'weekly' && r['約束判定']).forEach(r => {
+    try {
+      JSON.parse(r['約束判定']).forEach(j => {
+        if (j.result === '守れた') kept++;
+        if (j.result === '破れた') broken++;
+      });
+    } catch(e) {}
+  });
+  const total = kept + broken;
+  el.textContent = total > 0 ? `約束遵守率（累計）: ${Math.round(kept / total * 100)}%（守れた${kept} / 破れた${broken}）` : '';
+}
+
+function closeReviewModal() {
+  document.getElementById('modal-review').classList.remove('active');
+}
+
+// ---- 先々週レビュー（後日振り返り）モーダル ----
+function openRetroReviewModal(retroKey) {
+  // 最新のエントリーデータを取得してからモーダルを開く
+  gasGet('getEntries').then(res => {
+    if (res.data) App.data.entries = res.data;
+    _renderRetroReviewModal(retroKey);
+  }).catch(() => { _renderRetroReviewModal(retroKey); });
+}
+
+function _renderRetroReviewModal(retroKey) {
+  const weekStart = new Date(retroKey + 'T00:00:00');
+  App.state.retroReviewKey = retroKey;
+
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 5);
+  document.getElementById('retro-period').textContent =
+    `${weekStart.getFullYear()}/${weekStart.getMonth() + 1}/${weekStart.getDate()}（月）〜 ${endDate.getMonth() + 1}/${endDate.getDate()}（土）`;
+
+  // 成績集計
+  const weekTrades = getWeekTrades(weekStart);
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  let wins = 0, profit = 0;
+  closed.forEach(t => {
+    if ((parseFloat(t['実取得pips']) || 0) > 10) wins++;
+    profit += parseFloat(t['損益']) || 0;
+  });
+  const n = closed.length;
+  const fmtYen = v => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:16px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  document.getElementById('retro-stats').innerHTML =
+    stat('トレード', `${n}回`) +
+    stat('勝率', n ? Math.round(wins / n * 100) + '%' : '--', n && wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171');
+
+  // トレード一覧＋後日振り返り入力欄
+  if (weekTrades.length === 0) {
+    document.getElementById('retro-trades-list').innerHTML =
+      '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">対象週のトレードはありません</div>';
+  } else {
+    document.getElementById('retro-trades-list').innerHTML = weekTrades.map((t, i) => {
+      const idx = App.data.entries.indexOf(t);
+      const pips = parseFloat(t['実取得pips']) || 0;
+      const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+      const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+      const existing = t['後日振り返り'] || '';
+      return `<div style="background:#0f172a; border-radius:8px; padding:10px; margin-bottom:10px; border:1px solid #334155;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; cursor:pointer;" onclick="openRetroTradeDetail(${idx})">
+          <span style="color:#94a3b8;">${d}</span>
+          <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}</span>
+          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+          <span style="color:#475569;">›</span>
+        </div>
+        <textarea class="form-input retro-trade-memo" data-entry-id="${t['EntryID']}" rows="2" style="width:100%; font-size:12px;" placeholder="チャートを見て…良いトレードだったか？">${existing}</textarea>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('modal-retro-review').classList.add('active');
+}
+
+function closeRetroReviewModal() {
+  document.getElementById('modal-retro-review').classList.remove('active');
+}
+
+// 先々週レビューからトレード詳細へ → 戻ったら先々週レビューに返る
+function openRetroTradeDetail(index) {
+  App.state.returnToRetroReview = App.state.retroReviewKey;
+  closeRetroReviewModal();
+  openTradeDetail(index);
+}
+
+async function saveRetroReview() {
+  const key = App.state.retroReviewKey;
+  if (!key) return;
+  showLoader();
+  try {
+    // 各トレードの後日振り返りを保存
+    const memos = document.querySelectorAll('.retro-trade-memo');
+    const saves = [];
+    memos.forEach(el => {
+      const entryId = el.dataset.entryId;
+      const memo = el.value;
+      if (entryId) {
+        // ローカルデータ更新
+        const entry = App.data.entries.find(e => e['EntryID'] === entryId);
+        if (entry) entry['後日振り返り'] = memo;
+        saves.push(gasPostQueued({ action: 'updateEntry', entryId, data: { '後日振り返り': memo } }, '後日振り返り保存'));
+      }
+    });
+    await Promise.all(saves);
+
+    // レビュー完了記録（Reviews シートに type='retro' で保存）
+    const existing = findReview('retro', key);
+    if (existing) {
+      await gasPostQueued({ action: 'updateReview', reviewId: existing.id, data: { '種別': 'retro', '期間キー': key, 'メモ': '完了' } }, '先々週レビュー更新');
+    } else {
+      const res = await gasPostQueued({ action: 'saveReview', data: { '種別': 'retro', '期間キー': key, 'メモ': '完了' } }, '先々週レビュー保存');
+      if (res && res.success) App.data.reviews.push({ id: res.id || ('local-' + Date.now()), '種別': 'retro', '期間キー': key, 'メモ': '完了', '約束': '', '約束判定': '', '作成日': '' });
+    }
+
+    closeRetroReviewModal();
+    updateReviewUI();
+    showToast('後日振り返りを保存しました');
+  } catch(e) {
+    showToast('保存失敗: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+async function completeReview() {
+  const key = App.state.reviewTargetKey;
+  if (!key) return;
+  const existing = findReview('weekly', key);
+  const data = {
+    '種別': 'weekly',
+    '期間キー': key,
+    'メモ': document.getElementById('review-memo').value,
+    '約束': document.getElementById('review-next-promise').value,
+    '約束判定': JSON.stringify(App.state.reviewJudgments || []),
+  };
+  showLoader();
+  try {
+    let res;
+    if (existing) {
+      res = await gasPostQueued({ action: 'updateReview', reviewId: existing.id, data }, '週次レビュー更新');
+      if (res.success) Object.assign(existing, data);
+    } else {
+      res = await gasPostQueued({ action: 'saveReview', data }, '週次レビュー保存');
+      if (res.success) App.data.reviews.push(Object.assign({ id: res.id || ('local-' + Date.now()) }, data));
+    }
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+    closeReviewModal();
+    updateReviewUI();
+    showToast(res.queued ? '📥 レビューを保存待ちに追加しました' : '✅ レビュー完了！来週も振り返ろう');
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+// ---- 今週意識することPOP ----
+function maybeShowPromisePop() {
+  const s = getAppSettings();
+  if (s.popFreq === 'off') return false;
+  const promise = getCurrentPromise();
+  if (!promise) return false;
+  const today = fmtYmd(new Date());
+  if (s.popFreq === 'daily' && localStorage.getItem('popShownDate') === today) return false;
+
+  document.getElementById('pop-promises').innerHTML = promise
+    .split('\n').map(s2 => s2.trim()).filter(Boolean)
+    .map(line => `<div style="padding:4px 0;">${line.startsWith('→') ? line : '→ ' + line}</div>`)
+    .join('');
+  document.getElementById('modal-promise-pop').classList.add('active');
+  return true;
+}
+
+function ackPromisePop() {
+  localStorage.setItem('popShownDate', fmtYmd(new Date()));
+  document.getElementById('modal-promise-pop').classList.remove('active');
+}
+
+async function editPromiseFromPop() {
+  const latest = getWeeklyReviewsSorted()[0];
+  if (!latest) return;
+  const edited = prompt('今週の約束を編集:', latest['約束'] || '');
+  if (edited === null) return;
+  latest['約束'] = edited;
+  document.getElementById('pop-promises').innerHTML = edited
+    .split('\n').map(s => s.trim()).filter(Boolean)
+    .map(line => `<div style="padding:4px 0;">${line.startsWith('→') ? line : '→ ' + line}</div>`)
+    .join('');
+  gasPostQueued({ action: 'updateReview', reviewId: latest.id, data: { '約束': edited } }, '約束編集').catch(() => {});
+}
+
+// ---- 月次総括 ----
+function maybeShowMonthlySummary() {
+  const { last } = getDataMonthRange(); // 例: '2026-05'
+  if (findReview('monthly', last)) return false; // 保存済み
+  const monthTrades = App.data.entries.filter(t => {
+    if (t['ステータス'] !== '決済') return false;
+    const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
+    return d.startsWith(last);
+  });
+  if (monthTrades.length === 0) return false; // トレードのない月は出さない
+
+  App.state.monthlyTargetKey = last;
+  document.getElementById('monthly-title').textContent = `🏆 ${last.replace('-', '年')}月の総括`;
+
+  // ── 自動集計 ──
+  let wins = 0, profit = 0, entryOk = 0, exitOk = 0;
+  let cum = 0, peak = 0, maxDD = 0;
+  monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1).forEach(t => {
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const pl = parseFloat(t['損益']) || 0;
+    if (pips > 10) wins++;
+    profit += pl;
+    cum += pl;
+    if (cum > peak) peak = cum;
+    if (peak - cum > maxDD) maxDD = peak - cum;
+    if (isEntryCompliant(t)) entryOk++;
+    const er = t['決済振り返り'] || '';
+    if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
+  });
+  const n = monthTrades.length;
+  const losses = monthTrades.filter(t => (parseFloat(t['実取得pips']) || 0) < -10).length;
+  const draws  = n - wins - losses;
+  // ルール準拠損益・PIPS
+  const ruleProfit = monthTrades.reduce((s, t) => s + (parseFloat(t['ルール準拠損益'] || t['ルール準拠pips'] || 0)), 0);
+  const totalPips = monthTrades.reduce((s, t) => s + (parseFloat(t['実取得pips']) || 0), 0);
+  const avgRR = n > 0 ? (monthTrades.reduce((s, t) => s + (parseFloat(t['実RR']) || 0), 0) / n) : 0;
+
+  const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:15px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  document.getElementById('monthly-stats').innerHTML =
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
+    stat('勝率', Math.round(wins / n * 100) + '%', wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('勝/負/分', `${wins}/${losses}/${draws}`) +
+    stat('合計PIPS', (totalPips >= 0 ? '+' : '') + totalPips.toFixed(1) + 'p', totalPips >= 0 ? '#4ade80' : '#f87171') +
+    stat('平均RR', avgRR.toFixed(2)) +
+    stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80');
+  document.getElementById('monthly-stats2').innerHTML =
+    stat('トレード', n + '回') +
+    stat('遵守損益', (ruleProfit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(ruleProfit)), ruleProfit >= 0 ? '#4ade80' : '#f87171') +
+    stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
+    stat('決済遵守', Math.round(exitOk / n * 100) + '%');
+
+  // ── トレード一覧 ──
+  const sorted = monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1);
+  document.getElementById('monthly-trades').innerHTML = sorted.map(t => {
+    const idx = App.data.entries.indexOf(t);
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const rr   = parseFloat(t['実RR']) || 0;
+    const pl   = parseFloat(t['損益']) || 0;
+    const pipColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+    const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+    const isMissed = (t['ステータス'] || '').includes('見逃し');
+    return `<div onclick="closeMonthlyModal(); openTradeDetail(${idx})" style="display:flex; align-items:center; gap:6px; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:11px; cursor:pointer; border:1px solid #1e293b;">
+      <span style="color:#64748b; min-width:30px;">${d}</span>
+      <span style="font-weight:700; color:#e2e8f0; flex:1;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃</span>' : ''}</span>
+      <span style="color:${pipColor}; font-weight:700; min-width:44px; text-align:right;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+      <span style="color:#94a3b8; min-width:36px; text-align:right;">RR${rr > 0 ? rr.toFixed(1) : '--'}</span>
+      <span style="color:${pl >= 0 ? '#4ade80' : '#f87171'}; min-width:52px; text-align:right;">${pl !== 0 ? (pl > 0 ? '+' : '') + fmtYen(pl) : '--'}</span>
+      <span style="color:#475569;">›</span>
+    </div>`;
+  }).join('');
+
+  // ── 先月の約束判定サマリー ──
+  let kept = 0, broken = 0;
+  (App.data.reviews || []).filter(r => r['種別'] === 'weekly' && r['期間キー'].startsWith(last) && r['約束判定']).forEach(r => {
+    try {
+      JSON.parse(r['約束判定']).forEach(j => {
+        if (j.result === '守れた') kept++;
+        if (j.result === '破れた') broken++;
+      });
+    } catch(e) {}
+  });
+  document.getElementById('monthly-promise-summary').textContent =
+    (kept + broken > 0) ? `先月の約束: 守れた${kept} / 破れた${broken}（遵守率${Math.round(kept / (kept + broken) * 100)}%）` : '';
+
+  document.getElementById('monthly-memo').value = '';
+  document.getElementById('modal-monthly').classList.add('active');
+  return true;
+}
+
+function closeMonthlyModal() {
+  document.getElementById('modal-monthly').classList.remove('active');
+}
+
+async function saveMonthlySummary() {
+  const key = App.state.monthlyTargetKey;
+  if (!key) return;
+  const data = {
+    '種別': 'monthly',
+    '期間キー': key,
+    'メモ': document.getElementById('monthly-memo').value,
+    '約束': '',
+    '約束判定': '',
+  };
+  showLoader();
+  try {
+    const res = await gasPostQueued({ action: 'saveReview', data }, '月次総括保存');
+    if (!res.success) throw new Error(res.error || '保存に失敗しました');
+    App.data.reviews.push(Object.assign({ id: res.id || ('local-' + Date.now()) }, data));
+    closeMonthlyModal();
+    showToast(res.queued ? '📥 総括を保存待ちに追加しました' : '🏆 月次総括を保存しました');
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+// ---- レビュー履歴 ----
+function openReviewHistoryModal() {
+  const list = document.getElementById('review-history-list');
+  const reviews = (App.data.reviews || []).slice().sort((a, b) => (a['期間キー'] < b['期間キー'] ? 1 : -1));
+  if (reviews.length === 0) {
+    list.innerHTML = '<div style="color:#64748b; text-align:center; padding:20px; font-size:13px;">レビューがまだありません</div>';
+  } else {
+    list.innerHTML = reviews.map(r => {
+      const isMonthly = r['種別'] === 'monthly';
+      let judgeHtml = '';
+      if (r['約束判定']) {
+        try {
+          const js = JSON.parse(r['約束判定']);
+          judgeHtml = js.filter(j => j.text).map(j =>
+            `<div style="font-size:11px; color:${j.result === '守れた' ? '#10b981' : j.result === '破れた' ? '#ef4444' : '#64748b'};">${j.result === '守れた' ? '✅' : j.result === '破れた' ? '❌' : '─'} ${j.text}</div>`
+          ).join('');
+        } catch(e) {}
+      }
+      return `
+        <div style="background:#0f172a; border:1px solid ${isMonthly ? '#f59e0b' : '#334155'}; border-radius:10px; padding:12px; margin-bottom:8px;">
+          <div style="font-size:13px; font-weight:700; color:${isMonthly ? '#f59e0b' : '#38bdf8'}; margin-bottom:6px;">
+            ${isMonthly ? '🏆 ' + r['期間キー'] + ' 月次総括' : '📋 ' + r['期間キー'] + ' 週'}
+          </div>
+          ${r['メモ'] ? `<div style="font-size:12px; color:#cbd5e1; white-space:pre-wrap; margin-bottom:6px;">${r['メモ']}</div>` : ''}
+          ${r['約束'] ? `<div style="font-size:12px; color:#6ee7b7; white-space:pre-wrap; margin-bottom:6px;">🎯 ${r['約束']}</div>` : ''}
+          ${judgeHtml}
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('modal-review-history').classList.add('active');
+}
+
+function closeReviewHistoryModal() {
+  document.getElementById('modal-review-history').classList.remove('active');
 }
 
 
@@ -946,7 +2228,7 @@ async function uploadToImgBB(dataUrl) {
   // キーはGASスクリプトプロパティから取得（メモリキャッシュ）
   if (!App.state.imgbbKey) {
     try {
-      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const res = await gasPost({ action: 'getImgBBKey' });
       App.state.imgbbKey = res.key || '';
     } catch(e) { App.state.imgbbKey = ''; }
   }
@@ -964,6 +2246,8 @@ async function uploadToImgBB(dataUrl) {
 
 // ImgBB優先アップロード：失敗時はDrive→base64の順でフォールバック
 async function uploadImageSmart(dataUrl, filename) {
+  // 0) オフライン時は即base64フォールバック（無駄なリトライ待ちを回避）
+  if (!navigator.onLine) return compressForSpreadsheet(dataUrl);
   // 1) ImgBB（高画質・ブラウザから直接）
   try {
     const url = await uploadToImgBB(dataUrl);
@@ -974,10 +2258,7 @@ async function uploadImageSmart(dataUrl, filename) {
   // 2) Drive経由（GAS）
   try {
     const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'uploadImage', base64Data: compressed, filename })
-    }).then(r => r.json());
+    const res = await gasPost({ action: 'uploadImage', base64Data: compressed, filename });
     if (res.success && res.fileId) {
       return 'drive_images/' + res.fileId + '.jpg';
     }
@@ -993,7 +2274,7 @@ async function updateImgBBStatusBar() {
   if (!bar) return;
   if (!App.state.imgbbKey) {
     try {
-      const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const res = await gasPost({ action: 'getImgBBKey' });
       App.state.imgbbKey = res.key || '';
     } catch(e) { App.state.imgbbKey = ''; }
   }
@@ -1091,7 +2372,7 @@ async function resolvePathImages(container) {
   for (const el of todo) {
     const path = el.dataset.path;
     try {
-      const res = await fetch(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
+      const res = await fetchRetry(`${GAS_URL}?action=getImageUrl&path=${encodeURIComponent(path)}`);
       const json = await res.json();
       const url = json?.data?.url || '';
       _imgUrlCache[path] = url;
@@ -1113,6 +2394,112 @@ async function resolvePathImages(container) {
   }
 }
 
+// お気に入り（✓）トグル: ローカル即時反映+バックグラウンド保存
+function toggleFavorite(index, el) {
+  const t = App.data.entries[index];
+  if (!t || !t['EntryID']) return;
+  const newVal = t['お気に入り'] === 'ON' ? '' : 'ON';
+  t['お気に入り'] = newVal;
+  if (el) el.style.color = newVal === 'ON' ? '#10b981' : '#475569';
+  gasPostQueued({ action: 'updateEntry', entryId: t['EntryID'], data: { 'お気に入り': newVal } }, 'お気に入り更新')
+    .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
+    .catch(() => {});
+}
+
+// トレード詳細ヘッダーの✓トグル
+function toggleFavoriteDetail() {
+  const index = parseInt(document.getElementById('td-index').value);
+  if (isNaN(index)) return;
+  toggleFavorite(index, null);
+  updateDetailFavButton(App.data.entries[index]);
+  renderGallery();
+}
+
+function updateDetailFavButton(t) {
+  const btn = document.getElementById('td-fav-btn');
+  if (!btn) return;
+  const on = t && t['お気に入り'] === 'ON';
+  btn.style.color = on ? '#10b981' : '#475569';
+  btn.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+}
+
+// ==========================================
+// ギャラリー フリップビューア（事前/エントリー/決済の切替）
+// ==========================================
+function openGalleryFlip(index) {
+  const t = App.data.entries[index];
+  if (!t) return;
+  const imgs = [];
+  const add = (label, raw) => {
+    raw = String(raw || '').trim();
+    if (raw && raw !== 'undefined') imgs.push({ label, raw });
+  };
+  add('📋 事前チャート', t['事前チャート']);
+  add('📷 エントリー1', findEntryImageField(t));
+  add('📷 エントリー2', t['ChartImage2']);
+  add('🏁 決済', findExitImageField(t));
+  if (imgs.length === 0) return;
+
+  App.state.flipImgs = imgs;
+  App.state.flipTradeIndex = index;
+  // 決済画像があればそこから表示（ギャラリーのサムネと一致）
+  const exitIdx = imgs.findIndex(i => i.label === '🏁 決済');
+  App.state.flipIdx = exitIdx >= 0 ? exitIdx : 0;
+  renderGalleryFlip();
+  document.getElementById('gallery-flip').style.display = 'flex';
+}
+
+function renderGalleryFlip() {
+  const imgs = App.state.flipImgs || [];
+  const idx = App.state.flipIdx || 0;
+  const cur = imgs[idx];
+  if (!cur) return;
+
+  document.getElementById('gallery-flip-label').textContent = `${cur.label}（${idx + 1}/${imgs.length}）`;
+
+  const img = document.getElementById('gallery-flip-img');
+  img.removeAttribute('data-path');
+  const isPath = cur.raw.includes('/') && !cur.raw.startsWith('http') && !cur.raw.startsWith('data:');
+  if (isPath) {
+    img.src = _imgUrlCache[cur.raw] || '';
+    if (!img.src) {
+      img.dataset.path = cur.raw;
+      resolvePathImages(document.getElementById('gallery-flip'));
+    }
+  } else {
+    img.src = cur.raw;
+  }
+
+  document.getElementById('gallery-flip-dots').innerHTML = imgs.map((_, i) =>
+    `<span onclick="App.state.flipIdx=${i}; renderGalleryFlip();" style="width:8px; height:8px; border-radius:50%; background:${i === idx ? '#38bdf8' : '#334155'}; cursor:pointer;"></span>`
+  ).join('');
+}
+
+function flipNav(dir) {
+  const n = (App.state.flipImgs || []).length;
+  if (n === 0) return;
+  App.state.flipIdx = (App.state.flipIdx + dir + n) % n;
+  renderGalleryFlip();
+}
+
+var _flipTouchX = 0;
+function flipTouchStart(e) { _flipTouchX = e.touches[0].clientX; }
+function flipTouchEnd(e) {
+  const dx = e.changedTouches[0].clientX - _flipTouchX;
+  if (Math.abs(dx) < 40) return;
+  flipNav(dx < 0 ? 1 : -1);
+}
+
+function closeGalleryFlip() {
+  document.getElementById('gallery-flip').style.display = 'none';
+}
+
+function openTradeDetailFromFlip() {
+  const index = App.state.flipTradeIndex;
+  closeGalleryFlip();
+  if (index !== undefined && index !== null) openTradeDetail(index);
+}
+
 function galleryFilterBtn(btn, group, val) {
   // 同グループのアクティブを外して選択
   document.querySelectorAll(`[data-gf-${group}]`).forEach(b => b.classList.remove('active'));
@@ -1124,6 +2511,10 @@ function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const scoreVal = document.querySelector('[data-gf-score].active')?.dataset.gfScore || 'all';
   const rrVal    = document.querySelector('[data-gf-rr].active')?.dataset.gfRr || 'all';
+  const winLoss  = document.getElementById('gf-winloss')?.value || 'all';
+  const entryRef = document.getElementById('gf-entryref')?.value || 'all';
+  const exitRef  = document.getElementById('gf-exitref')?.value || 'all';
+  const favOnly  = document.getElementById('gf-fav')?.classList.contains('active') || false;
 
   // 決済済みのみ・画像あり
   let galleryTrades = App.data.entries.filter(t => {
@@ -1152,6 +2543,23 @@ function renderGallery() {
     });
   }
 
+  // 勝敗・エントリー振り返り・決済振り返り・お気に入りフィルター
+  if (winLoss !== 'all') {
+    galleryTrades = galleryTrades.filter(t => {
+      const pips = parseFloat(t['実取得pips']) || 0;
+      return winLoss === 'win' ? pips > 10 : pips < -10;
+    });
+  }
+  if (entryRef !== 'all') {
+    galleryTrades = galleryTrades.filter(t => (t['エントリー振り返り'] || '') === entryRef);
+  }
+  if (exitRef !== 'all') {
+    galleryTrades = galleryTrades.filter(t => (t['決済振り返り'] || '') === exitRef);
+  }
+  if (favOnly) {
+    galleryTrades = galleryTrades.filter(t => t['お気に入り'] === 'ON');
+  }
+
   // ソート: 日付降順（固定）
   galleryTrades.sort((a, b) => {
     const da = String(a.EntryDate || '').replace(/\//g, '-');
@@ -1177,22 +2585,24 @@ function renderGallery() {
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
     const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
+    const isFav = t['お気に入り'] === 'ON';
 
     const imgTag = (imgUrl || isPath)
       ? `<img src="${imgUrl}" ${isPath ? `data-path="${rawUrl}"` : ''} style="width:100%;height:100%;object-fit:cover;${imgUrl ? '' : 'display:none;'}" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.parentNode.querySelector('.no-img-cam').style.display='flex';">`
       : '';
 
     html += `
-      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid #334155; cursor:pointer;">
-        <div style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
+      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${isFav ? '#10b981' : '#334155'}; cursor:pointer;">
+        <div onclick="event.stopPropagation(); openGalleryFlip(${index})" style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
           ${imgTag}
           <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
+          <div onclick="event.stopPropagation(); toggleFavorite(${index}, this)" style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 8px; border-radius:4px; font-size:14px; font-weight:800; color:${isFav ? '#10b981' : '#475569'}; cursor:pointer;">✓</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
         </div>
         <div style="padding:8px;">
-          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''}</div>
+          <div style="font-weight:700; font-size:12px;">${t['PairName（元）'] || t.PairName || t.Pair || ''} ${t.Direction || ''} ${t['計画エントリー'] === 'ON' ? '📋' : ''}</div>
           <div style="font-size:10px; color:#94a3b8;">ｽｺｱ: ${t['エントリースコア'] || '-'} · RR: ${t['実リスクリワード'] || '-'}</div>
           <div style="font-size:10px; color:#64748b;">${formatDateDisplay(t.EntryDate)}</div>
         </div>
@@ -1288,8 +2698,11 @@ function updateMonthlyStats() {
   });
   let totalProfit = 0, totalPips = 0, totalRR = 0;
   let entryPerfect = 0, exitPerfect = 0;
+  // ルール準拠損益との差分（準拠損益が入力済みのトレードのみ集計）
+  let ruleDiff = 0, ruleCount = 0;
   monthTrades.forEach(t => {
-    totalProfit += parseFloat(t['損益']) || 0;
+    const profit = parseFloat(t['損益']) || 0;
+    totalProfit += profit;
     totalPips += parseFloat(t['実取得pips']) || 0;
     const pips = parseFloat(t['実取得pips']) || 0;
     const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
@@ -1297,6 +2710,11 @@ function updateMonthlyStats() {
     if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
     if (exitRef === '決済タイミングOK' || exitRef === '完璧決済') exitPerfect++;
+    const rawRuleProfit = t['ルール準拠損益'];
+    if (rawRuleProfit !== undefined && rawRuleProfit !== '' && rawRuleProfit !== null) {
+      const rp = parseFloat(rawRuleProfit);
+      if (!isNaN(rp)) { ruleDiff += rp - profit; ruleCount++; }
+    }
   });
   const total = monthTrades.length;
   const fmtCur = (v) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(v);
@@ -1314,6 +2732,33 @@ function updateMonthlyStats() {
   document.getElementById('top-exit-rate').className = 'val ' + (exitRate !== '--' ? clsRate(parseFloat(exitRate)) : '');
   document.getElementById('top-rr').textContent = totalRR.toFixed(2);
   document.getElementById('top-rr').className = 'val ' + cls(totalRR);
+
+  // ルール通りなら比較ウィジェット
+  // 準拠損益が未入力のトレードは実損益＝準拠損益とみなす（差分のみ加算する方式）
+  const ruleProfit = totalProfit + ruleDiff;
+  const ruleProfitEl = document.getElementById('top-rule-profit');
+  const ruleDiffEl = document.getElementById('top-rule-diff');
+  if (ruleProfitEl && ruleDiffEl) {
+    if (ruleCount === 0) {
+      ruleProfitEl.textContent = '--';
+      ruleProfitEl.className = 'val';
+      ruleDiffEl.textContent = 'ルール準拠損益の入力データがありません';
+      ruleDiffEl.className = 'sub';
+    } else {
+      ruleProfitEl.textContent = fmtCur(ruleProfit);
+      ruleProfitEl.className = 'val ' + cls(ruleProfit);
+      if (ruleDiff > 0) {
+        ruleDiffEl.innerHTML = `⚠️ ルールを破ったことで <b>${fmtCur(ruleDiff)}</b> 失っています`;
+        ruleDiffEl.className = 'sub neg';
+      } else if (ruleDiff < 0) {
+        ruleDiffEl.innerHTML = `ルール以上の結果 <b>+${fmtCur(Math.abs(ruleDiff))}</b>（実損益が準拠損益を上回っています）`;
+        ruleDiffEl.className = 'sub pos';
+      } else {
+        ruleDiffEl.textContent = '✅ ルール通りの結果です';
+        ruleDiffEl.className = 'sub pos';
+      }
+    }
+  }
 }
 
 // ==========================================
@@ -1328,6 +2773,7 @@ function applyAnalysisFilters() {
   const fScore = document.getElementById('flt-score').value;
   const fEntryRef = document.getElementById('flt-entry-ref')?.value || 'all';
   const fExitRef = document.getElementById('flt-exit-ref')?.value || 'all';
+  const fPlan = document.getElementById('flt-plan')?.value || 'all';
   const dFrom = document.getElementById('flt-date-from').value;
   const dTo = document.getElementById('flt-date-to').value;
 
@@ -1368,6 +2814,13 @@ function applyAnalysisFilters() {
     }
     return true;
   });
+
+  // 計画vs衝動 比較ブロック用（計画フィルタ適用前のセット）
+  const prePlanFiltered = filtered.slice();
+
+  // 計画/衝動フィルタ
+  if (fPlan === 'plan')   filtered = filtered.filter(t => t['計画エントリー'] === 'ON');
+  if (fPlan === 'direct') filtered = filtered.filter(t => t['計画エントリー'] !== 'ON');
 
   let totalTrades = 0, wins = 0, losses = 0, evens = 0;
   let totalPips = 0, winPips = 0, lossPips = 0;
@@ -1461,7 +2914,7 @@ function applyAnalysisFilters() {
 
   const tbody = document.getElementById('analysis-tbody');
   tbody.innerHTML = `
-    <div class="metrics-section-header">📊 基本統計</div>
+    ${csOpen('basic', '📊 基本統計')}
     <div class="metric-card">
       <div class="metric-label">エントリー数</div>
       <div class="metric-value">${totalTrades}<span class="metric-unit">回</span></div>
@@ -1495,7 +2948,8 @@ function applyAnalysisFilters() {
       <div class="metric-value ${classForNum(parseFloat(totalRR))}">${totalRR}</div>
     </div>
 
-    <div class="metrics-section-header">📋 ルール遵守</div>
+    ${csClose()}
+    ${csOpen('rules', '📋 ルール遵守')}
     <div class="metric-card">
       <div class="metric-label">エントリールール遵守率</div>
       <div class="metric-value ${entryComplianceRate !== '--' ? classForNum(parseFloat(entryComplianceRate) - 70) : ''}">${entryComplianceRate}${entryComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
@@ -1505,7 +2959,8 @@ function applyAnalysisFilters() {
       <div class="metric-value ${exitComplianceRate !== '--' ? classForNum(parseFloat(exitComplianceRate) - 70) : ''}">${exitComplianceRate}${exitComplianceRate !== '--' ? '<span class="metric-unit">%</span>' : ''}</div>
     </div>
 
-    <div class="metrics-section-header">📈 pips統計</div>
+    ${csClose()}
+    ${csOpen('pips', '📈 pips統計')}
     <div class="metric-card">
       <div class="metric-label">総取得pips</div>
       <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
@@ -1531,7 +2986,8 @@ function applyAnalysisFilters() {
       <div class="metric-value neg">${avgLossPips}<span class="metric-unit">pips</span></div>
     </div>
 
-    <div class="metrics-section-header">💴 収支統計</div>
+    ${csClose()}
+    ${csOpen('profit', '💴 収支統計')}
     <div class="metric-card">
       <div class="metric-label">総収支</div>
       <div class="metric-value ${classForNum(totalProfit)}" style="font-size:16px;">${fmtCurrency(totalProfit)}</div>
@@ -1557,7 +3013,8 @@ function applyAnalysisFilters() {
       <div class="metric-value neg" style="font-size:15px;">${fmtCurrency(parseInt(avgLossProfit))}</div>
     </div>
 
-    <div class="metrics-section-header">🔮 理論値</div>
+    ${csClose()}
+    ${csOpen('theory', '🔮 理論値')}
     <div class="metric-card">
       <div class="metric-label">理論pips</div>
       <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
@@ -1574,7 +3031,12 @@ function applyAnalysisFilters() {
       <div class="metric-label">ルール外乖離額</div>
       <div class="metric-value ${classForNum(deviationProfit)}" style="font-size:15px;">${deviationProfit >= 0 ? '+' : ''}${fmtCurrency(Math.round(deviationProfit))}</div>
     </div>
+    ${csClose()}
+    ${csOpen('plan', '📋 計画 vs 衝動')}
+    ${buildPlanComparisonHTML(prePlanFiltered)}
+    ${csClose()}
   `;
+  syncCollapseSections();
 
   renderDrawdown(filtered);
   App.state.analysisFiltered = filtered; // チャートバークリック時の絞り込みに使用
@@ -1582,6 +3044,93 @@ function applyAnalysisFilters() {
   renderHeatmapFiltered();
   renderGrowthChart(filtered);
   renderEquityCurve();
+  renderRRDistribution(filtered);
+}
+
+// ==========================================
+// 計画 vs 衝動 比較ブロック（計画エントリー列で識別）
+// ==========================================
+function buildPlanComparisonHTML(trades) {
+  const calc = (subset) => {
+    const n = subset.length;
+    let wins = 0, pips = 0, rrSum = 0, rrN = 0;
+    subset.forEach(t => {
+      const p = parseFloat(t['実取得pips']) || 0;
+      pips += p;
+      if (p > 10) wins++;
+      const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+      if (sl > 0) { rrSum += p / sl; rrN++; }
+    });
+    return {
+      n,
+      winRate: n ? (wins / n * 100).toFixed(0) : '--',
+      avgPips: n ? (pips / n).toFixed(1) : '--',
+      avgRR: rrN ? (rrSum / rrN).toFixed(2) : '--',
+    };
+  };
+  const plan = calc(trades.filter(t => t['計画エントリー'] === 'ON'));
+  const direct = calc(trades.filter(t => t['計画エントリー'] !== 'ON'));
+  const cls = (v) => parseFloat(v) > 0 ? 'color:#4ade80;' : (parseFloat(v) < 0 ? 'color:#f87171;' : '');
+
+  if (plan.n === 0 && direct.n === 0) {
+    return `<div style="grid-column:1/-1; color:#64748b; font-size:12px; text-align:center; padding:12px;">データがありません</div>`;
+  }
+  const row = (label, pv, dv, style) => `
+    <tr>
+      <td style="padding:7px 4px; color:#64748b; font-size:11px;">${label}</td>
+      <td style="padding:7px 4px; text-align:center; font-weight:700; ${style ? cls(pv) : ''}">${pv}</td>
+      <td style="padding:7px 4px; text-align:center; font-weight:700; ${style ? cls(dv) : ''}">${dv}</td>
+    </tr>`;
+  return `
+    <div style="grid-column:1/-1; background:#0f172a; border:1px solid #334155; border-radius:10px; padding:6px 10px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px; color:#f8fafc;">
+        <tr>
+          <td style="padding:7px 4px;"></td>
+          <td style="padding:7px 4px; text-align:center; color:#38bdf8; font-size:11px; font-weight:700;">📋 計画経由</td>
+          <td style="padding:7px 4px; text-align:center; color:#94a3b8; font-size:11px; font-weight:700;">衝動（直接）</td>
+        </tr>
+        ${row('件数', plan.n + '件', direct.n + '件', false)}
+        ${row('勝率', plan.winRate + '%', direct.winRate + '%', false)}
+        ${row('平均pips', plan.avgPips, direct.avgPips, true)}
+        ${row('平均実RR', plan.avgRR, direct.avgRR, true)}
+      </table>
+    </div>`;
+}
+
+// ==========================================
+// 折りたたみセクション（分析タブ統計）
+// ==========================================
+function getCollapsedSections() {
+  try { return JSON.parse(localStorage.getItem('analysisCollapsed_v1') || '{}'); } catch(e) { return {}; }
+}
+
+function csOpen(key, title) {
+  const collapsed = getCollapsedSections()[key] ? ' collapsed' : '';
+  return `<div class="collapse-section${collapsed}" data-collapse-key="${key}">`
+    + `<div class="metrics-section-header collapse-toggle" onclick="toggleAnalysisSection('${key}')">${title}<span class="collapse-arrow">▾</span></div>`
+    + `<div class="metrics-grid collapse-body">`;
+}
+
+function csClose() {
+  return `</div></div>`;
+}
+
+function toggleAnalysisSection(key) {
+  const el = document.querySelector(`.collapse-section[data-collapse-key="${key}"]`);
+  if (!el) return;
+  el.classList.toggle('collapsed');
+  const state = getCollapsedSections();
+  state[key] = el.classList.contains('collapsed');
+  localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
+}
+
+// 静的セクション（ドローダウン分析・記録タブ）にも保存済みの開閉状態を反映
+function syncCollapseSections() {
+  const state = getCollapsedSections();
+  document.querySelectorAll('#screen-analysis .collapse-section, #screen-gallery .collapse-section').forEach(el => {
+    const key = el.dataset.collapseKey;
+    el.classList.toggle('collapsed', !!state[key]);
+  });
 }
 
 function renderDrawdown(trades) {
@@ -1662,6 +3211,261 @@ function renderDrawdown(trades) {
 }
 
 // ==========================================
+// 実RR分布
+// ==========================================
+// 実RR = 実取得pips / StopLossPips（分析タブの平均実RRと同一定義）
+function getRRValues(trades) {
+  const rs = [];
+  trades.forEach(t => {
+    const pips = parseFloat(t['実取得pips']);
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (!isNaN(pips) && sl > 0) rs.push(pips / sl);
+  });
+  return rs;
+}
+
+const RR_BINS = [
+  { label: '-1未満', test: v => v < -1,            color: '#ef4444' },
+  { label: '-1〜0',  test: v => v >= -1 && v < 0,  color: '#b91c1c' },
+  { label: '0〜1',   test: v => v >= 0 && v < 1,   color: '#10b981' },
+  { label: '1〜2',   test: v => v >= 1 && v < 2,   color: '#10b981' },
+  { label: '2〜3',   test: v => v >= 2 && v < 3,   color: '#10b981' },
+  { label: '3+',     test: v => v >= 3,            color: '#10b981' },
+];
+
+function renderRRDistribution(trades) {
+  const chips = document.getElementById('rr-dist-chips');
+  const chart = document.getElementById('rr-dist-chart');
+  if (!chips || !chart) return;
+
+  const rs = getRRValues(trades);
+  App.state.rrValues = rs; // モンテカルロの抽出元
+
+  if (rs.length === 0) {
+    chips.innerHTML = '';
+    chart.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">データがありません</div>';
+    return;
+  }
+
+  const avg = rs.reduce((s, v) => s + v, 0) / rs.length;
+  const winsR = rs.filter(v => v > 0);
+  const lossR = rs.filter(v => v < 0);
+  const avgWin = winsR.length ? winsR.reduce((s, v) => s + v, 0) / winsR.length : null;
+  const avgLoss = lossR.length ? lossR.reduce((s, v) => s + v, 0) / lossR.length : null;
+  const clsNum = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+
+  chips.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">平均RR</div>
+      <div class="metric-value ${clsNum(avg)}">${avg >= 0 ? '+' : ''}${avg.toFixed(2)}</div>
+      <div class="metric-sub">${rs.length}件</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">勝ち平均RR</div>
+      <div class="metric-value pos">${avgWin !== null ? '+' + avgWin.toFixed(2) : '--'}</div>
+      <div class="metric-sub">${winsR.length}件</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">負け平均RR</div>
+      <div class="metric-value neg">${avgLoss !== null ? avgLoss.toFixed(2) : '--'}</div>
+      <div class="metric-sub">${lossR.length}件</div>
+    </div>
+  `;
+
+  // ビンごとのトレード配列（バータップ→履歴表示用）
+  const binTrades = RR_BINS.map(() => []);
+  trades.forEach(t => {
+    const pips = parseFloat(t['実取得pips']);
+    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    if (isNaN(pips) || sl <= 0) return;
+    const r = pips / sl;
+    const bi = RR_BINS.findIndex(b => b.test(r));
+    if (bi >= 0) binTrades[bi].push(t);
+  });
+  App.state.rrBinTrades = binTrades;
+
+  const counts = binTrades.map(arr => arr.length);
+  const maxN = Math.max(...counts, 1);
+  const barH = 140;
+  chart.innerHTML = `
+    <div style="display:flex; align-items:flex-end; gap:6px; height:${barH + 26}px; padding:0 2px;">
+      ${RR_BINS.map((b, i) => {
+        const h = Math.max(counts[i] > 0 ? 6 : 2, Math.round(counts[i] / maxN * barH));
+        return `
+          <div ${counts[i] > 0 ? `onclick="openHistoryForRRBin(${i})"` : ''} style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; ${counts[i] > 0 ? 'cursor:pointer;' : ''}">
+            <div style="font-size:12px; font-weight:700; color:#e2e8f0; margin-bottom:3px;">${counts[i]}</div>
+            <div style="width:100%; height:${h}px; background:${counts[i] > 0 ? b.color : '#1e293b'}; border-radius:5px 5px 0 0;"></div>
+          </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex; gap:6px; padding:0 2px; border-top:1px solid #334155;">
+      ${RR_BINS.map(b => `<div style="flex:1; text-align:center; font-size:10px; color:#94a3b8; padding-top:5px; white-space:nowrap;">${b.label}</div>`).join('')}
+    </div>
+  `;
+}
+
+// ==========================================
+// モンテカルロ・シミュレーション
+// ==========================================
+const MC_CONFIG_KEY = 'mcConfig_v1';
+const MC_FIELDS = ['mc-risk', 'mc-trades', 'mc-sims', 'mc-capital', 'mc-ddline', 'mc-ruinpct'];
+
+function loadMcConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MC_CONFIG_KEY) || '{}');
+    MC_FIELDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && saved[id] !== undefined) el.value = saved[id];
+    });
+  } catch(e) {}
+}
+
+function saveMcConfig() {
+  const conf = {};
+  MC_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) conf[id] = el.value;
+  });
+  localStorage.setItem(MC_CONFIG_KEY, JSON.stringify(conf));
+}
+
+function mcNum(id, def, min, max) {
+  let v = parseFloat(document.getElementById(id)?.value);
+  if (isNaN(v)) v = def;
+  v = Math.max(min, Math.min(max, v));
+  const el = document.getElementById(id);
+  if (el) el.value = v;
+  return v;
+}
+
+function runMonteCarlo() {
+  const rs = App.state.rrValues || [];
+  if (rs.length < 5) {
+    showToast(`⚠️ データ不足: 現在のフィルタ条件の実RRは${rs.length}件です（5件以上必要）`);
+    return;
+  }
+
+  const risk    = mcNum('mc-risk',    30000,   1, 10000000);
+  const nT      = mcNum('mc-trades',  100,    10, 1000);
+  const nS      = mcNum('mc-sims',    1000,  100, 5000);
+  const capital = mcNum('mc-capital', 2000000, 1, 1000000000);
+  const ddLine  = mcNum('mc-ddline',  120000,  1, 1000000000);
+  const ruinPct = mcNum('mc-ruinpct', 30,      1, 100);
+  saveMcConfig();
+
+  const ruinLine = capital * ruinPct / 100;
+
+  // バンドチャート用に最大100点へ間引いて記録
+  const step = Math.max(1, Math.ceil(nT / 100));
+  const sampleIdx = [];
+  for (let t = 0; t <= nT; t += step) sampleIdx.push(t);
+  if (sampleIdx[sampleIdx.length - 1] !== nT) sampleIdx.push(nT);
+
+  const finals = [], maxDDs = [], sampled = [];
+  let ddExceed = 0, ruined = 0;
+
+  for (let s = 0; s < nS; s++) {
+    let eq = 0, peak = 0, mdd = 0, minEq = 0;
+    const path = [0];
+    let nextSample = 1; // sampleIdx[0]=0 は記録済み
+    for (let t = 1; t <= nT; t++) {
+      eq += rs[Math.floor(Math.random() * rs.length)] * risk;
+      if (eq > peak) peak = eq;
+      const dd = peak - eq;
+      if (dd > mdd) mdd = dd;
+      if (eq < minEq) minEq = eq;
+      if (t === sampleIdx[nextSample]) { path.push(eq); nextSample++; }
+    }
+    finals.push(eq);
+    maxDDs.push(mdd);
+    sampled.push(path);
+    if (mdd > ddLine) ddExceed++;
+    if (minEq <= -ruinLine) ruined++;
+  }
+
+  finals.sort((a, b) => a - b);
+  const pct = (p) => finals[Math.min(nS - 1, Math.floor(p / 100 * (nS - 1)))];
+  const pDD = ddExceed / nS * 100;
+  const pRuin = ruined / nS * 100;
+
+  // トレード番号ごとのパーセンタイル帯
+  const band = { 5: [], 25: [], 50: [], 75: [], 95: [] };
+  for (let i = 0; i < sampleIdx.length; i++) {
+    const col = sampled.map(p => p[i]).sort((a, b) => a - b);
+    [5, 25, 50, 75, 95].forEach(q => band[q].push(col[Math.min(nS - 1, Math.floor(q / 100 * (nS - 1)))]));
+  }
+
+  renderMcResult({ nT, nS, risk, ddLine, ruinPct, ruinLine, sampleCount: rs.length,
+                   p5: pct(5), p50: pct(50), p95: pct(95), pDD, pRuin, band, sampleIdx });
+}
+
+function renderMcResult(r) {
+  const box = document.getElementById('mc-result');
+  if (!box) return;
+  const fmt = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const clsNum = (v) => v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+  const probColor = (p) => p >= 50 ? '#ef4444' : (p >= 20 ? '#f59e0b' : '#10b981');
+
+  // ── バンドチャート（SVG・資産推移と同方式） ──
+  const n = r.sampleIdx.length - 1;
+  const allVals = [...r.band[5], ...r.band[95], 0];
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const range = (maxV - minV) || 1;
+  const pL = 14, pR = 99, pT = 5, pB = 72;
+  const X = (i) => pL + (i / n) * (pR - pL);
+  const Y = (v) => pB - ((v - minV) / range) * (pB - pT);
+  const linePts = (qs) => r.sampleIdx.map((_, i) => `${X(i).toFixed(2)},${Y(r.band[qs][i]).toFixed(2)}`);
+  const poly = (qHigh, qLow) => [...linePts(qHigh), ...linePts(qLow).reverse()].join(' ');
+  let yLabels = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + range * i / 4;
+    const lbl = Math.abs(v) >= 10000 ? (v / 10000).toFixed(0) + '万' : Math.round(v).toLocaleString();
+    yLabels += `<text x="${pL - 1}" y="${Y(v).toFixed(2)}" fill="#64748b" font-size="3" text-anchor="end" dominant-baseline="middle">${lbl}</text>`;
+  }
+  const medianPath = r.sampleIdx.map((_, i) => `${i === 0 ? 'M' : 'L'}${X(i).toFixed(2)},${Y(r.band[50][i]).toFixed(2)}`).join(' ');
+  const chartSVG = `
+    <svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none" style="overflow:visible;">
+      <text x="${pL}" y="3" fill="#64748b" font-size="2.8">(円)</text>
+      ${yLabels}
+      <polygon points="${poly(95, 5)}" fill="rgba(56,189,248,0.10)" />
+      <polygon points="${poly(75, 25)}" fill="rgba(56,189,248,0.18)" />
+      <line x1="${pL}" y1="${Y(0).toFixed(2)}" x2="${pR}" y2="${Y(0).toFixed(2)}" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,1.5" />
+      <path d="${medianPath}" fill="none" stroke="#38bdf8" stroke-width="1" stroke-linejoin="round" />
+      <text x="${pR}" y="${(Y(r.band[95][n]) + 2.5).toFixed(2)}" fill="#475569" font-size="2.6" text-anchor="end">上位5%</text>
+      <text x="${pR}" y="${(Y(r.band[5][n]) - 1.2).toFixed(2)}" fill="#475569" font-size="2.6" text-anchor="end">下位5%</text>
+    </svg>`;
+
+  box.innerHTML = `
+    <div class="chart-container" style="height:220px; padding:10px 4px 4px; margin-bottom:10px; background:#0f172a;">${chartSVG}</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+      <div class="metric-card">
+        <div class="metric-label">最終損益 上位5%</div>
+        <div class="metric-value ${clsNum(r.p95)}" style="font-size:14px;">${r.p95 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p95))}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">最終損益 中央値</div>
+        <div class="metric-value ${clsNum(r.p50)}" style="font-size:14px;">${r.p50 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p50))}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">最終損益 下位5%</div>
+        <div class="metric-value ${clsNum(r.p5)}" style="font-size:14px;">${r.p5 >= 0 ? '+' : '-'}¥${fmt(Math.abs(r.p5))}</div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; border:1.5px solid ${probColor(r.pDD)}; border-radius:10px; padding:10px 14px;">
+        <div style="font-size:12px; color:#e2e8f0;">最大DDが ¥${fmt(r.ddLine)} を超える確率</div>
+        <div style="font-size:20px; font-weight:800; color:${probColor(r.pDD)};">${r.pDD.toFixed(0)}%</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; border:1.5px solid ${probColor(r.pRuin)}; border-radius:10px; padding:10px 14px;">
+        <div style="font-size:12px; color:#e2e8f0;">破産確率<span style="color:#64748b; font-size:10px;">（資金${r.ruinPct}%減 = -¥${fmt(r.ruinLine)} 到達）</span></div>
+        <div style="font-size:20px; font-weight:800; color:${probColor(r.pRuin)};">${r.pRuin.toFixed(1)}%</div>
+      </div>
+    </div>
+  `;
+  box.style.display = 'block';
+}
+
+// ==========================================
 // ヒートマップ 通貨カテゴリ定義
 // ==========================================
 const PAIR_CATEGORIES = {
@@ -1734,7 +3538,7 @@ function renderHeatmap(trades) {
   // Aggregate by hour (0-23) and weekday (0=Mon..4=Fri)
   const grid = {};
   let plottedCount = 0;
-  for (let h = 0; h < 24; h++) for (let d = 0; d < 5; d++) grid[`${h}-${d}`] = { count: 0, pips: 0 };
+  for (let h = 0; h < 24; h++) for (let d = 0; d < 5; d++) grid[`${h}-${d}`] = { count: 0, pips: 0, trades: [] };
 
   trades.forEach(t => {
     // EntryTime: GASはtime cellを'1899/12/30'等で返す場合がある → HH:MMのみ受け付ける
@@ -1756,8 +3560,13 @@ function renderHeatmap(trades) {
     const key = `${hour}-${dow - 1}`;
     grid[key].count++;
     grid[key].pips += parseFloat(t['実取得pips']) || 0;
+    grid[key].trades.push(t);
     plottedCount++;
   });
+
+  // セルタップ→履歴表示用に保持
+  App.state.heatmapCellTrades = {};
+  Object.keys(grid).forEach(k => { App.state.heatmapCellTrades[k] = grid[k].trades; });
 
   // 時刻データが1件もない場合はメッセージ表示
   if (plottedCount === 0) {
@@ -1781,7 +3590,7 @@ function renderHeatmap(trades) {
         const intensity = Math.min(cell.count / maxCount, 1) * 0.6 + 0.25;
         color = cell.pips >= 0 ? `rgba(16,185,129,${intensity})` : `rgba(239,68,68,${intensity})`;
       }
-      html += `<div style="background:${color}; border-radius:2px; min-height:7px; border:1px solid #1e293b;"></div>`;
+      html += `<div ${cell.count > 0 ? `onclick="openHistoryForHeatmapCell('${h}-${d}')"` : ''} style="background:${color}; border-radius:2px; min-height:7px; border:1px solid #1e293b; ${cell.count > 0 ? 'cursor:pointer;' : ''}"></div>`;
     }
   }
   html += '</div>';
@@ -2293,6 +4102,30 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
 
+  // トレードプラン欄
+  const planDir = (p['プラン方向'] || '').trim();
+  document.querySelectorAll('#pe-plan-dir button').forEach(b => {
+    b.classList.toggle('active', planDir !== '' && b.textContent.includes(planDir));
+  });
+  App.state.pePlanImage = p['プラン画像'] || '';
+  const planImg = document.getElementById('pe-plan-image-preview');
+  const planImgBox = document.getElementById('pe-plan-image-container');
+  const planImgLabel = document.getElementById('pe-plan-image-label-text');
+  const planImgUrl = App.state.pePlanImage;
+  if (planImgUrl && (planImgUrl.startsWith('http') || planImgUrl.startsWith('data:'))) {
+    planImg.src = planImgUrl;
+    planImgBox.style.display = 'block';
+    if (planImgLabel) planImgLabel.textContent = '✅ シナリオ画像選択済み（タップで変更）';
+  } else {
+    planImg.src = '';
+    planImgBox.style.display = 'none';
+    if (planImgLabel) planImgLabel.textContent = '📷 シナリオ画像を追加';
+  }
+  const planImgInput = document.getElementById('pe-plan-image-upload');
+  if (planImgInput) planImgInput.value = '';
+  const planDateEl = document.getElementById('pe-plan-date');
+  if (planDateEl) planDateEl.textContent = p['プラン設定日'] ? `プラン設定日: ${formatDateDisplay(p['プラン設定日'])} ${planAgeLabel(p)}` : '';
+
   // ダウルール候補 & 分析チェックUIを構築（保存済み選択ルールを渡す）
   setTimeout(() => {
     const saved = getPairAnalysis(pairName);
@@ -2338,10 +4171,20 @@ async function savePairEdit() {
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
     };
 
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updatePair', pairName, data: updateData })
-    }).then(r => r.json());
+    // トレードプラン（方向ボタンのテキスト「▲ Buy」→「Buy」に正規化）
+    const planBtnVal = getBtnVal('pe-plan-dir');
+    const newPlanDir = planBtnVal.includes('Buy') ? 'Buy' : (planBtnVal.includes('Sell') ? 'Sell' : '');
+    const prevPlanDir = (p['プラン方向'] || '').trim();
+    updateData['プラン方向'] = newPlanDir;
+    updateData['プラン画像'] = newPlanDir ? (App.state.pePlanImage || '') : '';
+    if (newPlanDir === '') {
+      updateData['プラン設定日'] = '';
+    } else if (newPlanDir !== prevPlanDir || !p['プラン設定日']) {
+      const now = new Date();
+      updateData['プラン設定日'] = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
     if (!res.success) throw new Error(res.error || '保存失敗');
 
     // ローカルにも反映
@@ -2350,7 +4193,8 @@ async function savePairEdit() {
     savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
     closePairEdit();
     renderPairs();
-    showToast('ペア情報を更新しました');
+    renderPlans();
+    showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : 'ペア情報を更新しました');
   } catch (e) {
     alert('エラーが発生しました: ' + e.message);
   } finally {
@@ -3088,6 +4932,20 @@ async function submitEntryData() {
     var reentryBtn = document.querySelector('#ne-reentry button.active');
     if (reentryBtn) entryData['再エントリー'] = reentryBtn.textContent.trim();
 
+    // トレードプラン経由のエントリー: 計画フラグ＋事前チャートを引き継ぐ
+    const planCtx = App.state.planContext;
+    if (planCtx && planCtx.pairName === pairName) {
+      entryData['計画エントリー'] = 'ON';
+      if (planCtx.image) entryData['事前チャート'] = planCtx.image;
+    }
+
+    // 指標前エントリー: フォームのボタン状態をそのまま保存（自動ON後の手動変更も反映）
+    const indBtn = document.querySelector('#ne-indicator-entry button.active');
+    if (indBtn) entryData['指標前エントリー'] = indBtn.textContent.trim();
+
+    // ✓（要確認マーク）
+    if (App.state.neFavorite) entryData['お気に入り'] = 'ON';
+
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const imgPreview = document.getElementById('ne-image-preview');
     if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
@@ -3098,17 +4956,22 @@ async function submitEntryData() {
       entryData['ChartImage2'] = await uploadImageSmart(imgPreview2.src, 'entry2_' + Date.now() + '.jpg');
     }
 
-    // GAS に saveEntry POST
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveEntry', data: entryData })
-    }).then(r => r.json());
+    // GAS に saveEntry POST（オフライン時はキューに退避）
+    const res = await gasPostQueued({ action: 'saveEntry', data: entryData }, 'エントリー記録: ' + pairName);
 
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
     closeEntryModal();
-    showToast('エントリーを記録しました ✅');
-    loadData(); // バックグラウンドで再読み込み
+    // プラン経由なら、保存成功後にペアのプラン欄をクリア
+    if (planCtx && planCtx.pairName === pairName) {
+      clearPlanFields(planCtx.pairName);
+    }
+    if (res.queued) {
+      showToast('📥 オフラインのため保存待ちに追加しました（再接続時に自動送信）');
+    } else {
+      showToast('エントリーを記録しました ✅');
+      loadData(); // バックグラウンドで再読み込み
+    }
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -3449,6 +5312,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-index').value = index;
   document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
+  updateDetailFavButton(t);
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
 
   // Basic info
@@ -3527,6 +5391,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
+  const retroEl = document.getElementById('td-retro-review');
+  if (retroEl) retroEl.value = t['後日振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   const tdEntryMemo = document.getElementById('td-entry-memo');
   if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || t['エントリー時メモ'] || '';
@@ -3573,6 +5439,26 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   // 履歴  ：上=決済写真、  下=エントリー写真
   const rawEntryImg = findEntryImageField(t);
   const rawExitImg = findExitImageField(t);
+
+  // 事前チャート（トレードプラン時のシナリオ画像・読み取り専用）
+  const planImgArea = document.getElementById('td-plan-image-area');
+  const planImgEl = document.getElementById('td-plan-image-preview');
+  if (planImgArea && planImgEl) {
+    const rawPlanImg = String(t['事前チャート'] || '').trim();
+    planImgEl.removeAttribute('data-path');
+    if (rawPlanImg && (rawPlanImg.startsWith('http') || rawPlanImg.startsWith('data:'))) {
+      planImgEl.src = rawPlanImg;
+      planImgArea.style.display = 'block';
+      makeTappable(planImgEl);
+    } else if (rawPlanImg && rawPlanImg.includes('/')) {
+      planImgEl.src = '';
+      planImgEl.dataset.path = rawPlanImg;
+      planImgArea.style.display = 'block';
+    } else {
+      planImgEl.src = '';
+      planImgArea.style.display = 'none';
+    }
+  }
 
   // 常にエントリー画像=上スロット、決済画像=下スロット
   const topRaw = rawEntryImg;
@@ -3622,7 +5508,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
 
   // パスベース画像を非同期で解決
-  if (topIsPath || botIsPath) {
+  const planIsPath = planImgEl && planImgEl.dataset.path;
+  if (topIsPath || botIsPath || planIsPath) {
     resolvePathImages(document.getElementById('modal-trade-detail'));
   }
 
@@ -3671,6 +5558,18 @@ function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
   App.state.pendingEntryImgDelete = null;
   App.state.pendingExitImgDelete = null;
+  // レビューから開いた詳細 → 閉じたらレビューに戻る
+  if (App.state.returnToRetroReview) {
+    const key = App.state.returnToRetroReview;
+    App.state.returnToRetroReview = null;
+    openRetroReviewModal(key);
+    return;
+  }
+  if (App.state.returnToReview) {
+    App.state.returnToReview = false;
+    openReviewModal();
+    return;
+  }
   if (App.state.detailFromHistory) {
     App.state.detailFromHistory = false;
     const snap = App.state.historyFilterSnapshot;
@@ -3800,6 +5699,7 @@ async function saveTradeDetail() {
       '上位足リスク認識': (() => { const b = document.querySelector('#td-env-upper-risk button.active'); return b ? b.textContent.trim() : ''; })(),
       'Lot/損切り設定': (() => { const b = document.querySelector('#td-env-lot-sl button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済振り返り': document.getElementById('td-exit-ref').value,
+      '後日振り返り': document.getElementById('td-retro-review')?.value || '',
       '指標決済': (() => { const b = document.querySelector('#td-indicator-exit button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
@@ -3862,11 +5762,8 @@ async function saveTradeDetail() {
       }
     }
 
-    // GAS updateEntry を呼び出す
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateEntry', entryId: entryId, data: updateData })
-    }).then(r => r.json());
+    // GAS updateEntry を呼び出す（オフライン時はキューに退避）
+    const res = await gasPostQueued({ action: 'updateEntry', entryId: entryId, data: updateData }, 'トレード更新: ' + entryId);
 
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
 
@@ -3881,7 +5778,7 @@ async function saveTradeDetail() {
 
     closeTradeDetail();
     renderPositions();
-    showToast('保存しました ✅');
+    showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -3905,16 +5802,20 @@ async function deleteEntry() {
 
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'deleteEntry', entryId: entryId })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'deleteEntry', entryId: entryId }, '削除: ' + pairName);
 
     if (!res.success) throw new Error(res.error || '削除に失敗しました');
 
     closeTradeDetail();
-    showToast('削除しました 🗑️');
-    loadData(); // バックグラウンドで再読み込み
+    if (res.queued) {
+      // ローカルからも除去して即時反映（サーバーへは再接続時に送信）
+      App.data.entries = App.data.entries.filter(x => x['EntryID'] !== entryId);
+      renderPositions();
+      showToast('📥 削除を保存待ちに追加しました');
+    } else {
+      showToast('削除しました 🗑️');
+      loadData(); // バックグラウンドで再読み込み
+    }
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
@@ -4130,10 +6031,7 @@ async function runGeminiAnalysis() {
 
   try {
     // GASからGroq APIキーを取得
-    const keyRes = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getGroqKey' })
-    }).then(r => r.json());
+    const keyRes = await gasPost({ action: 'getGroqKey' });
     const apiKey = keyRes.key || '';
     if (!apiKey) throw new Error('Groq APIキーがGASに設定されていません（Script PropertiesにGROQ_API_KEYを設定してください）');
 
@@ -4192,15 +6090,23 @@ async function runGeminiAnalysis() {
 
 function renderIdeas() {
   const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
-  const done   = App.data.ideas.filter(i => i['ステータス'] === '解決済み');
 
   const list = document.getElementById('idea-list');
   if (list) {
     if (active.length === 0) {
       list.innerHTML = '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">メモがありません</div>';
     } else {
+      // 並び順: 通常は日付降順、「⭐優先」選択時のみお気に入りを先頭に
+      const sortMode = document.getElementById('idea-sort')?.value || 'date';
       list.innerHTML = active
-        .sort((a, b) => (b['日付'] > a['日付'] ? 1 : -1))
+        .sort((a, b) => {
+          if (sortMode === 'fav') {
+            const fa = a['お気に入り'] === 'ON' ? 1 : 0;
+            const fb = b['お気に入り'] === 'ON' ? 1 : 0;
+            if (fa !== fb) return fb - fa;
+          }
+          return b['日付'] > a['日付'] ? 1 : -1;
+        })
         .map(idea => ideaCard(idea))
         .join('');
     }
@@ -4208,10 +6114,31 @@ function renderIdeas() {
 
 }
 
+// メモのお気に入り（⭐）トグル: ローカル即時反映+バックグラウンド保存
+function toggleIdeaFavorite(id, ev) {
+  if (ev) ev.stopPropagation();
+  const idea = App.data.ideas.find(i => i.id === id);
+  if (!idea) return;
+  idea['お気に入り'] = idea['お気に入り'] === 'ON' ? '' : 'ON';
+  renderIdeas();
+  gasPostQueued({ action: 'updateIdea', ideaId: id, data: {
+    '日付': idea['日付'] || '',
+    '本文': idea['本文'] || '',
+    '画像URL': idea['画像URL'] || '',
+    'ステータス': idea['ステータス'] || '未解決',
+    '画像URL2': idea['画像URL2'] || '',
+    '画像URL3': idea['画像URL3'] || '',
+    'お気に入り': idea['お気に入り'] || '',
+  }}, 'メモお気に入り')
+    .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
+    .catch(() => {});
+}
+
 function ideaCard(idea) {
   const text = idea['本文'] || '';
   const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
+  const isFav = idea['お気に入り'] === 'ON';
   const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
   let imgHtml = '';
   if (urls.length === 1) {
@@ -4232,8 +6159,11 @@ function ideaCard(idea) {
     </div>`;
   }
   return `
-    <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
-      <div style="font-size:11px; color:#64748b; margin-bottom:6px;">${dateStr}</div>
+    <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid ${isFav ? '#f59e0b' : '#334155'}; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:11px; color:#64748b;">${dateStr}</span>
+        <span onclick="toggleIdeaFavorite('${idea.id}', event)" style="font-size:16px; cursor:pointer; padding:0 4px; ${isFav ? '' : 'filter:grayscale(1); opacity:0.4;'}">⭐</span>
+      </div>
       <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
       ${imgHtml}
     </div>`;
@@ -4330,7 +6260,7 @@ async function ideaOnImageSelected(event, prefix, idx) {
     renderIdeaImageSlots(prefix);
     const base64 = e.target.result.split(',')[1];
     try {
-      const keyRes = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'getImgBBKey' }) }).then(r => r.json());
+      const keyRes = await gasPost({ action: 'getImgBBKey' });
       const apiKey = keyRes.key || '';
       if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); uploading[idx] = false; renderIdeaImageSlots(prefix); return; }
       const form = new FormData();
@@ -4383,19 +6313,22 @@ async function saveNewIdea() {
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
-    'ステータス': '未解決'
+    'ステータス': '未解決',
+    'お気に入り': ''
   };
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveIdea', data: data })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'saveIdea', data: data }, 'アイデアメモ保存');
     if (res.success) {
-      App.data.ideas.push(Object.assign({ id: res.id }, data));
-      renderIdeas();
-      closeNewIdeaModal();
-      showToast('保存しました ✅');
+      if (res.queued) {
+        closeNewIdeaModal();
+        showToast('📥 オフラインのため保存待ちに追加しました（同期後に表示されます）');
+      } else {
+        App.data.ideas.push(Object.assign({ id: res.id }, data));
+        renderIdeas();
+        closeNewIdeaModal();
+        showToast('保存しました ✅');
+      }
     } else {
       showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
@@ -4434,20 +6367,18 @@ async function saveIdeaDetail() {
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
-    'ステータス': document.getElementById('idea-detail-status').value
+    'ステータス': document.getElementById('idea-detail-status').value,
+    'お気に入り': (App.data.ideas.find(i => i.id === id) || {})['お気に入り'] || ''
   };
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateIdea', ideaId: id, data: data })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'updateIdea', ideaId: id, data: data }, 'アイデアメモ更新');
     if (res.success) {
       const idx = App.data.ideas.findIndex(function(i) { return i.id === id; });
       if (idx !== -1) App.data.ideas[idx] = Object.assign({ id: id }, data);
       renderIdeas();
       closeIdeaDetail();
-      showToast('保存しました ✅');
+      showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
     } else {
       showToast('⚠️ 保存失敗: ' + (res.error || ''));
     }
@@ -4462,15 +6393,12 @@ async function deleteIdeaDetail() {
   const id = App.state.currentIdeaId;
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'deleteIdea', ideaId: id })
-    }).then(r => r.json());
+    const res = await gasPostQueued({ action: 'deleteIdea', ideaId: id }, 'アイデアメモ削除');
     if (res.success) {
       App.data.ideas = App.data.ideas.filter(function(i) { return i.id !== id; });
       renderIdeas();
       closeIdeaDetail();
-      showToast('削除しました 🗑️');
+      showToast(res.queued ? '📥 削除を保存待ちに追加しました' : '削除しました 🗑️');
     } else {
       showToast('⚠️ 削除失敗: ' + (res.error || ''));
     }
@@ -4572,10 +6500,7 @@ async function saveScoreConfig() {
   closeScoreConfigModal();
   showToast('スコア設定を保存しました ✅');
   try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'ensureScoreColumns', config: scoreConfig })
-    });
+    await gasPost({ action: 'ensureScoreColumns', config: scoreConfig });
   } catch(e) { /* 列追加失敗は無視 */ }
 }
 
@@ -4583,10 +6508,7 @@ async function recalculateAllScores() {
   if (!confirm('現在の設定で全エントリーのスコアを再計算します。よろしいですか？')) return;
   showLoader();
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'recalculateAllScores', config: scoreConfig })
-    }).then(r => r.json());
+    const res = await gasPost({ action: 'recalculateAllScores', config: scoreConfig });
     if (!res.success) throw new Error(res.error || '再計算に失敗しました');
     await loadData();
     showToast(`${res.updated}件のスコアを更新しました ✅`);
