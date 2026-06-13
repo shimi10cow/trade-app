@@ -978,12 +978,14 @@ async function loadData() {
     gasGet('getCalendar').then(res => {
       const data = res.data || {};
       App.data.calendar = data.events || [];
+      App.data.calendarIsNextWeek = !!data.isNextWeek;
       // GAS未再デプロイ（Unknown action）やフェッチ失敗を画面に出す
       App.state.calendarError = data.error || (res.success === false ? (res.error || '取得失敗') : '');
       renderWeekEvents();
       renderTodayEvents();
     }).catch((e) => {
       App.data.calendar = [];
+      App.data.calendarIsNextWeek = false;
       App.state.calendarError = '通信失敗: ' + (e && e.message || '');
       renderWeekEvents();
     });
@@ -1476,7 +1478,7 @@ function checkEntryEventWarning() {
   box.style.display = 'block';
 }
 
-// 通貨ペアタブ: 今週の重要指標リスト
+// 通貨ペアタブ: 今週/来週の重要指標リスト
 function renderWeekEvents() {
   const section = document.getElementById('calendar-week-section');
   const list = document.getElementById('calendar-week-list');
@@ -1488,15 +1490,17 @@ function renderWeekEvents() {
     list.innerHTML = `<div style="color:#f59e0b; font-size:11px; padding:6px 0; line-height:1.6;">⚠ 指標データを取得できませんでした（${App.state.calendarError}）${isOldGas ? '<br>→ <b>Code.gsの再デプロイが必要です</b>（GASエディタに最新Code.gsを貼り付け→デプロイを管理→新しいバージョンでデプロイ）' : ''}</div>`;
     return;
   }
-  // 終了した指標は表示しない・厳選フィルタ・重複統合
+  const isNextWeek = !!App.data.calendarIsNextWeek;
+  // 来週データは全件表示（過去フィルタ不要）、今週データは現在時刻以降のみ
   const now = new Date();
   const events = dedupeEvents(
-    (App.data.calendar || []).filter(ev => isTargetEvent(ev) && eventDate(ev) >= now)
+    (App.data.calendar || []).filter(ev => isTargetEvent(ev) && (isNextWeek || eventDate(ev) >= now))
   ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
   if (events.length === 0) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
-  document.getElementById('calendar-week-title').textContent = `📅 今週の重要指標（${events.length}件）`;
+  const weekLabel = isNextWeek ? '来週' : '今週';
+  document.getElementById('calendar-week-title').textContent = `📅 ${weekLabel}の重要指標（${events.length}件）`;
   const todayStr = fmtYmd(new Date());
   const dows = ['日', '月', '火', '水', '木', '金', '土'];
   list.innerHTML = events.map(ev => {

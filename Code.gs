@@ -754,20 +754,31 @@ function deleteIdea(ideaId) {
 // 経済指標カレンダー（Forex Factory 週間JSON・非公式）
 // 6時間キャッシュ。取得失敗時は error を返すだけ（フォールバックなし）
 // =============================================
-const CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+const CALENDAR_URL_THISWEEK = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+const CALENDAR_URL_NEXTWEEK = 'https://nfs.faireconomy.media/ff_calendar_nextweek.json';
 const CALENDAR_CACHE_KEY = 'calendar_cache_v1';
+const CALENDAR_NEXT_CACHE_KEY = 'calendar_next_cache_v1';
 
 function getCalendarEvents() {
+  // 土日（日本時間）は来週データを返す
+  const now = new Date();
+  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const dow = jstHour.getUTCDay(); // 0=日, 6=土
+  const isWeekend = (dow === 0 || dow === 6);
+
+  const cacheKey = isWeekend ? CALENDAR_NEXT_CACHE_KEY : CALENDAR_CACHE_KEY;
+  const url      = isWeekend ? CALENDAR_URL_NEXTWEEK   : CALENDAR_URL_THISWEEK;
+
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(CALENDAR_CACHE_KEY);
+  const cached = cache.get(cacheKey);
   if (cached) {
     try { return JSON.parse(cached); } catch(e) {}
   }
 
   try {
-    const res = UrlFetchApp.fetch(CALENDAR_URL, { muteHttpExceptions: true });
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
     if (res.getResponseCode() !== 200) {
-      return { error: 'HTTP ' + res.getResponseCode(), events: [] };
+      return { error: 'HTTP ' + res.getResponseCode(), events: [], isNextWeek: isWeekend };
     }
     const raw = JSON.parse(res.getContentText());
     const events = raw
@@ -780,11 +791,11 @@ function getCalendarEvents() {
       }))
       .filter(e => e.impact === 'High' || e.impact === 'Medium');
 
-    const result = { events: events };
-    try { cache.put(CALENDAR_CACHE_KEY, JSON.stringify(result), 21600); } catch(e) {} // 6時間
+    const result = { events: events, isNextWeek: isWeekend };
+    try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch(e) {} // 6時間
     return result;
   } catch(e) {
-    return { error: e.message, events: [] };
+    return { error: e.message, events: [], isNextWeek: isWeekend };
   }
 }
 
