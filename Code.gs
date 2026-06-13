@@ -760,43 +760,47 @@ const CALENDAR_CACHE_KEY = 'calendar_cache_v1';
 const CALENDAR_NEXT_CACHE_KEY = 'calendar_next_cache_v1';
 
 function getCalendarEvents() {
-  // 土日（日本時間）は来週データを返す
+  // 土日（日本時間）は来週データを優先。取得失敗時は今週にフォールバック
   const now = new Date();
   const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const dow = jstHour.getUTCDay(); // 0=日, 6=土
   const isWeekend = (dow === 0 || dow === 6);
 
-  const cacheKey = isWeekend ? CALENDAR_NEXT_CACHE_KEY : CALENDAR_CACHE_KEY;
-  const url      = isWeekend ? CALENDAR_URL_NEXTWEEK   : CALENDAR_URL_THISWEEK;
-
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    try { return JSON.parse(cached); } catch(e) {}
-  }
 
-  try {
-    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (res.getResponseCode() !== 200) {
-      return { error: 'HTTP ' + res.getResponseCode(), events: [], isNextWeek: isWeekend };
+  // 候補URLリスト（土日は来週→今週の順で試みる）
+  const candidates = isWeekend
+    ? [{ url: CALENDAR_URL_NEXTWEEK, cacheKey: CALENDAR_NEXT_CACHE_KEY, isNext: true  },
+       { url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }]
+    : [{ url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }];
+
+  for (const c of candidates) {
+    const cached = cache.get(c.cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch(e) {}
     }
-    const raw = JSON.parse(res.getContentText());
-    const events = raw
-      .filter(e => e && e.date && e.country)
-      .map(e => ({
-        title:    String(e.title || ''),
-        currency: String(e.country || '').toUpperCase(),
-        datetime: Utilities.formatDate(new Date(e.date), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-        impact:   String(e.impact || ''),
-      }))
-      .filter(e => e.impact === 'High' || e.impact === 'Medium');
-
-    const result = { events: events, isNextWeek: isWeekend };
-    try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch(e) {} // 6時間
-    return result;
-  } catch(e) {
-    return { error: e.message, events: [], isNextWeek: isWeekend };
+    try {
+      const res = UrlFetchApp.fetch(c.url, { muteHttpExceptions: true });
+      if (res.getResponseCode() !== 200) continue; // 次の候補へ
+      const raw = JSON.parse(res.getContentText());
+      const events = raw
+        .filter(e => e && e.date && e.country)
+        .map(e => ({
+          title:    String(e.title || ''),
+          currency: String(e.country || '').toUpperCase(),
+          datetime: Utilities.formatDate(new Date(e.date), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+          impact:   String(e.impact || ''),
+        }))
+        .filter(e => e.impact === 'High' || e.impact === 'Medium');
+      const result = { events: events, isNextWeek: c.isNext };
+      try { cache.put(c.cacheKey, JSON.stringify(result), 21600); } catch(e) {}
+      return result;
+    } catch(e) {
+      continue; // ネットワークエラーは次の候補へ
+    }
   }
+
+  return { error: '指標データの取得に失敗しました', events: [], isNextWeek: isWeekend };
 }
 
 // =============================================
