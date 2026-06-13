@@ -1010,7 +1010,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り'] }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
       gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
@@ -1624,27 +1624,83 @@ function getPreviousPromise(targetKey) {
   return prev ? String(prev['約束'] || '').trim() : '';
 }
 
-// 未レビューの対象週キーを返す（レビュー不要なら null）
+// 未完了のレビュー一覧を返す [{key, type, weekStart}]
+// type: 'retro'=先々週本格振り返り, 'weekly'=先週レビュー
+function getPendingReviewKeys() {
+  const pending = [];
+  const weekStart = getReviewableWeekStart(); // 先週の月曜
+  const weekKey = fmtYmd(weekStart);
+
+  // 先々週（トレードがある週のみ対象）
+  const retroStart = new Date(weekStart);
+  retroStart.setDate(retroStart.getDate() - 7);
+  const retroKey = fmtYmd(retroStart);
+  if (!findReview('retro', retroKey) && getWeekTrades(retroStart).length > 0) {
+    pending.push({ key: retroKey, type: 'retro', weekStart: new Date(retroStart) });
+  }
+
+  // 先週（土曜6:00以降に解放、トレードなしでも必須）
+  const now = new Date();
+  const sat6 = new Date(weekStart);
+  sat6.setDate(sat6.getDate() + 5);
+  sat6.setHours(6, 0, 0, 0);
+  if (now >= sat6 && !findReview('weekly', weekKey)) {
+    pending.push({ key: weekKey, type: 'weekly', weekStart: new Date(weekStart) });
+  }
+
+  return pending;
+}
+
+// 後方互換（単一キーを返す）
 function getPendingReviewKey() {
-  const weekStart = getReviewableWeekStart();
-  const key = fmtYmd(weekStart);
-  if (findReview('weekly', key)) return null;
-  // トレードゼロ かつ 判定すべき約束もない週はレビュー不要
-  const hadTrades = getWeekTrades(weekStart).length > 0;
-  const hasPromise = getPreviousPromise(key) !== '';
-  return (hadTrades || hasPromise) ? key : null;
+  const pending = getPendingReviewKeys();
+  return pending.length > 0 ? pending[pending.length - 1].key : null;
 }
 
 // バナー・エントリーフォーム警告の表示更新
 function updateReviewUI() {
-  const pending = getPendingReviewKey();
+  const pending = getPendingReviewKeys();
   const banner = document.getElementById('review-banner');
-  if (banner) banner.style.display = pending ? 'block' : 'none';
+  if (banner) {
+    if (pending.length === 0) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'block';
+      const dows = ['日', '月', '火', '水', '木', '金', '土'];
+      banner.innerHTML = pending.map((p, i) => {
+        const end = new Date(p.weekStart);
+        end.setDate(end.getDate() + 5);
+        const range = `${p.weekStart.getMonth() + 1}/${p.weekStart.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
+        const label = p.type === 'retro' ? `📝 先々週の本格振り返り（${range}）` : `📋 先週のレビュー（${range}）`;
+        const fn = p.type === 'retro' ? `openRetroReviewModal('${p.key}')` : `openReviewModal('${p.key}')`;
+        return `<div onclick="${fn}" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; ${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid #92400e;' : ''}">${label}<span>›</span></div>`;
+      }).join('');
+    }
+  }
+  const reviewWarning = document.getElementById('ne-review-warning');
+  if (reviewWarning) reviewWarning.style.display = pending.length > 0 ? 'block' : 'none';
+}
+
+// エントリーフォームからレビューを開く（未完了のうち最初のものを開く）
+function openPendingReview() {
+  const pending = getPendingReviewKeys();
+  if (pending.length === 0) return;
+  const p = pending[0];
+  if (p.type === 'retro') openRetroReviewModal(p.key);
+  else openReviewModal(p.key);
 }
 
 // ---- 週次レビューモーダル ----
-function openReviewModal() {
-  const weekStart = getReviewableWeekStart();
+function openReviewModal(weekKey) {
+  // 最新データを反映（土日にトレード入力した場合も対応）
+  gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
+
+  let weekStart;
+  if (weekKey) {
+    weekStart = new Date(weekKey + 'T00:00:00');
+  } else {
+    weekStart = getReviewableWeekStart();
+  }
   const key = fmtYmd(weekStart);
   const existing = findReview('weekly', key);
   App.state.reviewTargetKey = key;
@@ -1791,6 +1847,113 @@ function renderPromiseRate() {
 
 function closeReviewModal() {
   document.getElementById('modal-review').classList.remove('active');
+}
+
+// ---- 先々週レビュー（後日振り返り）モーダル ----
+function openRetroReviewModal(retroKey) {
+  // 最新のエントリーデータを取得してからモーダルを開く
+  gasGet('getEntries').then(res => {
+    if (res.data) App.data.entries = res.data;
+    _renderRetroReviewModal(retroKey);
+  }).catch(() => { _renderRetroReviewModal(retroKey); });
+}
+
+function _renderRetroReviewModal(retroKey) {
+  const weekStart = new Date(retroKey + 'T00:00:00');
+  App.state.retroReviewKey = retroKey;
+
+  const endDate = new Date(weekStart);
+  endDate.setDate(endDate.getDate() + 5);
+  document.getElementById('retro-period').textContent =
+    `${weekStart.getFullYear()}/${weekStart.getMonth() + 1}/${weekStart.getDate()}（月）〜 ${endDate.getMonth() + 1}/${endDate.getDate()}（土）`;
+
+  // 成績集計
+  const weekTrades = getWeekTrades(weekStart);
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  let wins = 0, profit = 0;
+  closed.forEach(t => {
+    if ((parseFloat(t['実取得pips']) || 0) > 10) wins++;
+    profit += parseFloat(t['損益']) || 0;
+  });
+  const n = closed.length;
+  const fmtYen = v => new Intl.NumberFormat('ja-JP').format(Math.round(v));
+  const stat = (lbl, val, color) => `
+    <div class="metric-card" style="text-align:center;">
+      <div class="metric-label">${lbl}</div>
+      <div class="metric-value" style="font-size:16px; ${color ? 'color:' + color + ';' : ''}">${val}</div>
+    </div>`;
+  document.getElementById('retro-stats').innerHTML =
+    stat('トレード', `${n}回`) +
+    stat('勝率', n ? Math.round(wins / n * 100) + '%' : '--', n && wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171');
+
+  // トレード一覧＋後日振り返り入力欄
+  if (weekTrades.length === 0) {
+    document.getElementById('retro-trades-list').innerHTML =
+      '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">対象週のトレードはありません</div>';
+  } else {
+    document.getElementById('retro-trades-list').innerHTML = weekTrades.map((t, i) => {
+      const idx = App.data.entries.indexOf(t);
+      const pips = parseFloat(t['実取得pips']) || 0;
+      const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+      const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+      const existing = t['後日振り返り'] || '';
+      return `<div style="background:#0f172a; border-radius:8px; padding:10px; margin-bottom:10px; border:1px solid #334155;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; cursor:pointer;" onclick="openTradeDetail(${idx})">
+          <span style="color:#94a3b8;">${d}</span>
+          <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}</span>
+          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+          <span style="color:#475569;">›</span>
+        </div>
+        <textarea class="form-input retro-trade-memo" data-entry-id="${t['EntryID']}" rows="2" style="width:100%; font-size:12px;" placeholder="チャートを見て…良いトレードだったか？">${existing}</textarea>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('modal-retro-review').classList.add('active');
+}
+
+function closeRetroReviewModal() {
+  document.getElementById('modal-retro-review').classList.remove('active');
+}
+
+async function saveRetroReview() {
+  const key = App.state.retroReviewKey;
+  if (!key) return;
+  showLoader();
+  try {
+    // 各トレードの後日振り返りを保存
+    const memos = document.querySelectorAll('.retro-trade-memo');
+    const saves = [];
+    memos.forEach(el => {
+      const entryId = el.dataset.entryId;
+      const memo = el.value;
+      if (entryId) {
+        // ローカルデータ更新
+        const entry = App.data.entries.find(e => e['EntryID'] === entryId);
+        if (entry) entry['後日振り返り'] = memo;
+        saves.push(gasPostQueued({ action: 'updateEntry', entryId, data: { '後日振り返り': memo } }, '後日振り返り保存'));
+      }
+    });
+    await Promise.all(saves);
+
+    // レビュー完了記録（Reviews シートに type='retro' で保存）
+    const existing = findReview('retro', key);
+    if (existing) {
+      await gasPostQueued({ action: 'updateReview', reviewId: existing.id, data: { '種別': 'retro', '期間キー': key, 'メモ': '完了' } }, '先々週レビュー更新');
+    } else {
+      const res = await gasPostQueued({ action: 'saveReview', data: { '種別': 'retro', '期間キー': key, 'メモ': '完了' } }, '先々週レビュー保存');
+      if (res && res.success) App.data.reviews.push({ id: res.id || ('local-' + Date.now()), '種別': 'retro', '期間キー': key, 'メモ': '完了', '約束': '', '約束判定': '', '作成日': '' });
+    }
+
+    closeRetroReviewModal();
+    updateReviewUI();
+    showToast('後日振り返りを保存しました');
+  } catch(e) {
+    showToast('保存失敗: ' + e.message);
+  } finally {
+    hideLoader();
+  }
 }
 
 async function completeReview() {
@@ -5185,6 +5348,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
+  const retroEl = document.getElementById('td-retro-review');
+  if (retroEl) retroEl.value = t['後日振り返り'] || '';
   document.getElementById('td-exit-memo').value = t['決済メモ'] || '';
   const tdEntryMemo = document.getElementById('td-entry-memo');
   if (tdEntryMemo) tdEntryMemo.value = t['エントリーメモ'] || t['エントリー時メモ'] || '';
@@ -5485,6 +5650,7 @@ async function saveTradeDetail() {
       '上位足リスク認識': (() => { const b = document.querySelector('#td-env-upper-risk button.active'); return b ? b.textContent.trim() : ''; })(),
       'Lot/損切り設定': (() => { const b = document.querySelector('#td-env-lot-sl button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済振り返り': document.getElementById('td-exit-ref').value,
+      '後日振り返り': document.getElementById('td-retro-review')?.value || '',
       '指標決済': (() => { const b = document.querySelector('#td-indicator-exit button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
