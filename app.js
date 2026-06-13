@@ -714,8 +714,12 @@ function setupModalInteractions() {
         closedModal.style.transform = ''; // 次回open用にリセット
         // モーダルごとの状態クリーンアップ
         if (overlay?.id === 'modal-trade-detail') {
-          App.state.detailFromHistory = false; // 履歴フラグをリセット
-          if (App.state.returnToReview) {      // レビュー由来ならレビューに戻る
+          App.state.detailFromHistory = false;
+          if (App.state.returnToRetroReview) {
+            const key = App.state.returnToRetroReview;
+            App.state.returnToRetroReview = null;
+            openRetroReviewModal(key);
+          } else if (App.state.returnToReview) {
             App.state.returnToReview = false;
             openReviewModal();
           }
@@ -1899,7 +1903,7 @@ function _renderRetroReviewModal(retroKey) {
       const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
       const existing = t['後日振り返り'] || '';
       return `<div style="background:#0f172a; border-radius:8px; padding:10px; margin-bottom:10px; border:1px solid #334155;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; cursor:pointer;" onclick="openTradeDetail(${idx})">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; cursor:pointer;" onclick="openRetroTradeDetail(${idx})">
           <span style="color:#94a3b8;">${d}</span>
           <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}</span>
           <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
@@ -1915,6 +1919,13 @@ function _renderRetroReviewModal(retroKey) {
 
 function closeRetroReviewModal() {
   document.getElementById('modal-retro-review').classList.remove('active');
+}
+
+// 先々週レビューからトレード詳細へ → 戻ったら先々週レビューに返る
+function openRetroTradeDetail(index) {
+  App.state.returnToRetroReview = App.state.retroReviewKey;
+  closeRetroReviewModal();
+  openTradeDetail(index);
 }
 
 async function saveRetroReview() {
@@ -2075,6 +2086,7 @@ function maybeShowMonthlySummary() {
     stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80');
   document.getElementById('monthly-stats2').innerHTML =
     stat('トレード', n + '回') +
+    stat('遵守損益', (ruleProfit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(ruleProfit)), ruleProfit >= 0 ? '#4ade80' : '#f87171') +
     stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
     stat('決済遵守', Math.round(exitOk / n * 100) + '%');
 
@@ -5547,6 +5559,12 @@ function closeTradeDetail() {
   App.state.pendingEntryImgDelete = null;
   App.state.pendingExitImgDelete = null;
   // レビューから開いた詳細 → 閉じたらレビューに戻る
+  if (App.state.returnToRetroReview) {
+    const key = App.state.returnToRetroReview;
+    App.state.returnToRetroReview = null;
+    openRetroReviewModal(key);
+    return;
+  }
   if (App.state.returnToReview) {
     App.state.returnToReview = false;
     openReviewModal();
