@@ -1675,7 +1675,7 @@ function updateReviewUI() {
         const end = new Date(p.weekStart);
         end.setDate(end.getDate() + 5);
         const range = `${p.weekStart.getMonth() + 1}/${p.weekStart.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
-        const label = p.type === 'retro' ? `📝 先々週の本格振り返り（${range}）` : `📋 先週のレビュー（${range}）`;
+        const label = p.type === 'retro' ? `📝 先々週の振り返り（${range}）` : `📋 先週のレビュー（${range}）`;
         const fn = p.type === 'retro' ? `openRetroReviewModal('${p.key}')` : `openReviewModal('${p.key}')`;
         return `<div onclick="${fn}" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; ${i > 0 ? 'margin-top:10px; padding-top:10px; border-top:1px solid #92400e;' : ''}">${label}<span>›</span></div>`;
       }).join('');
@@ -1696,8 +1696,9 @@ function openPendingReview() {
 
 // ---- 週次レビューモーダル ----
 function openReviewModal(weekKey) {
-  // 最新データを反映（土日にトレード入力した場合も対応）
+  // バックグラウンドで最新データを取得（土日のトレード入力反映）
   gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
+  // ↑ 非同期のため現在データで即開き、次回開き直し時に反映される
 
   let weekStart;
   if (weekKey) {
@@ -1714,10 +1715,9 @@ function openReviewModal(weekKey) {
   App.state.reviewDraft = null;
 
   // 対象週が今のカレンダー週なら「今週」、そうでなければ「先週」
-  const weekLabel = key === fmtYmd(getWeekStart(new Date())) ? '今週' : '先週';
-  document.getElementById('review-modal-title').textContent = `📋 ${weekLabel}のレビュー`;
-  document.getElementById('review-stats-title').textContent = `${weekLabel}の成績（自動集計）`;
-  document.getElementById('review-trades-title').textContent = `${weekLabel}のトレード`;
+  document.getElementById('review-modal-title').textContent = `📋 先週のレビュー`;
+  document.getElementById('review-stats-title').textContent = `先週の成績（自動集計）`;
+  document.getElementById('review-trades-title').textContent = `先週のトレード`;
 
   const endDate = new Date(weekStart);
   endDate.setDate(endDate.getDate() + 5);
@@ -1855,11 +1855,11 @@ function closeReviewModal() {
 
 // ---- 先々週レビュー（後日振り返り）モーダル ----
 function openRetroReviewModal(retroKey) {
-  // 最新のエントリーデータを取得してからモーダルを開く
+  // まず現在データで即座に開き、バックグラウンドで最新データを取得して再描画
+  _renderRetroReviewModal(retroKey);
   gasGet('getEntries').then(res => {
-    if (res.data) App.data.entries = res.data;
-    _renderRetroReviewModal(retroKey);
-  }).catch(() => { _renderRetroReviewModal(retroKey); });
+    if (res.data) { App.data.entries = res.data; _renderRetroReviewModal(retroKey); }
+  }).catch(() => {});
 }
 
 function _renderRetroReviewModal(retroKey) {
