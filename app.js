@@ -2053,6 +2053,13 @@ function maybeShowMonthlySummary() {
     if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
   });
   const n = monthTrades.length;
+  const losses = monthTrades.filter(t => (parseFloat(t['実取得pips']) || 0) < -10).length;
+  const draws  = n - wins - losses;
+  // ルール準拠損益・PIPS
+  const ruleProfit = monthTrades.reduce((s, t) => s + (parseFloat(t['ルール準拠損益'] || t['ルール準拠pips'] || 0)), 0);
+  const totalPips = monthTrades.reduce((s, t) => s + (parseFloat(t['実取得pips']) || 0), 0);
+  const avgRR = n > 0 ? (monthTrades.reduce((s, t) => s + (parseFloat(t['実RR']) || 0), 0) / n) : 0;
+
   const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
   const stat = (lbl, val, color) => `
     <div class="metric-card" style="text-align:center;">
@@ -2061,11 +2068,35 @@ function maybeShowMonthlySummary() {
     </div>`;
   document.getElementById('monthly-stats').innerHTML =
     stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
-    stat('勝率', Math.round(wins / n * 100) + '%') +
+    stat('勝率', Math.round(wins / n * 100) + '%', wins / n < 0.4 ? '#f87171' : '#4ade80') +
+    stat('勝/負/分', `${wins}/${losses}/${draws}`) +
+    stat('合計PIPS', (totalPips >= 0 ? '+' : '') + totalPips.toFixed(1) + 'p', totalPips >= 0 ? '#4ade80' : '#f87171') +
+    stat('平均RR', avgRR.toFixed(2)) +
+    stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80');
+  document.getElementById('monthly-stats2').innerHTML =
     stat('トレード', n + '回') +
-    stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80') +
     stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
     stat('決済遵守', Math.round(exitOk / n * 100) + '%');
+
+  // ── トレード一覧 ──
+  const sorted = monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1);
+  document.getElementById('monthly-trades').innerHTML = sorted.map(t => {
+    const idx = App.data.entries.indexOf(t);
+    const pips = parseFloat(t['実取得pips']) || 0;
+    const rr   = parseFloat(t['実RR']) || 0;
+    const pl   = parseFloat(t['損益']) || 0;
+    const pipColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+    const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
+    const isMissed = (t['ステータス'] || '').includes('見逃し');
+    return `<div onclick="closeMonthlyModal(); openTradeDetail(${idx})" style="display:flex; align-items:center; gap:6px; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:11px; cursor:pointer; border:1px solid #1e293b;">
+      <span style="color:#64748b; min-width:30px;">${d}</span>
+      <span style="font-weight:700; color:#e2e8f0; flex:1;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃</span>' : ''}</span>
+      <span style="color:${pipColor}; font-weight:700; min-width:44px; text-align:right;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+      <span style="color:#94a3b8; min-width:36px; text-align:right;">RR${rr > 0 ? rr.toFixed(1) : '--'}</span>
+      <span style="color:${pl >= 0 ? '#4ade80' : '#f87171'}; min-width:52px; text-align:right;">${pl !== 0 ? (pl > 0 ? '+' : '') + fmtYen(pl) : '--'}</span>
+      <span style="color:#475569;">›</span>
+    </div>`;
+  }).join('');
 
   // ── 先月の約束判定サマリー ──
   let kept = 0, broken = 0;

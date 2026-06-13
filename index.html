@@ -626,7 +626,7 @@
 
   <!-- Pair Edit Modal -->
   <div id="modal-pair-edit" class="modal-overlay">
-    <div class="modal-content has-sticky">
+    <div class="modal-content has-sticky fixed-h">
       <div class="modal-header">
         <div class="modal-title" id="pe-title">ペア編集</div>
         <div class="modal-close" onclick="closePairEdit()">✕</div>
@@ -1268,21 +1268,27 @@
 
   <!-- 月次総括モーダル -->
   <div id="modal-monthly" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content has-sticky fixed-h">
       <div class="modal-header">
         <div class="modal-title" id="monthly-title">🏆 先月の総括</div>
         <div class="modal-close" onclick="closeMonthlyModal()">✕</div>
       </div>
       <div class="modal-body">
         <div class="section-title">先月の成績（自動集計）</div>
-        <div id="monthly-stats" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;"></div>
+        <div id="monthly-stats" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;"></div>
+        <div id="monthly-stats2" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;"></div>
         <div id="monthly-promise-summary" style="font-size:12px; color:#94a3b8; margin-bottom:14px;"></div>
 
-        <div class="section-title">今月の総括メモ</div>
-        <textarea id="monthly-memo" class="form-input" rows="4" style="width:100%; margin-bottom:14px;" placeholder="先月をひとことで言うと…&#10;今月のテーマ…"></textarea>
+        <div class="section-title">先月のトレード一覧</div>
+        <div id="monthly-trades" style="margin-bottom:14px;"></div>
 
-        <button onclick="saveMonthlySummary()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; margin-bottom:8px;">💾 総括を保存</button>
-        <button onclick="closeMonthlyModal()" style="width:100%; padding:11px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:10px; font-size:13px; cursor:pointer;">あとで（次回起動時に再表示）</button>
+        <div class="section-title">今月の総括メモ</div>
+        <textarea id="monthly-memo" class="form-input" rows="3" style="width:100%; margin-bottom:14px;" placeholder="先月をひとことで言うと…&#10;今月のテーマ…"></textarea>
+
+        <div class="sticky-footer" style="padding-bottom:env(safe-area-inset-bottom);">
+          <button onclick="saveMonthlySummary()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; margin-bottom:8px;">💾 総括を保存</button>
+          <button onclick="closeMonthlyModal()" style="width:100%; padding:11px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:10px; font-size:13px; cursor:pointer;">あとで（次回起動時に再表示）</button>
+        </div>
       </div>
     </div>
   </div>
