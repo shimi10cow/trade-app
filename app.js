@@ -1855,10 +1855,15 @@ function closeReviewModal() {
 
 // ---- 先々週レビュー（後日振り返り）モーダル ----
 function openRetroReviewModal(retroKey) {
-  // まず現在データで即座に開き、バックグラウンドで最新データを取得して再描画
   _renderRetroReviewModal(retroKey);
   gasGet('getEntries').then(res => {
-    if (res.data) { App.data.entries = res.data; _renderRetroReviewModal(retroKey); }
+    if (res.data) {
+      App.data.entries = res.data;
+      // モーダルがまだ表示中のときだけ再描画（ナビ後に勝手に再表示されるのを防ぐ）
+      if (document.getElementById('modal-retro-review').classList.contains('active')) {
+        _renderRetroReviewModal(retroKey);
+      }
+    }
   }).catch(() => {});
 }
 
