@@ -3974,7 +3974,7 @@ function buildPairDowChips(preSelectedIds) {
     const r = PA_RULES.find(x=>x.id===id);
     const sel = preSelectedIds.includes(id);
     const activeColor = isBuy ? { border:'#ef4444', bg:'#450a0a', text:'#f87171' } : { border:'#3b82f6', bg:'#0c1a3a', text:'#60a5fa' };
-    return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?activeColor.border:'#334155'};background:${sel?activeColor.bg:'#1e293b'};color:${sel?activeColor.text:'#94a3b8'};">${r.label}</div>`;
+    return `<div class="pa-chip${sel?' pa-selected':''}" data-rule="${id}" data-is-buy="${isBuy?'1':'0'}" onclick="selectPairRule(${id})" style="padding:9px 12px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:4px;border:1px solid ${sel?activeColor.border:'#334155'};background:${sel?activeColor.bg:'#1e293b'};color:${sel?activeColor.text:'#94a3b8'};">${r.label}</div>`;
   };
 
   let html = '';
@@ -3994,7 +3994,7 @@ function selectPairRule(ruleId) {
   if (!chip) return;
   const isSel = !chip.classList.contains('pa-selected');
   chip.classList.toggle('pa-selected', isSel);
-  const isBuyRule = ruleId <= 5;
+  const isBuyRule = chip.dataset.isBuy === '1';
   if (isSel) {
     chip.style.borderColor = isBuyRule ? '#ef4444' : '#3b82f6';
     chip.style.background  = isBuyRule ? '#450a0a' : '#0c1a3a';
@@ -4020,8 +4020,12 @@ function savePairAnalysisState() {
   if (!pairName) return;
   const selectedRules = Array.from(document.querySelectorAll('.pa-chip.pa-selected'))
     .map(c => parseInt(c.dataset.rule));
+  const d1btn = document.querySelector('#pe-tf-d1 .toggle-btn.active');
+  const h4btn = document.querySelector('#pe-tf-h4 .toggle-btn.active');
   const data = {
     selectedRules,
+    tf_d1: d1btn ? d1btn.textContent.trim() : '',
+    tf_h4: h4btn ? h4btn.textContent.trim() : '',
     tl_suishin: document.getElementById('pe-tl-suishin')?.classList.contains('active') || false,
     tl_gyaku:   document.getElementById('pe-tl-gyaku')?.classList.contains('active') || false,
     tl_h1ma:    document.getElementById('pe-tl-h1ma')?.classList.contains('active') || false,
@@ -4073,10 +4077,13 @@ function getPairAnalysisIndicator(pairName) {
     ? `<span style="color:#34d399;font-size:12px;font-weight:700;margin-right:4px;flex-shrink:0;">✓</span>`
     : `<span style="margin-right:4px;width:12px;flex-shrink:0;"></span>`;
 
+  const d1 = data.tf_d1 || '';
+  const h4 = data.tf_h4 || '';
+  const buyIds = d1 && h4 ? PA_RULES.filter(r => r.d1 === paCircle(d1,'buy') && r.h4 === paCircle(h4,'buy')).map(r=>r.id) : [];
   const ruleSpans = rules.map(id => {
     const r = PA_RULES.find(x => x.id === id);
     if (!r) return '';
-    const color = id <= 5 ? '#f87171' : '#60a5fa';
+    const color = buyIds.includes(id) ? '#f87171' : '#60a5fa';
     return `<span style="color:${color};font-size:10px;white-space:nowrap;">${r.label}</span>`;
   }).join('');
 
