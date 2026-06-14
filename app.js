@@ -1053,6 +1053,7 @@ async function loadData() {
     showToast('データ読み込みエラー: ' + err.message);
   } finally {
     hideBgBar();
+    updateReviewUI(); // fetch失敗時もバナーを更新
   }
 }
 
@@ -1929,8 +1930,14 @@ function closeRetroReviewModal() {
 // 先々週レビューからトレード詳細へ → 戻ったら先々週レビューに返る
 function openRetroTradeDetail(index) {
   App.state.returnToRetroReview = App.state.retroReviewKey;
-  closeRetroReviewModal();
-  requestAnimationFrame(() => requestAnimationFrame(() => openTradeDetail(index)));
+  const retro = document.getElementById('modal-retro-review');
+  retro.classList.remove('active');
+  retro.style.display = 'none';        // inline で強制非表示
+  void retro.offsetHeight;             // 強制レイアウトフラッシュ
+  setTimeout(() => {
+    retro.style.display = '';          // CSS 制御に戻す
+    openTradeDetail(index);
+  }, 30);
 }
 
 async function saveRetroReview() {
