@@ -1930,7 +1930,7 @@ function closeRetroReviewModal() {
 function openRetroTradeDetail(index) {
   App.state.returnToRetroReview = App.state.retroReviewKey;
   closeRetroReviewModal();
-  openTradeDetail(index);
+  requestAnimationFrame(() => requestAnimationFrame(() => openTradeDetail(index)));
 }
 
 async function saveRetroReview() {
