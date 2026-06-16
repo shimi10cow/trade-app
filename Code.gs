@@ -774,14 +774,23 @@ function getCalendarEvents() {
        { url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }]
     : [{ url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }];
 
+  let lastErr = '';
   for (const c of candidates) {
     const cached = cache.get(c.cacheKey);
     if (cached) {
       try { return JSON.parse(cached); } catch(e) {}
     }
     try {
-      const res = UrlFetchApp.fetch(c.url, { muteHttpExceptions: true });
-      if (res.getResponseCode() !== 200) continue; // 次の候補へ
+      const res = UrlFetchApp.fetch(c.url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+          'Accept': 'application/json,text/plain,*/*',
+        },
+      });
+      const code = res.getResponseCode();
+      if (code !== 200) { lastErr = 'HTTP ' + code; continue; } // 次の候補へ
       const raw = JSON.parse(res.getContentText());
       const events = raw
         .filter(e => e && e.date && e.country)
@@ -796,11 +805,12 @@ function getCalendarEvents() {
       try { cache.put(c.cacheKey, JSON.stringify(result), 21600); } catch(e) {}
       return result;
     } catch(e) {
+      lastErr = (e && e.message) || String(e);
       continue; // ネットワークエラーは次の候補へ
     }
   }
 
-  return { error: '指標データの取得に失敗しました', events: [], isNextWeek: isWeekend };
+  return { error: '指標データの取得に失敗しました' + (lastErr ? '（' + lastErr + '）' : ''), events: [], isNextWeek: isWeekend };
 }
 
 // =============================================
