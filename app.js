@@ -1501,10 +1501,14 @@ function renderWeekEvents() {
   const events = dedupeEvents(
     (App.data.calendar || []).filter(ev => isTargetEvent(ev) && (isNextWeek || eventDate(ev) >= now))
   ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
-  if (events.length === 0) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
   const weekLabel = isNextWeek ? '来週' : '今週';
+  if (events.length === 0) {
+    document.getElementById('calendar-week-title').textContent = `📅 ${weekLabel}の重要指標`;
+    list.innerHTML = `<div style="color:#475569; font-size:11px; padding:6px 0;">今${weekLabel === '来週' ? '来週' : '週'}は重要指標なし（または残り指標なし）</div>`;
+    return;
+  }
   document.getElementById('calendar-week-title').textContent = `📅 ${weekLabel}の重要指標（${events.length}件）`;
   const todayStr = fmtYmd(new Date());
   const dows = ['日', '月', '火', '水', '木', '金', '土'];
@@ -1544,7 +1548,17 @@ function renderTodayEvents() {
     (App.data.calendar || [])
       .filter(ev => isTargetEvent(ev) && ev.datetime.startsWith(todayStr) && eventDate(ev) >= now)
   ).sort((a, b) => a.datetime < b.datetime ? -1 : 1);
-  if (events.length === 0) { section.style.display = 'none'; return; }
+  if (events.length === 0) {
+    // 取得失敗か指標なしかを区別して表示
+    if (App.state.calendarError) {
+      section.style.display = 'block';
+      list.innerHTML = `<div style="color:#f59e0b; font-size:11px; padding:4px 0;">⚠ 指標データ取得失敗（${App.state.calendarError}）</div>`;
+    } else {
+      section.style.display = 'block';
+      list.innerHTML = `<div style="color:#475569; font-size:11px; padding:4px 0;">今日は重要指標なし</div>`;
+    }
+    return;
+  }
 
   // 保有中ポジションの構成通貨
   const heldCurrencies = new Set();
