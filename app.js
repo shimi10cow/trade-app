@@ -722,6 +722,9 @@ function setupModalInteractions() {
           } else if (App.state.returnToReview) {
             App.state.returnToReview = false;
             openReviewModal();
+          } else if (App.state.returnToMonthly) {
+            App.state.returnToMonthly = false;
+            reopenMonthlyModal();
           }
         }
       }, 300);
@@ -2126,7 +2129,7 @@ function maybeShowMonthlySummary() {
     const pipColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
     const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
     const isMissed = (t['ステータス'] || '').includes('見逃し');
-    return `<div onclick="closeMonthlyModal(); openTradeDetail(${idx})" style="display:flex; align-items:center; gap:6px; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:11px; cursor:pointer; border:1px solid #1e293b;">
+    return `<div onclick="openTradeDetailFromMonthly(${idx})" style="display:flex; align-items:center; gap:6px; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:11px; cursor:pointer; border:1px solid #1e293b;">
       <span style="color:#64748b; min-width:30px;">${d}</span>
       <span style="font-weight:700; color:#e2e8f0; flex:1;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃</span>' : ''}</span>
       <span style="color:${pipColor}; font-weight:700; min-width:44px; text-align:right;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
@@ -2156,6 +2159,25 @@ function maybeShowMonthlySummary() {
 
 function closeMonthlyModal() {
   document.getElementById('modal-monthly').classList.remove('active');
+}
+
+// 月次総括のトレードタップ → 入力途中のメモを退避して詳細モーダルへ
+// 詳細を閉じたら月次総括に戻る（reopenMonthlyModal がメモを復元）
+function openTradeDetailFromMonthly(index) {
+  App.state.monthlyDraft = { memo: document.getElementById('monthly-memo').value };
+  App.state.returnToMonthly = true;
+  closeMonthlyModal();
+  openTradeDetail(index);
+}
+
+// 月次総括を再表示（自動集計を作り直し、退避したメモを復元）
+function reopenMonthlyModal() {
+  maybeShowMonthlySummary();
+  if (App.state.monthlyDraft) {
+    const memoEl = document.getElementById('monthly-memo');
+    if (memoEl) memoEl.value = App.state.monthlyDraft.memo || '';
+    App.state.monthlyDraft = null;
+  }
 }
 
 async function saveMonthlySummary() {
@@ -5601,6 +5623,11 @@ function closeTradeDetail() {
   if (App.state.returnToReview) {
     App.state.returnToReview = false;
     openReviewModal();
+    return;
+  }
+  if (App.state.returnToMonthly) {
+    App.state.returnToMonthly = false;
+    reopenMonthlyModal();
     return;
   }
   if (App.state.detailFromHistory) {
