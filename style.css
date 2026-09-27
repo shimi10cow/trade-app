@@ -57,7 +57,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
 .badge.sell { background: rgba(239,68,68,0.2); color: #ef4444; }
 .badge.bg-green { background: #10b981; color: white; }
 .badge.bg-red { background: #ef4444; color: white; }
-.badge.bg-amber { background: #f59e0b; color: white; }
 
 /* ======== List Cards ======== */
 .list-card {
@@ -136,19 +135,6 @@ textarea.form-input { resize: vertical; }
 }
 .modal-body { padding: 16px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
 
-/* モーダル内 画面固定フッター（スクロールしても下部に張り付く） */
-.sticky-footer {
-  position: sticky; bottom: -16px; z-index: 5;
-  margin: 12px -16px -16px; padding: 8px 16px 6px;
-  background: #0f172a; border-top: 1px solid #1e293b;
-}
-/* 固定フッター持ちモーダルはセーフエリア余白をフッター側に一本化（二重余白で浮くのを防ぐ） */
-.modal-content.has-sticky { padding-bottom: 0; }
-/* 下余白を詰めるモーダル（トレード詳細など）: 削除ボタンが見切れない最小限の余白 */
-.modal-content.tight-bottom { padding-bottom: 12px; }
-/* 高さ固定モーダル: 開く経路やコンテンツ量に関わらず上端位置を一定にする */
-.modal-content.fixed-h { height: 88dvh; max-height: 88dvh; }
-
 /* ======== Checker Box ======== */
 .checker-box { background: #1e293b; padding: 16px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #334155; }
 .checker-box.pass { border-color: #10b981; background: rgba(16,185,129,0.1); }
@@ -206,9 +192,6 @@ textarea.form-input { resize: vertical; }
 .stat-box .val { font-size: 22px; font-weight: 800; color: #f8fafc; }
 .stat-box .val.pos { color: #10b981; }
 .stat-box .val.neg { color: #ef4444; }
-.stat-box .sub { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.4; }
-.stat-box .sub.pos { color: #10b981; }
-.stat-box .sub.neg { color: #f87171; }
 
 /* btn-group for chart type toggle */
 .btn-group { display: flex; gap: 4px; }
@@ -308,17 +291,6 @@ textarea.form-input { resize: vertical; }
 .metric-unit { font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 2px; }
 .metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
 
-/* ======== 折りたたみセクション（分析タブ統計） ======== */
-.collapse-toggle { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
-.collapse-arrow { font-size: 12px; color: #64748b; transition: transform 0.2s; }
-.collapse-section .collapse-body { margin-top: 8px; }
-.collapse-section.collapsed .collapse-body { display: none; }
-.collapse-section.collapsed .collapse-arrow { transform: rotate(-90deg); }
-
-/* ======== モンテカルロ ======== */
-.mc-label { display: block; font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.3px; }
-.mc-input { width: 100%; padding: 8px; font-size: 13px; }
-
 /* ======== アイデアカード 画像スライダー ======== */
 .idea-slider { position: relative; background: #0f172a; border-radius: 6px; overflow: hidden; }
 .idea-slide-track { display: flex; transition: transform 0.3s ease; will-change: transform; }
@@ -328,3 +300,7 @@ textarea.form-input { resize: vertical; }
 .idea-dot-active { background: #60a5fa; }
 .pe-tl-btn { flex:1; padding:9px 4px; border-radius:8px; font-weight:600; font-size:12px; border:2px solid #334155; background:#1e293b; color:#475569; cursor:pointer; text-align:center; transition:all 0.15s; }
 .pe-tl-btn.active { background:#0f2a1a; color:#34d399; border-color:#10b981; }
+
+
+/* ======== Hybrid EA ======== */
+.ea-master-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between}.ea-sub,.ea-card-sub{font-size:10px;color:#64748b;margin-top:3px}.ea-master-toggle{width:190px}.ea-toolbar{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:#94a3b8;margin:10px 0 8px}.ea-add-btn{border:1px solid #38bdf8;background:rgba(56,189,248,.08);color:#38bdf8;border-radius:8px;padding:7px 10px;font-weight:700}.ea-card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}.ea-pair{font-size:16px;font-weight:800}.ea-mode{font-size:10px;font-weight:800;border-radius:10px;padding:3px 8px}.ea-live{background:rgba(16,185,129,.15);color:#4ade80}.ea-signal{background:rgba(56,189,248,.15);color:#38bdf8}.ea-stop{background:rgba(239,68,68,.12);color:#f87171}.ea-empty{text-align:center;color:#64748b;padding:28px 8px}.ea-permission-grid,.ea-notify-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ea-buy-btn.active{background:rgba(16,185,129,.10)!important;color:#4ade80!important;border-color:#4ade80!important;box-shadow:0 0 10px rgba(74,222,128,.25)!important}.ea-sell-btn.active{background:rgba(239,68,68,.10)!important;color:#f87171!important;border-color:#f87171!important;box-shadow:0 0 10px rgba(248,113,113,.25)!important}
