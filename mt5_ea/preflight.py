@@ -16,7 +16,7 @@ checks={
  "DRY_RUN defaults true":'EA_DRY_RUN","true"' in main,
  "M15 history >=3000":"count=3000" in main,
  "GAS settings cache 300s":'>=300' in main,
- "GAS environment cache 3600s":'>=3600' in main,
+ "GAS environment refresh configured":"ENV_FETCH_SEC=60" in main,
  "Stoch smoothing 5 then 3":"k=nullable_sma(raw,5)" in strategy and "nullable_sma(k,3)" in strategy,
  "Retracement Gate":"RETRACEMENT_P1_LT15" in strategy and "RETRACEMENT_NEGATIVE" in strategy,
  "H1 Extreme Switch":"H1_EXTREME_SWITCH" in strategy,
