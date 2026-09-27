@@ -58,7 +58,7 @@ def save_state(s):
     tmp.replace(STATE_PATH)
 
 def pair_state(s,pair):
-    return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"regime":"","p_count":0,"extreme":False,"q75":{"BUY":[],"SELL":[]},"signals":{},"last_time":0})
+    return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"regime":"","p_count":0,"extreme":False,"q75":{"BUY":[],"SELL":[]},"signals":{},"trades":{},"last_time":0})
 
 def percentile75(xs):
     if not xs:return None
@@ -206,10 +206,10 @@ def evaluate(pair,rates,spread_price=0.0):
     sl=min(base,entry-buf) if direction=="BUY" else max(base,entry+buf);risk=abs(entry-sl)
     if risk<=0:reasons.append("INVALID_RISK")
     elif spread_price/risk>.10:reasons.append("SPREAD_RISK_GT10")
-    if sum(1 for x in ps["signals"].values() if x.get("entered") and x.get("open"))>=2:reasons.append("MAX_POSITIONS")
+    if sum(1 for x in ps.setdefault("trades",{}).values() if x.get("entered") and x.get("open"))>=2:reasons.append("MAX_POSITIONS")
 
     candidate=not reasons
-    ps["signals"][pattern]={"entered":candidate,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,"current_r":0.0,"open":candidate,"entry_time":now,"bar_index":len(rows)-1,"trailing":False}
+    trade={"entered":candidate,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,"current_r":0.0,"open":candidate,"entry_time":now,"bar_index":len(rows)-1,"trailing":False}\n    ps["signals"][pattern]=trade\n    if candidate:ps.setdefault("trades",{})[f"{now}:{pattern}:{direction}"]=trade
     save_state(state)
     return {"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"M15_SIMPLE_20260926","strategyAllowed":candidate,
             "strategyReason":"OK" if candidate else ",".join(reasons),"retracement":ret,"q75":q75,"strength":strength,"initialRisk":risk}
