@@ -36,7 +36,18 @@ def bars(symbol,tf,count=700):
     # Drop bar 0: it is still forming. All decisions use closed candles only.
     return rates[:-1]
 
-def pair_name(x):\n    return str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""\n\ndef resolve_symbol(base):\n    if mt5.symbol_info(base): return base\n    b="".join(c for c in base.upper() if c.isalnum())\n    aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])\n    hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]\n    hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))\n    return hits[0] if hits else None\n\ndef pair_settings():
+def pair_name(x):
+    return str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
+
+def resolve_symbol(base):
+    if mt5.symbol_info(base): return base
+    b="".join(c for c in base.upper() if c.isalnum())
+    aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])
+    hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]
+    hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))
+    return hits[0] if hits else None
+
+def pair_settings():
     try:return gas_get("getEASettings") or {}
     except Exception as e:
         logging.error("settings fetch failed: %s",e);return {}
@@ -116,7 +127,12 @@ def run():
     while True:
         cfg=pair_settings();envs=environment()
         envmap={str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or ""):x for x in envs if isinstance(x,dict)}
-        for symbol in PAIRS:
+        targets=PAIR_OVERRIDE or [pair_name(x) for x in envs if pair_name(x)]
+        for base_symbol in sorted(set(targets)):
+            symbol=resolve_symbol(base_symbol)
+            if not symbol:
+                logging.warning("%s: broker symbol not found",base_symbol)
+                continue
             try:
                 b=bars(symbol,mt5.TIMEFRAME_M15)
                 ts=int(b[-1]["time"])
@@ -127,11 +143,12 @@ def run():
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 saved=gas_post("saveEASignal",{"signal":sig,"decision":"ENTRY" if ok else "SKIP","reason":reason,
-                    "environmentSnapshot":envmap.get(symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(base_symbol,{})})
+                    "environmentSnapshot":envmap.get(base_symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(base_symbol,{})})
                 if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-                order_sig={**sig,"symbol":symbol}\n                result=send_order(order_sig,pc)
+                order_sig={**sig,"symbol":symbol}
+                result=send_order(order_sig,pc)
                 gas_post("saveMT5Execution",{"signal":sig,"execution":result})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
