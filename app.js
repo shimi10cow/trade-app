@@ -19,6 +19,7 @@ const App = {
     heatmapFilter: { type: 'category', value: 'all' }
   }
 };
+window.TradeApp = App;
 
 // ==========================================
 // 通信レイヤー: タイムアウト・リトライ・オフラインキュー
