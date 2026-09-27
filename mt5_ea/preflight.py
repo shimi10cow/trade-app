@@ -41,6 +41,8 @@ checks={
  "LIVE account/terminal permissions":"ACCOUNT_TRADE_NOT_ALLOWED" in main and "TERMINAL_TRADE_NOT_ALLOWED" in main and "TERMINAL_NOT_CONNECTED" in main,
  "LIVE gate also protects SL modifications":"def modify_position_sl(position,new_sl):\n    if DRY_RUN:return True\n    live_safety_check()" in main,
  "LIVE positive equity gate":"LIVE_EQUITY_NOT_POSITIVE" in main,
+ "LIVE requires real account":"LIVE_ACCOUNT_NOT_REAL" in main and "EA_LIVE_REQUIRE_REAL" in main,
+ "LIVE symbol trading gate":"SYMBOL_TRADE_MODE_DISABLED" in main and "trading disabled" in main,
  "Offline catch-up never executes stale signal":"OFFLINE_CATCHUP" in main and "MAX_SIGNAL_AGE_SEC" in main,
 }
 for k,v in checks.items():
