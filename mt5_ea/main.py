@@ -133,8 +133,8 @@ def environment_allowed(sig,env):
             if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone(timedelta(hours=9)))
             if (datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()>ENV_MAX_STALE:return False,"ENV_EXPIRED"
         except Exception:return False,"ENV_TIME_INVALID"
-    push=str(env_value(env,"TL 推進","TL推進","TL_推進") or "").upper()
-    counter=str(env_value(env,"TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
+    push=str(env_value(env,"TL\u63a8\u9032\u74b0\u5883","TL 推進","TL推進","TL_推進") or "").upper()
+    counter=str(env_value(env,"TL\u9006\u30c8\u30ec\u74b0\u5883","TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
     if push or counter:
         side=sig["direction"].upper()
         if side not in (push,counter):return False,"ENV_DIRECTION_BLOCK"
