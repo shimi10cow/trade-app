@@ -273,6 +273,9 @@ def notify_signal(sig,cfg):
 def notify_entry(sig,result,cfg):
     telegram.send("entry",f"EA ENTRY\nPair: {sig.get('symbol')}\nTF: {sig.get('timeframe','M15')}\nDirection: {sig.get('direction')}\nPrice: {result.get('price','')}\nLot: {result.get('volume','')}\nSL: {result.get('sl',sig.get('sl',''))}\nPattern: {sig.get('pattern','')}\nTime: {sig.get('time','')}",cfg)
 
+def notify_exit(base,t,cfg):
+    telegram.send("exit",f"EA EXIT\nPair: {base}\nDirection: {t.get('direction','')}\nPattern: {t.get('pattern','')}\nEntry: {t.get('entry','')}\nExit: {t.get('exit','')}\nR: {t.get('final_r','')}",cfg)
+
 def account_snapshot():
     a=mt5.account_info()
     return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
