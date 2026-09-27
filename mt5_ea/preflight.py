@@ -35,7 +35,7 @@ if os.getenv("EA_DRY_RUN","true").lower()!="true":
     print("[FAIL] EA_DRY_RUN is not true")
 else: print("[PASS] EA_DRY_RUN=true")
 print()
-print("RESULT:", "+("PASS" if not bad else "NOT READY"))
+print("RESULT:", "PASS" if not bad else "NOT READY")
 if bad:
     print("FAILED:")
     for x in bad: print(" - "+x)
