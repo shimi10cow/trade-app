@@ -47,10 +47,38 @@ def resolve_symbol(base):
     hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))
     return hits[0] if hits else None
 
+def truth(v,default=False):
+    if v is None or v=="": return default
+    return str(v).strip().lower() in ("1","true","on","yes","有効","on（有効）")
+
 def pair_settings():
-    try:return gas_get("getEASettings") or {}
+    """Normalize the existing Trade Tracker EA_Settings/App_Settings contract."""
+    try:
+        rows=gas_get("getEASettings") or []
+        app=gas_get("getAppSettings") or {}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"pairs":{}}
+        for r in rows if isinstance(rows,list) else []:
+            p=pair_name(r)
+            if not p: continue
+            mode=str(r.get("稼働方法") or "stop").strip().lower()
+            if mode in ("自動","auto"): mode="auto"
+            elif mode in ("signal","signal-only","シグナルのみ"): mode="signal"
+            else: mode="stop"
+            cfg["pairs"][p]={
+                "mode":mode,
+                "direction":r.get("許可方向") or "Both",
+                "m15":truth(r.get("M15"),True),
+                "h1":truth(r.get("H1"),False),
+                "riskType":r.get("Lot方式") or "fixedLot",
+                "riskValue":float(r.get("Lot値") or 0.01),
+                "riskCapEnabled":truth(r.get("Risk上限ON"),True),
+                "riskCap":float(r.get("Risk上限%") or 1),
+                "autoExit":str(r.get("決済方法") or "auto").lower() not in ("off","manual","裁量")
+            }
+        return cfg
     except Exception as e:
-        logging.error("settings fetch failed: %s",e);return {}
+        logging.error("settings fetch failed: %s",e)
+        return {"globalEntry":False,"pairs":{}}
 
 def environment():
     try:return gas_get("getPairs") or []
@@ -101,7 +129,7 @@ def lot_for(symbol,direction,entry,sl,pc):
         if loss_for(symbol,direction,lot,entry,sl)>cap+1e-8:raise RuntimeError("RISK_CAP")
     return round(lot,8)
 
-def send_order(sig,pc):
+def account_snapshot():\n    a=mt5.account_info()\n    return {"account":str(a.login) if a else "","server":str(a.server) if a else "","accountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}\n\ndef send_order(sig,pc):
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
@@ -142,14 +170,13 @@ def run():
                 if not raw:continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
-                saved=gas_post("saveEASignal",{"signal":sig,"decision":"ENTRY" if ok else "SKIP","reason":reason,
-                    "environmentSnapshot":envmap.get(base_symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(base_symbol,{})})
+                saved=gas_post("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 order_sig={**sig,"symbol":symbol}
                 result=send_order(order_sig,pc)
-                gas_post("saveMT5Execution",{"signal":sig,"execution":result})
+                gas_post("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
