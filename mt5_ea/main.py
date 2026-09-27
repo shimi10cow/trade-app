@@ -21,6 +21,7 @@ _outbox=queue.Queue()
 SETTINGS_MAX_STALE=900
 ENV_MAX_STALE=7200
 ENV_FETCH_SEC=60
+RUNTIME_CACHE_FILE=os.path.join(os.path.dirname(__file__),"runtime_cache.json")
 OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 
 def gas_get(action,**params):
@@ -46,6 +47,10 @@ def bars(symbol,tf,count=3000):
     if rates is None or len(rates)<3:raise RuntimeError(f"{symbol}: insufficient rates")
     # Drop bar 0: it is still forming. All decisions use closed candles only.
     return rates[:-1]
+
+def latest_closed_bar_time(symbol):
+    r=mt5.copy_rates_from_pos(symbol,mt5.TIMEFRAME_M15,1,1)
+    return int(r[0]["time"]) if r is not None and len(r) else 0
 
 def pair_name(x):
     return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
@@ -268,6 +273,7 @@ def refresh_runtime_once():
     with _cache_lock:
         if settings is not None:_cache["settings"],_cache["settings_at"]=settings,now
         if env is not None:_cache["env"],_cache["env_at"]=env,now
+    save_runtime_disk_cache()
 
 def runtime_refresher():
     while not _stop.is_set():
@@ -284,6 +290,21 @@ def runtime_refresher():
             if x is not None:
                 with _cache_lock:_cache["env"],_cache["env_at"]=x,time.time()
         _stop.wait(2)
+
+def load_runtime_disk_cache():
+    try:
+        x=json.load(open(RUNTIME_CACHE_FILE,"r",encoding="utf-8"))
+        with _cache_lock:
+            _cache["settings"]=x.get("settings"); _cache["settings_at"]=float(x.get("settings_at") or 0)
+            _cache["env"]=x.get("env"); _cache["env_at"]=float(x.get("env_at") or 0)
+        return _cache["settings"] is not None
+    except Exception:return False
+
+def save_runtime_disk_cache():
+    try:
+        with _cache_lock:x={k:_cache[k] for k in ("settings","settings_at","env","env_at")}
+        with open(RUNTIME_CACHE_FILE,"w",encoding="utf-8") as fh:json.dump(x,fh,ensure_ascii=False)
+    except Exception as e:logging.warning("runtime cache save failed: %s",e)
 
 def cached_runtime():
     now=time.time()
@@ -359,12 +380,11 @@ def run():
     connect()
     logging.info("startup: initializing outbox")
     init_outbox()
-    logging.info("startup: refreshing GAS runtime")
-    tr=time.perf_counter()
-    refresh_runtime_once()
-    logging.info("startup: GAS runtime ready in %.2fs",time.perf_counter()-tr)
+    cached=load_runtime_disk_cache()
+    logging.info("startup: runtime disk cache %s", "loaded" if cached else "not found")
     cfg0,_,_=cached_runtime()
     bootstrap_missing_state(cfg0)
+    # GAS is never allowed to block startup or the trading loop.
     threading.Thread(target=runtime_refresher,daemon=True).start()
     threading.Thread(target=outbox_worker,daemon=True).start()
     while not _stop.is_set():
@@ -381,9 +401,9 @@ def run():
                 logging.warning("%s: broker symbol not found",base_symbol)
                 continue
             try:
+                ts=latest_closed_bar_time(symbol)
+                if not ts or last_bar.get(symbol)==ts:continue
                 b=bars(symbol,mt5.TIMEFRAME_M15)
-                ts=int(b[-1]["time"])
-                if last_bar.get(symbol)==ts:continue
                 last_bar[symbol]=ts
                 raw=evaluate_m15(base_symbol,symbol,b)
                 save_virtual_exits(base_symbol)
