@@ -1,5 +1,5 @@
 """Hybrid EA runner. Start with DRY_RUN=true. Windows + MT5 terminal + Python 3.11."""
-import os,time,json,logging,threading,queue
+import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
@@ -18,7 +18,7 @@ _cache_lock=threading.Lock()
 _stop=threading.Event()
 _outbox=queue.Queue()
 SETTINGS_MAX_STALE=900
-ENV_MAX_STALE=7200
+ENV_MAX_STALE=7200\nOUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
@@ -64,7 +64,7 @@ def pair_settings():
     try:
         rows=gas_get("getEASettings") or []
         app=gas_get("getAppSettings") or {}
-        cfg={"globalEntry":truth(app.get("globalEntry"),False),"pairs":{}}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
             if not p: continue
@@ -113,7 +113,50 @@ def allowed(sig,cfg,env):
     if d not in ("BOTH","両方",sig["direction"].upper()):return False,"DIRECTION_BLOCK"
     return True,"OK"
 
-def loss_for(symbol,direction,lot,entry,sl):
+
+def env_value(env,*keys):
+    for k in keys:
+        if k in env and env.get(k) not in (None,""):return env.get(k)
+    return None
+
+def environment_allowed(sig,env):
+    if not isinstance(env,dict) or not env:return False,"ENV_MISSING"
+    stamp=env_value(env,"環境確認日時","確認日時","更新日時","EnvironmentConfirmedAt","confirmedAt","updatedAt")
+    if stamp:
+        try:
+            dt=datetime.fromisoformat(str(stamp).replace("Z","+00:00"))
+            if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()>ENV_MAX_STALE:return False,"ENV_EXPIRED"
+        except Exception:return False,"ENV_TIME_INVALID"
+    push=str(env_value(env,"TL 推進","TL推進","TL_推進") or "").upper()
+    counter=str(env_value(env,"TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
+    if push or counter:
+        side=sig["direction"].upper()
+        if side not in (push,counter):return False,"ENV_DIRECTION_BLOCK"
+    return True,"OK"
+
+def open_ea_risk():
+    total=0.0
+    for p in mt5.positions_get() or []:
+        if int(getattr(p,"magic",0))!=MAGIC or not getattr(p,"sl",0):continue
+        side="BUY" if p.type==mt5.POSITION_TYPE_BUY else "SELL"
+        try:total+=loss_for(p.symbol,side,float(p.volume),float(p.price_open),float(p.sl))
+        except Exception:pass
+    return total
+
+def total_risk_allowed(symbol,direction,lot,entry,sl,cfg):
+    if not cfg.get("totalRiskCapEnabled",False):return True
+    a=mt5.account_info()
+    if not a or float(a.balance)<=0:return False
+    cap=float(a.balance)*float(cfg.get("totalRiskCap",0) or 0)/100.0
+    return open_ea_risk()+loss_for(symbol,direction,lot,entry,sl)<=cap+1e-8
+
+def modify_position_sl(position,new_sl):
+    if DRY_RUN:return True
+    req={"action":mt5.TRADE_ACTION_SLTP,"position":position.ticket,"symbol":position.symbol,"sl":float(new_sl),"tp":float(position.tp or 0),"magic":MAGIC}
+    r=mt5.order_send(req)
+    return bool(r and r.retcode==mt5.TRADE_RETCODE_DONE)
+\ndef loss_for(symbol,direction,lot,entry,sl):
     typ=mt5.ORDER_TYPE_BUY if direction.upper()=="BUY" else mt5.ORDER_TYPE_SELL
     p=mt5.order_calc_profit(typ,symbol,lot,entry,sl)
     if p is None: raise RuntimeError(f"{symbol}: order_calc_profit failed")
@@ -141,7 +184,7 @@ def account_snapshot():
     a=mt5.account_info()
     return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
 
-def send_order(sig,pc):
+def send_order(sig,pc,cfg=None):
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
@@ -151,7 +194,7 @@ def send_order(sig,pc):
     if getattr(tick,"time",0) and time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
     sl=float(sig["sl"])
     if (buy and sl>=price) or ((not buy) and sl<=price):raise RuntimeError(f"{symbol}: invalid SL side")
-    lot=lot_for(symbol,sig["direction"],price,sl,pc)
+    lot=lot_for(symbol,sig["direction"],price,sl,pc)\n    if cfg is not None and not total_risk_allowed(symbol,sig["direction"],lot,price,sl,cfg):raise RuntimeError("TOTAL_RISK_CAP")
     req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
          "type":mt5.ORDER_TYPE_BUY if buy else mt5.ORDER_TYPE_SELL,
          "price":price,"sl":sl,"deviation":20,"magic":MAGIC,
@@ -233,7 +276,7 @@ def run():
                 enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-                result=send_order({**sig,"symbol":symbol},pc)
+                result=send_order({**sig,"symbol":symbol},pc,cfg)
                 if not result.get("dry_run",False):
                     enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
