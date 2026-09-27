@@ -43,6 +43,7 @@ checks={
  "LIVE positive equity gate":"LIVE_EQUITY_NOT_POSITIVE" in main,
  "LIVE requires real account":"LIVE_ACCOUNT_NOT_REAL" in main and "EA_LIVE_REQUIRE_REAL" in main,
  "LIVE symbol trading gate":"SYMBOL_TRADE_MODE_DISABLED" in main and "trading disabled" in main,
+ "LIVE app risk settings fail closed":"LIVE_RISK_CONFIG_INVALID" in main and "validate_live_pair_config" in main,
  "Offline catch-up never executes stale signal":"OFFLINE_CATCHUP" in main and "MAX_SIGNAL_AGE_SEC" in main,
 }
 for k,v in checks.items():
