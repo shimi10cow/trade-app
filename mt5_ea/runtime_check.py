@@ -19,7 +19,7 @@ try:
     check("GAS pairs loaded",isinstance(envs,list) and len(envs)>0,f"{len(envs) if isinstance(envs,list) else 0} pairs")
     check("Global entry remains stopped",not bool(cfg.get("globalEntry",False)))
     check("Runtime cache healthy",healthy)
-    targets=main.PAIR_OVERRIDE or [main.pair_name(x) for x in envs if main.pair_name(x)]
+    configured=set((cfg.get("pairs") or {}).keys())\n    targets=(set(main.PAIR_OVERRIDE)&configured) if main.PAIR_OVERRIDE else configured
     tested=0
     with tempfile.TemporaryDirectory() as td:
         old=strat.STATE_PATH
@@ -42,7 +42,7 @@ try:
                     print(f"[WARN] {base}: {e}")
         finally:strat.STATE_PATH=old
     check("At least one broker pair fully evaluated",tested>0,f"{tested} pairs")
-    check("No live order mode",main.DRY_RUN is True)
+    check("At least one broker pair fully evaluated",tested>0,f"{tested} pairs")\n    check("No live order mode",main.DRY_RUN is True)
 finally:
     mt5.shutdown()
 print()
