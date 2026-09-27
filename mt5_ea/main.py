@@ -219,10 +219,18 @@ def send_order(sig,pc,cfg=None):
     if sig.get("tp"):req["tp"]=float(sig["tp"])
     check=mt5.order_check(req)
     if check is None:raise RuntimeError(f"order_check failed: {mt5.last_error()}")
+    if int(getattr(check,"retcode",0) or 0)!=0:raise RuntimeError(f"order_check rejected: {check}")
     if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check),"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
+    before={int(p.ticket) for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC}
     res=mt5.order_send(req)
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
-    return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume,"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
+    position_ticket=None
+    for _ in range(10):
+        candidates=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC and int(p.ticket) not in before and ((buy and p.type==mt5.POSITION_TYPE_BUY) or ((not buy) and p.type==mt5.POSITION_TYPE_SELL))]
+        if candidates:
+            position_ticket=max(candidates,key=lambda p:getattr(p,"time_msc",getattr(p,"time",0))).ticket;break
+        time.sleep(0.1)
+    return {"dry_run":False,"order":res.order,"deal":res.deal,"ticket":position_ticket or res.order,"price":res.price,"volume":res.volume,"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
 
 def manage_ea_positions(cfg=None):
     """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
@@ -376,8 +384,8 @@ def run():
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 result=send_order({**sig,"symbol":symbol},pc,cfg)
                 if not result.get("dry_run",False):
-                    register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("order"),result.get("deal"))
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"SpreadPips":float(result.get("spread",0))/m15_pip_size(base_symbol),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
+                    register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"SpreadPips":float(result.get("spread",0))/m15_pip_size(base_symbol),"Ticket":result.get("ticket",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
