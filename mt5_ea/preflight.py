@@ -48,6 +48,7 @@ checks={
  "Broker minimum stop distance":"BROKER_STOPS_LEVEL" in main and "trade_stops_level" in main,
  "Broker filling mode negotiation":"order_check rejected all filling modes" in main and "ORDER_FILLING_IOC" in main,
  "Offline catch-up never executes stale signal":"OFFLINE_CATCHUP" in main and "MAX_SIGNAL_AGE_SEC" in main,
+ "XM KIWAMI exact symbol mapping":'target="GOLD#" if b=="XAUUSD"' in main and 'b+"#"' in main and "symbols_get()" not in main,
 }
 for k,v in checks.items():
     print(("[PASS] " if v else "[FAIL] ")+k)
