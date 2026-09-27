@@ -100,14 +100,11 @@ def pair_name(x):
     return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
 
 def resolve_symbol(base):
+    """Map logical symbols to the exact XM KIWAMI instruments; never fall back to Standard."""
     if base in _symbol_cache:return _symbol_cache[base]
-    if mt5.symbol_info(base):
-        _symbol_cache[base]=base;return base
-    b="".join(c for c in base.upper() if c.isalnum())
-    aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])
-    hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]
-    hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))
-    found=hits[0] if hits else None
+    b="".join(c for c in str(base).upper() if c.isalnum())
+    target="GOLD#" if b=="XAUUSD" else (b+"#" if len(b)==6 and b.isalpha() else None)
+    found=target if target and mt5.symbol_info(target) else None
     _symbol_cache[base]=found
     return found
 
