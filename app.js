@@ -586,6 +586,8 @@ function renderHistoryList() {
     // ステータスフィルター
     if (histStatus === 'entry' && t['ステータス'] === '決済（見逃し）') return false;
     if (histStatus === 'missed' && t['ステータス'] !== '決済（見逃し）') return false;
+    if (histStatus === 'ea' && !/EA/i.test(String(t.Source || t.TradeType || ''))) return false;
+    if (histStatus === 'signal') return false;
     // 期間フィルター
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
@@ -598,6 +600,10 @@ function renderHistoryList() {
     return true;
   });
 
+  if (histStatus === 'signal') {
+    const sigs=(window._eaSignals||[]).filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes' && !/entry$/i.test(String(x.Decision||'')));
+    container.innerHTML=sigs.length?sigs.slice().reverse().map(x=>`<div class="list-card" style="border-left:4px solid #38bdf8"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> <span class="badge" style="color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div><div style="font-size:12px;margin-top:6px">${x.Reason||x.SkipReason||'非エントリー'}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
+  }
   if (filtered.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">履歴がありません</div>';
     return;
@@ -776,6 +782,7 @@ function updateNeFavButton() {
 }
 
 function openEntryModal(isMissed = false) {
+  setTimeout(()=>{ const et=document.getElementById('ne-exit-time'); if(et&&!et.value){const n=new Date();et.value=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}},0);
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
   App.state.neFavorite = false;
@@ -2808,6 +2815,9 @@ function applyAnalysisFilters() {
   const fEntryRef = document.getElementById('flt-entry-ref')?.value || 'all';
   const fExitRef = document.getElementById('flt-exit-ref')?.value || 'all';
   const fPlan = document.getElementById('flt-plan')?.value || 'all';
+  const fEaTf = document.getElementById('flt-ea-tf')?.value || 'all';
+  const fEaP = document.getElementById('flt-ea-p')?.value || 'all';
+  const fEaExec = document.getElementById('flt-ea-exec')?.value || 'all';
   const dFrom = document.getElementById('flt-date-from').value;
   const dTo = document.getElementById('flt-date-to').value;
 
@@ -2833,6 +2843,8 @@ function applyAnalysisFilters() {
     if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
     if (fEntryRef !== 'all' && entryComplianceCategory(t) !== fEntryRef) return false;
     if (fExitRef !== 'all' && (t['決済振り返り'] || '') !== fExitRef) return false;
+    if (eaType === 'ea') { const rule=String(t['EAルール']||t.Rule||''); if(fEaTf!=='all'&&!rule.includes(fEaTf))return false; if(fEaP!=='all'&&!rule.includes(fEaP))return false; if(fEaExec==='signal')return false; }
+
     return true;
   });
   App.state.analysisFilteredNoPeriod = filtered.slice(); // エクイティカーブ用（期間フィルタ前）
@@ -2857,8 +2869,10 @@ function applyAnalysisFilters() {
   const prePlanFiltered = filtered.slice();
 
   // 計画/衝動フィルタ
-  if (fPlan === 'plan')   filtered = filtered.filter(t => t['計画エントリー'] === 'ON');
-  if (fPlan === 'direct') filtered = filtered.filter(t => t['計画エントリー'] !== 'ON');
+  if (eaType !== 'ea') {
+    if (fPlan === 'plan')   filtered = filtered.filter(t => t['計画エントリー'] === 'ON');
+    if (fPlan === 'direct') filtered = filtered.filter(t => t['計画エントリー'] !== 'ON');
+  }
 
   let totalTrades = 0, wins = 0, losses = 0, evens = 0;
   let totalPips = 0, winPips = 0, lossPips = 0;
