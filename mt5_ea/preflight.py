@@ -26,6 +26,12 @@ checks={
  "P3 causal ledger implemented":"trade_id" in strategy and "update_trade_ledger" in strategy and "trade_r" in strategy,
  "Spread included in R":"spread_r" in strategy,
  "Async GAS runtime":"runtime_refresher" in main and "outbox_worker" in main and "RUNTIME_CACHE_STALE" in main,
+ "Persistent GAS outbox":"sqlite3" in main and "next_attempt" in main and "attempts" in main,
+ "Environment freshness + direction":"ENV_TIME_MISSING" in main and "ENV_DIRECTION_BLOCK" in main and "envRefreshMin" in main,
+ "Total simultaneous risk cap":"TOTAL_RISK_CAP" in main and "open_ea_risk" in main,
+ "Restart bootstrap":"bootstrap_missing_state" in main and "bootstrap_m15" in main,
+ "Virtual trade tracking":"virtual_trades" in strategy and "collect_virtual_updates" in strategy,
+ "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
 }
 for k,v in checks.items():
     print(("[PASS] " if v else "[FAIL] ")+k)
