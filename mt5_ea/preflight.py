@@ -1,7 +1,7 @@
 """Preflight for Hybrid EA. Does not place orders."""
 import ast, pathlib, os, sys
 ROOT=pathlib.Path(__file__).parent
-files=["main.py","m15_strategy.py","h1_strategy.py","connection_test.py"]
+files=["main.py","m15_strategy.py","h1_strategy.py","telegram_notify.py","connection_test.py"]
 bad=[]
 for name in files:
     p=ROOT/name
@@ -15,6 +15,7 @@ strategy=(ROOT/"m15_strategy.py").read_text(encoding="utf-8")
 h1=(ROOT/"h1_strategy.py").read_text(encoding="utf-8")
 checks={
  "H1 strategy module present":(ROOT/"h1_strategy.py").exists(),
+ "Telegram notification module present":(ROOT/"telegram_notify.py").exists(),
  "H1 app toggle wired":'pc.get("h1",False)' in main and '"H1_OFF"' in main,
  "H1 live execution wired":"register_h1_execution" in main and '"timeframe":"H1"' in main,
  "H1 closed-bar only":'!=45:return None' in h1,
