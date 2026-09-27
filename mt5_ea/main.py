@@ -3,7 +3,7 @@ import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
-from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution
+from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -63,8 +63,10 @@ def truth(v,default=False):
 def pair_settings():
     """Normalize the existing Trade Tracker EA_Settings/App_Settings contract."""
     try:
-        rows=gas_get("getEASettings") or []
-        app=gas_get("getAppSettings") or {}
+        hybrid=gas_get("getHybridConfig") or {}
+        rows=hybrid.get("settings") or []
+        app=hybrid.get("appSettings") or {}
+        if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
         cfg={"globalEntry":truth(app.get("globalEntry"),False),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
@@ -284,10 +286,33 @@ def outbox_worker():
 
 
 
+def signal_id(base,ts,pattern,direction):
+    return f"EA-{base}-{int(ts)}-{pattern}-{direction}"
+
+def save_virtual_exits(base):
+    for t in collect_virtual_updates(base):
+        tid=signal_id(base,t.get("entry_time",0),t.get("pattern",""),t.get("direction",""))
+        enqueue_gas("saveEASignal",{"data":{"SignalID":tid,"ExitTime":datetime.fromtimestamp(int(t.get("exit_time",0)),timezone.utc).isoformat() if t.get("exit_time") else "",
+            "ExitPrice":t.get("exit",""),"R":t.get("final_r",""),"Executed":"NO"}})
+
+def bootstrap_missing_state(cfg):
+    state=load_m15_state(); existing=state.get("pairs") or {}
+    for base in sorted((cfg.get("pairs") or {}).keys()):
+        if base in existing and int(existing[base].get("last_time",0))>0:continue
+        symbol=resolve_symbol(base)
+        if not symbol:continue
+        b=bars(symbol,mt5.TIMEFRAME_M15,3000)
+        tick=mt5.symbol_info_tick(symbol)
+        spread=max(0.0,float(tick.ask)-float(tick.bid)) if tick and tick.ask and tick.bid else 0.0
+        logging.info("%s: bootstrapping strategy state from %s closed M15 bars",base,len(b))
+        bootstrap_m15(base,b,spread)
+
 def run():
     connect()
     init_outbox()
     refresh_runtime_once()
+    cfg0,_,_=cached_runtime()
+    bootstrap_missing_state(cfg0)
     threading.Thread(target=runtime_refresher,daemon=True).start()
     threading.Thread(target=outbox_worker,daemon=True).start()
     while not _stop.is_set():
@@ -309,20 +334,22 @@ def run():
                 if last_bar.get(symbol)==ts:continue
                 last_bar[symbol]=ts
                 raw=evaluate_m15(base_symbol,symbol,b)
+                save_virtual_exits(base_symbol)
                 if not raw:continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
+                sid=signal_id(base_symbol,ts,sig.get("pattern",""),sig["direction"])
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 if ok:
                     eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}))
                     if not eok:ok,reason=False,ereason
                 if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl",""),"InitialRiskPips":sig.get("initialRisk",""),"EnvironmentSnapshot":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"SettingsSnapshot":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 result=send_order({**sig,"symbol":symbol},pc,cfg)
                 if not result.get("dry_run",False):
                     register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("order"),result.get("deal"))
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
