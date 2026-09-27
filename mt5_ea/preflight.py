@@ -38,7 +38,8 @@ checks={
  "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
  "LIVE explicit arm gate":'LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false")' in main and "LIVE_NOT_ARMED" in main,
  "LIVE account/server lock":"LIVE_ACCOUNT_LOCK_MISMATCH" in main and "EA_LIVE_LOGIN" in main and "EA_LIVE_SERVER" in main,
- "LIVE account/terminal permissions":"ACCOUNT_TRADE_NOT_ALLOWED" in main and "TERMINAL_TRADE_NOT_ALLOWED" in main,
+ "LIVE account/terminal permissions":"ACCOUNT_TRADE_NOT_ALLOWED" in main and "TERMINAL_TRADE_NOT_ALLOWED" in main and "TERMINAL_NOT_CONNECTED" in main,
+ "LIVE gate also protects SL modifications":"def modify_position_sl(position,new_sl):\n    if DRY_RUN:return True\n    live_safety_check()" in main,
  "LIVE positive equity gate":"LIVE_EQUITY_NOT_POSITIVE" in main,
  "Offline catch-up never executes stale signal":"OFFLINE_CATCHUP" in main and "MAX_SIGNAL_AGE_SEC" in main,
 }
