@@ -14,7 +14,7 @@ last_bar={}
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
-    r=requests.get(GAS_URL,params={"action":action,**params},timeout=10);r.raise_for_status()
+    r=requests.get(GAS_URL,params={"action":action,**params},timeout=45);r.raise_for_status()
     x=r.json();return x.get("data",x)
 
 def gas_post(action,data):
@@ -131,7 +131,7 @@ def lot_for(symbol,direction,entry,sl,pc):
 
 def account_snapshot():
     a=mt5.account_info()
-    return {"account":str(a.login) if a else "","server":str(a.server) if a else "","accountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
+    return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
 
 def send_order(sig,pc):
     symbol=sig["symbol"]
@@ -139,6 +139,8 @@ def send_order(sig,pc):
     tick=mt5.symbol_info_tick(symbol)
     if not tick:raise RuntimeError(f"{symbol}: no tick")
     buy=sig["direction"].upper()=="BUY";price=tick.ask if buy else tick.bid
+    if not price or price<=0:raise RuntimeError(f"{symbol}: market closed/no live price")
+    if getattr(tick,"time",0) and time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
     sl=float(sig["sl"])
     if (buy and sl>=price) or ((not buy) and sl<=price):raise RuntimeError(f"{symbol}: invalid SL side")
     lot=lot_for(symbol,sig["direction"],price,sl,pc)
@@ -180,7 +182,9 @@ def run():
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 order_sig={**sig,"symbol":symbol}
                 result=send_order(order_sig,pc)
-                gas_post("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
+                # DRY_RUN validates order construction/check only; it is not a real MT5 execution.
+                if not result.get("dry_run",False):
+                    gas_post("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
