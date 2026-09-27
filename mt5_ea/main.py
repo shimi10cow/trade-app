@@ -129,7 +129,11 @@ def lot_for(symbol,direction,entry,sl,pc):
         if loss_for(symbol,direction,lot,entry,sl)>cap+1e-8:raise RuntimeError("RISK_CAP")
     return round(lot,8)
 
-def account_snapshot():\n    a=mt5.account_info()\n    return {"account":str(a.login) if a else "","server":str(a.server) if a else "","accountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}\n\ndef send_order(sig,pc):
+def account_snapshot():
+    a=mt5.account_info()
+    return {"account":str(a.login) if a else "","server":str(a.server) if a else "","accountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
+
+def send_order(sig,pc):
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
