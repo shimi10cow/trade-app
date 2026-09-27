@@ -12,6 +12,10 @@ DRY_RUN=os.getenv("EA_DRY_RUN","true").lower()=="true"
 POLL_SEC=int(os.getenv("EA_POLL_SEC","2"))
 MAGIC=int(os.getenv("EA_MAGIC","560001"))
 PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
+LIVE_LOGIN=os.getenv("EA_LIVE_LOGIN","").strip()
+LIVE_SERVER=os.getenv("EA_LIVE_SERVER","").strip()
+LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false").lower()=="true"
+MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
 _symbol_cache={}
@@ -42,6 +46,19 @@ def connect():
     a=mt5.account_info()
     if not a:raise RuntimeError("MT5 account_info unavailable")
     logging.info("MT5 connected login=%s server=%s balance=%s DRY_RUN=%s",a.login,a.server,a.balance,DRY_RUN)
+
+def live_safety_check():
+    """Fail closed before any real order can be sent."""
+    if DRY_RUN:return True
+    if not LIVE_ARMED:raise RuntimeError("LIVE_NOT_ARMED")
+    if not LIVE_LOGIN or not LIVE_SERVER:raise RuntimeError("LIVE_ACCOUNT_LOCK_NOT_CONFIGURED")
+    a=mt5.account_info(); t=mt5.terminal_info()
+    if not a or not t:raise RuntimeError("LIVE_ACCOUNT_OR_TERMINAL_UNAVAILABLE")
+    if str(a.login)!=LIVE_LOGIN or str(a.server)!=LIVE_SERVER:raise RuntimeError("LIVE_ACCOUNT_LOCK_MISMATCH")
+    if float(getattr(a,"equity",0) or 0)<=0:raise RuntimeError("LIVE_EQUITY_NOT_POSITIVE")
+    if not bool(getattr(a,"trade_allowed",False)):raise RuntimeError("ACCOUNT_TRADE_NOT_ALLOWED")
+    if not bool(getattr(t,"trade_allowed",False)):raise RuntimeError("TERMINAL_TRADE_NOT_ALLOWED")
+    return True
 
 def bars(symbol,tf,count=3000):
     rates=mt5.copy_rates_from_pos(symbol,tf,0,count)
@@ -234,6 +251,7 @@ def account_snapshot():
     return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
 
 def send_order(sig,pc,cfg=None):
+    live_safety_check()
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
@@ -448,8 +466,14 @@ def run():
                 # Normally one result; after downtime every missed signal is preserved in order.
                 raw=results[-1]
                 sig_ts=int(raw.pop("_bar_time",ts))
+                # Replay missed bars to restore causal state, but never execute a stale offline signal.
+                if sig_ts != ts or time.time()-sig_ts > MAX_SIGNAL_AGE_SEC:
+                    stale_sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
+                    sid=signal_id(base_symbol,sig_ts,stale_sig.get("pattern",""),stale_sig["direction"])
+                    enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":stale_sig["time"],"Pair":base_symbol,"Direction":stale_sig["direction"],"Rule":stale_sig.get("rule","M15"),"Pullback":stale_sig.get("pattern",""),"Executed":"NO","SkipReason":"OFFLINE_CATCHUP","EntryPrice":stale_sig.get("entry",""),"InitialSL":stale_sig.get("sl","")}})
+                    continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
-                sid=signal_id(base_symbol,ts,sig.get("pattern",""),sig["direction"])
+                sid=signal_id(base_symbol,sig_ts,sig.get("pattern",""),sig["direction"])
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 if ok:
                     eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
