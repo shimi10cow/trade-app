@@ -214,10 +214,12 @@ def send_order(sig,pc,cfg=None):
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume,"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
 
-def manage_ea_positions():
+def manage_ea_positions(cfg=None):
     """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
     state=load_m15_state()
     for base,ps in (state.get("pairs") or {}).items():
+        pc=((cfg or {}).get("pairs") or {}).get(base,{})
+        if cfg is not None and not pc.get("autoExit",True):continue
         symbol=resolve_symbol(base)
         if not symbol:continue
         positions=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC]
@@ -324,7 +326,7 @@ def run():
         # but can never introduce an unconfigured pair.
         configured=set((cfg.get("pairs") or {}).keys())
         targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
-        manage_ea_positions()
+        manage_ea_positions(cfg)
         for base_symbol in sorted(targets):
             symbol=resolve_symbol(base_symbol)
             if not symbol:
