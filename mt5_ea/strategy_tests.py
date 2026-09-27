@@ -58,8 +58,10 @@ check("P3 persistent ledger both nonpositive",all(s.trade_r(x)<=0 for x in exist
 ps={"signals":{},"trades":{"t":{"entered":True,"open":True,"risk":1.0,"direction":"BUY","entry":100.0,"sl":90.0,"entry_time":0,"trailing":False,"spread_r":0.1}}}
 s.update_trade_ledger(ps,{"time":3600,"high":101.0,"low":99.5,"close":100.5},[],1)
 check("spread cost included in current R",abs(ps["trades"]["t"]["current_r"]-0.4)<1e-9)
-\nfailed=[n for n,v in tests if not v]
-print("\nRESULT:","PASS" if not failed else "NOT READY")
+
+failed=[n for n,v in tests if not v]
+print("
+RESULT:","PASS" if not failed else "NOT READY")
 if failed:
     for n in failed:print(" -",n)
     raise SystemExit(1)
