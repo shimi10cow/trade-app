@@ -188,7 +188,8 @@ def bootstrap(pair,rates,spread_price=0.0):
         evaluate(pair,rates[:end],spread_price)
     state=load_state(); ps=pair_state(state,pair)
     for t in ps.setdefault("virtual_trades",{}).values():
-        if not t.get("open",False):t["gas_synced"]=True
+        # Bootstrap history predates this runtime, so never emit orphan GAS exit rows.
+        t["gas_synced"]=True
     ps["bootstrapped"]=True
     save_state(state)
     return True
