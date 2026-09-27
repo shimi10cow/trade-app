@@ -67,7 +67,7 @@ def pair_settings():
         rows=hybrid.get("settings") or []
         app=hybrid.get("appSettings") or {}
         if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        cfg={"globalEntry":truth(app.get("globalEntry"),False),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"pairs":{}}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
             if not p: continue
@@ -122,7 +122,7 @@ def env_value(env,*keys):
         if k in env and env.get(k) not in (None,""):return env.get(k)
     return None
 
-def environment_allowed(sig,env):
+def environment_allowed(sig,env,max_age_minutes=60):
     if not isinstance(env,dict) or not env:return False,"ENV_MISSING"
     stamp=env_value(env,"EA環境確認日時","環境確認日時","確認日時","更新日時","EnvironmentConfirmedAt","confirmedAt","updatedAt")
     if not stamp:return False,"ENV_TIME_MISSING"
@@ -132,7 +132,7 @@ def environment_allowed(sig,env):
             try:dt=datetime.fromisoformat(raw.replace("Z","+00:00"))
             except ValueError:dt=datetime.strptime(raw,"%Y/%m/%d %H:%M")
             if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone(timedelta(hours=9)))
-            if (datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()>ENV_MAX_STALE:return False,"ENV_EXPIRED"
+            if (datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()>float(max_age_minutes)*60:return False,"ENV_EXPIRED"
         except Exception:return False,"ENV_TIME_INVALID"
     push=str(env_value(env,"TL\u63a8\u9032\u74b0\u5883","TL 推進","TL推進","TL_推進") or "").upper()
     counter=str(env_value(env,"TL\u9006\u30c8\u30ec\u74b0\u5883","TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
@@ -360,7 +360,7 @@ def run():
                 sid=signal_id(base_symbol,ts,sig.get("pattern",""),sig["direction"])
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 if ok:
-                    eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}))
+                    eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
                     if not eok:ok,reason=False,ereason
                 if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
                 enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl",""),"InitialRiskPips":sig.get("initialRisk",""),"EnvironmentSnapshot":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"SettingsSnapshot":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
