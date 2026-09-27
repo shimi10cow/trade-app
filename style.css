@@ -347,3 +347,5 @@ textarea.form-input { resize: vertical; }
   #modal-pair-edit .sticky-footer { bottom: -10px; padding-left: 20px; padding-right: 20px; }
   #modal-pair-edit .sticky-footer > button { width: calc(100% - 12px) !important; margin-left: auto; margin-right: auto; display: block; }
 }
+
+@media (max-width:600px){#modal-entry .sticky-footer{bottom:-28px;}}
