@@ -34,8 +34,8 @@ if os.getenv("EA_DRY_RUN","true").lower()!="true":
     bad.append("EA_DRY_RUN must remain true for this preflight")
     print("[FAIL] EA_DRY_RUN is not true")
 else: print("[PASS] EA_DRY_RUN=true")
-print("
-RESULT: "+("PASS" if not bad else "NOT READY"))
+print()
+print("RESULT:", "+("PASS" if not bad else "NOT READY"))
 if bad:
     print("FAILED:")
     for x in bad: print(" - "+x)
