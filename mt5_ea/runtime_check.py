@@ -45,6 +45,5 @@ try:
     check("No live order mode",main.DRY_RUN is True)
 finally:
     mt5.shutdown()
-print("
-RESULT:","PASS" if ok else "NOT READY")
+print()\nprint("RESULT:","PASS" if ok else "NOT READY")
 sys.exit(0 if ok else 1)
