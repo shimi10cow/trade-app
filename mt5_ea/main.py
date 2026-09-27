@@ -37,7 +37,7 @@ def bars(symbol,tf,count=700):
     return rates[:-1]
 
 def pair_name(x):
-    return str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
+    return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
 
 def resolve_symbol(base):
     if mt5.symbol_info(base): return base
@@ -126,7 +126,7 @@ def run():
     connect()
     while True:
         cfg=pair_settings();envs=environment()
-        envmap={str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or ""):x for x in envs if isinstance(x,dict)}
+        envmap={str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or ""):x for x in envs if isinstance(x,dict)}
         targets=PAIR_OVERRIDE or [pair_name(x) for x in envs if pair_name(x)]
         for base_symbol in sorted(set(targets)):
             symbol=resolve_symbol(base_symbol)
