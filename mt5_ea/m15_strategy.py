@@ -101,7 +101,7 @@ def retracement(direction,entry,pv):
 
 def update_trade_ledger(ps,row,pv,current_index):
     now=int(row["time"]); hi=float(row["high"]); lo=float(row["low"]); close=float(row["close"])
-    for t in ps["signals"].values():
+    ps.setdefault("trades",{})\n    for t in ps["trades"].values():
         if not t.get("entered"):continue
         risk=float(t["risk"]); side=t["direction"]; entry=float(t["entry"])
         if t.get("open",False):
