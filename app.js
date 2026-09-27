@@ -781,6 +781,72 @@ function updateNeFavButton() {
   b.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
 }
 
+
+function pickMT5Screenshot(scope) {
+  const f=document.getElementById(scope+'-mt5-ocr-file');
+  if(f){f.value='';f.click();}
+}
+function _mt5SetValue(id,val,onlyBlank=false){
+  const el=document.getElementById(id); if(!el||val===undefined||val===null||val==='')return false;
+  if(onlyBlank && String(el.value||'').trim())return false;
+  el.value=val; el.dispatchEvent(new Event('change',{bubbles:true})); el.dispatchEvent(new Event('input',{bubbles:true})); return true;
+}
+function _mt5SelectPair(id,pair,onlyBlank){
+  const el=document.getElementById(id);if(!el||!pair||(onlyBlank&&el.value))return false;
+  const clean=String(pair).replace(/[#._-]+$/,'').toUpperCase();
+  let opt=Array.from(el.options).find(o=>String(o.value).replace(/[#._-]+$/,'').toUpperCase()===clean);
+  if(!opt){opt=document.createElement('option');opt.value=clean;opt.textContent=clean;el.appendChild(opt);}
+  el.value=opt.value;el.dispatchEvent(new Event('change',{bubbles:true}));return true;
+}
+function _mt5Direction(scope,dir,onlyBlank){
+  const box=document.getElementById(scope+'-dir');if(!box||!dir)return false;
+  if(onlyBlank&&box.querySelector('.active'))return false;
+  box.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  const b=box.querySelector(dir==='BUY'?'.dir-buy':'.dir-sell');if(b)b.classList.add('active');return !!b;
+}
+function _mt5Date(v){return v?String(v).replace(/[.\/]/g,'-'):'';}
+function _parseMT5OCR(raw){
+  const t=String(raw||'').replace(/[→➜➡]/g,' -> ').replace(/\s+/g,' ').trim();
+  let m=t.match(/\b([A-Z]{6,10})[#._-]?\s+(buy|sell)\s+([0-9]+(?:[.,][0-9]+)?)/i);
+  const out={};if(m){out.pair=m[1].toUpperCase();out.dir=m[2].toUpperCase();out.lot=m[3].replace(',','.');}
+  const prices=[...t.matchAll(/\b(\d{1,5}[.,]\d{2,6})\s*->\s*(\d{1,5}[.,]\d{2,6})\b/g)];
+  if(prices.length){const p=prices[prices.length-1];out.entryPrice=p[1].replace(',','.');out.exitPrice=p[2].replace(',','.');}
+  const dates=[...t.matchAll(/(20\d{2}[.\/-]\d{1,2}[.\/-]\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/g)];
+  if(dates.length>=2){out.entryDate=dates[dates.length-2][1];out.entryTime=dates[dates.length-2][2];out.exitDate=dates[dates.length-1][1];out.exitTime=dates[dates.length-1][2];}
+  else if(dates.length){out.entryDate=dates[0][1];out.entryTime=dates[0][2];}
+  let sl=t.match(/S\s*\/\s*L\s*[:：]\s*(-|\d+(?:[.,]\d+)?)/i),tp=t.match(/T\s*\/\s*P\s*[:：]\s*(-|\d+(?:[.,]\d+)?)/i);
+  if(sl&&sl[1]!=='-')out.sl=sl[1].replace(',','.');if(tp&&tp[1]!=='-')out.tp=tp[1].replace(',','.');
+  const delta=t.match(/[Δ△]\s*=\s*([+-]?\s*\d+)/);if(delta)out.pips=delta[1].replace(/\s/g,'');
+  // MT5 detail screenshots commonly show account-currency P/L as the last standalone signed integer before the date line.
+  const beforeDate=dates.length?t.slice(0,t.indexOf(dates[0][0])):t;
+  const nums=[...beforeDate.matchAll(/(?:^|\s)([-+]\s*\d{2,}(?:[.,]\d{3})*)(?=\s|$)/g)];
+  if(nums.length)out.profit=nums[nums.length-1][1].replace(/[\s,]/g,'');
+  return out;
+}
+async function importMT5Screenshot(input,scope){
+  const file=input&&input.files&&input.files[0];if(!file)return;
+  if(!window.Tesseract){if(window.showToast)showToast('OCRの読み込みに失敗しました');return;}
+  const btn=input.previousElementSibling,old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    if(window.showToast)showToast('MT5画像を読み取り中…');
+    const r=await Tesseract.recognize(file,'eng',{logger:function(){}});
+    const x=_parseMT5OCR(r.data&&r.data.text);const onlyBlank=scope==='td';let n=0;
+    n+=_mt5SelectPair(scope+'-pair',x.pair,onlyBlank)?1:0;
+    n+=_mt5Direction(scope,x.dir,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-date',_mt5Date(x.entryDate),onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-time',(x.entryTime||'').slice(0,5),onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-lot',x.lot,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-entry-price',x.entryPrice,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-sl-price',x.sl,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-tp-price',x.tp,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-exit-price',x.exitPrice,onlyBlank)?1:0;
+    n+=_mt5SetValue(scope+'-exit-time',(x.exitTime||'').slice(0,5),onlyBlank)?1:0;
+    if(scope==='td'){n+=_mt5SetValue('td-pips',x.pips,true)?1:0;n+=_mt5SetValue('td-profit',x.profit,true)?1:0;}
+    if(window.showToast)showToast(n?'MT5画像から '+n+' 項目を入力しました ✅':'読み取れる項目がありませんでした');
+  }catch(e){console.error('MT5 OCR',e);if(window.showToast)showToast('画像の読み取りに失敗しました');}
+  finally{if(btn){btn.disabled=false;btn.textContent=old;}input.value='';}
+}
+
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
