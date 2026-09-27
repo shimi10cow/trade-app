@@ -80,7 +80,7 @@ try:
         d=gas("getEASettings")
         print(f"[PASS] GAS getEASettings: type={type(d).__name__} size={len(d) if hasattr(d,'__len__') else '-'}")
     except Exception as e:
-        print(f"[WARN] GAS getEASettings not exposed yet: {e}")
+        print(f"[WARN] GAS getEASettings not exposed yet: {e}")\n        print("[INFO] Deploy the latest Code.gs web-app version before runtime settings sync.")
     try:
         d=gas("getPairs")
         print(f"[PASS] GAS getPairs: type={type(d).__name__} size={len(d) if hasattr(d,'__len__') else '-'}")
