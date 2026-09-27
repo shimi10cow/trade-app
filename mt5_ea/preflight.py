@@ -76,3 +76,14 @@ if bad:
     print("FAILED:")
     for x in bad: print(" - "+x)
     sys.exit(1)
+
+
+def check_app_kill_switch_contract():
+    root=Path(__file__).resolve().parents[1]
+    ea=(root/"ea.js").read_text(encoding="utf-8")
+    main=(root/"mt5_ea"/"main.py").read_text(encoding="utf-8")
+    assert "window.eaGlobal=async function" in ea
+    assert "saveAppSettings" in ea and "globalEntry:v?'ON':'OFF'" in ea
+    assert 'gas_get("getAppSettings")' in main
+    assert "CONTROL_FETCH_SEC" in main
+    assert 'if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"' in main
