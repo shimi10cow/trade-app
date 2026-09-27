@@ -525,7 +525,20 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
         eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
         if not eok:ok,reason=False,ereason
     if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-    enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
+    pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+    signal_only=str(pc.get("mode","stop")).lower()=="signal"
+    decision="SIGNAL_ONLY" if strategy_signal and signal_only else ("ENTRY" if ok else "NO_ENTRY")
+    status="監視中" if decision=="SIGNAL_ONLY" else ""
+    enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"TF":tf,"Decision":decision,"Status":status,"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok and not signal_only else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
+    if signal_only and strategy_signal:
+        # Register a virtual execution so the same causal exit engine follows the
+        # signal exactly as if it had been entered, without sending an MT5 order.
+        if tf=="H1":
+            register_h1_execution(base_symbol,sig.get("pattern",""),sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,sig.get("spreadPrice",0.0),None,None)
+            recover_m15_execution(base_symbol,sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,None)
+        else:
+            register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,sig.get("spreadPrice",0.0),None,None)
+        return
     if not ok:return
     pc=(cfg.get("pairs") or {}).get(base_symbol,{})
     result=send_order({**sig,"symbol":symbol},pc,cfg)
