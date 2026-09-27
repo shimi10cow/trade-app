@@ -60,7 +60,7 @@
       </div>
       
       <div style="text-align: center; margin-bottom: 20px;">
-        <button onclick="openHistoryModal()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 決済済み・見逃し履歴</button>
+        <button onclick="openHistoryModal()" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; padding:10px 20px; border-radius:10px;">📋 履歴</button>
       </div>
 
       <!-- トレードプラン一覧（Pairsシートのプラン設定済みペアを表示） -->
@@ -188,6 +188,13 @@
           <option value="all">決済振り返り：全て</option>
           <!-- populated dynamically -->
         </select>
+        <div id="flt-ea-extra" style="display:none;grid-column:1/-1;">
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
+            <select id="flt-ea-tf"><option value="all">時間足：全て</option><option value="M15">M15</option><option value="H1">H1</option></select>
+            <select id="flt-ea-p"><option value="all">P：全て</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select>
+            <select id="flt-ea-exec" style="grid-column:1/-1;"><option value="all">EA結果：全て</option><option value="entry">実エントリー</option><option value="signal">非エントリーSignal</option></select>
+          </div>
+        </div>
         <select id="flt-plan">
           <option value="all">計画/衝動：全て</option>
           <option value="plan">📋 計画エントリーのみ</option>
@@ -1082,7 +1089,7 @@
   <div id="modal-history" class="modal-overlay">
     <div class="modal-content" style="height:100dvh; max-height:100dvh; border-radius:0; padding-top:env(safe-area-inset-top);">
       <div class="modal-header">
-        <div class="modal-title">決済済み・見逃し履歴</div>
+        <div class="modal-title">履歴</div>
         <div class="modal-close" onclick="closeHistoryModal()">✕</div>
       </div>
       <div class="modal-body" style="padding:0; overflow:hidden; display:flex; flex-direction:column; height:calc(100dvh - 54px - env(safe-area-inset-top));">
@@ -1096,6 +1103,8 @@
               <option value="all">全ステータス</option>
               <option value="entry">実トレードのみ</option>
               <option value="missed">見逃しのみ</option>
+              <option value="ea">EA実績のみ</option>
+              <option value="signal">シグナルのみ</option>
             </select>
           </div>
           <div id="hist-custom-date" style="display:none; gap:4px; align-items:center;">
