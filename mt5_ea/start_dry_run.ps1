@@ -5,6 +5,12 @@ $env:EA_PAIRS = "EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD"
 $env:EA_POLL_SEC = "2"
 $env:EA_MAGIC = "560001"
 
+Write-Host "Hybrid EA - local preflight (NO ORDERS)" -ForegroundColor Cyan
+python .\preflight.py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+python .\strategy_tests.py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 Write-Host "Hybrid EA - connection test (NO ORDERS)" -ForegroundColor Cyan
 python .\connection_test.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
