@@ -35,5 +35,21 @@ function demo(){var n=names()[0]||'EURUSD';return [{pair:n,dir:'BUY',rule:'M15',
 window.renderEAHistory=function(){var list=document.getElementById('ea-history-list');if(!list)return;var raw=(window._eaSignals&&window._eaSignals.length)?window._eaSignals:[];var a=raw.map(function(x){return {pair:x.Pair,dir:x.Direction,rule:x.Rule,p:x.Pullback,executed:String(x.Executed).toLowerCase()==='yes'?'yes':'no',time:x.SignalTime,entry:x.EntryPrice,exit:x.ExitPrice,r:x.R?x.R+'R':'--',pips:x.Pips||'--',reason:x.SkipReason||'EA Entry'};}),pair=document.getElementById('eah-pair')?.value||'all',rule=document.getElementById('eah-rule')?.value||'all',pp=document.getElementById('eah-p')?.value||'all',ex=document.getElementById('eah-exec')?.value||'all';a=a.filter(function(x){return (pair==='all'||x.pair===pair)&&(rule==='all'||x.rule===rule)&&(pp==='all'||x.p===pp)&&(ex==='all'||x.executed===ex)});list.innerHTML=a.length?a.map(function(x){return '<div class="list-card ea-demo" style="display:block"><div style="display:flex;justify-content:space-between"><b>'+x.pair+' '+x.dir+'</b><span class="badge">'+x.rule+' '+x.p+'</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">'+x.time+' · '+(x.executed==='yes'?'実エントリー':'非エントリーSignal')+'</div><div style="display:flex;justify-content:space-between;margin-top:7px"><span>'+x.reason+'</span><b style="color:#10b981">'+x.pips+' / '+x.r+'</b></div><div class="ea-note">Entry '+x.entry+' → Exit '+x.exit+'</div></div>'}).join(''):'<div class="ea-empty">該当データなし</div>';};
 document.addEventListener('pairsLoaded',function(){refreshEAPairs();});
 document.addEventListener('dataLoaded',function(){refreshEAPairs();});
-document.addEventListener('DOMContentLoaded',function(){styles();ensure();try{gasGet('getEASignals').then(function(r){window._eaSignals=r.data||[];renderEAHistory();}).catch(function(){});}catch(e){}setTimeout(function(){refreshPairSelects();renderEAHistory();if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();},2500);setTimeout(function(){refreshPairSelects();},6000);});
+function installEAFixtures(){
+  var app=window.TradeApp||(typeof App!=='undefined'?App:null);
+  if(!app||!app.data||!Array.isArray(app.data.entries)||app.data.entries.some(function(x){return x._eaFixture;}))return false;
+  var ns=names(), p1=ns[0]||'EURUSD', p2=ns[1]||ns[0]||'USDJPY';
+  var now=new Date(), y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0'), d=String(now.getDate()).padStart(2,'0');
+  var today=y+'/'+m+'/'+d;
+  app.data.entries.push(
+    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'保有中','PairName（元）':p1,PairName:p1,Direction:'Buy',EntryDate:today,EntryTime:'09:15',EntryPrice:'1.17000',Lot:'0.01',SL:'18',StopLossPips:'18','エントリースコア':'EA','EAルール':'M15 P2','計画エントリー':'OFF'},
+    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'決済','PairName（元）':p2,PairName:p2,Direction:'Sell',EntryDate:today,EntryTime:'07:30',ExitDate:today,ExitTime:'11:15',EntryPrice:'155.200',ExitPrice:'154.920',Lot:'0.01',SL:'20',StopLossPips:'20','実取得pips':'28.0','損益':'2800','エントリースコア':'EA','EAルール':'M15 P1','計画エントリー':'OFF'}
+  );
+  if(typeof renderPositions==='function')renderPositions();
+  if(typeof renderHistoryList==='function'&&document.getElementById('modal-history')?.classList.contains('active'))renderHistoryList();
+  if(typeof renderAnalysis==='function'&&document.getElementById('screen-analysis')?.classList.contains('active'))renderAnalysis();
+  return true;
+}
+window.installEAFixtures=installEAFixtures;
+document.addEventListener('DOMContentLoaded',function(){styles();ensure();try{gasGet('getEASignals').then(function(r){window._eaSignals=r.data||[];renderEAHistory();}).catch(function(){});}catch(e){}setTimeout(function(){refreshPairSelects();renderEAHistory();if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();},2500);setTimeout(function(){refreshPairSelects();installEAFixtures();},6000);});
 })();
