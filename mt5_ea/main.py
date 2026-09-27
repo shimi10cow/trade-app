@@ -16,6 +16,7 @@ LIVE_LOGIN=os.getenv("EA_LIVE_LOGIN","").strip()
 LIVE_SERVER=os.getenv("EA_LIVE_SERVER","").strip()
 LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false").lower()=="true"
 MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))
+LIVE_REQUIRE_REAL=os.getenv("EA_LIVE_REQUIRE_REAL","true").lower()=="true"
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
 _symbol_cache={}
@@ -55,10 +56,12 @@ def live_safety_check():
     a=mt5.account_info(); t=mt5.terminal_info()
     if not a or not t:raise RuntimeError("LIVE_ACCOUNT_OR_TERMINAL_UNAVAILABLE")
     if str(a.login)!=LIVE_LOGIN or str(a.server)!=LIVE_SERVER:raise RuntimeError("LIVE_ACCOUNT_LOCK_MISMATCH")
+    if LIVE_REQUIRE_REAL and getattr(a,"trade_mode",None)!=mt5.ACCOUNT_TRADE_MODE_REAL:raise RuntimeError("LIVE_ACCOUNT_NOT_REAL")
     if float(getattr(a,"equity",0) or 0)<=0:raise RuntimeError("LIVE_EQUITY_NOT_POSITIVE")
     if not bool(getattr(a,"trade_allowed",False)):raise RuntimeError("ACCOUNT_TRADE_NOT_ALLOWED")
     if not bool(getattr(t,"trade_allowed",False)):raise RuntimeError("TERMINAL_TRADE_NOT_ALLOWED")
     if not bool(getattr(t,"connected",False)):raise RuntimeError("TERMINAL_NOT_CONNECTED")
+    if not bool(getattr(t,"dlls_allowed",True)):raise RuntimeError("TERMINAL_DLLS_NOT_ALLOWED")
     return True
 
 def bars(symbol,tf,count=3000):
@@ -258,6 +261,10 @@ def send_order(sig,pc,cfg=None):
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
     if not tick:raise RuntimeError(f"{symbol}: no tick")
+    info=mt5.symbol_info(symbol)
+    if not info:raise RuntimeError(f"{symbol}: symbol_info unavailable")
+    trade_mode=int(getattr(info,"trade_mode",mt5.SYMBOL_TRADE_MODE_DISABLED))
+    if trade_mode==mt5.SYMBOL_TRADE_MODE_DISABLED:raise RuntimeError(f"{symbol}: trading disabled")
     buy=sig["direction"].upper()=="BUY";price=tick.ask if buy else tick.bid
     if not price or price<=0:raise RuntimeError(f"{symbol}: market closed/no live price")
     if getattr(tick,"time",0) and time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
