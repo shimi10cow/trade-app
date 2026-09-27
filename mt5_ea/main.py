@@ -238,55 +238,26 @@ def cached_runtime():
     healthy=cfg is not None and env is not None and sa<=SETTINGS_MAX_STALE and ea<=ENV_MAX_STALE
     return cfg or {"globalEntry":False,"pairs":{}},env or [],healthy
 
-def enqueue_gas(action,data):_outbox.put((action,data))
+def init_outbox():
+    with sqlite3.connect(OUTBOX_DB) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, payload TEXT NOT NULL, created REAL NOT NULL)")
+        db.commit()
+
+def enqueue_gas(action,data):
+    with sqlite3.connect(OUTBOX_DB) as db:
+        db.execute("INSERT INTO outbox(action,payload,created) VALUES(?,?,?)",(action,json.dumps(data,ensure_ascii=False,default=str),time.time()))
+        db.commit()
 
 def outbox_worker():
     while not _stop.is_set():
-        try:action,data=_outbox.get(timeout=1)
-        except queue.Empty:continue
-        try:gas_post(action,data)
+        try:
+            with sqlite3.connect(OUTBOX_DB) as db:
+                row=db.execute("SELECT id,action,payload FROM outbox ORDER BY id LIMIT 1").fetchone()
+            if not row:_stop.wait(1);continue
+            oid,action,payload=row
+            gas_post(action,json.loads(payload))
+            with sqlite3.connect(OUTBOX_DB) as db:
+                db.execute("DELETE FROM outbox WHERE id=?",(oid,));db.commit()
         except Exception as e:
-            logging.error("GAS outbox failed %s: %s",action,e)
-            _stop.wait(5)
-            if not _stop.is_set():_outbox.put((action,data))
-        finally:_outbox.task_done()
-def run():
-    connect()
-    refresh_runtime_once()
-    threading.Thread(target=runtime_refresher,daemon=True).start()
-    threading.Thread(target=outbox_worker,daemon=True).start()
-    while True:
-        cfg,envs,runtime_ok=cached_runtime()
-        envmap={pair_name(x):x for x in envs if isinstance(x,dict) and pair_name(x)}
-        targets=PAIR_OVERRIDE or list(envmap)
-        for base_symbol in sorted(set(targets)):
-            symbol=resolve_symbol(base_symbol)
-            if not symbol:
-                logging.warning("%s: broker symbol not found",base_symbol); continue
-            try:
-                b=bars(symbol,mt5.TIMEFRAME_M15)
-                ts=int(b[-1]["time"])
-                if last_bar.get(symbol)==ts:continue
-                last_bar[symbol]=ts
-                raw=evaluate_m15(base_symbol,symbol,b)
-                if not raw:continue
-                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
-                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
-                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
-                if not ok:continue
-                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-                result=send_order({**sig,"symbol":symbol},pc,cfg)
-                if not result.get("dry_run",False):
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
-                logging.info("%s %s %s",symbol,sig["direction"],result)
-            except Exception as e:
-                logging.exception("%s failed",symbol)
-                enqueue_gas("saveEAError",{"symbol":symbol,"error":str(e)})
-        time.sleep(POLL_SEC)
+            logging.error("GAS outbox failed: %s",e);_stop.wait(5)
 
-if __name__=="__main__":
-    try:run()
-    finally:
-        _stop.set()
-        mt5.shutdown()
