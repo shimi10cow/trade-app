@@ -602,7 +602,7 @@ function renderHistoryList() {
 
   if (histStatus === 'signal') {
     const sigs=(window._eaSignals||[]).filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes' && !/entry$/i.test(String(x.Decision||'')));
-    container.innerHTML=sigs.length?sigs.slice().reverse().map(x=>`<div class="list-card" style="border-left:4px solid #38bdf8"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> <span class="badge" style="color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div><div style="font-size:12px;margin-top:6px">${x.Reason||x.SkipReason||'非エントリー'}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
+    container.innerHTML=sigs.length?sigs.slice().reverse().map((x,i)=>`<div class="list-card" onclick="openSignalDetail(${(window._eaSignals||[]).indexOf(x)},'all')" style="cursor:pointer;border-left:4px solid #38bdf8"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> <span class="badge" style="color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div><div style="font-size:12px;margin-top:6px">${x.Reason||x.SkipReason||'非エントリー'}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
   }
   if (filtered.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">履歴がありません</div>';
@@ -1144,13 +1144,14 @@ function renderPositions() {
 
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
+  const liveSignals=(window._eaSignals||[]).filter(x=>/監視|open|active/i.test(String(x.Status||'')) || /SIGNAL_ONLY/i.test(String(x.Decision||'')) && !x.ExitTime);
 
-  if (activeTrades.length === 0) {
+  if (activeTrades.length === 0 && liveSignals.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">現在保有中のポジションはありません</div>';
     return;
   }
 
-  container.innerHTML = activeTrades.slice().sort((a, b) => {
+  const tradeHtml = activeTrades.slice().sort((a, b) => {
     const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
     const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
     return db > da ? 1 : db < da ? -1 : 0;
@@ -1177,7 +1178,18 @@ function renderPositions() {
       </div>
     `;
   }).join('');
+  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer;border-left:4px solid #38bdf8"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span><span class="badge" style="background:rgba(56,189,248,.16);color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
+  container.innerHTML=tradeHtml+signalHtml;
 }
+
+function openSignalDetail(idx,scope){
+ const arr=(window._eaSignals||[]).filter(x=>scope==='live'?(/監視|open|active/i.test(String(x.Status||'')) || /SIGNAL_ONLY/i.test(String(x.Decision||''))&&!x.ExitTime):true),s=arr[idx];if(!s)return;
+ const snap=s.EnvironmentSnapshot||s.EnvSnapshot||s.snapshot||{};
+ const val=(k)=>s[k]??snap[k]??'-';
+ const old=document.getElementById('signal-detail-modal');if(old)old.remove();
+ const m=document.createElement('div');m.id='signal-detail-modal';m.className='modal-overlay active';m.innerHTML=`<div class="modal-content fixed-h"><div class="modal-header"><div class="modal-title">Signal詳細</div><div class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</div></div><div class="modal-body"><div class="section"><div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><b>${s.Pair||'-'}</b><span class="badge">${s.Direction||'-'}</span><span class="badge" style="color:#38bdf8">Signal</span></div><div class="ea-note">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div><div class="section-title" style="margin-top:16px">EA環境認識</div><div class="ea-note">EA許可: ${val('EA許可方向')} / TL推進: ${val('TL推進環境')} / TL逆トレ: ${val('TL逆トレ環境')}</div><div class="section-title" style="margin-top:16px">トレンド方向</div><div class="ea-note">M1 ${val('M1')}　W1 ${val('W1')}　D1 ${val('D1')}　H4 ${val('H4')}　H1 ${val('H1')}</div><div class="section-title" style="margin-top:16px">MA条件</div><div class="ea-note">H4MA乖離 ${val('H4MA乖離')}<br>H4MA480.1200 ${val('H4MA480.1200')}<br>H1MA20.80 ${val('H1MA20.80')}<br>H4MA20.80 ${val('H4MA20.80')}</div><div class="section-title" style="margin-top:16px">判定</div><div class="ea-note">${s.Reason||s.SkipReason||'シグナル通知のみ'}</div>${s.ExitTime?`<div class="section-title" style="margin-top:16px">仮想決済</div><div class="ea-note">${s.ExitTime} · Exit ${s.ExitPrice||'-'} · ${s.VirtualPips||s.Pips||'-'} pips</div>`:''}</div></div></div>`;document.body.appendChild(m);
+}
+window.openSignalDetail=openSignalDetail;
 
 function renderPairs() {
   const container = document.getElementById('pairs-list');
@@ -1242,10 +1254,7 @@ function renderPairs() {
           </div>
           <div style="color:#64748b; font-size:18px;">›</div>
         </div>
-        <div style="display:flex;justify-content:flex-end;padding:0 4px 6px;">
-          <button onclick="event.stopPropagation(); if(window.eaOpenPair) eaOpenPair('${pairName}')" style="padding:5px 9px;background:#172033;border:1px solid #334155;color:#94a3b8;border-radius:7px;font-size:10px;">🤖 EA設定</button>
-        </div>
-        ${planButtons}
+${planButtons}
       `;
     });
   });
