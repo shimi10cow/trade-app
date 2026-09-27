@@ -17,6 +17,7 @@ checks={
  "H1 strategy module present":(ROOT/"h1_strategy.py").exists(),
  "Telegram notification module present":(ROOT/"telegram_notify.py").exists(),
  "Telegram wired to runtime":"import telegram_notify as telegram" in main and "notifySignal" in main and "notifyEntry" in main and "notifyError" in main,
+ "Telegram global Exit toggle available":"notifyExit" in main,
  "H1 independent of M15 signal":"if results:process_signal" in main and "if pc.get(\"h1\",False)" in main,
  "Shared actual position cap":'if len(current)>=2:raise RuntimeError("MAX_POSITIONS")' in main,
  "H1 app toggle wired":'pc.get("h1",False)' in main and '"H1_OFF"' in main,
