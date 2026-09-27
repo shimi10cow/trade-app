@@ -28,6 +28,7 @@ const GAS_ACTIONS = {
   getEASignals:     () => getEASignals(),
   getMT5Executions: () => getMT5Executions(),
   getHybridConfig:  () => getHybridConfig(),
+  getAppSettings:   () => Object.fromEntries(sheetObjects_(APP_SETTINGS_SHEET).map(r=>[String(r.Key),r.Value])),
 };
 
 function doGet(e) {
@@ -110,6 +111,10 @@ function doPost(e) {
     result = saveEASignal(body.data);
   } else if (action === 'saveMT5Execution') {
     result = saveMT5Execution(body.data);
+  } else if (action === 'saveEAError') {
+    result = saveEAError(body.data);
+  } else if (action === 'saveAppSettings') {
+    result = saveAppSettings(body.data);
   } else if (action === 'ensureEASheets') {
     result = ensureEASheets();
   } else {
@@ -1353,6 +1358,18 @@ function saveMT5Execution(data){
   data.CreatedAt=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
   upsertByKey_(MT5_EXECUTIONS_SHEET,MT5_EXEC_HEADERS,'ExecutionID',data);
   return {success:true,executionId:data.ExecutionID};
+}
+function saveEAError(data){
+  ensureEASheets(); data=data||{};
+  const msg='['+String(data.type||'RUNTIME')+'] '+String(data.error||data.Message||'');
+  const row={SignalID:'ERR-'+Utilities.getUuid(),SignalTime:data.time||new Date(),Pair:data.symbol||data.Pair||'',Direction:'',Rule:'ERROR',Pullback:'',Executed:'NO',SkipReason:msg,EnvironmentSnapshot:data,CreatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')};
+  upsertByKey_(EA_SIGNALS_SHEET,EA_SIGNALS_HEADERS,'SignalID',row);
+  return {success:true};
+}
+function saveAppSettings(data){
+  ensureEASheets(); data=data||{};
+  Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')}));
+  return {success:true};
 }
 function getHybridConfig(){
   ensureEASheets();
