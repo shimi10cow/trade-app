@@ -5,21 +5,7 @@ $env:EA_PAIRS = "EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD"
 $env:EA_POLL_SEC = "2"
 $env:EA_MAGIC = "560001"
 
-Write-Host "Hybrid EA - local preflight (NO ORDERS)" -ForegroundColor Cyan
-py .\preflight.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-py .\strategy_tests.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host ""
-Write-Host "Hybrid EA - runtime validation (NO ORDERS)" -ForegroundColor Cyan
-py .\runtime_check.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host "Hybrid EA - connection test (NO ORDERS)" -ForegroundColor Cyan
-py .\connection_test.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host ""
-Write-Host "Connection test passed. Starting DRY RUN..." -ForegroundColor Green
+# Fast daily startup: main.py is fail-closed until the cached/background GAS runtime is healthy.
+# Full diagnostics belong to verify_dry_run.ps1 and are not repeated on every PC startup.
+Write-Host "Hybrid EA - FAST DRY RUN (NO ORDERS)" -ForegroundColor Green
 py .\main.py
