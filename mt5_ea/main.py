@@ -14,6 +14,11 @@ PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
 _cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
+_cache_lock=threading.Lock()
+_stop=threading.Event()
+_outbox=queue.Queue()
+SETTINGS_MAX_STALE=900
+ENV_MAX_STALE=7200
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
