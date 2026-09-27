@@ -13,10 +13,12 @@ def check(name,cond,detail=""):
 
 try:
     main.connect()
-    main.refresh_runtime_once()\n    cfg,envs,healthy=main.cached_runtime()
+    main.refresh_runtime_once()
+    cfg,envs,healthy=main.cached_runtime()
     check("GAS settings cache loaded",isinstance(cfg,dict))
     check("GAS pairs loaded",isinstance(envs,list) and len(envs)>0,f"{len(envs) if isinstance(envs,list) else 0} pairs")
-    check("Global entry remains stopped",not bool(cfg.get("globalEntry",False)))\n    check("Runtime cache healthy",healthy)
+    check("Global entry remains stopped",not bool(cfg.get("globalEntry",False)))
+    check("Runtime cache healthy",healthy)
     targets=main.PAIR_OVERRIDE or [main.pair_name(x) for x in envs if main.pair_name(x)]
     tested=0
     with tempfile.TemporaryDirectory() as td:
@@ -43,5 +45,6 @@ try:
     check("No live order mode",main.DRY_RUN is True)
 finally:
     mt5.shutdown()
-print("\nRESULT:","PASS" if ok else "NOT READY")
+print("
+RESULT:","PASS" if ok else "NOT READY")
 sys.exit(0 if ok else 1)
