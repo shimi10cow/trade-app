@@ -8,7 +8,7 @@ GAS_URL=os.getenv("EA_GAS_URL","")
 DRY_RUN=os.getenv("EA_DRY_RUN","true").lower()=="true"
 POLL_SEC=int(os.getenv("EA_POLL_SEC","2"))
 MAGIC=int(os.getenv("EA_MAGIC","560001"))
-PAIRS=[x.strip() for x in os.getenv("EA_PAIRS","EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD").split(",") if x.strip()]
+PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
 
@@ -36,7 +36,7 @@ def bars(symbol,tf,count=700):
     # Drop bar 0: it is still forming. All decisions use closed candles only.
     return rates[:-1]
 
-def pair_settings():
+def pair_name(x):\n    return str(x.get("Pair") or x.get("PairName") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""\n\ndef resolve_symbol(base):\n    if mt5.symbol_info(base): return base\n    b="".join(c for c in base.upper() if c.isalnum())\n    aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])\n    hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]\n    hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))\n    return hits[0] if hits else None\n\ndef pair_settings():
     try:return gas_get("getEASettings") or {}
     except Exception as e:
         logging.error("settings fetch failed: %s",e);return {}
@@ -122,16 +122,16 @@ def run():
                 ts=int(b[-1]["time"])
                 if last_bar.get(symbol)==ts:continue
                 last_bar[symbol]=ts
-                raw=evaluate_m15(symbol,b,cfg,envmap.get(symbol,{}))
+                raw=evaluate_m15(base_symbol,b,cfg,envmap.get(base_symbol,{}))
                 if not raw:continue
-                sig={"symbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
-                ok,reason=allowed(sig,cfg,envmap.get(symbol,{}))
+                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
+                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 saved=gas_post("saveEASignal",{"signal":sig,"decision":"ENTRY" if ok else "SKIP","reason":reason,
-                    "environmentSnapshot":envmap.get(symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(symbol,{})})
+                    "environmentSnapshot":envmap.get(symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(base_symbol,{})})
                 if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
-                pc=(cfg.get("pairs") or {}).get(symbol,{})
-                result=send_order(sig,pc)
+                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+                order_sig={**sig,"symbol":symbol}\n                result=send_order(order_sig,pc)
                 gas_post("saveMT5Execution",{"signal":sig,"execution":result})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
