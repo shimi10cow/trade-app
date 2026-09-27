@@ -1169,7 +1169,7 @@ function renderPositions() {
             ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
+            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
             ${t['計画エントリー'] === 'ON' ? '<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">📋 計画</span>' : ''}
           </div>
           <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
@@ -1178,7 +1178,7 @@ function renderPositions() {
       </div>
     `;
   }).join('');
-  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
+  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer;border-left:4px solid #3b82f6"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span><span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
   container.innerHTML=tradeHtml+signalHtml;
 }
 
