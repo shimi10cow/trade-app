@@ -159,52 +159,47 @@ def send_order(sig,pc):
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume}
 
+def refresh_runtime_once():
+    now=time.time(); settings=pair_settings(); env=environment()
+    with _cache_lock:
+        if settings is not None:_cache["settings"],_cache["settings_at"]=settings,now
+        if env is not None:_cache["env"],_cache["env_at"]=env,now
+
+def runtime_refresher():
+    while not _stop.is_set():
+        now=time.time()
+        with _cache_lock:
+            need_s=_cache["settings"] is None or now-_cache["settings_at"]>=300
+            need_e=_cache["env"] is None or now-_cache["env_at"]>=3600
+        if need_s:
+            x=pair_settings()
+            if x is not None:
+                with _cache_lock:_cache["settings"],_cache["settings_at"]=x,time.time()
+        if need_e:
+            x=environment()
+            if x is not None:
+                with _cache_lock:_cache["env"],_cache["env_at"]=x,time.time()
+        _stop.wait(2)
+
 def cached_runtime():
     now=time.time()
-    if _cache["settings"] is None or now-_cache["settings_at"]>=300:
-        new=pair_settings()
-        if new is not None:_cache["settings"],_cache["settings_at"]=new,now
-    if _cache["env"] is None or now-_cache["env_at"]>=3600:
-        new=environment()
-        if new is not None:_cache["env"],_cache["env_at"]=new,now
-    return _cache["settings"] or {"globalEntry":False,"pairs":{}},_cache["env"] or []
+    with _cache_lock:
+        cfg=_cache["settings"]; env=_cache["env"]
+        sa=now-_cache["settings_at"] if _cache["settings_at"] else 10**9
+        ea=now-_cache["env_at"] if _cache["env_at"] else 10**9
+    healthy=cfg is not None and env is not None and sa<=SETTINGS_MAX_STALE and ea<=ENV_MAX_STALE
+    return cfg or {"globalEntry":False,"pairs":{}},env or [],healthy
 
-def run():
-    connect()
-    while True:
-        cfg,envs=cached_runtime()
-        envmap={str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or ""):x for x in envs if isinstance(x,dict)}
-        targets=PAIR_OVERRIDE or [pair_name(x) for x in envs if pair_name(x)]
-        for base_symbol in sorted(set(targets)):
-            symbol=resolve_symbol(base_symbol)
-            if not symbol:
-                logging.warning("%s: broker symbol not found",base_symbol)
-                continue
-            try:
-                b=bars(symbol,mt5.TIMEFRAME_M15)
-                ts=int(b[-1]["time"])
-                if last_bar.get(symbol)==ts:continue
-                last_bar[symbol]=ts
-                raw=evaluate_m15(base_symbol,symbol,b)
-                if not raw:continue
-                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
-                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))\n                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                saved=None; enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
-                if not ok:continue
-                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-                order_sig={**sig,"symbol":symbol}
-                result=send_order(order_sig,pc)
-                # DRY_RUN validates order construction/check only; it is not a real MT5 execution.
-                if not result.get("dry_run",False):
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
-                logging.info("%s %s %s",symbol,sig["direction"],result)
-            except Exception as e:
-                logging.exception("%s failed",symbol)
-                try:enqueue_gas("saveEAError",{"symbol":symbol,"error":str(e)})
-                except Exception:pass
-        time.sleep(POLL_SEC)
+def enqueue_gas(action,data):_outbox.put((action,data))
 
-if __name__=="__main__":
-    try:run()
-    finally:\n        _stop.set()\n        mt5.shutdown()
+def outbox_worker():
+    while not _stop.is_set():
+        try:action,data=_outbox.get(timeout=1)
+        except queue.Empty:continue
+        try:gas_post(action,data)
+        except Exception as e:
+            logging.error("GAS outbox failed %s: %s",action,e)
+            _stop.wait(5)
+            if not _stop.is_set():_outbox.put((action,data))
+        finally:_outbox.task_done()
+
