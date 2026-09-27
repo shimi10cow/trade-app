@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20260927q">
+  <link rel="stylesheet" href="./style.css?v=20260928a">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -427,7 +427,7 @@
         <div class="modal-title">新規エントリー記録</div>
         <div style="display:flex; gap:8px; align-items:center;">
           <button type="button" onclick="pickMT5Screenshot('ne')" title="MT5画像から入力" style="width:32px;height:32px;border:1px solid #334155;border-radius:8px;background:#1e293b;color:#38bdf8;font-size:15px;cursor:pointer;padding:0;">📷</button>
-          <input id="ne-mt5-ocr-file" type="file" accept="image/*" style="display:none" onchange="importMT5Screenshot(this,'ne')">
+          <input id="ne-mt5-ocr-file" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" style="display:none" onchange="importMT5Screenshot(this,'ne')">
           <div id="ne-fav-btn" onclick="toggleEntryFavorite()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
           <div class="modal-close" onclick="closeEntryModal()">✕</div>
         </div>
@@ -739,7 +739,7 @@
         <div class="modal-title" id="td-title">ポジション詳細</div>
         <div style="display:flex; gap:8px; align-items:center;">
           <button type="button" onclick="pickMT5Screenshot('td')" title="MT5画像から入力" style="width:32px;height:32px;border:1px solid #334155;border-radius:8px;background:#1e293b;color:#38bdf8;font-size:15px;cursor:pointer;padding:0;">📷</button>
-          <input id="td-mt5-ocr-file" type="file" accept="image/*" style="display:none" onchange="importMT5Screenshot(this,'td')">
+          <input id="td-mt5-ocr-file" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" style="display:none" onchange="importMT5Screenshot(this,'td')">
           <div id="td-fav-btn" onclick="toggleFavoriteDetail()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
           <div class="modal-close" onclick="closeTradeDetail()">✕</div>
         </div>
@@ -1417,7 +1417,7 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20260927p" charset="utf-8"></script>
-  <script src="./ea.js?v=20260927p" charset="utf-8"></script>
+  <script src="./app.js?v=20260928a" charset="utf-8"></script>
+  <script src="./ea.js?v=20260928a" charset="utf-8"></script>
 </body>
 </html>
