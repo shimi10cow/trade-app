@@ -3,7 +3,7 @@ import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
-from m15_strategy import evaluate as evaluate_m15_strategy
+from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -206,6 +206,24 @@ def send_order(sig,pc,cfg=None):
     res=mt5.order_send(req)
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume}
+
+def manage_ea_positions():
+    """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
+    state=load_m15_state()
+    for base,ps in (state.get("pairs") or {}).items():
+        symbol=resolve_symbol(base)
+        if not symbol:continue
+        positions=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC]
+        positions.sort(key=lambda p:getattr(p,"time",0))
+        trades=[t for t in (ps.get("trades") or {}).values() if t.get("entered") and t.get("open")]
+        trades.sort(key=lambda t:t.get("entry_time",0))
+        for p,t in zip(positions,trades):
+            target=float(t.get("sl") or 0)
+            current=float(getattr(p,"sl",0) or 0)
+            buy=p.type==mt5.POSITION_TYPE_BUY
+            improve=target>0 and (current<=0 or (buy and target>current) or ((not buy) and target<current))
+            if improve and modify_position_sl(p,target):
+                enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base,"Direction":"BUY" if buy else "SELL","Ticket":p.ticket,"Event":"SL_UPDATE","SL":target,"EventTime":datetime.now(timezone.utc).isoformat()}})
 
 def refresh_runtime_once():
     now=time.time(); settings=pair_settings(); env=environment()
