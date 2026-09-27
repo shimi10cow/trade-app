@@ -22,8 +22,8 @@ checks={
  "H1 Extreme Switch":"H1_EXTREME_SWITCH" in strategy,
  "SMA480 24h":"s480[i-24]" in strategy,
  "Spread/risk 10%":"spread_price/risk>0.10" in strategy,
- "240h activates trailing, not forced exit":"240" in strategy and "TIME_EXIT" not in strategy and "TRAIL_240H" in strategy,
- "P3 causal ledger implemented":"P3_LEDGER_PENDING" not in strategy and "current_r" in strategy,
+ "240h activates trailing, not forced exit":"age_hours>=240.0" in strategy and "TIME_EXIT" not in strategy and "forced exit" not in strategy.lower(),
+ "P3 causal ledger implemented":"P3_LEDGER_PENDING" not in strategy and "update_trade_ledger" in strategy and "current_r" in strategy,
 }
 for k,v in checks.items():
     print(("[PASS] " if v else "[FAIL] ")+k)
