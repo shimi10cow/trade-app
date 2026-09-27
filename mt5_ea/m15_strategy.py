@@ -165,6 +165,18 @@ def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0
     save_state(state)
     return tid
 
+def recover_execution(pair,direction,entry,sl,entry_time,ticket=None):
+    state=load_state(); ps=pair_state(state,pair)
+    if ticket is not None:
+        for t in ps.setdefault("trades",{}).values():
+            if str(t.get("ticket",""))==str(ticket):return False
+    risk=abs(float(entry)-float(sl))
+    if risk<=0:return False
+    tid=f"RECOVERED:{ticket or int(entry_time)}"
+    ps.setdefault("trades",{})[tid]={"entered":True,"open":True,"entry":float(entry),"sl":float(sl),"risk":risk,
+        "direction":direction,"current_r":0.0,"entry_time":int(entry_time),"trailing":False,"ticket":ticket,"recovered":True}
+    save_state(state);return True
+
 def bootstrap(pair,rates,spread_price=0.0):
     """Rebuild missing strategy state from closed M15 history without future bars."""
     state=load_state()
