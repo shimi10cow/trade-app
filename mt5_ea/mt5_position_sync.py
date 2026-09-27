@@ -69,7 +69,7 @@ def _scan_connected(magic,state_path=STATE_PATH):
 
 def _account_configs():
     try:
-        raw=json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))
+        raw=json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8-sig"))
         rows=raw.get("accounts",raw) if isinstance(raw,dict) else raw
         return [x for x in rows if isinstance(x,dict) and x.get("enabled",True)]
     except FileNotFoundError:return []
