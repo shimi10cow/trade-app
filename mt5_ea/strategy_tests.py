@@ -60,7 +60,8 @@ s.update_trade_ledger(ps,{"time":3600,"high":101.0,"low":99.5,"close":100.5},[],
 check("spread cost included in current R",abs(ps["trades"]["t"]["current_r"]-0.4)<1e-9)
 
 failed=[n for n,v in tests if not v]
-print()\nprint("RESULT:","PASS" if not failed else "NOT READY")
+print()
+print("RESULT:", "PASS" if not failed else "NOT READY")
 if failed:
     for n in failed:print(" -",n)
     raise SystemExit(1)
