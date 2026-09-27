@@ -4,6 +4,10 @@ $server=[Environment]::GetEnvironmentVariable("EA_LIVE_SERVER","User")
 if (-not $login -or -not $server) { throw "LIVE account lock is not configured." }
 $env:EA_LIVE_LOGIN=$login
 $env:EA_LIVE_SERVER=$server
+$telegramToken=[Environment]::GetEnvironmentVariable("EA_TELEGRAM_BOT_TOKEN","User")
+$telegramChat=[Environment]::GetEnvironmentVariable("EA_TELEGRAM_CHAT_ID","User")
+if ($telegramToken) { $env:EA_TELEGRAM_BOT_TOKEN=$telegramToken }
+if ($telegramChat) { $env:EA_TELEGRAM_CHAT_ID=$telegramChat }
 $env:EA_LIVE_ARMED="false"
 $env:EA_DRY_RUN="true"
 $env:EA_PAIRS="EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD"
