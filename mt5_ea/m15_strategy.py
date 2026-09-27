@@ -2,7 +2,7 @@
 Extreme Switch + Retracement Gate. Closed M15 bars only.
 240h activates M15 causal ZigZag trailing; it never forces an exit.
 """
-import json, math, os
+import json, math, os, tempfile
 from pathlib import Path
 
 STATE_PATH=Path(os.getenv("EA_STATE_FILE",Path(__file__).with_name("m15_state.json")))
@@ -53,9 +53,25 @@ def load_state():
     except Exception:return {"pairs":{}}
 
 def save_state(s):
-    tmp=STATE_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(s,ensure_ascii=False,indent=2),encoding="utf-8")
-    tmp.replace(STATE_PATH)
+    """Durably save state without reusing a fixed .tmp filename.
+
+    A unique temp file avoids Windows/AV/indexer collisions seen during the
+    bootstrap loop. os.replace remains atomic on the same filesystem.
+    """
+    STATE_PATH.parent.mkdir(parents=True,exist_ok=True)
+    data=json.dumps(s,ensure_ascii=False,indent=2)
+    fd,name=tempfile.mkstemp(prefix=STATE_PATH.stem+".",suffix=".tmp",dir=str(STATE_PATH.parent))
+    try:
+        with os.fdopen(fd,"w",encoding="utf-8") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(name,STATE_PATH)
+    finally:
+        try:
+            if os.path.exists(name):os.unlink(name)
+        except OSError:
+            pass
 
 def pair_state(s,pair):
     return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"regime":"","p_count":0,"extreme":False,"q75":{"BUY":[],"SELL":[]},"signals":{},"trades":{},"virtual_trades":{},"last_time":0})
