@@ -782,7 +782,6 @@ function updateNeFavButton() {
 }
 
 function openEntryModal(isMissed = false) {
-  setTimeout(()=>{ const et=document.getElementById('ne-exit-time'); if(et&&!et.value){const n=new Date();et.value=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}},0);
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
   App.state.neFavorite = false;
@@ -835,6 +834,7 @@ function openEntryModal(isMissed = false) {
   const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('ne-date').value = dateStr;
   document.getElementById('ne-time').value = timeStr;
+  document.getElementById('ne-exit-time').value = '';
 
   document.getElementById('ne-pre-memo').textContent = '(ペアを選択すると表示されます)';
   document.getElementById('ne-judgement-text').textContent = '--';
@@ -5481,7 +5481,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-price').value = t['ExitPrice'] || t['決済価格'] || '';
   document.getElementById('td-sl-price').value = t['InitialSLPrice'] || t['SLPrice'] || t['損切り価格'] || '';
   document.getElementById('td-tp-price').value = t['TakeProfitPrice'] || t['TPPrice'] || t['利確価格'] || '';
-  document.getElementById('td-exit-time').value = formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || '');
+  { const savedExitTime=formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || ''); const now=new Date(); document.getElementById('td-exit-time').value=savedExitTime || ((t['ステータス']||'').startsWith('保有中') ? String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0') : ''); }
 
   // existing values
   document.getElementById('td-pips').value = t['実取得pips'] || '';
