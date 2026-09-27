@@ -89,6 +89,6 @@ try:
 finally:
     mt5.shutdown()
 
-print("
-RESULT:", "READY FOR DRY RUN" if ok else "FIX FAILED ITEMS FIRST")
+print()
+print("RESULT:", "READY FOR DRY RUN" if ok else "FIX FAILED ITEMS FIRST")
 sys.exit(0 if ok else 1)
