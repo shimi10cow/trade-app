@@ -19,7 +19,7 @@ def fail(msg):
 try:
     main.connect()
     main.init_outbox()
-    main.load_runtime_disk_cache()
+    cache_loaded=main.load_runtime_disk_cache()
     cfg,envs,runtime_ok=main.cached_runtime()
     symbol=main.resolve_symbol(PAIR)
     if not symbol: fail(f"{PAIR}: broker symbol not found")
@@ -38,7 +38,7 @@ try:
     # Verify policy gates independently. Existing user settings may intentionally be STOP.
     gate_ok,gate_reason=main.allowed(sig,cfg,{})
     print(f"[PASS] policy gate evaluated: allowed={gate_ok} reason={gate_reason}")
-    print(f"[PASS] runtime cache evaluated: healthy={runtime_ok}")
+    print(f"[PASS] runtime cache evaluated: loaded={cache_loaded} healthy={runtime_ok}")
 
     # Use a dedicated safe fixed-lot config so broker order_check can be exercised even while GAS is STOP.
     pc={"mode":"auto","direction":"Both","m15":True,"riskType":"fixedLot",
