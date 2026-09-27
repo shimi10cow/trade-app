@@ -3,7 +3,7 @@ import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
-from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state
+from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -202,10 +202,10 @@ def send_order(sig,pc,cfg=None):
     if sig.get("tp"):req["tp"]=float(sig["tp"])
     check=mt5.order_check(req)
     if check is None:raise RuntimeError(f"order_check failed: {mt5.last_error()}")
-    if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check)}
+    if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check),"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
     res=mt5.order_send(req)
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
-    return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume}
+    return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume,"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
 
 def manage_ea_positions():
     """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
