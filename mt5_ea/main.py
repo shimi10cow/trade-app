@@ -6,6 +6,7 @@ import requests
 import MetaTrader5 as mt5
 from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution, pip_size as m15_pip_size
 from h1_strategy import evaluate as evaluate_h1_strategy, load_state as load_h1_state, register_execution as register_h1_execution
+import telegram_notify as telegram
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -135,7 +136,7 @@ def pair_settings():
         rows=hybrid.get("settings") or []
         app=hybrid.get("appSettings") or {}
         if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"pairs":{}}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
             if not p: continue
@@ -265,6 +266,12 @@ def lot_for(symbol,direction,entry,sl,pc):
         if loss_for(symbol,direction,lot,entry,sl)>cap+1e-8:raise RuntimeError("RISK_CAP")
     return round(lot,8)
 
+def notify_signal(sig,cfg):
+    telegram.send("signal",f"EA SIGNAL\nPair: {sig.get('symbol')}\nTF: {sig.get('timeframe','M15')}\nDirection: {sig.get('direction')}\nPattern: {sig.get('pattern','')}\nPrice: {sig.get('entry','')}\nSL: {sig.get('sl','')}\nTime: {sig.get('time','')}",cfg)
+
+def notify_entry(sig,result,cfg):
+    telegram.send("entry",f"EA ENTRY\nPair: {sig.get('symbol')}\nTF: {sig.get('timeframe','M15')}\nDirection: {sig.get('direction')}\nPrice: {result.get('price','')}\nLot: {result.get('volume','')}\nSL: {result.get('sl',sig.get('sl',''))}\nPattern: {sig.get('pattern','')}\nTime: {sig.get('time','')}",cfg)
+
 def account_snapshot():
     a=mt5.account_info()
     return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
@@ -283,6 +290,8 @@ def send_order(sig,pc,cfg=None):
     validate_live_pair_config(pc)
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
+    current=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC]
+    if len(current)>=2:raise RuntimeError("MAX_POSITIONS")
     tick=mt5.symbol_info_tick(symbol)
     if not tick:raise RuntimeError(f"{symbol}: no tick")
     info=mt5.symbol_info(symbol)
@@ -468,98 +477,71 @@ def bootstrap_missing_state(cfg):
         logging.info("%s: bootstrap complete in %.2fs",base,time.perf_counter()-tb)
     logging.info("startup: strategy state ready in %.2fs",time.perf_counter()-t0)
 
+def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
+    sig_ts=int(raw.pop("_bar_time",ts)); tf=str(timeframe).upper()
+    sig={"symbol":base_symbol,"brokerSymbol":symbol,"timeframe":tf,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
+    sid=signal_id(base_symbol,sig_ts,sig.get("pattern",""),sig["direction"],tf)
+    if sig_ts!=ts or time.time()-sig_ts>MAX_SIGNAL_AGE_SEC:
+        enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"Executed":"NO","SkipReason":"OFFLINE_CATCHUP","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
+        return
+    ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}),tf)
+    if ok:
+        eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
+        if not eok:ok,reason=False,ereason
+    if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
+    enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
+    if not ok:return
+    pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+    if not DRY_RUN:notify_signal(sig,cfg)
+    result=send_order({**sig,"symbol":symbol},pc,cfg)
+    if not result.get("dry_run",False):
+        if tf=="H1":
+            register_h1_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
+            recover_m15_execution(base_symbol,sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("ticket"))
+        else:
+            register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
+        enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA-H1" if tf=="H1" else "EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("ticket",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
+        notify_entry(sig,result,cfg)
+    logging.info("%s %s %s %s",symbol,tf,sig["direction"],result)
+
 def run():
     connect()
-    logging.info("startup: initializing outbox")
     init_outbox()
     cached=load_runtime_disk_cache()
-    logging.info("startup: runtime disk cache %s", "loaded" if cached else "not found")
     cfg0,_,_=cached_runtime()
     bootstrap_missing_state(cfg0)
-    # Persisted strategy state is already caught up through last_time. Seed the polling
-    # cursor from it so a normal restart does not refetch 3000 bars for every pair.
-    startup_state=load_m15_state()
-    startup_pairs=(startup_state.get("pairs") or {})
+    startup_state=load_m15_state(); startup_pairs=(startup_state.get("pairs") or {})
     startup_targets=(set(PAIR_OVERRIDE)&set(startup_pairs)) if PAIR_OVERRIDE else set(startup_pairs)
     for base in startup_targets:
-        ps=startup_pairs[base]; sym=resolve_symbol(base)
+        ps=startup_pairs[base];sym=resolve_symbol(base)
         if sym and int(ps.get("last_time",0))>0:last_bar[sym]=int(ps["last_time"])
     logging.info("EA monitoring started; %s strategy cursors restored",len(last_bar))
-    # GAS is never allowed to block startup or the trading loop.
     threading.Thread(target=runtime_refresher,daemon=True).start()
     threading.Thread(target=outbox_worker,daemon=True).start()
     while not _stop.is_set():
         cfg,envs,runtime_ok=cached_runtime()
         envmap={pair_name(x):x for x in envs if isinstance(x,dict) and pair_name(x)}
-        # Only explicit EA_Settings pairs are eligible. EA_PAIRS may narrow that set for testing,
-        # but can never introduce an unconfigured pair.
         configured=set((cfg.get("pairs") or {}).keys())
         targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
         manage_ea_positions(cfg)
         for base_symbol in sorted(targets):
             symbol=resolve_symbol(base_symbol)
-            if not symbol:
-                logging.warning("%s: broker symbol not found",base_symbol)
-                continue
+            if not symbol:continue
             try:
                 ts=latest_closed_bar_time(symbol)
                 if not ts or last_bar.get(symbol)==ts:continue
                 results=evaluate_missing_m15(base_symbol,symbol)
                 last_bar[symbol]=ts
                 save_virtual_exits(base_symbol)
-                if not results:continue
-                # Normally one result; after downtime every missed signal is preserved in order.
-                raw=results[-1]
-                sig_ts=int(raw.pop("_bar_time",ts))
-                # Replay missed bars to restore causal state, but never execute a stale offline signal.
-                if sig_ts != ts or time.time()-sig_ts > MAX_SIGNAL_AGE_SEC:
-                    stale_sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
-                    sid=signal_id(base_symbol,sig_ts,stale_sig.get("pattern",""),stale_sig["direction"])
-                    enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":stale_sig["time"],"Pair":base_symbol,"Direction":stale_sig["direction"],"Rule":stale_sig.get("rule","M15"),"Pullback":stale_sig.get("pattern",""),"Executed":"NO","SkipReason":"OFFLINE_CATCHUP","EntryPrice":stale_sig.get("entry",""),"InitialSL":stale_sig.get("sl","")}})
-                    continue
-                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
-                sid=signal_id(base_symbol,sig_ts,sig.get("pattern",""),sig["direction"])
-                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
-                if ok:
-                    eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
-                    if not eok:ok,reason=False,ereason
-                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl",""),"InitialRiskPips":(float(sig.get("initialRisk",0))/m15_pip_size(base_symbol) if sig.get("initialRisk") is not None else ""),"SpreadPips":(float(sig.get("spreadPrice",0))/m15_pip_size(base_symbol)),"EnvironmentSnapshot":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"SettingsSnapshot":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
-                if not ok:continue
-                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-                result=send_order({**sig,"symbol":symbol},pc,cfg)
-                if not result.get("dry_run",False):
-                    register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"SpreadPips":float(result.get("spread",0))/m15_pip_size(base_symbol),"Ticket":result.get("ticket",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
-                logging.info("%s %s %s",symbol,sig["direction"],result)
-
-                # H1 is independently switchable in the app. It is evaluated only on a completed H1 bar.
+                if results:process_signal(base_symbol,symbol,results[-1],ts,cfg,envmap,runtime_ok,"M15")
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 if pc.get("h1",False) and ((ts%3600)//60)==45:
                     h1_results=evaluate_missing_h1(base_symbol,symbol)
-                    if h1_results:
-                        hraw=h1_results[-1]; hts=int(hraw.pop("_bar_time",ts))
-                        hsig={"symbol":base_symbol,"brokerSymbol":symbol,"timeframe":"H1","time":datetime.fromtimestamp(hts,timezone.utc).isoformat(),**hraw}
-                        hsid=signal_id(base_symbol,hts,hsig.get("pattern",""),hsig["direction"],"H1")
-                        hok,hreason=allowed(hsig,cfg,envmap.get(base_symbol,{}),"H1")
-                        if hok:
-                            heok,hereason=environment_allowed(hsig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
-                            if not heok:hok,hreason=False,hereason
-                        if hok and not runtime_ok:hok,hreason=False,"RUNTIME_CACHE_STALE"
-                        if hts!=ts or time.time()-hts>MAX_SIGNAL_AGE_SEC:hok,hreason=False,"OFFLINE_CATCHUP"
-                        enqueue_gas("saveEASignal",{"data":{"SignalID":hsid,"SignalTime":hsig["time"],"Pair":base_symbol,"Direction":hsig["direction"],"Rule":hsig.get("rule","H1"),"Pullback":hsig.get("pattern",""),"Executed":"DRY_RUN" if hok and DRY_RUN else ("YES" if hok else "NO"),"SkipReason":hreason if not hok else "","EntryPrice":hsig.get("entry",""),"InitialSL":hsig.get("sl",""),"InitialRiskPips":float(hsig.get("initialRisk",0))/m15_pip_size(base_symbol),"SpreadPips":float(hsig.get("spreadPrice",0))/m15_pip_size(base_symbol)}})
-                        if hok:
-                            # Shared account/risk gates in send_order apply to M15 and H1 alike.
-                            hresult=send_order({**hsig,"symbol":symbol},pc,cfg)
-                            if not hresult.get("dry_run",False):
-                                register_h1_execution(base_symbol,hsig.get("pattern",""),hsig["direction"],hresult.get("price"),hresult.get("sl",hsig["sl"]),hts,hresult.get("spread",0.0),hresult.get("ticket"),hresult.get("deal"))
-                                # Register in the shared causal M15 ledger so ZigZag/240h exit management is identical.
-                                recover_m15_execution(base_symbol,hsig["direction"],hresult.get("price"),hresult.get("sl",hsig["sl"]),hts,hresult.get("ticket"))
-                                enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":hsid,"Source":"EA-H1","Pair":base_symbol,"Direction":hsig["direction"],"EntryTime":hsig["time"],"EntryPrice":hresult.get("price",""),"Lot":hresult.get("volume",""),"SpreadPips":float(hresult.get("spread",0))/m15_pip_size(base_symbol),"Ticket":hresult.get("ticket",""),"Deal":hresult.get("deal",""),"SL":hsig.get("sl","")}})
-                            logging.info("%s H1 %s %s",symbol,hsig["direction"],hresult)
+                    if h1_results:process_signal(base_symbol,symbol,h1_results[-1],ts,cfg,envmap,runtime_ok,"H1")
             except Exception as e:
                 logging.exception("%s failed",symbol)
                 enqueue_gas("saveEAError",{"data":{"symbol":symbol,"error":str(e),"time":datetime.now(timezone.utc).isoformat()}})
+                telegram.error(f"EA ERROR\nPair: {base_symbol}\nError: {e}",cfg,key=f"{base_symbol}:{type(e).__name__}:{e}")
         _stop.wait(POLL_SEC)
 
 if __name__=="__main__":
