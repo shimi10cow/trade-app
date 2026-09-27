@@ -19,6 +19,7 @@ _stop=threading.Event()
 _outbox=queue.Queue()
 SETTINGS_MAX_STALE=900
 ENV_MAX_STALE=7200
+ENV_FETCH_SEC=60
 OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 
 def gas_get(action,**params):
@@ -255,7 +256,7 @@ def runtime_refresher():
         now=time.time()
         with _cache_lock:
             need_s=_cache["settings"] is None or now-_cache["settings_at"]>=300
-            need_e=_cache["env"] is None or now-_cache["env_at"]>=3600
+            need_e=_cache["env"] is None or now-_cache["env_at"]>=ENV_FETCH_SEC
         if need_s:
             x=pair_settings()
             if x is not None:
