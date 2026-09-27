@@ -5575,6 +5575,10 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     topImgEl.src = '';
     topArea.style.display = 'none';
   }
+  const autoCtl=document.getElementById('td-auto-chart-controls');if(autoCtl)autoCtl.style.display=/EA/i.test(String(t.Source||t.TradeType||''))?'block':'none';window._eaChartTradeIndex=index;window._eaChartTF='M15';
+  window.showEAChartTF=function(tf,btn){window._eaChartTF=tf;document.querySelectorAll('#td-auto-chart-controls .toggle-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');var tr=App.data.entries[window._eaChartTradeIndex],src=tf==='H1'?tr.ChartH1:tf==='H4'?tr.ChartH4:tr.ChartImage;if(src){topImgEl.src=src;topArea.style.display='block';makeTappable(topImgEl);}};
+  window.regenerateCurrentEACharts=function(){if(window.regenerateEACharts)window.regenerateEACharts(window._eaChartTradeIndex);};
+
   // 上部スロットのラベル
   const topLabel = topArea.querySelector('button');
   if (topLabel) topLabel.dataset.imgType = 'entry';
