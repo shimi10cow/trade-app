@@ -5,6 +5,18 @@ const DEMO_KEY='hybridEADemo_v1';
 const DEF={globalEntry:false,notifySignal:true,notifyEntry:true,notifyExit:true,notifyError:true,pairs:{}};
 function load(){try{return Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}'));}catch(e){return Object.assign({},DEF);}}
 function store(s){localStorage.setItem(KEY,JSON.stringify(s));}
+async function hydrateGlobal(){
+ try{
+  var r=await gasGet('getHybridConfig'),d=(r&&r.data)||r||{},a=d.appSettings||{};
+  if(Array.isArray(a)){var z={};a.forEach(function(x){if(x&&x.Key)z[String(x.Key)]=x.Value;});a=z;}
+  var s=load(),on=function(v,def){if(v===undefined||v===null||v==='')return def;return ['1','true','on','yes','有効','on（有効）'].indexOf(String(v).trim().toLowerCase())>=0;};
+  s.globalEntry=on(a.globalEntry,s.globalEntry);
+  s.notifySignal=on(a.notifySignal,s.notifySignal!==false);s.notifyEntry=on(a.notifyEntry,s.notifyEntry!==false);
+  s.notifyExit=on(a.notifyExit,s.notifyExit!==false);s.notifyError=on(a.notifyError,s.notifyError!==false);
+  if(a.envRefreshMin)s.envRefreshMin=Number(a.envRefreshMin)||60;if(a.settingsRefreshMin)s.settingsRefreshMin=Number(a.settingsRefreshMin)||5;if(a.groupHours)s.groupHours=Number(a.groupHours)||24;
+  store(s);return true;
+ }catch(e){return false;}
+}
 function pairName(p){if(!p)return '';var keys=['PairName（元）','PairName','Pair','通貨ペア','pair','pairName','Symbol','symbol'];for(var i=0;i<keys.length;i++){var v=p[keys[i]];if(v&&String(v).trim())return String(v).trim();}for(var k in p){if(/pair|通貨ペア|symbol/i.test(k)&&p[k])return String(p[k]).trim();}return '';}
 function pairRows(){var pools=[];var app=(window.TradeApp||(typeof App!=='undefined'?App:null));if(app&&app.data){['pairs','Pairs','pairData'].forEach(function(k){if(Array.isArray(app.data[k]))pools=pools.concat(app.data[k]);});}if(Array.isArray(window.pairsData))pools=pools.concat(window.pairsData);return pools;}
 function names(){return [...new Set(pairRows().map(pairName).filter(Boolean))].sort();}
@@ -77,6 +89,6 @@ function installEAFixtures(){
   if(typeof renderPositions==='function')renderPositions();if(typeof renderEAHistory==='function')renderEAHistory();return true;
 }
 window.installEAFixtures=installEAFixtures;
-document.addEventListener('DOMContentLoaded',function(){styles();ensure();var ast=document.getElementById('flt-status');if(ast&&(!window._eaAnalysisType||window._eaAnalysisType==='all')){ast.value='all';ast.style.display='none';}try{gasGet('getEASignals').then(function(r){window._eaSignals=r.data||[];renderEAHistory();}).catch(function(){});}catch(e){}setTimeout(function(){refreshPairSelects();renderEAHistory();if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();},2500);setTimeout(function(){refreshPairSelects();},6000);});
+document.addEventListener('DOMContentLoaded',function(){styles();ensure();hydrateGlobal().then(function(){if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();});var ast=document.getElementById('flt-status');if(ast&&(!window._eaAnalysisType||window._eaAnalysisType==='all')){ast.value='all';ast.style.display='none';}try{gasGet('getEASignals').then(function(r){window._eaSignals=r.data||[];renderEAHistory();}).catch(function(){});}catch(e){}setTimeout(function(){refreshPairSelects();renderEAHistory();if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();},2500);setTimeout(function(){refreshPairSelects();},6000);});
 window.makeRealSignalCharts=async function(s){var note=document.getElementById('signal-chart-note'),m=document.getElementById('signal-chart-m15'),h1=document.getElementById('signal-chart-h1'),h4=document.getElementById('signal-chart-h4');try{var t={Pair:s.Pair||'',Direction:s.Direction||'Buy',EntryPrice:s.EntryPrice||'',InitialSLPrice:s.InitialSLPrice||s.SLPrice||'',TakeProfitPrice:s.TakeProfitPrice||s.TPPrice||'',ExitPrice:s.ExitPrice||'',ExitTime:s.ExitTime||''};await buildRealCharts(t);s.ChartImage=t.ChartImage;s.ChartH1=t.ChartH1;s.ChartH4=t.ChartH4;if(m)m.src=t.ChartImage;if(h1)h1.src=t.ChartH1;if(h4)h4.src=t.ChartH4;if(note)note.textContent='実価格データ · M15 / H1 / H4';}catch(e){[m,h1,h4].forEach(x=>{if(x)x.style.display='none'});if(note)note.textContent=(e.message||'実価格チャートを取得できません');}};
 })();
