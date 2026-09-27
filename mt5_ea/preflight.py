@@ -31,6 +31,8 @@ checks={
  "Total simultaneous risk cap":"TOTAL_RISK_CAP" in main and "open_ea_risk" in main,
  "Restart bootstrap":"bootstrap_missing_state" in main and "bootstrap_m15" in main,
  "Bootstrap precomputed replay":"_bootstrap_cache" in strategy and "_cache=cache" in strategy and "_state=state,_save=False" in strategy,
+ "Incremental market polling":"latest_closed_bar_time" in main and "evaluate_missing_m15" in main and "bars_since" in main,
+ "Single MT5 position snapshot":"all_positions=[p for p in (mt5.positions_get() or [])" in main,
  "Windows-safe state writes":'STATE_PATH.open("w",encoding="utf-8")' in strategy and "os.fsync" in strategy and "os.replace(name,STATE_PATH)" not in strategy,
  "Virtual trade tracking":"virtual_trades" in strategy and "collect_virtual_updates" in strategy,
  "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
