@@ -15,6 +15,11 @@ logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(messa
 last_bar={}
 _cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
 
+_cache_lock=threading.Lock()
+_stop=threading.Event()
+_outbox=queue.Queue()
+SETTINGS_MAX_STALE=900
+ENV_MAX_STALE=7200
 def gas_get(action,**params):
     if not GAS_URL:return {}
     r=requests.get(GAS_URL,params={"action":action,**params},timeout=8);r.raise_for_status()
@@ -389,9 +394,9 @@ def run():
                 raw=evaluate_m15(base_symbol,symbol,b)
                 if not raw:continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
-                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))\n                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
+                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
+                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
                 saved=None; enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
-                if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 order_sig={**sig,"symbol":symbol}
