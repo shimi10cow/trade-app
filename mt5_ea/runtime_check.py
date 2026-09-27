@@ -13,10 +13,10 @@ def check(name,cond,detail=""):
 
 try:
     main.connect()
-    cfg,envs=main.cached_runtime()
+    main.refresh_runtime_once()\n    cfg,envs,healthy=main.cached_runtime()
     check("GAS settings cache loaded",isinstance(cfg,dict))
     check("GAS pairs loaded",isinstance(envs,list) and len(envs)>0,f"{len(envs) if isinstance(envs,list) else 0} pairs")
-    check("Global entry remains stopped",not bool(cfg.get("globalEntry",False)))
+    check("Global entry remains stopped",not bool(cfg.get("globalEntry",False)))\n    check("Runtime cache healthy",healthy)
     targets=main.PAIR_OVERRIDE or [main.pair_name(x) for x in envs if main.pair_name(x)]
     tested=0
     with tempfile.TemporaryDirectory() as td:
