@@ -11,12 +11,12 @@ if not mt5.initialize():
     print("[FAIL] MT5 initialize",mt5.last_error()); sys.exit(1)
 
 def resolve(base):
-    if mt5.symbol_info(base): return base
-    b="".join(x for x in base.upper() if x.isalnum())
-    aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])
-    hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]
-    hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))
-    return hits[0] if hits else None
+    """Resolve only the XM KIWAMI symbol that corresponds to the logical pair."""
+    b="".join(x for x in str(base).upper() if x.isalnum())
+    target="GOLD#" if b=="XAUUSD" else (b+"#" if len(b)==6 and b.isalpha() else None)
+    if not target:
+        return None
+    return target if mt5.symbol_info(target) else None
 
 bad=False
 try:
