@@ -1233,6 +1233,9 @@ function renderPairs() {
           </div>
           <div style="color:#64748b; font-size:18px;">›</div>
         </div>
+        <div style="display:flex;justify-content:flex-end;padding:0 4px 6px;">
+          <button onclick="event.stopPropagation(); if(window.eaOpenPair) eaOpenPair('${pairName}')" style="padding:5px 9px;background:#172033;border:1px solid #334155;color:#94a3b8;border-radius:7px;font-size:10px;">🤖 EA設定</button>
+        </div>
         ${planButtons}
       `;
     });
