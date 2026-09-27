@@ -5,6 +5,7 @@ from datetime import datetime,timezone,timedelta
 import requests
 import MetaTrader5 as mt5
 from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution, pip_size as m15_pip_size
+from h1_strategy import evaluate as evaluate_h1_strategy, load_state as load_h1_state, register_execution as register_h1_execution
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -96,6 +97,21 @@ def evaluate_missing_m15(base_symbol,broker_symbol):
             r["spreadPrice"]=spread; r["_bar_time"]=int(b[end-1]["time"]); out.append(r)
     return out
 
+def evaluate_missing_h1(base_symbol,broker_symbol):
+    state=load_h1_state(); last=int(((state.get("pairs") or {}).get(base_symbol) or {}).get("last_h1_time",0))
+    b=bars(broker_symbol,mt5.TIMEFRAME_M15,3000)
+    tick=mt5.symbol_info_tick(broker_symbol)
+    spread=max(0.0,float(tick.ask)-float(tick.bid)) if tick and tick.ask and tick.bid else 0.0
+    out=[]
+    # Replay only completed H1 boundaries (:45 M15 close) after the persisted H1 cursor.
+    for end in range(4,len(b)+1):
+        bt=int(b[end-1]["time"])
+        if ((bt%3600)//60)!=45 or bt//3600<=last//3600:continue
+        r=evaluate_h1_strategy(base_symbol,b[:end],spread)
+        if r is not None:
+            r["spreadPrice"]=spread;r["_bar_time"]=bt;out.append(r)
+    return out
+
 def pair_name(x):
     return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
 
@@ -161,7 +177,7 @@ def evaluate_m15(base_symbol,broker_symbol,closed_bars):
     if result is not None:result["spreadPrice"]=spread
     return result
 
-def allowed(sig,cfg,env):
+def allowed(sig,cfg,env,timeframe="M15"):
     if not sig:return False,"NO_SIGNAL"
     if not sig.get("strategyAllowed",False):return False,sig.get("strategyReason","STRATEGY_REJECT")
     if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"
@@ -170,7 +186,8 @@ def allowed(sig,cfg,env):
     if mode=="stop":return False,"PAIR_STOP"
     if mode=="signal":return False,"SIGNAL_ONLY"
     if mode!="auto":return False,"INVALID_MODE"
-    if not pc.get("m15",True):return False,"M15_OFF"
+    if timeframe=="M15" and not pc.get("m15",True):return False,"M15_OFF"
+    if timeframe=="H1" and not pc.get("h1",False):return False,"H1_OFF"
     d=str(pc.get("direction","Both")).upper()
     if d not in ("BOTH","両方",sig["direction"].upper()):return False,"DIRECTION_BLOCK"
     return True,"OK"
@@ -285,7 +302,7 @@ def send_order(sig,pc,cfg=None):
     base_req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
          "type":mt5.ORDER_TYPE_BUY if buy else mt5.ORDER_TYPE_SELL,
          "price":price,"sl":sl,"deviation":20,"magic":MAGIC,
-         "comment":"HybridEA-M15","type_time":mt5.ORDER_TIME_GTC}
+         "comment":("HybridEA-H1" if str(sig.get("timeframe","M15")).upper()=="H1" else "HybridEA-M15"),"type_time":mt5.ORDER_TIME_GTC}
     if sig.get("tp"):base_req["tp"]=float(sig["tp"])
     # Broker filling modes vary by symbol/account. Pick the first mode accepted by order_check.
     req=None; check=None
@@ -423,8 +440,8 @@ def outbox_worker():
             except Exception:pass
             _stop.wait(1)
 
-def signal_id(base,ts,pattern,direction):
-    return f"EA-{base}-{int(ts)}-{pattern}-{direction}"
+def signal_id(base,ts,pattern,direction,timeframe="M15"):
+    return f"EA-{str(timeframe).upper()}-{base}-{int(ts)}-{pattern}-{direction}"
 
 def save_virtual_exits(base):
     for t in collect_virtual_updates(base):
@@ -515,6 +532,31 @@ def run():
                     register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
                     enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"SpreadPips":float(result.get("spread",0))/m15_pip_size(base_symbol),"Ticket":result.get("ticket",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
+
+                # H1 is independently switchable in the app. It is evaluated only on a completed H1 bar.
+                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+                if pc.get("h1",False) and ((ts%3600)//60)==45:
+                    h1_results=evaluate_missing_h1(base_symbol,symbol)
+                    if h1_results:
+                        hraw=h1_results[-1]; hts=int(hraw.pop("_bar_time",ts))
+                        hsig={"symbol":base_symbol,"brokerSymbol":symbol,"timeframe":"H1","time":datetime.fromtimestamp(hts,timezone.utc).isoformat(),**hraw}
+                        hsid=signal_id(base_symbol,hts,hsig.get("pattern",""),hsig["direction"],"H1")
+                        hok,hreason=allowed(hsig,cfg,envmap.get(base_symbol,{}),"H1")
+                        if hok:
+                            heok,hereason=environment_allowed(hsig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
+                            if not heok:hok,hreason=False,hereason
+                        if hok and not runtime_ok:hok,hreason=False,"RUNTIME_CACHE_STALE"
+                        if hts!=ts or time.time()-hts>MAX_SIGNAL_AGE_SEC:hok,hreason=False,"OFFLINE_CATCHUP"
+                        enqueue_gas("saveEASignal",{"data":{"SignalID":hsid,"SignalTime":hsig["time"],"Pair":base_symbol,"Direction":hsig["direction"],"Rule":hsig.get("rule","H1"),"Pullback":hsig.get("pattern",""),"Executed":"DRY_RUN" if hok and DRY_RUN else ("YES" if hok else "NO"),"SkipReason":hreason if not hok else "","EntryPrice":hsig.get("entry",""),"InitialSL":hsig.get("sl",""),"InitialRiskPips":float(hsig.get("initialRisk",0))/m15_pip_size(base_symbol),"SpreadPips":float(hsig.get("spreadPrice",0))/m15_pip_size(base_symbol)}})
+                        if hok:
+                            # Shared account/risk gates in send_order apply to M15 and H1 alike.
+                            hresult=send_order({**hsig,"symbol":symbol},pc,cfg)
+                            if not hresult.get("dry_run",False):
+                                register_h1_execution(base_symbol,hsig.get("pattern",""),hsig["direction"],hresult.get("price"),hresult.get("sl",hsig["sl"]),hts,hresult.get("spread",0.0),hresult.get("ticket"),hresult.get("deal"))
+                                # Register in the shared causal M15 ledger so ZigZag/240h exit management is identical.
+                                recover_m15_execution(base_symbol,hsig["direction"],hresult.get("price"),hresult.get("sl",hsig["sl"]),hts,hresult.get("ticket"))
+                                enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":hsid,"Source":"EA-H1","Pair":base_symbol,"Direction":hsig["direction"],"EntryTime":hsig["time"],"EntryPrice":hresult.get("price",""),"Lot":hresult.get("volume",""),"SpreadPips":float(hresult.get("spread",0))/m15_pip_size(base_symbol),"Ticket":hresult.get("ticket",""),"Deal":hresult.get("deal",""),"SL":hsig.get("sl","")}})
+                            logging.info("%s H1 %s %s",symbol,hsig["direction"],hresult)
             except Exception as e:
                 logging.exception("%s failed",symbol)
                 enqueue_gas("saveEAError",{"data":{"symbol":symbol,"error":str(e),"time":datetime.now(timezone.utc).isoformat()}})
