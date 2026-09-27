@@ -43,3 +43,16 @@ pip install -r requirements.txt
 - キャッシュが古すぎる場合は新規Entryを停止
 - 実注文は引き続き `EA_DRY_RUN=true` が既定値
 
+
+## DRY RUN常駐前に実装済みの保護
+
+- EA環境確認日時がない・期限切れの場合は新規Entryをfail-closed
+- TL推進/逆トレ方向とEntry方向を照合
+- Pair単位Risk上限 + 全EAポジション総同時Risk上限
+- MT5実ポジションはMagic Numberで識別し、ZigZag SLを利益方向にだけ更新
+- 再起動時にMT5実ポジションとStateを再照合
+- Strategy上成立したEntryは、実注文しない場合もVirtual TradeとしてExitまで追跡
+- Stateがない初回起動では、閉じたM15履歴を時系列に再生してbootstrap
+- GAS保存はSQLite outboxへ先に永続化し、失敗時は指数backoffで再送
+- Poison messageが他の保存を永久停止させないよう、再送待ちの行を飛ばして処理
+- DRY RUN起動スクリプトはpreflightとstrategy unit testを先に実行
