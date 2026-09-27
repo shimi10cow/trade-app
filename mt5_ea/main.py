@@ -1,4 +1,5 @@
 """Hybrid EA runner. Start with DRY_RUN=true. Windows + MT5 terminal + Python 3.11."""
+import time
 import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone,timedelta
 import requests
@@ -336,21 +337,32 @@ def save_virtual_exits(base):
             "ExitPrice":t.get("exit",""),"Pips":((float(t.get("exit",0))-float(t.get("entry",0)))*(1 if t.get("direction")=="BUY" else -1)/m15_pip_size(base)) if t.get("exit") is not None else "","R":t.get("final_r","")}})
 
 def bootstrap_missing_state(cfg):
+    t0=time.perf_counter()
+    logging.info("startup: checking strategy state")
     state=load_m15_state(); existing=state.get("pairs") or {}
     for base in sorted((cfg.get("pairs") or {}).keys()):
         if base in existing and int(existing[base].get("last_time",0))>0:continue
         symbol=resolve_symbol(base)
         if not symbol:continue
+        tb=time.perf_counter()
+        logging.info("%s: loading bootstrap M15 history",base)
         b=bars(symbol,mt5.TIMEFRAME_M15,3000)
+        logging.info("%s: loaded %s closed M15 bars in %.2fs",base,len(b),time.perf_counter()-tb)
         tick=mt5.symbol_info_tick(symbol)
         spread=max(0.0,float(tick.ask)-float(tick.bid)) if tick and tick.ask and tick.bid else 0.0
         logging.info("%s: bootstrapping strategy state from %s closed M15 bars",base,len(b))
         bootstrap_m15(base,b,spread)
+        logging.info("%s: bootstrap complete in %.2fs",base,time.perf_counter()-tb)
+    logging.info("startup: strategy state ready in %.2fs",time.perf_counter()-t0)
 
 def run():
     connect()
+    logging.info("startup: initializing outbox")
     init_outbox()
+    logging.info("startup: refreshing GAS runtime")
+    tr=time.perf_counter()
     refresh_runtime_once()
+    logging.info("startup: GAS runtime ready in %.2fs",time.perf_counter()-tr)
     cfg0,_,_=cached_runtime()
     bootstrap_missing_state(cfg0)
     threading.Thread(target=runtime_refresher,daemon=True).start()
