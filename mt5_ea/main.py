@@ -7,6 +7,7 @@ import MetaTrader5 as mt5
 from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution, pip_size as m15_pip_size
 from h1_strategy import evaluate as evaluate_h1_strategy, load_state as load_h1_state, register_execution as register_h1_execution
 import telegram_notify as telegram
+from mt5_position_sync import sync as sync_mt5_positions
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -558,6 +559,8 @@ def run():
         configured=set((cfg.get("pairs") or {}).keys())
         targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
         manage_ea_positions(cfg)
+        try:sync_mt5_positions(MAGIC,enqueue_gas)
+        except Exception as e:logging.exception("MT5 position sync failed")
         for base_symbol in sorted(targets):
             symbol=resolve_symbol(base_symbol)
             if not symbol:continue
