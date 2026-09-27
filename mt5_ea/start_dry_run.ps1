@@ -6,20 +6,20 @@ $env:EA_POLL_SEC = "2"
 $env:EA_MAGIC = "560001"
 
 Write-Host "Hybrid EA - local preflight (NO ORDERS)" -ForegroundColor Cyan
-python .\preflight.py
+py .\preflight.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-python .\strategy_tests.py
+py .\strategy_tests.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
 Write-Host "Hybrid EA - runtime validation (NO ORDERS)" -ForegroundColor Cyan
-python .\runtime_check.py
+py .\runtime_check.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Hybrid EA - connection test (NO ORDERS)" -ForegroundColor Cyan
-python .\connection_test.py
+py .\connection_test.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
 Write-Host "Connection test passed. Starting DRY RUN..." -ForegroundColor Green
-python .\main.py
+py .\main.py
