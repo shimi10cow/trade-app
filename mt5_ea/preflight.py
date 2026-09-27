@@ -30,6 +30,7 @@ checks={
  "Environment freshness + direction":"ENV_TIME_MISSING" in main and "ENV_DIRECTION_BLOCK" in main and "envRefreshMin" in main,
  "Total simultaneous risk cap":"TOTAL_RISK_CAP" in main and "open_ea_risk" in main,
  "Restart bootstrap":"bootstrap_missing_state" in main and "bootstrap_m15" in main,
+ "Bootstrap single persistence":"_state=state,_save=False" in strategy and "persisting only once" in strategy,
  "Windows-safe state writes":'STATE_PATH.open("w",encoding="utf-8")' in strategy and "os.fsync" in strategy and "os.replace(name,STATE_PATH)" not in strategy,
  "Virtual trade tracking":"virtual_trades" in strategy and "collect_virtual_updates" in strategy,
  "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
