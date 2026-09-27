@@ -202,4 +202,43 @@ def outbox_worker():
             _stop.wait(5)
             if not _stop.is_set():_outbox.put((action,data))
         finally:_outbox.task_done()
+def run():
+    connect()
+    refresh_runtime_once()
+    threading.Thread(target=runtime_refresher,daemon=True).start()
+    threading.Thread(target=outbox_worker,daemon=True).start()
+    while True:
+        cfg,envs,runtime_ok=cached_runtime()
+        envmap={pair_name(x):x for x in envs if isinstance(x,dict) and pair_name(x)}
+        targets=PAIR_OVERRIDE or list(envmap)
+        for base_symbol in sorted(set(targets)):
+            symbol=resolve_symbol(base_symbol)
+            if not symbol:
+                logging.warning("%s: broker symbol not found",base_symbol); continue
+            try:
+                b=bars(symbol,mt5.TIMEFRAME_M15)
+                ts=int(b[-1]["time"])
+                if last_bar.get(symbol)==ts:continue
+                last_bar[symbol]=ts
+                raw=evaluate_m15(base_symbol,symbol,b)
+                if not raw:continue
+                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
+                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
+                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
+                enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                if not ok:continue
+                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+                result=send_order({**sig,"symbol":symbol},pc)
+                if not result.get("dry_run",False):
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
+                logging.info("%s %s %s",symbol,sig["direction"],result)
+            except Exception as e:
+                logging.exception("%s failed",symbol)
+                enqueue_gas("saveEAError",{"symbol":symbol,"error":str(e)})
+        time.sleep(POLL_SEC)
 
+if __name__=="__main__":
+    try:run()
+    finally:
+        _stop.set()
+        mt5.shutdown()
