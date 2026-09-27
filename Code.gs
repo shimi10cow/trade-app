@@ -9,6 +9,10 @@ const PAIRS_SHEET    = 'Pairs';
 const DRIVE_FOLDER   = 'TradeImages';
 const CACHE_KEY      = 'entries_cache';
 const CACHE_TTL      = 300; // 5分
+const EA_SETTINGS_SHEET = 'EA_Settings';
+const EA_SIGNALS_SHEET = 'EA_Signals';
+const MT5_EXECUTIONS_SHEET = 'MT5_Executions';
+const APP_SETTINGS_SHEET = 'App_Settings';
 
 // =============================================
 // エントリーポイント
@@ -20,6 +24,10 @@ const GAS_ACTIONS = {
   getIdeas:         () => getIdeas(),
   getReviews:       () => getReviews(),
   getCalendar:      () => getCalendarEvents(),
+  getEASettings:    () => getEASettings(),
+  getEASignals:     () => getEASignals(),
+  getMT5Executions: () => getMT5Executions(),
+  getHybridConfig:  () => getHybridConfig(),
 };
 
 function doGet(e) {
@@ -96,6 +104,14 @@ function doPost(e) {
     result = migrateEntryFields();
   } else if (action === 'migrateEntryFieldsV2') {
     result = migrateEntryFieldsV2();
+  } else if (action === 'saveEASettings') {
+    result = saveEASettings(body.data);
+  } else if (action === 'saveEASignal') {
+    result = saveEASignal(body.data);
+  } else if (action === 'saveMT5Execution') {
+    result = saveMT5Execution(body.data);
+  } else if (action === 'ensureEASheets') {
+    result = ensureEASheets();
   } else {
     result = { success: false, error: 'Unknown action' };
   }
@@ -1250,4 +1266,95 @@ function testIdeasCRUD() {
   Logger.log('deleteIdea結果: ' + JSON.stringify(deleteResult));
 
   Logger.log('=== テスト完了 ===');
+}
+
+
+// =============================================
+// Hybrid EA
+// =============================================
+const EA_SETTINGS_HEADERS = ['Pair','稼働方法','許可方向','M15','H1','Lot方式','Lot値','Risk上限ON','Risk上限%','決済方法','通知Signal','通知Entry','通知Exit','通知Error','更新日時'];
+const EA_SIGNALS_HEADERS = ['SignalID','SignalTime','Pair','Direction','Rule','Pullback','Executed','SkipReason','EntryPrice','InitialSL','InitialRiskPips','SpreadPips','ExitTime','ExitPrice','Pips','R','TradeGroupID','EnvironmentSnapshot','SettingsSnapshot','CreatedAt'];
+const MT5_EXEC_HEADERS = ['ExecutionID','Account','Ticket','Deal','Source','Pair','Direction','EntryTime','EntryPrice','ExitTime','ExitPrice','Lot','SpreadPips','Profit','Pips','SL','TP','TradeGroupID','Status','EntryChartURL','ExitChartURL','CreatedAt'];
+const EA_PAIR_HEADERS = ['EA許可方向','TL推進環境','TL逆トレ環境','EA環境確認日時'];
+
+function ensureSheetWithHeaders_(name, headers) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  const last = sh.getLastColumn();
+  let current = last ? sh.getRange(1,1,1,last).getValues()[0].map(v=>String(v).trim()) : [];
+  headers.forEach(h => {
+    if (current.indexOf(h) < 0) {
+      sh.getRange(1, current.length + 1).setValue(h);
+      current.push(h);
+    }
+  });
+  return sh;
+}
+
+function ensureEASheets() {
+  ensureSheetWithHeaders_(EA_SETTINGS_SHEET, EA_SETTINGS_HEADERS);
+  ensureSheetWithHeaders_(EA_SIGNALS_SHEET, EA_SIGNALS_HEADERS);
+  ensureSheetWithHeaders_(MT5_EXECUTIONS_SHEET, MT5_EXEC_HEADERS);
+  ensureSheetWithHeaders_(APP_SETTINGS_SHEET, ['Key','Value','UpdatedAt']);
+  ensurePairColumns(EA_PAIR_HEADERS);
+  return {success:true};
+}
+
+function sheetObjects_(name) {
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const values = sh.getDataRange().getValues();
+  const headers = values[0].map(v=>String(v).trim());
+  return values.slice(1).filter(r=>r.some(v=>v!=='' && v!==null)).map(r=>{
+    const o={}; headers.forEach((h,i)=>{
+      let v=r[i];
+      if(v instanceof Date) v=Utilities.formatDate(v,'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
+      o[h]=v===null||v===undefined?'':String(v);
+    }); return o;
+  });
+}
+
+function upsertByKey_(sheetName, headers, key, data) {
+  const sh = ensureSheetWithHeaders_(sheetName, headers);
+  const vals = sh.getDataRange().getValues();
+  const hs = vals[0].map(v=>String(v).trim());
+  const kc = hs.indexOf(key);
+  let row = -1;
+  if (kc >= 0 && data[key] !== undefined) {
+    for(let i=1;i<vals.length;i++) if(String(vals[i][kc])===String(data[key])) {row=i+1;break;}
+  }
+  if(row<0) row=sh.getLastRow()+1;
+  hs.forEach((h,i)=>{if(Object.prototype.hasOwnProperty.call(data,h)) sh.getRange(row,i+1).setValue(data[h]);});
+  return row;
+}
+
+function getEASettings(){ ensureEASheets(); return sheetObjects_(EA_SETTINGS_SHEET); }
+function getEASignals(){ ensureEASheets(); return sheetObjects_(EA_SIGNALS_SHEET); }
+function getMT5Executions(){ ensureEASheets(); return sheetObjects_(MT5_EXECUTIONS_SHEET); }
+
+function saveEASettings(data){
+  ensureEASheets();
+  data=data||{}; data['更新日時']=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
+  if(!data.Pair) return {success:false,error:'Pair required'};
+  upsertByKey_(EA_SETTINGS_SHEET,EA_SETTINGS_HEADERS,'Pair',data);
+  return {success:true};
+}
+function saveEASignal(data){
+  ensureEASheets(); data=data||{};
+  if(!data.SignalID) data.SignalID=Utilities.getUuid();
+  data.CreatedAt=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
+  upsertByKey_(EA_SIGNALS_SHEET,EA_SIGNALS_HEADERS,'SignalID',data);
+  return {success:true,signalId:data.SignalID};
+}
+function saveMT5Execution(data){
+  ensureEASheets(); data=data||{};
+  if(!data.ExecutionID) data.ExecutionID=Utilities.getUuid();
+  data.CreatedAt=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
+  upsertByKey_(MT5_EXECUTIONS_SHEET,MT5_EXEC_HEADERS,'ExecutionID',data);
+  return {success:true,executionId:data.ExecutionID};
+}
+function getHybridConfig(){
+  ensureEASheets();
+  return {pairs:getPairs(),settings:getEASettings(),appSettings:sheetObjects_(APP_SETTINGS_SHEET)};
 }
