@@ -306,7 +306,7 @@ def save_virtual_exits(base):
     for t in collect_virtual_updates(base):
         tid=signal_id(base,t.get("entry_time",0),t.get("pattern",""),t.get("direction",""))
         enqueue_gas("saveEASignal",{"data":{"SignalID":tid,"ExitTime":datetime.fromtimestamp(int(t.get("exit_time",0)),timezone.utc).isoformat() if t.get("exit_time") else "",
-            "ExitPrice":t.get("exit",""),"R":t.get("final_r",""),"Executed":"NO"}})
+            "ExitPrice":t.get("exit",""),"R":t.get("final_r","")}})
 
 def bootstrap_missing_state(cfg):
     state=load_m15_state(); existing=state.get("pairs") or {}
