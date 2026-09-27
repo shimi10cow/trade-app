@@ -185,41 +185,69 @@ def recover_execution(pair,direction,entry,sl,entry_time,ticket=None):
         "direction":direction,"current_r":0.0,"entry_time":int(entry_time),"trailing":False,"ticket":ticket,"recovered":True}
     save_state(state);return True
 
+def _bootstrap_cache(rates):
+    rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
+    c=[x["close"] for x in rows]; h=[x["high"] for x in rows]; l=[x["low"] for x in rows]
+    ma=atr(h,l,c); mk,md=stoch(h,l,c); m200=sma(c,200); pv=pivots(rows,ma)
+    h1=aggregate_h1(rows)
+    hc=[x["close"] for x in h1]; hh=[x["high"] for x in h1]; hl=[x["low"] for x in h1]
+    hi={
+      "s20":sma(hc,20),"s75":sma(hc,75),"s200":sma(hc,200),"s480":sma(hc,480),
+      "atr":atr(hh,hl,hc),"stoch":stoch(hh,hl,hc)[0]
+    }
+    # A completed H1 bar is usable once its :45 M15 bar is the current closed bar.
+    h1_by_hour={int(x["time"])//3600:i for i,x in enumerate(h1)}
+    return {"rows":rows,"c":c,"h":h,"l":l,"m200":m200,"ma":ma,"mk":mk,"md":md,
+            "pv":pv,"h1":h1,"hi":hi,"h1_by_hour":h1_by_hour}
+
 def bootstrap(pair,rates,spread_price=0.0):
-    """Rebuild missing strategy state causally, persisting only once at the end."""
+    """Fast causal replay: indicators/pivots are calculated once, state is replayed in memory."""
     state=load_state()
     existing=(state.get("pairs") or {}).get(pair,{})
     if int(existing.get("last_time",0))>0 and existing.get("bootstrapped"):
         return False
     state.setdefault("pairs",{}).pop(pair,None)
-    start=max(2100,1)
-    # Keep one in-memory state object during replay. The previous implementation
-    # re-read/re-wrote JSON for every historical bar, which was extremely slow.
-    for end in range(start,len(rates)+1):
-        evaluate(pair,rates[:end],spread_price,_state=state,_save=False)
+    cache=_bootstrap_cache(rates)
+    for end in range(max(2100,1),len(rates)+1):
+        evaluate(pair,rates[:end],spread_price,_state=state,_save=False,_cache=cache,_end=end)
     ps=pair_state(state,pair)
-    for t in ps.setdefault("virtual_trades",{}).values():
-        t["gas_synced"]=True
+    for t in ps.setdefault("virtual_trades",{}).values():t["gas_synced"]=True
     ps["bootstrapped"]=True
     save_state(state)
     return True
 
-def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
-    rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
-    if len(rows)<2100:return None
-    state=_state if _state is not None else load_state(); ps=pair_state(state,pair); now=rows[-1]["time"]
+def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True,_cache=None,_end=None):
+    if _cache is None:
+        rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
+        if len(rows)<2100:return None
+        c=[x["close"] for x in rows];h=[x["high"] for x in rows];l=[x["low"] for x in rows]
+        m200=sma(c,200);ma=atr(h,l,c);mk,md=stoch(h,l,c);pv=pivots(rows,ma)
+        h1=aggregate_h1(rows)
+        if len(h1)<505:return None
+        hc=[x["close"] for x in h1];hh=[x["high"] for x in h1];hl=[x["low"] for x in h1]
+        s20=sma(hc,20);s75=sma(hc,75);s200=sma(hc,200);s480=sma(hc,480);ha=atr(hh,hl,hc);hk,_=stoch(hh,hl,hc);i=len(h1)-1
+        current_index=len(rows)-1
+    else:
+        end=int(_end); current_index=end-1
+        if end<2100:return None
+        rows=_cache["rows"]; c=_cache["c"]; h=_cache["h"]; l=_cache["l"]
+        m200=_cache["m200"]; ma=_cache["ma"]; mk=_cache["mk"]; md=_cache["md"]
+        now0=rows[current_index]["time"]; hour=now0//3600
+        # Prefix aggregation only contains the current hour after its fourth (:45) M15 bar.
+        minute=(now0%3600)//60
+        usable_hour=hour if minute>=45 else hour-1
+        i=_cache["h1_by_hour"].get(usable_hour,-1)
+        if i<504:return None
+        h1=_cache["h1"]; hi=_cache["hi"]
+        s20=hi["s20"];s75=hi["s75"];s200=hi["s200"];s480=hi["s480"];ha=hi["atr"];hk=hi["stoch"]
+        pv=[p for p in _cache["pv"] if p["confirmed"]<=current_index]
+    state=_state if _state is not None else load_state(); ps=pair_state(state,pair); now=rows[current_index]["time"]
     if now<=int(ps.get("last_time",0)):return None
-    c=[x["close"] for x in rows];h=[x["high"] for x in rows];l=[x["low"] for x in rows]
-    m200=sma(c,200);ma=atr(h,l,c);mk,md=stoch(h,l,c);pv=pivots(rows,ma)
-    h1=aggregate_h1(rows)
-    if len(h1)<505:return None
-    hc=[x["close"] for x in h1];hh=[x["high"] for x in h1];hl=[x["low"] for x in h1]
-    s20=sma(hc,20);s75=sma(hc,75);s200=sma(hc,200);s480=sma(hc,480);ha=atr(hh,hl,hc);hk,_=stoch(hh,hl,hc);i=len(h1)-1
     vals=(s20[i],s75[i],s20[i-1],s75[i-1],s200[i],s480[i],ha[i],s200[i-12],s480[i-12],s480[i-24],hk[i])
     if any(x is None for x in vals):return None
 
-    update_trade_ledger(ps,rows[-1],pv,len(rows)-1)
-    update_virtual_ledger(ps,rows[-1],pv,len(rows)-1)
+    update_trade_ledger(ps,rows[current_index],pv,current_index)
+    update_virtual_ledger(ps,rows[current_index],pv,current_index)
 
     newreg=None
     if s20[i-1]<=s75[i-1] and s20[i]>s75[i]:newreg="BUY"
@@ -229,7 +257,7 @@ def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
     if ps["regime"]=="SELL" and hk[i]>80:ps["extreme"]=True
 
     completed=[]
-    pk,pd,k,d=mk[-2],md[-2],mk[-1],md[-1]
+    pk,pd,k,d=mk[current_index-1],md[current_index-1],mk[current_index],md[current_index]
     if None not in (pk,pd,k,d):
         bs=ps["buy_state"]
         if bs==0 and k<20:ps["buy_state"]=1
@@ -244,7 +272,7 @@ def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
         if _save:save_state(state)
         return None
 
-    direction=completed[0];ps["p_count"]+=1;pnum=ps["p_count"];pattern=f"P{pnum}";entry=c[-1];reasons=[]
+    direction=completed[0];ps["p_count"]+=1;pnum=ps["p_count"];pattern=f"P{pnum}";entry=c[current_index];reasons=[]
     if ps["regime"]!=direction:reasons.append("TREND_REGIME")
     if pnum>3:reasons.append("P4_PLUS")
     if ps["extreme"]:reasons.append("H1_EXTREME_SWITCH")
@@ -282,7 +310,7 @@ def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
         elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
 
     buf=(10.0 if pair=="XAUUSD" else 10*pip_size(pair))
-    base=m200[-1]-buf if direction=="BUY" else m200[-1]+buf
+    base=m200[current_index]-buf if direction=="BUY" else m200[current_index]+buf
     sl=min(base,entry-buf) if direction=="BUY" else max(base,entry+buf);risk=abs(entry-sl)
     if risk<=0:reasons.append("INVALID_RISK")
     elif spread_price/risk>.10:reasons.append("SPREAD_RISK_GT10")
@@ -291,7 +319,7 @@ def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
     candidate=not reasons
     # A strategy candidate is not an executed position. main.py promotes it only after MT5 confirms a fill.
     trade={"entered":False,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,
-           "current_r":0.0,"open":False,"entry_time":now,"bar_index":len(rows)-1,"trailing":False,
+           "current_r":0.0,"open":False,"entry_time":now,"bar_index":current_index,"trailing":False,
            "strategy_candidate":candidate,"pattern":pattern}
     if candidate:
         vtid=f"VIRTUAL:{now}:{pattern}:{direction}"
