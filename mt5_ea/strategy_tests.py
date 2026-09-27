@@ -59,6 +59,11 @@ ps={"signals":{},"trades":{"t":{"entered":True,"open":True,"risk":1.0,"direction
 s.update_trade_ledger(ps,{"time":3600,"high":101.0,"low":99.5,"close":100.5},[],1)
 check("spread cost included in current R",abs(ps["trades"]["t"]["current_r"]-0.4)<1e-9)
 
+# Virtual ledger follows the same causal exit engine without becoming a live trade.
+ps={"virtual_trades":{"v":{"entered":True,"open":True,"risk":1.0,"direction":"BUY","entry":100.0,"sl":99.0,"entry_time":0,"trailing":False}}}
+s.update_virtual_ledger(ps,{"time":900,"high":100.5,"low":98.5,"close":99.0},[],1)
+check("virtual trade closes causally",ps["virtual_trades"]["v"]["open"] is False and abs(ps["virtual_trades"]["v"]["final_r"]+1.0)<1e-9)
+
 failed=[n for n,v in tests if not v]
 print()
 print("RESULT:", "PASS" if not failed else "NOT READY")
