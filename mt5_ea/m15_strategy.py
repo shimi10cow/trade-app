@@ -58,7 +58,7 @@ def save_state(s):
     tmp.replace(STATE_PATH)
 
 def pair_state(s,pair):
-    return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"regime":"","p_count":0,"extreme":False,"q75":{"BUY":[],"SELL":[]},"signals":{},"trades":{},"last_time":0})
+    return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"regime":"","p_count":0,"extreme":False,"q75":{"BUY":[],"SELL":[]},"signals":{},"trades":{},"virtual_trades":{},"last_time":0})
 
 def percentile75(xs):
     if not xs:return None
