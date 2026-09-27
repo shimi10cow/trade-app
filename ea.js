@@ -35,20 +35,31 @@ function demo(){var n=names()[0]||'EURUSD';return [{pair:n,dir:'BUY',rule:'M15',
 window.renderEAHistory=function(){var list=document.getElementById('ea-history-list');if(!list)return;var raw=(window._eaSignals&&window._eaSignals.length)?window._eaSignals:[];var a=raw.map(function(x){return {pair:x.Pair,dir:x.Direction,rule:x.Rule,p:x.Pullback,executed:String(x.Executed).toLowerCase()==='yes'?'yes':'no',time:x.SignalTime,entry:x.EntryPrice,exit:x.ExitPrice,r:x.R?x.R+'R':'--',pips:x.Pips||'--',reason:x.SkipReason||'EA Entry'};}),pair=document.getElementById('eah-pair')?.value||'all',rule=document.getElementById('eah-rule')?.value||'all',pp=document.getElementById('eah-p')?.value||'all',ex=document.getElementById('eah-exec')?.value||'all';a=a.filter(function(x){return (pair==='all'||x.pair===pair)&&(rule==='all'||x.rule===rule)&&(pp==='all'||x.p===pp)&&(ex==='all'||x.executed===ex)});list.innerHTML=a.length?a.map(function(x){return '<div class="list-card ea-demo" style="display:block"><div style="display:flex;justify-content:space-between"><b>'+x.pair+' '+x.dir+'</b><span class="badge">'+x.rule+' '+x.p+'</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">'+x.time+' · '+(x.executed==='yes'?'実エントリー':'非エントリーSignal')+'</div><div style="display:flex;justify-content:space-between;margin-top:7px"><span>'+x.reason+'</span><b style="color:#10b981">'+x.pips+' / '+x.r+'</b></div><div class="ea-note">Entry '+x.entry+' → Exit '+x.exit+'</div></div>'}).join(''):'<div class="ea-empty">該当データなし</div>';};
 document.addEventListener('pairsLoaded',function(){refreshEAPairs();});
 document.addEventListener('dataLoaded',function(){refreshEAPairs();});
+function makePreviewChart(pair,dir,isExit){
+  var w=900,h=430,cv=document.createElement('canvas');cv.width=w;cv.height=h;var x=cv.getContext('2d');
+  x.fillStyle='#0f172a';x.fillRect(0,0,w,h);x.strokeStyle='#1e293b';x.lineWidth=1;
+  for(var gy=50;gy<h;gy+=55){x.beginPath();x.moveTo(0,gy);x.lineTo(w,gy);x.stroke();}
+  for(var gx=45;gx<w;gx+=70){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,h);x.stroke();}
+  var base=215,seed=0;for(var j=0;j<pair.length;j++)seed+=pair.charCodeAt(j);
+  var pts=[];for(var i=0;i<42;i++){var wave=Math.sin((i+seed%9)/4)*34+Math.sin((i+seed%5)/9)*22;var trend=(dir==='Buy'?-1:1)*i*1.7;pts.push(base+wave+trend);}
+  for(var i=0;i<pts.length;i++){var cx=32+i*19,op=pts[i]+Math.sin(i*2.1)*12,cl=pts[i]+Math.cos(i*1.6)*12,hi=Math.min(op,cl)-10-Math.abs(Math.sin(i))*8,lo=Math.max(op,cl)+10+Math.abs(Math.cos(i))*8;x.strokeStyle=cl<op?'#10b981':'#ef4444';x.beginPath();x.moveTo(cx,hi);x.lineTo(cx,lo);x.stroke();x.fillStyle=x.strokeStyle;x.fillRect(cx-4,Math.min(op,cl),8,Math.max(3,Math.abs(cl-op)));}
+  x.strokeStyle='#f59e0b';x.lineWidth=2;x.beginPath();pts.forEach(function(v,i){var px=32+i*19,py=v+18;if(!i)x.moveTo(px,py);else x.lineTo(px,py);});x.stroke();
+  var ei=isExit?25:36,ex=32+ei*19,ey=pts[ei];x.fillStyle='#38bdf8';x.beginPath();x.arc(ex,ey,7,0,Math.PI*2);x.fill();
+  if(isExit){var xx=32+38*19,xy=pts[38];x.fillStyle='#a78bfa';x.beginPath();x.arc(xx,xy,7,0,Math.PI*2);x.fill();x.strokeStyle='#a78bfa';x.setLineDash([6,5]);x.beginPath();x.moveTo(ex,ey);x.lineTo(xx,xy);x.stroke();x.setLineDash([]);}
+  x.fillStyle='#e2e8f0';x.font='bold 22px sans-serif';x.fillText(pair+'  '+dir+'  '+(isExit?'EXIT':'ENTRY'),24,30);x.font='14px sans-serif';x.fillStyle='#94a3b8';x.fillText('M15 · SMA preview · auto chart sample',24,52);
+  return cv.toDataURL('image/png');
+}
 function installEAFixtures(){
   var app=window.TradeApp||(typeof App!=='undefined'?App:null);
   if(!app||!app.data||!Array.isArray(app.data.entries)||app.data.entries.some(function(x){return x._eaFixture;}))return false;
-  var ns=names(), p1=ns[0]||'EURUSD', p2=ns[1]||ns[0]||'USDJPY';
-  var now=new Date(), y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0'), d=String(now.getDate()).padStart(2,'0');
-  var today=y+'/'+m+'/'+d;
+  var ns=names(), p1=ns[0]||'EURUSD', p2=ns[1]||ns[0]||'USDJPY',p3=ns[2]||ns[0]||'EURJPY';
+  var now=new Date(), y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0'), d=String(now.getDate()).padStart(2,'0'),today=y+'/'+m+'/'+d;
   app.data.entries.push(
-    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'保有中','PairName（元）':p1,PairName:p1,Direction:'Buy',EntryDate:today,EntryTime:'09:15',EntryPrice:'1.17000',Lot:'0.01',SL:'18',StopLossPips:'18','エントリースコア':'EA','EAルール':'M15 P2','計画エントリー':'OFF'},
-    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'決済','PairName（元）':p2,PairName:p2,Direction:'Sell',EntryDate:today,EntryTime:'07:30',ExitDate:today,ExitTime:'11:15',EntryPrice:'155.200',ExitPrice:'154.920',Lot:'0.01',SL:'20',StopLossPips:'20','実取得pips':'28.0','損益':'2800','エントリースコア':'EA','EAルール':'M15 P1','計画エントリー':'OFF'}
+    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'保有中','PairName（元）':p1,PairName:p1,Direction:'Buy',EntryDate:today,EntryTime:'09:15',EntryPrice:'1.17000',InitialSLPrice:'1.16820',TakeProfitPrice:'1.17360',Lot:'0.01',SL:'18',StopLossPips:'18','エントリースコア':'','EAルール':'M15 P2','計画エントリー':'OFF',ChartImage:makePreviewChart(p1,'Buy',false)},
+    {_eaFixture:true,Source:'EA',TradeType:'EA','ステータス':'決済','PairName（元）':p2,PairName:p2,Direction:'Sell',EntryDate:today,EntryTime:'07:30',ExitDate:today,ExitTime:'11:15',EntryPrice:'155.200',ExitPrice:'154.920',InitialSLPrice:'155.400',TakeProfitPrice:'154.800',Lot:'0.01',SL:'20',StopLossPips:'20','実取得pips':'28.0','損益':'2800','エントリースコア':'','EAルール':'M15 P1','計画エントリー':'OFF',ChartImage:makePreviewChart(p2,'Sell',false),'決済チャート':makePreviewChart(p2,'Sell',true)}
   );
-  if(typeof renderPositions==='function')renderPositions();
-  if(typeof renderHistoryList==='function'&&document.getElementById('modal-history')?.classList.contains('active'))renderHistoryList();
-  if(typeof renderAnalysis==='function'&&document.getElementById('screen-analysis')?.classList.contains('active'))renderAnalysis();
-  return true;
+  window._eaSignals=window._eaSignals||[];window._eaSignals.push({_eaFixture:true,Pair:p3,Direction:'Buy',TF:'M15',Pattern:'P3',Decision:'SIGNAL_ONLY',Reason:'シグナル通知のみ',SignalTime:today+' 10:45',VirtualPips:'',Status:'監視中'});
+  if(typeof renderPositions==='function')renderPositions();if(typeof renderEAHistory==='function')renderEAHistory();return true;
 }
 window.installEAFixtures=installEAFixtures;
 document.addEventListener('DOMContentLoaded',function(){styles();ensure();try{gasGet('getEASignals').then(function(r){window._eaSignals=r.data||[];renderEAHistory();}).catch(function(){});}catch(e){}setTimeout(function(){refreshPairSelects();renderEAHistory();if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();},2500);setTimeout(function(){refreshPairSelects();installEAFixtures();},6000);});
