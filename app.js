@@ -966,6 +966,8 @@ async function loadData() {
       populateFilterPairs();
       renderPairs();       // ② ペア
       renderPlans();       // ポジションタブのプラン一覧
+      // EA add-on: Pairs取得完了後に通貨選択を同期
+      if (typeof window.refreshEAPairs === 'function') window.refreshEAPairs();
     });
 
     const ideasP = gasGet('getIdeas').then(res => {
