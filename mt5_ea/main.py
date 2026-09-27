@@ -481,11 +481,12 @@ def outbox_worker():
 def signal_id(base,ts,pattern,direction,timeframe="M15"):
     return f"EA-{str(timeframe).upper()}-{base}-{int(ts)}-{pattern}-{direction}"
 
-def save_virtual_exits(base):
+def save_virtual_exits(base,cfg):
     for t in collect_virtual_updates(base):
         tid=signal_id(base,t.get("entry_time",0),t.get("pattern",""),t.get("direction",""))
         enqueue_gas("saveEASignal",{"data":{"SignalID":tid,"ExitTime":datetime.fromtimestamp(int(t.get("exit_time",0)),timezone.utc).isoformat() if t.get("exit_time") else "",
             "ExitPrice":t.get("exit",""),"Pips":((float(t.get("exit",0))-float(t.get("entry",0)))*(1 if t.get("direction")=="BUY" else -1)/m15_pip_size(base)) if t.get("exit") is not None else "","R":t.get("final_r","")}})
+        if t.get("entered"):notify_exit(base,t,cfg)
 
 def bootstrap_missing_state(cfg):
     t0=time.perf_counter()
@@ -565,7 +566,7 @@ def run():
                 if not ts or last_bar.get(symbol)==ts:continue
                 results=evaluate_missing_m15(base_symbol,symbol)
                 last_bar[symbol]=ts
-                save_virtual_exits(base_symbol)
+                save_virtual_exits(base_symbol,cfg)
                 if results:process_signal(base_symbol,symbol,results[-1],ts,cfg,envmap,runtime_ok,"M15")
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 if pc.get("h1",False) and ((ts%3600)//60)==45:
