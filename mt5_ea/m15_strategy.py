@@ -236,7 +236,7 @@ def evaluate(pair,rates,spread_price=0.0):
         existing=[]
         for x in prior:
             if x and x.get("entered"):
-                tid=x.get("trade_id"); existing.append(ps["trades"].get(tid,x) if tid else x)
+                tid=x.get("virtual_trade_id"); existing.append(ps["virtual_trades"].get(tid,x) if tid else x)
         if nongate_missing:reasons.append("P3_PRIOR_NON_GATE_REJECT")
         elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
 
@@ -245,13 +245,19 @@ def evaluate(pair,rates,spread_price=0.0):
     sl=min(base,entry-buf) if direction=="BUY" else max(base,entry+buf);risk=abs(entry-sl)
     if risk<=0:reasons.append("INVALID_RISK")
     elif spread_price/risk>.10:reasons.append("SPREAD_RISK_GT10")
-    if sum(1 for x in ps.setdefault("trades",{}).values() if x.get("entered") and x.get("open"))>=2:reasons.append("MAX_POSITIONS")
+    if sum(1 for x in ps.setdefault("virtual_trades",{}).values() if x.get("entered") and x.get("open"))>=2:reasons.append("MAX_POSITIONS")
 
     candidate=not reasons
     # A strategy candidate is not an executed position. main.py promotes it only after MT5 confirms a fill.
     trade={"entered":False,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,
            "current_r":0.0,"open":False,"entry_time":now,"bar_index":len(rows)-1,"trailing":False,
            "strategy_candidate":candidate}
+    if candidate:
+        vtid=f"VIRTUAL:{now}:{pattern}:{direction}"
+        vtrade={**trade,"entered":True,"open":True,"trade_id":vtid,
+                "spread_r":(max(0.0,float(spread_price))/risk if risk>0 else 0.0)}
+        ps.setdefault("virtual_trades",{})[vtid]=vtrade
+        trade["virtual_trade_id"]=vtid
     ps["signals"][pattern]=trade
     save_state(state)
     return {"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"M15_SIMPLE_20260926","strategyAllowed":candidate,
