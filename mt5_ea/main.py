@@ -125,6 +125,7 @@ def env_value(env,*keys):
 def environment_allowed(sig,env):
     if not isinstance(env,dict) or not env:return False,"ENV_MISSING"
     stamp=env_value(env,"EA環境確認日時","環境確認日時","確認日時","更新日時","EnvironmentConfirmedAt","confirmedAt","updatedAt")
+    if not stamp:return False,"ENV_TIME_MISSING"
     if stamp:
         try:
             raw=str(stamp).strip()
