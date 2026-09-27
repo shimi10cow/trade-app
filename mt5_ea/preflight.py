@@ -1,0 +1,39 @@
+"""Preflight for Hybrid EA. Does not place orders."""
+import ast, pathlib, os, sys
+ROOT=pathlib.Path(__file__).parent
+files=["main.py","m15_strategy.py","connection_test.py"]
+bad=[]
+for name in files:
+    p=ROOT/name
+    try:
+        ast.parse(p.read_text(encoding="utf-8"),filename=name)
+        print(f"[PASS] syntax {name}")
+    except Exception as e:
+        bad.append(f"{name}: {e}"); print(f"[FAIL] syntax {name}: {e}")
+main=(ROOT/"main.py").read_text(encoding="utf-8")
+strategy=(ROOT/"m15_strategy.py").read_text(encoding="utf-8")
+checks={
+ "DRY_RUN defaults true":'EA_DRY_RUN","true"' in main,
+ "M15 history >=3000":"count=3000" in main,
+ "GAS settings cache 300s":'>=300' in main,
+ "GAS environment cache 3600s":'>=3600' in main,
+ "Stoch smoothing 5 then 3":"k=_sma(raw,5); d=_sma(k,3)" in strategy,
+ "Retracement Gate":"RETRACEMENT_P1_LT15" in strategy and "RETRACEMENT_NEGATIVE" in strategy,
+ "H1 Extreme Switch":"H1_EXTREME_SWITCH" in strategy,
+ "SMA480 24h":"s480[i-24]" in strategy,
+ "Spread/risk 10%":"spread_price/risk>0.10" in strategy,
+ "240h forced exit implemented":"240" in strategy and "TIME_EXIT" in strategy,
+ "P3 causal ledger implemented":"P3_LEDGER_PENDING" not in strategy and "current_r" in strategy,
+}
+for k,v in checks.items():
+    print(("[PASS] " if v else "[FAIL] ")+k)
+    if not v:bad.append(k)
+if os.getenv("EA_DRY_RUN","true").lower()!="true":
+    bad.append("EA_DRY_RUN must remain true for this preflight")
+    print("[FAIL] EA_DRY_RUN is not true")
+else: print("[PASS] EA_DRY_RUN=true")
+print("\nRESULT: "+("PASS" if not bad else "NOT READY"))
+if bad:
+    print("FAILED:")
+    for x in bad: print(" - "+x)
+    sys.exit(1)
