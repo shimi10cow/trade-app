@@ -389,8 +389,8 @@ def run():
                 raw=evaluate_m15(base_symbol,symbol,b)
                 if not raw:continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
-                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
-                saved=gas_post("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))\n                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
+                saved=None; enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
@@ -398,14 +398,14 @@ def run():
                 result=send_order(order_sig,pc)
                 # DRY_RUN validates order construction/check only; it is not a real MT5 execution.
                 if not result.get("dry_run",False):
-                    gas_post("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",result.get("request",{}).get("volume","")),"Ticket":result.get("order",""),"Deal":result.get("deal","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
-                try:gas_post("saveEAError",{"symbol":symbol,"error":str(e)})
+                try:enqueue_gas("saveEAError",{"symbol":symbol,"error":str(e)})
                 except Exception:pass
         time.sleep(POLL_SEC)
 
 if __name__=="__main__":
     try:run()
-    finally:mt5.shutdown()
+    finally:\n        _stop.set()\n        mt5.shutdown()
