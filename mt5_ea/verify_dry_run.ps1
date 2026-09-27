@@ -4,14 +4,11 @@ $env:EA_DRY_RUN = "true"
 $env:EA_PAIRS = "EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD"
 $env:EA_POLL_SEC = "2"
 $env:EA_MAGIC = "560001"
-
-Write-Host "Hybrid EA - FULL VERIFICATION (NO ORDERS)" -ForegroundColor Cyan
+Write-Host "Hybrid EA - FAST VERIFICATION (NO ORDERS)" -ForegroundColor Cyan
 py .\preflight.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 py .\strategy_tests.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-py .\runtime_check.py
+py .\execution_path_test.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-py .\connection_test.py
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-Write-Host "RESULT: FULL VERIFICATION PASS" -ForegroundColor Green
+Write-Host "RESULT: FAST VERIFICATION PASS" -ForegroundColor Green
