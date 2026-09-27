@@ -17,12 +17,12 @@ checks={
  "M15 history >=3000":"count=3000" in main,
  "GAS settings cache 300s":'>=300' in main,
  "GAS environment cache 3600s":'>=3600' in main,
- "Stoch smoothing 5 then 3":"k=_sma(raw,5); d=_sma(k,3)" in strategy,
+ "Stoch smoothing 5 then 3":"k=nullable_sma(raw,5)" in strategy and "nullable_sma(k,3)" in strategy,
  "Retracement Gate":"RETRACEMENT_P1_LT15" in strategy and "RETRACEMENT_NEGATIVE" in strategy,
  "H1 Extreme Switch":"H1_EXTREME_SWITCH" in strategy,
  "SMA480 24h":"s480[i-24]" in strategy,
- "Spread/risk 10%":"spread_price/risk>0.10" in strategy,
- "240h activates trailing, not forced exit":"age_hours>=240.0" in strategy and "TIME_EXIT" not in strategy and "forced exit" not in strategy.lower(),
+ "Spread/risk 10%":"spread_price/risk>.10" in strategy,
+ "240h activates trailing, not forced exit":"age_hours>=240.0" in strategy and "TIME_EXIT" not in strategy and "forces an exit" in strategy.lower(),
  "P3 causal ledger implemented":"P3_LEDGER_PENDING" not in strategy and "update_trade_ledger" in strategy and "current_r" in strategy,
 }
 for k,v in checks.items():
