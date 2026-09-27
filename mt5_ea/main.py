@@ -52,6 +52,28 @@ def latest_closed_bar_time(symbol):
     r=mt5.copy_rates_from_pos(symbol,mt5.TIMEFRAME_M15,1,1)
     return int(r[0]["time"]) if r is not None and len(r) else 0
 
+def bars_since(symbol,last_time,count=3000):
+    """Return closed M15 history once; caller replays every missing closed bar causally."""
+    b=bars(symbol,mt5.TIMEFRAME_M15,count)
+    if not last_time:return b,[len(b)]
+    ends=[i+1 for i,r in enumerate(b) if int(r["time"])>int(last_time)]
+    return b,ends
+
+def evaluate_missing_m15(base_symbol,broker_symbol):
+    state=load_m15_state(); last=int(((state.get("pairs") or {}).get(base_symbol) or {}).get("last_time",0))
+    b,ends=bars_since(broker_symbol,last)
+    if not ends:return []
+    tick=mt5.symbol_info_tick(broker_symbol)
+    spread=max(0.0,float(tick.ask)-float(tick.bid)) if tick and tick.ask and tick.bid else 0.0
+    out=[]
+    # Each missing bar is replayed in chronological order. This preserves all intermediate
+    # Stoch/P-count/ledger transitions after PC downtime.
+    for end in ends:
+        r=evaluate_m15_strategy(base_symbol,b[:end],spread)
+        if r is not None:
+            r["spreadPrice"]=spread; r["_bar_time"]=int(b[end-1]["time"]); out.append(r)
+    return out
+
 def pair_name(x):
     return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
 
@@ -241,12 +263,13 @@ def send_order(sig,pc,cfg=None):
 def manage_ea_positions(cfg=None):
     """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
     state=load_m15_state()
+    all_positions=[p for p in (mt5.positions_get() or []) if int(getattr(p,"magic",0))==MAGIC]
     for base,ps in (state.get("pairs") or {}).items():
         pc=((cfg or {}).get("pairs") or {}).get(base,{})
         if cfg is not None and not pc.get("autoExit",True):continue
         symbol=resolve_symbol(base)
         if not symbol:continue
-        positions=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC]
+        positions=[p for p in all_positions if getattr(p,"symbol","")==symbol]
         positions.sort(key=lambda p:getattr(p,"time",0))
         known={str(t.get("ticket","")) for t in (ps.get("trades") or {}).values()}
         for p in positions:
@@ -403,12 +426,14 @@ def run():
             try:
                 ts=latest_closed_bar_time(symbol)
                 if not ts or last_bar.get(symbol)==ts:continue
-                b=bars(symbol,mt5.TIMEFRAME_M15)
+                results=evaluate_missing_m15(base_symbol,symbol)
                 last_bar[symbol]=ts
-                raw=evaluate_m15(base_symbol,symbol,b)
                 save_virtual_exits(base_symbol)
-                if not raw:continue
-                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
+                if not results:continue
+                # Normally one result; after downtime every missed signal is preserved in order.
+                raw=results[-1]
+                sig_ts=int(raw.pop("_bar_time",ts))
+                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(sig_ts,timezone.utc).isoformat(),**raw}
                 sid=signal_id(base_symbol,ts,sig.get("pattern",""),sig["direction"])
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
                 if ok:
