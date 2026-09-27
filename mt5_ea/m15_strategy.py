@@ -105,28 +105,30 @@ def update_trade_ledger(ps,row,pv,current_index):
         if not t.get("entered"):continue
         risk=float(t["risk"]); side=t["direction"]; entry=float(t["entry"])
         if t.get("open",False):
-            # Existing SL is checked before activation/pivot update.
+            # SL calculated from a pivot confirmed on the previous bar becomes active now.
+            if "pending_sl" in t:t["sl"]=t.pop("pending_sl")
+            # 1) Check the currently active SL first.
             active_sl=float(t["sl"])
             hit=(side=="BUY" and lo<=active_sl) or (side=="SELL" and hi>=active_sl)
             if hit:
                 exit_price=active_sl
                 t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk),"exit_time":now})
             else:
+                # 2) +2R or 240h activates trailing. 240h itself never closes the trade.
                 favorable=(hi-entry)/risk if side=="BUY" else (entry-lo)/risk
                 age_hours=(now-int(t["entry_time"]))/3600.0
                 if favorable>=2.0 or age_hours>=240.0:t["trailing"]=True
+                # 3-5) Use only pivots confirmed no later than this closed bar.
                 if t.get("trailing"):
                     relevant="L" if side=="BUY" else "H"
                     usable=[p for p in pv if p["type"]==relevant and p["confirmed"]<=current_index]
                     if usable:
                         candidate=float(usable[-1]["price"])
-                        if side=="BUY" and candidate>active_sl:t["next_sl"]=candidate
-                        if side=="SELL" and candidate<active_sl:t["next_sl"]=candidate
+                        if side=="BUY" and candidate>active_sl:t["pending_sl"]=candidate
+                        if side=="SELL" and candidate<active_sl:t["pending_sl"]=candidate
             if t.get("open",False):
                 t["current_r"]=(close-entry)/risk if side=="BUY" else (entry-close)/risk
         else:t["current_r"]=float(t.get("final_r",0))
-        if "next_sl" in t:
-            t["sl"]=t.pop("next_sl")
 
 def evaluate(pair,rates,spread_price=0.0):
     rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
