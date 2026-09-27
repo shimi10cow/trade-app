@@ -370,6 +370,26 @@ def manage_ea_positions(cfg=None):
             if improve and modify_position_sl(p,target):
                 enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base,"Direction":"BUY" if buy else "SELL","Ticket":p.ticket,"Event":"SL_UPDATE","SL":target,"EventTime":datetime.now(timezone.utc).isoformat()}})
 
+def refresh_global_control():
+    """Refresh the app-level start/stop switch independently of full settings."""
+    try:
+        app=gas_get("getAppSettings") or {}
+        if isinstance(app,list):
+            app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
+        if not isinstance(app,dict):return False
+        with _cache_lock:
+            settings=_cache.get("settings")
+            if not isinstance(settings,dict):return False
+            settings["globalEntry"]=truth(app.get("globalEntry"),False)
+            settings["notifySignal"]=truth(app.get("notifySignal"),settings.get("notifySignal",True))
+            settings["notifyEntry"]=truth(app.get("notifyEntry"),settings.get("notifyEntry",True))
+            settings["notifyExit"]=truth(app.get("notifyExit"),settings.get("notifyExit",True))
+            settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
+        return True
+    except Exception as e:
+        logging.error("global EA control fetch failed: %s",e)
+        return False
+
 def refresh_runtime_once():
     now=time.time(); settings=pair_settings(); env=environment()
     with _cache_lock:
