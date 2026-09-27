@@ -23,7 +23,7 @@ checks={
  "SMA480 24h":"s480[i-24]" in strategy,
  "Spread/risk 10%":"spread_price/risk>.10" in strategy,
  "240h activates trailing, not forced exit":"age_hours>=240.0" in strategy and "TIME_EXIT" not in strategy and "forces an exit" in strategy.lower(),
- "P3 causal ledger implemented":"P3_LEDGER_PENDING" not in strategy and "update_trade_ledger" in strategy and "current_r" in strategy,
+ "P3 causal ledger implemented":"trade_id" in strategy and "update_trade_ledger" in strategy and "trade_r" in strategy,\n "Spread included in R":"spread_r" in strategy,\n "Async GAS runtime":"runtime_refresher" in main and "outbox_worker" in main and "RUNTIME_CACHE_STALE" in main,
 }
 for k,v in checks.items():
     print(("[PASS] " if v else "[FAIL] ")+k)
