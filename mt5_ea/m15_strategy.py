@@ -165,6 +165,22 @@ def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0
     save_state(state)
     return tid
 
+def bootstrap(pair,rates,spread_price=0.0):
+    """Rebuild missing strategy state from closed M15 history without future bars."""
+    state=load_state()
+    if pair in (state.get("pairs") or {}) and int(state["pairs"][pair].get("last_time",0))>0:
+        return False
+    state.setdefault("pairs",{}).pop(pair,None); save_state(state)
+    start=max(2100,1)
+    for end in range(start,len(rates)+1):
+        evaluate(pair,rates[:end],spread_price)
+    state=load_state(); ps=pair_state(state,pair)
+    for t in ps.setdefault("virtual_trades",{}).values():
+        if not t.get("open",False):t["gas_synced"]=True
+    ps["bootstrapped"]=True
+    save_state(state)
+    return True
+
 def evaluate(pair,rates,spread_price=0.0):
     rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
     if len(rows)<2100:return None
