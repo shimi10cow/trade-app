@@ -232,10 +232,10 @@ def evaluate(pair,rates,spread_price=0.0):
         p1,p2=ps["signals"].get("P1"),ps["signals"].get("P2")
         prior=[p1,p2]
         # Gate skips are the only missing-position exception.
-        nongate_missing=any(x is None or (not x.get("entered") and not x.get("gate_skip")) for x in prior)
+        nongate_missing=any(x is None or (not x.get("strategy_candidate") and not x.get("gate_skip")) for x in prior)
         existing=[]
         for x in prior:
-            if x and x.get("entered"):
+            if x and x.get("strategy_candidate"):
                 tid=x.get("virtual_trade_id"); existing.append(ps["virtual_trades"].get(tid,x) if tid else x)
         if nongate_missing:reasons.append("P3_PRIOR_NON_GATE_REJECT")
         elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
