@@ -62,6 +62,13 @@ def save_state(s):
 def pair_state(s,pair):
     return s["pairs"].setdefault(pair,{"buy_state":0,"sell_state":0,"buy_start":None,"sell_start":None,"regime":"","p_count":0,"q75":{"BUY":[],"SELL":[]},"signals":{},"last_h1_time":0})
 
+def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0.0,ticket=None,deal=None):
+    state=load_state();ps=pair_state(state,pair)
+    sig=ps.setdefault("signals",{}).get(pattern)
+    if not sig or sig.get("direction")!=direction:raise RuntimeError(f"{pair} {pattern}: H1 signal not found for execution")
+    sig.update({"entered":True,"entry":float(entry),"sl":float(sl),"entry_time":int(entry_time),"ticket":ticket,"deal":deal,"spread_price":float(spread_price or 0)})
+    save_state(state);return f"H1LIVE:{int(entry_time)}:{pattern}:{direction}"
+
 def percentile75(xs):
     if not xs:return None
     y=sorted(float(x) for x in xs);p=.75*(len(y)-1);a=int(math.floor(p));b=int(math.ceil(p))
