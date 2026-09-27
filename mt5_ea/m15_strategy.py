@@ -267,7 +267,7 @@ def evaluate(pair,rates,spread_price=0.0):
     # A strategy candidate is not an executed position. main.py promotes it only after MT5 confirms a fill.
     trade={"entered":False,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,
            "current_r":0.0,"open":False,"entry_time":now,"bar_index":len(rows)-1,"trailing":False,
-           "strategy_candidate":candidate}
+           "strategy_candidate":candidate,"pattern":pattern}
     if candidate:
         vtid=f"VIRTUAL:{now}:{pattern}:{direction}"
         vtrade={**trade,"entered":True,"open":True,"trade_id":vtid,
