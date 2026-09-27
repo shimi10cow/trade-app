@@ -3,7 +3,7 @@ import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone,timedelta
 import requests
 import MetaTrader5 as mt5
-from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates
+from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -226,6 +226,12 @@ def manage_ea_positions(cfg=None):
         if not symbol:continue
         positions=[p for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC]
         positions.sort(key=lambda p:getattr(p,"time",0))
+        known={str(t.get("ticket","")) for t in (ps.get("trades") or {}).values()}
+        for p in positions:
+            if str(p.ticket) not in known and float(getattr(p,"sl",0) or 0)>0:
+                recover_m15_execution(base,"BUY" if p.type==mt5.POSITION_TYPE_BUY else "SELL",float(p.price_open),float(p.sl),int(getattr(p,"time",time.time())),p.ticket)
+        if positions:
+            ps=(load_m15_state().get("pairs") or {}).get(base,ps)
         trades=[t for t in (ps.get("trades") or {}).values() if t.get("entered") and t.get("open")]
         trades.sort(key=lambda t:t.get("entry_time",0))
         for p,t in zip(positions,trades):
