@@ -1,6 +1,6 @@
 """Hybrid EA runner. Start with DRY_RUN=true. Windows + MT5 terminal + Python 3.11."""
 import os,time,json,logging,threading,queue,sqlite3
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 import requests
 import MetaTrader5 as mt5
 from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates
@@ -127,8 +127,10 @@ def environment_allowed(sig,env):
     stamp=env_value(env,"環境確認日時","確認日時","更新日時","EnvironmentConfirmedAt","confirmedAt","updatedAt")
     if stamp:
         try:
-            dt=datetime.fromisoformat(str(stamp).replace("Z","+00:00"))
-            if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone.utc)
+            raw=str(stamp).strip()
+            try:dt=datetime.fromisoformat(raw.replace("Z","+00:00"))
+            except ValueError:dt=datetime.strptime(raw,"%Y/%m/%d %H:%M")
+            if dt.tzinfo is None:dt=dt.replace(tzinfo=timezone(timedelta(hours=9)))
             if (datetime.now(timezone.utc)-dt.astimezone(timezone.utc)).total_seconds()>ENV_MAX_STALE:return False,"ENV_EXPIRED"
         except Exception:return False,"ENV_TIME_INVALID"
     push=str(env_value(env,"TL 推進","TL推進","TL_推進") or "").upper()
