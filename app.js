@@ -627,7 +627,7 @@ function renderHistoryList() {
               ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
               <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
               ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : ''}
+              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
             </div>
             <div style="font-weight:700; font-size:15px; color:${pipsColor};">${pipsSign}${pips.toFixed(1)} <span style="font-size:10px;">pips</span></div>
           </div>
@@ -1161,7 +1161,7 @@ function renderPositions() {
             ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : ''}
+            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
             ${t['計画エントリー'] === 'ON' ? '<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">📋 計画</span>' : ''}
           </div>
           <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
