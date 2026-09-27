@@ -1,5 +1,5 @@
 """Hybrid EA runner. Start with DRY_RUN=true. Windows + MT5 terminal + Python 3.11."""
-import os,time,json,logging
+import os,time,json,logging,threading,queue
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
@@ -81,7 +81,7 @@ def pair_settings():
         return cfg
     except Exception as e:
         logging.error("settings fetch failed: %s",e)
-        return {"globalEntry":False,"pairs":{}}
+        return None
 
 def environment():
     try:return gas_get("getPairs") or []
