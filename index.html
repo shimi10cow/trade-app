@@ -550,6 +550,13 @@
             </div>
           </div>
           <div class="calc-info" id="ne-rr-display">RR: --</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px;">
+            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="ne-entry-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="ne-exit-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="ne-sl-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="ne-tp-price" style="text-align:center;padding:10px 4px;"></div>
+          </div>
+          <div class="form-row" style="margin-top:8px;"><span class="form-label">決済時刻</span><input type="time" class="form-input" id="ne-exit-time"></div>
         </div>
         
         <!-- 指標前エントリー / 再エントリー -->
@@ -677,26 +684,9 @@
           <!-- EA環境認識 -->
           <div class="section-title" style="margin-top:16px;">🤖 EA 環境認識</div>
           <div style="font-size:11px;color:#64748b;margin-bottom:8px;">この3項目はEAのエントリー許可判定に使用します。</div>
-          <div class="form-row">
-            <span class="form-label">EA許可</span>
-            <select class="form-input" id="pe-ea-dir">
-              <option value="両方">両方</option>
-              <option value="BUY">BUY</option>
-              <option value="SELL">SELL</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">TL 推進</span>
-            <select class="form-input" id="pe-ea-tlgo">
-              <option value="">なし</option><option value="BUY">BUY</option><option value="SELL">SELL</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">TL 逆トレ</span>
-            <select class="form-input" id="pe-ea-tlrev">
-              <option value="">なし</option><option value="BUY">BUY</option><option value="SELL">SELL</option>
-            </select>
-          </div>
+          <div class="grid-item" style="width:100%;margin-bottom:6px;"><span class="grid-label" style="min-width:72px;">EA許可</span><div class="btn-group" id="pe-ea-dir" style="flex:1;"><button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">両方</button><button class="toggle-btn dir-buy" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">BUY</button><button class="toggle-btn dir-sell" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">SELL</button></div></div>
+          <div class="grid-item" style="width:100%;margin-bottom:6px;"><span class="grid-label" style="min-width:72px;">TL 推進</span><div class="btn-group" id="pe-ea-tlgo" style="flex:1;"><button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">なし</button><button class="toggle-btn dir-buy" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">BUY</button><button class="toggle-btn dir-sell" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">SELL</button></div></div>
+          <div class="grid-item" style="width:100%;margin-bottom:6px;"><span class="grid-label" style="min-width:72px;">TL 逆トレ</span><div class="btn-group" id="pe-ea-tlrev" style="flex:1;"><button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">なし</button><button class="toggle-btn dir-buy" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">BUY</button><button class="toggle-btn dir-sell" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">SELL</button></div></div>
           <div id="pe-ea-confirmed" style="font-size:11px;color:#64748b;margin-bottom:12px;"></div>
 
           <!-- トレードプラン -->
@@ -828,6 +818,14 @@
             <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
             <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
           </div>
+
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0;">
+            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="td-entry-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="td-exit-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="td-sl-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="td-tp-price" style="text-align:center;padding:10px 4px;"></div>
+          </div>
+          <div class="form-row"><span class="form-label">決済時刻</span><input type="time" class="form-input" id="td-exit-time"></div>
 
           <div id="closing-fields">
             <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
