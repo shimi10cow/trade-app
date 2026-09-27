@@ -4144,6 +4144,14 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-480', p['H4MA480.1200']);
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
+  const peEaDir = document.getElementById('pe-ea-dir');
+  const peEaTlGo = document.getElementById('pe-ea-tlgo');
+  const peEaTlRev = document.getElementById('pe-ea-tlrev');
+  if (peEaDir) peEaDir.value = p['EA許可方向'] || '両方';
+  if (peEaTlGo) peEaTlGo.value = p['TL推進環境'] || '';
+  if (peEaTlRev) peEaTlRev.value = p['TL逆トレ環境'] || '';
+  const peEaConfirmed = document.getElementById('pe-ea-confirmed');
+  if (peEaConfirmed) peEaConfirmed.textContent = p['EA環境確認日時'] ? '最終確認: ' + formatDateDisplay(p['EA環境確認日時']) : '最終確認: 未確認';
 
   // トレードプラン欄
   const planDir = (p['プラン方向'] || '').trim();
@@ -4212,6 +4220,10 @@ async function savePairEdit() {
       'H4MA480.1200':  getBtnVal('pe-ma-480'),
       'H1MA20.80':     getBtnVal('pe-ma-h1-20'),
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
+      'EA許可方向':     document.getElementById('pe-ea-dir')?.value || '両方',
+      'TL推進環境':     document.getElementById('pe-ea-tlgo')?.value || '',
+      'TL逆トレ環境':   document.getElementById('pe-ea-tlrev')?.value || '',
+      'EA環境確認日時': new Date().toISOString(),
     };
 
     // トレードプラン（方向ボタンのテキスト「▲ Buy」→「Buy」に正規化）
