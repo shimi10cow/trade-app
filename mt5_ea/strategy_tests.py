@@ -49,3 +49,9 @@ if failed:
 ps={"signals":{"P1":{"entered":True}},"trades":{"old":{"entered":True,"open":True,"risk":1.0,"direction":"BUY","entry":100.0,"sl":90.0,"entry_time":0,"trailing":False}}}
 ps.update({"regime":"SELL","p_count":0,"extreme":False,"signals":{}})
 check("open trade survives regime reset","old" in ps["trades"] and ps["trades"]["old"]["open"])
+
+failed=[n for n,v in tests if not v]
+print("\nRESULT:","PASS" if not failed else "NOT READY")
+if failed:
+    for n in failed:print(" -",n)
+    raise SystemExit(1)
