@@ -602,7 +602,7 @@ function renderHistoryList() {
 
   if (histStatus === 'signal') {
     const sigs=(window._eaSignals||[]).filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes' && !/entry$/i.test(String(x.Decision||'')));
-    container.innerHTML=sigs.length?sigs.slice().reverse().map((x,i)=>`<div class="list-card" onclick="openSignalDetail(${(window._eaSignals||[]).indexOf(x)},'all')" style="cursor:pointer;border-left:4px solid #38bdf8"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> <span class="badge" style="color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div><div style="font-size:12px;margin-top:6px">${x.Reason||x.SkipReason||'非エントリー'}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
+    container.innerHTML=sigs.length?sigs.slice().reverse().map((x,i)=>`<div class="list-card" onclick="openSignalDetail(${(window._eaSignals||[]).indexOf(x)},'all')" style="cursor:pointer;border-left:4px solid #38bdf8"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> <span class="badge" style="color:#cbd5e1">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div><div style="font-size:12px;margin-top:6px">${x.Reason||x.SkipReason||'非エントリー'}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
   }
   if (filtered.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">履歴がありません</div>';
@@ -633,7 +633,7 @@ function renderHistoryList() {
               ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
               <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
               ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(56,189,248,0.16);color:#38bdf8;">🤖 EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
+              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
             </div>
             <div style="font-weight:700; font-size:15px; color:${pipsColor};">${pipsSign}${pips.toFixed(1)} <span style="font-size:10px;">pips</span></div>
           </div>
@@ -1178,7 +1178,7 @@ function renderPositions() {
       </div>
     `;
   }).join('');
-  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer;border-left:4px solid #38bdf8"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span><span class="badge" style="background:rgba(56,189,248,.16);color:#38bdf8">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
+  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer;border-left:4px solid #38bdf8"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span><span class="badge" style="background:rgba(148,163,184,.14);color:#cbd5e1">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
   container.innerHTML=tradeHtml+signalHtml;
 }
 
