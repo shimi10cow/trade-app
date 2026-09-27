@@ -823,6 +823,23 @@ function _parseMT5OCR(raw){
   if(nums.length)out.profit=nums[nums.length-1][1].replace(/[\s,]/g,'');
   return out;
 }
+
+function _mt5PipSize(pair){
+  pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
+  if(pair.includes('JPY'))return 0.01;
+  if(pair.includes('XAU'))return 0.1;
+  if(pair.includes('BTC'))return 1;
+  return 0.0001;
+}
+function _mt5CalcPips(pair,dir,entry,exit){
+  entry=Number(entry);exit=Number(exit);if(!isFinite(entry)||!isFinite(exit))return '';
+  const pip=_mt5PipSize(pair),sign=String(dir).toUpperCase()==='SELL'?-1:1;
+  return ((exit-entry)*sign/pip).toFixed(1);
+}
+function _mt5CalcDistancePips(pair,a,b){
+  a=Number(a);b=Number(b);if(!isFinite(a)||!isFinite(b))return '';
+  return (Math.abs(b-a)/_mt5PipSize(pair)).toFixed(1);
+}
 async function importMT5Screenshot(input,scope){
   const file=input&&input.files&&input.files[0];if(!file)return;
   if(!window.Tesseract){if(window.showToast)showToast('OCRの読み込みに失敗しました');return;}
@@ -841,7 +858,12 @@ async function importMT5Screenshot(input,scope){
     n+=_mt5SetValue(scope+'-tp-price',x.tp,onlyBlank)?1:0;
     n+=_mt5SetValue(scope+'-exit-price',x.exitPrice,onlyBlank)?1:0;
     n+=_mt5SetValue(scope+'-exit-time',(x.exitTime||'').slice(0,5),onlyBlank)?1:0;
-    if(scope==='td'){n+=_mt5SetValue('td-pips',x.pips,true)?1:0;n+=_mt5SetValue('td-profit',x.profit,true)?1:0;}
+    const pair=x.pair||document.getElementById(scope+'-pair')?.value||'',dir=x.dir||(document.querySelector('#'+scope+'-dir .dir-sell.active')?'SELL':'BUY');
+    const calcPips=_mt5CalcPips(pair,dir,x.entryPrice,x.exitPrice);
+    if(scope==='td'){n+=_mt5SetValue('td-pips',calcPips||x.pips,true)?1:0;n+=_mt5SetValue('td-profit',x.profit,true)?1:0;}
+    else {n+=_mt5SetValue('ne-pips',calcPips||x.pips,false)?1:0;}
+    const slPips=_mt5CalcDistancePips(pair,x.entryPrice,x.sl),tpPips=_mt5CalcDistancePips(pair,x.entryPrice,x.tp);
+    n+=_mt5SetValue(scope+'-sl',slPips,onlyBlank)?1:0;n+=_mt5SetValue(scope+'-tp',tpPips,onlyBlank)?1:0;
     if(window.showToast)showToast(n?'MT5画像から '+n+' 項目を入力しました ✅':'読み取れる項目がありませんでした');
   }catch(e){console.error('MT5 OCR',e);if(window.showToast)showToast('画像の読み取りに失敗しました');}
   finally{if(btn){btn.disabled=false;btn.textContent=old;}input.value='';}
