@@ -32,7 +32,7 @@ def connect():
     if not a:raise RuntimeError("MT5 account_info unavailable")
     logging.info("MT5 connected login=%s server=%s balance=%s DRY_RUN=%s",a.login,a.server,a.balance,DRY_RUN)
 
-def bars(symbol,tf,count=700):
+def bars(symbol,tf,count=3000):
     rates=mt5.copy_rates_from_pos(symbol,tf,0,count)
     if rates is None or len(rates)<3:raise RuntimeError(f"{symbol}: insufficient rates")
     # Drop bar 0: it is still forming. All decisions use closed candles only.
