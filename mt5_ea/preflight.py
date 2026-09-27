@@ -52,6 +52,7 @@ checks={
  "Windows-safe state writes":'STATE_PATH.open("w",encoding="utf-8")' in strategy and "os.fsync" in strategy and "os.replace(name,STATE_PATH)" not in strategy,
  "Virtual trade tracking":"virtual_trades" in strategy and "collect_virtual_updates" in strategy,
  "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
+ "MT5 Trade Tracker sync":"from mt5_position_sync import sync as sync_mt5_positions" in main and "sync_mt5_positions(MAGIC,enqueue_gas)" in main,
  "LIVE explicit arm gate":'LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false")' in main and "LIVE_NOT_ARMED" in main,
  "LIVE account/server lock":"LIVE_ACCOUNT_LOCK_MISMATCH" in main and "EA_LIVE_LOGIN" in main and "EA_LIVE_SERVER" in main,
  "LIVE account/terminal permissions":"ACCOUNT_TRADE_NOT_ALLOWED" in main and "TERMINAL_TRADE_NOT_ALLOWED" in main and "TERMINAL_NOT_CONNECTED" in main,
