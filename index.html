@@ -16,7 +16,7 @@ a">
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20260927f">
+  <link rel="stylesheet" href="./style.css?v=20260927g">
 </head>
 <body>
 
@@ -999,6 +999,12 @@ a">
               </div>
 
               <!-- エントリー画像スロット（常に表示、反省の直後） -->
+              <div id="td-auto-chart-controls" style="display:none;margin-top:12px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;">
+                <div style="font-size:12px;font-weight:700;margin-bottom:8px;">自動チャート</div>
+                <div style="display:flex;gap:6px;margin-bottom:8px;"><button class="toggle-btn active" onclick="showEAChartTF('M15',this)" style="flex:1;">M15</button><button class="toggle-btn" onclick="showEAChartTF('H1',this)" style="flex:1;">H1</button><button class="toggle-btn" onclick="showEAChartTF('H4',this)" style="flex:1;">H4</button></div>
+                <button onclick="regenerateCurrentEACharts()" style="width:100%;padding:10px;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:8px;font-weight:700;">設定を反映して再作成</button>
+                <div style="font-size:10px;color:#64748b;margin-top:6px;">MA・表示本数は EA設定 → 自動チャート設定 で変更</div>
+              </div>
               <div id="td-top-image-area" style="display:none; margin-top:10px; position:relative;">
                 <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
                 <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
@@ -1415,8 +1421,8 @@ a">
     </div>
   </div>
 
-  <script src="./ai_prompt.js?v=20260927f" charset="utf-8"></script>
-  <script src="./app.js?v=20260927f" charset="utf-8"></script>
-  <script src="./ea.js?v=20260927f" charset="utf-8"></script>
+  <script src="./ai_prompt.js?v=20260927g" charset="utf-8"></script>
+  <script src="./app.js?v=20260927g" charset="utf-8"></script>
+  <script src="./ea.js?v=20260927g" charset="utf-8"></script>
 </body>
 </html>
