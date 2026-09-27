@@ -279,3 +279,54 @@ def outbox_worker():
         except Exception as e:
             logging.error("GAS outbox failed: %s",e);_stop.wait(5)
 
+
+
+def run():
+    connect()
+    init_outbox()
+    refresh_runtime_once()
+    threading.Thread(target=runtime_refresher,daemon=True).start()
+    threading.Thread(target=outbox_worker,daemon=True).start()
+    while not _stop.is_set():
+        cfg,envs,runtime_ok=cached_runtime()
+        envmap={pair_name(x):x for x in envs if isinstance(x,dict) and pair_name(x)}
+        # Only explicit EA_Settings pairs are eligible. EA_PAIRS may narrow that set for testing,
+        # but can never introduce an unconfigured pair.
+        configured=set((cfg.get("pairs") or {}).keys())
+        targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
+        manage_ea_positions()
+        for base_symbol in sorted(targets):
+            symbol=resolve_symbol(base_symbol)
+            if not symbol:
+                logging.warning("%s: broker symbol not found",base_symbol)
+                continue
+            try:
+                b=bars(symbol,mt5.TIMEFRAME_M15)
+                ts=int(b[-1]["time"])
+                if last_bar.get(symbol)==ts:continue
+                last_bar[symbol]=ts
+                raw=evaluate_m15(base_symbol,symbol,b)
+                if not raw:continue
+                sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
+                ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
+                if ok:
+                    eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}))
+                    if not eok:ok,reason=False,ereason
+                if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
+                enqueue_gas("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                if not ok:continue
+                pc=(cfg.get("pairs") or {}).get(base_symbol,{})
+                result=send_order({**sig,"symbol":symbol},pc,cfg)
+                if not result.get("dry_run",False):
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
+                logging.info("%s %s %s",symbol,sig["direction"],result)
+            except Exception as e:
+                logging.exception("%s failed",symbol)
+                enqueue_gas("saveEAError",{"data":{"symbol":symbol,"error":str(e),"time":datetime.now(timezone.utc).isoformat()}})
+        _stop.wait(POLL_SEC)
+
+if __name__=="__main__":
+    try:run()
+    finally:
+        _stop.set()
+        mt5.shutdown()
