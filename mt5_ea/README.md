@@ -32,9 +32,14 @@ pip install -r requirements.txt
 - Risk計算はBalance基準
 - Risk上限を超える注文は拒否
 
-## 重要
+## 現在の実装
 
-現在の `evaluate_m15()` は意図的に空です。
-最新バックテストで使った Retracement Gate を含む正確なM15ロジック本体が保存ソースから完全には復元できていないため、近似ロジックで実注文候補を作らない安全設計です。
+- M15 SIMPLE STRATEGY 2026-09-26 を `m15_strategy.py` に実装
+- Stochastic 14,5,3 / H1 20-75 regime / SMA200・480 slope / q75 / Retracement Gate / P1-P3
+- +2R または 240h で Causal ZigZag trailing を開始。240h強制決済はしない
+- Regimeが変わっても保有Trade Ledgerは維持
+- GAS設定はバックグラウンド更新し、売買判定時はキャッシュを使用
+- GAS保存はoutbox経由で売買判定経路を待たせない
+- キャッシュが古すぎる場合は新規Entryを停止
+- 実注文は引き続き `EA_DRY_RUN=true` が既定値
 
-接続テストが通った後、正確なバックテストコードをこのstrategy adapterへ移植します。
