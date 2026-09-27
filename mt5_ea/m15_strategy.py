@@ -99,7 +99,7 @@ def retracement(direction,entry,pv):
             if d>0:return (entry-b["price"])/d*100
     return None
 
-def update_trade_ledger(ps,row,pv):
+def update_trade_ledger(ps,row,pv,current_index):
     now=int(row["time"]); hi=float(row["high"]); lo=float(row["low"]); close=float(row["close"])
     for t in ps["signals"].values():
         if not t.get("entered"):continue
@@ -117,7 +117,7 @@ def update_trade_ledger(ps,row,pv):
                 if favorable>=2.0 or age_hours>=240.0:t["trailing"]=True
                 if t.get("trailing"):
                     relevant="L" if side=="BUY" else "H"
-                    usable=[p for p in pv if p["type"]==relevant and p["confirmed"] < t.get("bar_index",10**18)]
+                    usable=[p for p in pv if p["type"]==relevant and p["confirmed"]<=current_index]
                     if usable:
                         candidate=float(usable[-1]["price"])
                         if side=="BUY" and candidate>active_sl:t["next_sl"]=candidate
@@ -142,7 +142,7 @@ def evaluate(pair,rates,spread_price=0.0):
     vals=(s20[i],s75[i],s20[i-1],s75[i-1],s200[i],s480[i],ha[i],s200[i-12],s480[i-12],s480[i-24],hk[i])
     if any(x is None for x in vals):return None
 
-    update_trade_ledger(ps,rows[-1],pv)
+    update_trade_ledger(ps,rows[-1],pv,len(rows)-1)
 
     newreg=None
     if s20[i-1]<=s75[i-1] and s20[i]>s75[i]:newreg="BUY"
