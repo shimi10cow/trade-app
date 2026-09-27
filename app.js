@@ -827,7 +827,8 @@ function _parseMT5OCR(raw){
 function _mt5PipSize(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
   if(pair.includes('JPY'))return 0.01;
-  if(pair.includes('XAU'))return 0.1;
+  if(pair.includes('XAU'))return 1;
+  if(pair.includes('XAG'))return 1;
   if(pair.includes('BTC'))return 1;
   return 0.0001;
 }
