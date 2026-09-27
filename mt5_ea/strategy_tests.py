@@ -39,12 +39,6 @@ check("retracement negative",s.retracement("BUY",111.0,buy)<0)
 # q75 must use prior observations.
 check("q75 deterministic",abs(s.percentile75([1,2,3,4])-3.25)<1e-9)
 
-failed=[n for n,v in tests if not v]
-print("\nRESULT:","PASS" if not failed else "NOT READY")
-if failed:
-    for n in failed:print(" -",n)
-    raise SystemExit(1)
-
 # Regime-local signal ledger may reset without losing an open trade.
 ps={"signals":{"P1":{"entered":True}},"trades":{"old":{"entered":True,"open":True,"risk":1.0,"direction":"BUY","entry":100.0,"sl":90.0,"entry_time":0,"trailing":False}}}
 ps.update({"regime":"SELL","p_count":0,"extreme":False,"signals":{}})
