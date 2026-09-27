@@ -146,7 +146,7 @@ def environment_allowed(sig,env,max_age_minutes=60):
     counter=str(env_value(env,"TL\u9006\u30c8\u30ec\u74b0\u5883","TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
     dm={chr(8593):"BUY","UP":"BUY","BUY":"BUY",chr(8595):"SELL","DOWN":"SELL","SELL":"SELL"}
     dirs={dm.get(push,push),dm.get(counter,counter)}
-    dirs.discard("");dirs.discard("NONE")
+    dirs.discard("");dirs.discard("NONE");dirs.discard("\u306a\u3057");dirs.discard("N/A");dirs.discard("-")
     if dirs and sig["direction"].upper() not in dirs:return False,"ENV_DIRECTION_BLOCK"
     return True,"OK"
 
