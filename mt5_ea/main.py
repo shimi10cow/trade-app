@@ -136,7 +136,7 @@ def pair_settings():
         rows=hybrid.get("settings") or []
         app=hybrid.get("appSettings") or {}
         if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"pairs":{}}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"settingsRefreshMin":float(app.get("settingsRefreshMin") or 5),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
             if not p: continue
