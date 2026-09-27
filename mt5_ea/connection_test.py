@@ -7,7 +7,7 @@ GAS=os.getenv("EA_GAS_URL",DEFAULT_GAS)
 REQUESTED=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
 
 def gas(action):
-    r=requests.get(GAS,params={"action":action},timeout=15)
+    r=requests.get(GAS,params={"action":action},timeout=45)
     r.raise_for_status()
     try:
         x=r.json()
@@ -90,7 +90,7 @@ try:
         print(f"[PASS] GAS getEASettings: type={type(d).__name__} size={len(d) if hasattr(d,'__len__') else '-'}")
     except Exception as e:
         print(f"[WARN] GAS getEASettings not exposed yet: {e}")
-        print("[INFO] Deploy the latest Code.gs web-app version before runtime settings sync.")
+        print("[INFO] GAS responded too slowly or returned an error; deployment is not assumed to be missing.")
     try:
         d=gas("getPairs")
         print(f"[PASS] GAS getPairs: type={type(d).__name__} size={len(d) if hasattr(d,'__len__') else '-'}")
