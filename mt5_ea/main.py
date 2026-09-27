@@ -416,8 +416,10 @@ def run():
     # Persisted strategy state is already caught up through last_time. Seed the polling
     # cursor from it so a normal restart does not refetch 3000 bars for every pair.
     startup_state=load_m15_state()
-    for base,ps in (startup_state.get("pairs") or {}).items():
-        sym=resolve_symbol(base)
+    startup_pairs=(startup_state.get("pairs") or {})
+    startup_targets=(set(PAIR_OVERRIDE)&set(startup_pairs)) if PAIR_OVERRIDE else set(startup_pairs)
+    for base in startup_targets:
+        ps=startup_pairs[base]; sym=resolve_symbol(base)
         if sym and int(ps.get("last_time",0))>0:last_bar[sym]=int(ps["last_time"])
     logging.info("EA monitoring started; %s strategy cursors restored",len(last_bar))
     # GAS is never allowed to block startup or the trading loop.
