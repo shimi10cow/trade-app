@@ -135,6 +135,19 @@ def update_trade_ledger(ps,row,pv,current_index):
                 t["current_r"]=gross-float(t.get("spread_r",0))
         else:t["current_r"]=float(t.get("final_r",0))
 
+def update_virtual_ledger(ps,row,pv,current_index):
+    ps.setdefault("virtual_trades",{})
+    update_trade_ledger({"trades":ps["virtual_trades"]},row,pv,current_index)
+
+def collect_virtual_updates(pair):
+    state=load_state(); ps=pair_state(state,pair); out=[]
+    for tid,t in ps.setdefault("virtual_trades",{}).items():
+        if not t.get("open",False) and not t.get("gas_synced",False):
+            out.append({"trade_id":tid,**t})
+            t["gas_synced"]=True
+    if out:save_state(state)
+    return out
+
 def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0.0,ticket=None,deal=None):
     """Promote a strategy signal to an open trade only after MT5 confirms execution."""
     state=load_state(); ps=pair_state(state,pair)
@@ -143,7 +156,7 @@ def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0
         raise RuntimeError(f"{pair} {pattern}: strategy signal not found for execution")
     risk=abs(float(entry)-float(sl))
     if risk<=0:raise RuntimeError(f"{pair} {pattern}: invalid executed risk")
-    tid=f"{int(entry_time)}:{pattern}:{direction}"
+    tid=f"LIVE:{int(entry_time)}:{pattern}:{direction}"
     trade={**sig,"entered":True,"open":True,"entry":float(entry),"sl":float(sl),"risk":risk,
            "current_r":0.0,"entry_time":int(entry_time),"trailing":False,"trade_id":tid,
            "spread_r":max(0.0,float(spread_price))/risk,"ticket":ticket,"deal":deal}
@@ -167,6 +180,7 @@ def evaluate(pair,rates,spread_price=0.0):
     if any(x is None for x in vals):return None
 
     update_trade_ledger(ps,rows[-1],pv,len(rows)-1)
+    update_virtual_ledger(ps,rows[-1],pv,len(rows)-1)
 
     newreg=None
     if s20[i-1]<=s75[i-1] and s20[i]>s75[i]:newreg="BUY"
