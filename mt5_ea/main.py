@@ -14,6 +14,7 @@ MAGIC=int(os.getenv("EA_MAGIC","560001"))
 PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
+_symbol_cache={}
 _cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
 _cache_lock=threading.Lock()
 _stop=threading.Event()
@@ -78,12 +79,16 @@ def pair_name(x):
     return str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or x.get("pair") or "").strip() if isinstance(x,dict) else ""
 
 def resolve_symbol(base):
-    if mt5.symbol_info(base): return base
+    if base in _symbol_cache:return _symbol_cache[base]
+    if mt5.symbol_info(base):
+        _symbol_cache[base]=base;return base
     b="".join(c for c in base.upper() if c.isalnum())
     aliases=[b]+(["GOLD"] if b=="XAUUSD" else [])
     hits=[x.name for x in (mt5.symbols_get() or []) if any(a in "".join(c for c in x.name.upper() if c.isalnum()) for a in aliases)]
     hits.sort(key=lambda n:(0 if "".join(c for c in n.upper() if c.isalnum()).startswith(b) else 1,len(n)))
-    return hits[0] if hits else None
+    found=hits[0] if hits else None
+    _symbol_cache[base]=found
+    return found
 
 def truth(v,default=False):
     if v is None or v=="": return default
@@ -264,6 +269,7 @@ def manage_ea_positions(cfg=None):
     """Keep EA-created MT5 SLs aligned with the strategy ledger even while new entries are stopped."""
     state=load_m15_state()
     all_positions=[p for p in (mt5.positions_get() or []) if int(getattr(p,"magic",0))==MAGIC]
+    if not all_positions:return
     for base,ps in (state.get("pairs") or {}).items():
         pc=((cfg or {}).get("pairs") or {}).get(base,{})
         if cfg is not None and not pc.get("autoExit",True):continue
@@ -407,6 +413,13 @@ def run():
     logging.info("startup: runtime disk cache %s", "loaded" if cached else "not found")
     cfg0,_,_=cached_runtime()
     bootstrap_missing_state(cfg0)
+    # Persisted strategy state is already caught up through last_time. Seed the polling
+    # cursor from it so a normal restart does not refetch 3000 bars for every pair.
+    startup_state=load_m15_state()
+    for base,ps in (startup_state.get("pairs") or {}).items():
+        sym=resolve_symbol(base)
+        if sym and int(ps.get("last_time",0))>0:last_bar[sym]=int(ps["last_time"])
+    logging.info("EA monitoring started; %s strategy cursors restored",len(last_bar))
     # GAS is never allowed to block startup or the trading loop.
     threading.Thread(target=runtime_refresher,daemon=True).start()
     threading.Thread(target=outbox_worker,daemon=True).start()
