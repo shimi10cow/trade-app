@@ -85,7 +85,7 @@ def pair_settings():
 def environment():
     try:return gas_get("getPairs") or []
     except Exception as e:
-        logging.error("environment fetch failed: %s",e);return []
+        logging.error("environment fetch failed: %s",e);return None
 
 def evaluate_m15(base_symbol,broker_symbol,closed_bars):
     tick=mt5.symbol_info_tick(broker_symbol)
