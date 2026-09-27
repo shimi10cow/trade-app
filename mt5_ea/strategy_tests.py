@@ -44,7 +44,21 @@ ps={"signals":{"P1":{"entered":True}},"trades":{"old":{"entered":True,"open":Tru
 ps.update({"regime":"SELL","p_count":0,"extreme":False,"signals":{}})
 check("open trade survives regime reset","old" in ps["trades"] and ps["trades"]["old"]["open"])
 
-failed=[n for n,v in tests if not v]
+
+# P3 must read the persistent trade ledger, not a stale signal copy.
+ps={"signals":{"P1":{"entered":True,"trade_id":"t1"},"P2":{"entered":True,"trade_id":"t2"}},"trades":{
+    "t1":{"entered":True,"open":True,"current_r":0.4},
+    "t2":{"entered":True,"open":True,"current_r":-0.2}}}
+existing=[ps["trades"][ps["signals"][p]["trade_id"]] for p in ("P1","P2")]
+check("P3 persistent ledger positive prior",any(s.trade_r(x)>0 for x in existing))
+ps["trades"]["t1"]["current_r"]=-0.1
+check("P3 persistent ledger both nonpositive",all(s.trade_r(x)<=0 for x in existing))
+
+# Spread is charged once in R bookkeeping.
+ps={"signals":{},"trades":{"t":{"entered":True,"open":True,"risk":1.0,"direction":"BUY","entry":100.0,"sl":90.0,"entry_time":0,"trailing":False,"spread_r":0.1}}}
+s.update_trade_ledger(ps,{"time":3600,"high":101.0,"low":99.5,"close":100.5},[],1)
+check("spread cost included in current R",abs(ps["trades"]["t"]["current_r"]-0.4)<1e-9)
+\nfailed=[n for n,v in tests if not v]
 print("\nRESULT:","PASS" if not failed else "NOT READY")
 if failed:
     for n in failed:print(" -",n)
