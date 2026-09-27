@@ -135,6 +135,23 @@ def update_trade_ledger(ps,row,pv,current_index):
                 t["current_r"]=gross-float(t.get("spread_r",0))
         else:t["current_r"]=float(t.get("final_r",0))
 
+def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0.0,ticket=None,deal=None):
+    """Promote a strategy signal to an open trade only after MT5 confirms execution."""
+    state=load_state(); ps=pair_state(state,pair)
+    sig=ps.setdefault("signals",{}).get(pattern)
+    if not sig or sig.get("direction")!=direction:
+        raise RuntimeError(f"{pair} {pattern}: strategy signal not found for execution")
+    risk=abs(float(entry)-float(sl))
+    if risk<=0:raise RuntimeError(f"{pair} {pattern}: invalid executed risk")
+    tid=f"{int(entry_time)}:{pattern}:{direction}"
+    trade={**sig,"entered":True,"open":True,"entry":float(entry),"sl":float(sl),"risk":risk,
+           "current_r":0.0,"entry_time":int(entry_time),"trailing":False,"trade_id":tid,
+           "spread_r":max(0.0,float(spread_price))/risk,"ticket":ticket,"deal":deal}
+    ps["trades"][tid]=trade
+    sig.update({"entered":True,"open":True,"trade_id":tid})
+    save_state(state)
+    return tid
+
 def evaluate(pair,rates,spread_price=0.0):
     rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
     if len(rows)<2100:return None
