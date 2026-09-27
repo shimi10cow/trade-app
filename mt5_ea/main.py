@@ -72,7 +72,7 @@ def pair_settings():
             p=pair_name(r)
             if not p: continue
             mode=str(r.get("稼働方法") or "stop").strip().lower()
-            if mode in ("自動","auto"): mode="auto"
+            if mode in ("自動","自動売買","auto"): mode="auto"
             elif mode in ("signal","signal-only","シグナルのみ"): mode="signal"
             else: mode="stop"
             cfg["pairs"][p]={
@@ -80,11 +80,11 @@ def pair_settings():
                 "direction":r.get("許可方向") or "Both",
                 "m15":truth(r.get("M15"),True),
                 "h1":truth(r.get("H1"),False),
-                "riskType":r.get("Lot方式") or "fixedLot",
+                "riskType":"fixedLot" if str(r.get("Lot方式") or "").strip() in ("固定Lot","fixedLot") else ("fixedLoss" if str(r.get("Lot方式") or "").strip() in ("固定損失額","fixedLoss") else "riskPercent"),
                 "riskValue":float(r.get("Lot値") or 0.01),
                 "riskCapEnabled":truth(r.get("Risk上限ON"),True),
                 "riskCap":float(r.get("Risk上限%") or 1),
-                "autoExit":str(r.get("決済方法") or "auto").lower() not in ("off","manual","裁量")
+                "autoExit":str(r.get("決済方法") or "auto").lower() not in ("off","manual","裁量","手動決済")
             }
         return cfg
     except Exception as e:
