@@ -16,7 +16,7 @@ _cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
-    r=requests.get(GAS_URL,params={"action":action,**params},timeout=45);r.raise_for_status()
+    r=requests.get(GAS_URL,params={"action":action,**params},timeout=8);r.raise_for_status()
     x=r.json();return x.get("data",x)
 
 def gas_post(action,data):
