@@ -1,7 +1,7 @@
 """Preflight for Hybrid EA. Does not place orders."""
 import ast, pathlib, os, sys
 ROOT=pathlib.Path(__file__).parent
-files=["main.py","m15_strategy.py","h1_strategy.py","telegram_notify.py","connection_test.py"]
+files=["main.py","m15_strategy.py","h1_strategy.py","telegram_notify.py","connection_test.py","mt5_position_sync.py","mt5_account_worker.py"]
 bad=[]
 for name in files:
     p=ROOT/name
@@ -53,6 +53,7 @@ checks={
  "Virtual trade tracking":"virtual_trades" in strategy and "collect_virtual_updates" in strategy,
  "MT5 position recovery":"recover_m15_execution" in main and "RECOVERED:" in strategy,
  "MT5 Trade Tracker sync":"from mt5_position_sync import sync as sync_mt5_positions" in main and "sync_mt5_positions(MAGIC,enqueue_gas)" in main,
+ "MT5 multi-account isolation":(ROOT/"mt5_account_worker.py").exists() and "subprocess.run" in (ROOT/"mt5_position_sync.py").read_text(encoding="utf-8") and "terminalPath" in (ROOT/"mt5_position_sync.py").read_text(encoding="utf-8"),
  "LIVE explicit arm gate":'LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false")' in main and "LIVE_NOT_ARMED" in main,
  "LIVE account/server lock":"LIVE_ACCOUNT_LOCK_MISMATCH" in main and "EA_LIVE_LOGIN" in main and "EA_LIVE_SERVER" in main,
  "LIVE account/terminal permissions":"ACCOUNT_TRADE_NOT_ALLOWED" in main and "TERMINAL_TRADE_NOT_ALLOWED" in main and "TERMINAL_NOT_CONNECTED" in main,
