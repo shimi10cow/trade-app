@@ -159,7 +159,7 @@ def evaluate(pair,rates,spread_price=0.0):
     elif spread_price/risk>0.10:reasons.append("SPREAD_RISK_GT10")
     structural=[x for x in reasons if x not in ()]
     candidate=not structural
-    ps["signals"][pattern]={"entered":candidate,"retr_skip":retr_skip,"entry":entry,"sl":sl,"current_r":0}
+    ps["signals"][pattern]={"entered":candidate,"retr_skip":retr_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,"current_r":0,"open":candidate}
     _save(state)
     return {"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"M15_SIMPLE_20260926",
             "strategyAllowed":candidate,"strategyReason":"OK" if candidate else ",".join(reasons),
