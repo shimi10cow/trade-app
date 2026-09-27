@@ -371,7 +371,7 @@ def run():
                 result=send_order({**sig,"symbol":symbol},pc,cfg)
                 if not result.get("dry_run",False):
                     register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("order"),result.get("deal"))
-                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
+                    enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"SpreadPips":float(result.get("spread",0))/m15_pip_size(base_symbol),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
                 logging.exception("%s failed",symbol)
