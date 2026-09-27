@@ -277,19 +277,31 @@ def send_order(sig,pc,cfg=None):
     if trade_mode==mt5.SYMBOL_TRADE_MODE_DISABLED:raise RuntimeError(f"{symbol}: trading disabled")
     buy=sig["direction"].upper()=="BUY";price=tick.ask if buy else tick.bid
     if not price or price<=0:raise RuntimeError(f"{symbol}: market closed/no live price")
-    if getattr(tick,"time",0) and time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
+    if not getattr(tick,"time",0) or time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
     sl=float(sig["sl"])
     if (buy and sl>=price) or ((not buy) and sl<=price):raise RuntimeError(f"{symbol}: invalid SL side")
     lot=lot_for(symbol,sig["direction"],price,sl,pc)
     if cfg is not None and not total_risk_allowed(symbol,sig["direction"],lot,price,sl,cfg):raise RuntimeError("TOTAL_RISK_CAP")
-    req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
+    point=float(info.point or 0)
+    min_stop=float(getattr(info,"trade_stops_level",0) or 0)*point
+    if min_stop>0 and abs(price-sl)<min_stop:raise RuntimeError(f"{symbol}: BROKER_STOPS_LEVEL")
+    base_req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
          "type":mt5.ORDER_TYPE_BUY if buy else mt5.ORDER_TYPE_SELL,
          "price":price,"sl":sl,"deviation":20,"magic":MAGIC,
-         "comment":"HybridEA-M15","type_time":mt5.ORDER_TIME_GTC,"type_filling":mt5.symbol_info(symbol).filling_mode}
-    if sig.get("tp"):req["tp"]=float(sig["tp"])
-    check=mt5.order_check(req)
-    if check is None:raise RuntimeError(f"order_check failed: {mt5.last_error()}")
-    if int(getattr(check,"retcode",0) or 0)!=0:raise RuntimeError(f"order_check rejected: {check}")
+         "comment":"HybridEA-M15","type_time":mt5.ORDER_TIME_GTC}
+    if sig.get("tp"):base_req["tp"]=float(sig["tp"])
+    # Broker filling modes vary by symbol/account. Pick the first mode accepted by order_check.
+    req=None; check=None
+    candidates=[]
+    fm=int(getattr(info,"filling_mode",0) or 0)
+    for mode in (fm,mt5.ORDER_FILLING_FOK,mt5.ORDER_FILLING_IOC,mt5.ORDER_FILLING_RETURN):
+        if mode not in candidates:candidates.append(mode)
+    for mode in candidates:
+        candidate={**base_req,"type_filling":mode}
+        c=mt5.order_check(candidate)
+        if c is not None and int(getattr(c,"retcode",0) or 0)==0:
+            req,check=candidate,c;break
+    if req is None:raise RuntimeError(f"order_check rejected all filling modes: {check or mt5.last_error()}")
     if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check),"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
     before={int(p.ticket) for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC}
     res=mt5.order_send(req)
