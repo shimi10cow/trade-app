@@ -18,8 +18,11 @@ def gas_get(action,**params):
     x=r.json();return x.get("data",x)
 
 def gas_post(action,data):
-    if not GAS_URL:return
+    if not GAS_URL: raise RuntimeError("EA_GAS_URL is not configured")
     r=requests.post(GAS_URL,json={"action":action,**data},timeout=10);r.raise_for_status()
+    x=r.json()
+    if x.get("success") is False: raise RuntimeError("GAS rejected request: "+str(x))
+    return x.get("data",x)
 
 def connect():
     if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
@@ -54,32 +57,56 @@ def allowed(sig,cfg,env):
     if not sig:return False,"NO_SIGNAL"
     if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"
     pc=(cfg.get("pairs") or {}).get(sig["symbol"],{})
-    if pc.get("mode","stop")=="stop":return False,"PAIR_STOP"
+    mode=pc.get("mode","stop")
+    if mode=="stop":return False,"PAIR_STOP"
+    if mode=="signal":return False,"SIGNAL_ONLY"
+    if mode!="auto":return False,"INVALID_MODE"
     if not pc.get("m15",True):return False,"M15_OFF"
     d=str(pc.get("direction","Both")).upper()
     if d not in ("BOTH","両方",sig["direction"].upper()):return False,"DIRECTION_BLOCK"
     return True,"OK"
 
-def lot_for(symbol,entry,sl,pc):
-    # Safe V1: fixed lot by default. Risk-% calculation is added after broker symbol specs are verified.
-    lot=float(pc.get("lot",0.01) or 0.01)
-    info=mt5.symbol_info(symbol)
-    if not info:raise RuntimeError(f"{symbol}: symbol_info unavailable")
-    step=info.volume_step or 0.01
-    lot=max(info.volume_min,min(info.volume_max,round(lot/step)*step))
-    return lot
+def loss_for(symbol,direction,lot,entry,sl):
+    typ=mt5.ORDER_TYPE_BUY if direction.upper()=="BUY" else mt5.ORDER_TYPE_SELL
+    p=mt5.order_calc_profit(typ,symbol,lot,entry,sl)
+    if p is None: raise RuntimeError(f"{symbol}: order_calc_profit failed")
+    return abs(float(p))
+
+def lot_for(symbol,direction,entry,sl,pc):
+    info=mt5.symbol_info(symbol);acct=mt5.account_info()
+    if not info or not acct:raise RuntimeError(f"{symbol}: broker/account specs unavailable")
+    method=pc.get("riskType","fixedLot");value=float(pc.get("riskValue",0.01) or 0.01)
+    if method=="fixedLot": lot=value
+    else:
+        target=value if method=="fixedLoss" else float(acct.balance)*value/100.0
+        base=max(float(info.volume_min),float(info.volume_step or 0.01))
+        base_loss=loss_for(symbol,direction,base,entry,sl)
+        if base_loss<=0:raise RuntimeError(f"{symbol}: invalid SL risk")
+        lot=base*target/base_loss
+    step=float(info.volume_step or 0.01)
+    lot=max(float(info.volume_min),min(float(info.volume_max),int(lot/step)*step))
+    if pc.get("riskCapEnabled",True):
+        cap=float(acct.balance)*float(pc.get("riskCap",1) or 1)/100.0
+        if loss_for(symbol,direction,lot,entry,sl)>cap+1e-8:raise RuntimeError("RISK_CAP")
+    return round(lot,8)
 
 def send_order(sig,pc):
-    symbol=sig["symbol"];tick=mt5.symbol_info_tick(symbol)
+    symbol=sig["symbol"]
+    if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
+    tick=mt5.symbol_info_tick(symbol)
     if not tick:raise RuntimeError(f"{symbol}: no tick")
     buy=sig["direction"].upper()=="BUY";price=tick.ask if buy else tick.bid
-    lot=lot_for(symbol,price,float(sig["sl"]),pc)
+    sl=float(sig["sl"])
+    if (buy and sl>=price) or ((not buy) and sl<=price):raise RuntimeError(f"{symbol}: invalid SL side")
+    lot=lot_for(symbol,sig["direction"],price,sl,pc)
     req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
          "type":mt5.ORDER_TYPE_BUY if buy else mt5.ORDER_TYPE_SELL,
-         "price":price,"sl":float(sig["sl"]),"deviation":20,"magic":MAGIC,
-         "comment":"HybridEA-M15","type_time":mt5.ORDER_TIME_GTC,"type_filling":mt5.ORDER_FILLING_IOC}
+         "price":price,"sl":sl,"deviation":20,"magic":MAGIC,
+         "comment":"HybridEA-M15","type_time":mt5.ORDER_TIME_GTC,"type_filling":mt5.symbol_info(symbol).filling_mode}
     if sig.get("tp"):req["tp"]=float(sig["tp"])
-    if DRY_RUN:return {"dry_run":True,"request":req}
+    check=mt5.order_check(req)
+    if check is None:raise RuntimeError(f"order_check failed: {mt5.last_error()}")
+    if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check)}
     res=mt5.order_send(req)
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume}
@@ -99,8 +126,9 @@ def run():
                 if not raw:continue
                 sig={"symbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
                 ok,reason=allowed(sig,cfg,envmap.get(symbol,{}))
-                gas_post("saveEASignal",{"signal":sig,"decision":"ENTRY" if ok else "SKIP","reason":reason,
+                saved=gas_post("saveEASignal",{"signal":sig,"decision":"ENTRY" if ok else "SKIP","reason":reason,
                     "environmentSnapshot":envmap.get(symbol,{}),"settingsSnapshot":(cfg.get("pairs") or {}).get(symbol,{})})
+                if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(symbol,{})
                 result=send_order(sig,pc)
