@@ -4,10 +4,10 @@ Windows + XM MT5 + Python 3.11 用。実注文は初期状態では停止して�
 
 ## 最初にやること
 
-PowerShellで `mt5_ea` フォルダへ移動して:
+PowerShellで `mt5_ea` フォルダへ移動して（WindowsではPython 3.11.5の `py` launcherを使用）:
 
 ```powershell
-pip install -r requirements.txt
+py -m pip install -r requirements.txt
 .\start_dry_run.ps1
 ```
 
