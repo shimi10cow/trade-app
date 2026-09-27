@@ -267,28 +267,36 @@ def cached_runtime():
 
 def init_outbox():
     with sqlite3.connect(OUTBOX_DB) as db:
-        db.execute("CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, payload TEXT NOT NULL, created REAL NOT NULL)")
+        db.execute("CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, payload TEXT NOT NULL, created REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0, last_error TEXT NOT NULL DEFAULT '')")
+        cols={r[1] for r in db.execute("PRAGMA table_info(outbox)")}
+        for name,ddl in (("attempts","INTEGER NOT NULL DEFAULT 0"),("next_attempt","REAL NOT NULL DEFAULT 0"),("last_error","TEXT NOT NULL DEFAULT ''")):
+            if name not in cols:db.execute(f"ALTER TABLE outbox ADD COLUMN {name} {ddl}")
         db.commit()
 
 def enqueue_gas(action,data):
     with sqlite3.connect(OUTBOX_DB) as db:
-        db.execute("INSERT INTO outbox(action,payload,created) VALUES(?,?,?)",(action,json.dumps(data,ensure_ascii=False,default=str),time.time()))
+        db.execute("INSERT INTO outbox(action,payload,created,next_attempt) VALUES(?,?,?,?)",(action,json.dumps(data,ensure_ascii=False,default=str),time.time(),0))
         db.commit()
 
 def outbox_worker():
     while not _stop.is_set():
         try:
+            now=time.time()
             with sqlite3.connect(OUTBOX_DB) as db:
-                row=db.execute("SELECT id,action,payload FROM outbox ORDER BY id LIMIT 1").fetchone()
+                row=db.execute("SELECT id,action,payload,attempts FROM outbox WHERE next_attempt<=? ORDER BY id LIMIT 1",(now,)).fetchone()
             if not row:_stop.wait(1);continue
-            oid,action,payload=row
+            oid,action,payload,attempts=row
             gas_post(action,json.loads(payload))
             with sqlite3.connect(OUTBOX_DB) as db:
                 db.execute("DELETE FROM outbox WHERE id=?",(oid,));db.commit()
         except Exception as e:
-            logging.error("GAS outbox failed: %s",e);_stop.wait(5)
-
-
+            logging.error("GAS outbox failed: %s",e)
+            try:
+                delay=min(300,2**min(int(attempts or 0),8))
+                with sqlite3.connect(OUTBOX_DB) as db:
+                    db.execute("UPDATE outbox SET attempts=attempts+1,next_attempt=?,last_error=? WHERE id=?",(time.time()+delay,str(e)[:1000],oid));db.commit()
+            except Exception:pass
+            _stop.wait(1)
 
 def signal_id(base,ts,pattern,direction):
     return f"EA-{base}-{int(ts)}-{pattern}-{direction}"
