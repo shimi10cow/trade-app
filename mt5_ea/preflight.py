@@ -18,6 +18,8 @@ checks={
  "Telegram notification module present":(ROOT/"telegram_notify.py").exists(),
  "Telegram wired to runtime":"import telegram_notify as telegram" in main and "notifySignal" in main and "notifyEntry" in main and "notifyError" in main,
  "Telegram global Exit toggle available":"notifyExit" in main,
+ "Notifications independent of global entry":'strategy_signal=bool(sig.get("strategyAllowed",False))' in main and 'notify_signal(sig,cfg)' in main and 'if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"' in main,
+ "Exit notification survives entry stop":'def notify_exit(base,t,cfg):' in main and 'if t.get("entered"):notify_exit(base,t,cfg)' in main and 'save_virtual_exits(base_symbol,cfg)' in main,
  "H1 independent of M15 signal":"if results:process_signal" in main and "if pc.get(\"h1\",False)" in main,
  "Shared actual position cap":'if len(current)>=2:raise RuntimeError("MAX_POSITIONS")' in main,
  "H1 app toggle wired":'pc.get("h1",False)' in main and '"H1_OFF"' in main,
