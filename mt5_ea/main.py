@@ -510,6 +510,11 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
     if sig_ts!=ts or time.time()-sig_ts>MAX_SIGNAL_AGE_SEC:
         enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"Executed":"NO","SkipReason":"OFFLINE_CATCHUP","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
         return
+    # Signal monitoring is independent from order permission. A user may keep the EA
+    # globally stopped while receiving valid strategy signals via Telegram.
+    strategy_signal=bool(sig.get("strategyAllowed",False))
+    if strategy_signal:
+        notify_signal(sig,cfg)
     ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}),tf)
     if ok:
         eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
@@ -518,7 +523,6 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
     enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule",tf),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl","")}})
     if not ok:return
     pc=(cfg.get("pairs") or {}).get(base_symbol,{})
-    if not DRY_RUN:notify_signal(sig,cfg)
     result=send_order({**sig,"symbol":symbol},pc,cfg)
     if not result.get("dry_run",False):
         if tf=="H1":
