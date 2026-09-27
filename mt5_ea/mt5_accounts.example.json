@@ -1,0 +1,12 @@
+{
+  "accounts": [
+    {
+      "name": "manual-account-2",
+      "enabled": false,
+      "terminalPath": "C:\\Program Files\\MetaTrader 5 Account 2\\terminal64.exe",
+      "login": "123456789",
+      "server": "XMTrading-MT5 2",
+      "passwordEnv": "MT5_ACCOUNT_123456789_PASSWORD"
+    }
+  ]
+}
