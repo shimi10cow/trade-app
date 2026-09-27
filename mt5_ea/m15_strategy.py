@@ -99,7 +99,7 @@ def retracement(direction,entry,pv):
             if d>0:return (entry-b["price"])/d*100
     return None
 
-def update_trade_ledger(ps,row,pv,current_index):
+def trade_r(t):\n    return float(t.get("current_r",t.get("final_r",0)))\n\ndef update_trade_ledger(ps,row,pv,current_index):
     now=int(row["time"]); hi=float(row["high"]); lo=float(row["low"]); close=float(row["close"])
     ps.setdefault("trades",{})
     for t in ps["trades"].values():
@@ -113,7 +113,7 @@ def update_trade_ledger(ps,row,pv,current_index):
             hit=(side=="BUY" and lo<=active_sl) or (side=="SELL" and hi>=active_sl)
             if hit:
                 exit_price=active_sl
-                t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk),"exit_time":now})
+                t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk)-float(t.get("spread_r",0)),"exit_time":now})
             else:
                 # 2) +2R or 240h activates trailing. 240h itself never closes the trade.
                 favorable=(hi-entry)/risk if side=="BUY" else (entry-lo)/risk
@@ -128,7 +128,7 @@ def update_trade_ledger(ps,row,pv,current_index):
                         if side=="BUY" and candidate>active_sl:t["pending_sl"]=candidate
                         if side=="SELL" and candidate<active_sl:t["pending_sl"]=candidate
             if t.get("open",False):
-                t["current_r"]=(close-entry)/risk if side=="BUY" else (entry-close)/risk
+                gross=(close-entry)/risk if side=="BUY" else (entry-close)/risk\n                t["current_r"]=gross-float(t.get("spread_r",0))
         else:t["current_r"]=float(t.get("final_r",0))
 
 def evaluate(pair,rates,spread_price=0.0):
@@ -198,9 +198,9 @@ def evaluate(pair,rates,spread_price=0.0):
         prior=[p1,p2]
         # Gate skips are the only missing-position exception.
         nongate_missing=any(x is None or (not x.get("entered") and not x.get("gate_skip")) for x in prior)
-        existing=[x for x in prior if x and x.get("entered")]
+        existing=[]\n        for x in prior:\n            if x and x.get("entered"):\n                tid=x.get("trade_id"); existing.append(ps["trades"].get(tid,x) if tid else x)
         if nongate_missing:reasons.append("P3_PRIOR_NON_GATE_REJECT")
-        elif existing and all(float(x.get("current_r",x.get("final_r",0)))<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
+        elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
 
     buf=(10.0 if pair=="XAUUSD" else 10*pip_size(pair))
     base=m200[-1]-buf if direction=="BUY" else m200[-1]+buf
