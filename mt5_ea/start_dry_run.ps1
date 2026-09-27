@@ -11,6 +11,11 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 python .\strategy_tests.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+Write-Host ""
+Write-Host "Hybrid EA - runtime validation (NO ORDERS)" -ForegroundColor Cyan
+python .\runtime_check.py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 Write-Host "Hybrid EA - connection test (NO ORDERS)" -ForegroundColor Cyan
 python .\connection_test.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
