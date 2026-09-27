@@ -9,9 +9,13 @@ def main():
     password=""
     env=str(cfg.get("passwordEnv") or "")
     if env:password=os.getenv(env,"")
-    kwargs={"login":login,"server":server}
-    if password:kwargs["password"]=password
-    ok=mt5.initialize(path,**kwargs) if path else mt5.initialize(**kwargs)
+    # Preferred mode: each copied terminal is logged in once by the user and keeps
+    # its own saved credentials. No trading password needs to be stored in this app.
+    if password:
+        kwargs={"login":login,"server":server,"password":password}
+        ok=mt5.initialize(path,**kwargs) if path else mt5.initialize(**kwargs)
+    else:
+        ok=mt5.initialize(path) if path else mt5.initialize()
     if not ok:raise RuntimeError(f"initialize failed: {mt5.last_error()}")
     try:
         a=mt5.account_info()
