@@ -12,8 +12,15 @@ for name in files:
         bad.append(f"{name}: {e}"); print(f"[FAIL] syntax {name}: {e}")
 main=(ROOT/"main.py").read_text(encoding="utf-8")
 strategy=(ROOT/"m15_strategy.py").read_text(encoding="utf-8")
+h1=(ROOT/"h1_strategy.py").read_text(encoding="utf-8")
 checks={
  "H1 strategy module present":(ROOT/"h1_strategy.py").exists(),
+ "H1 app toggle wired":'pc.get("h1",False)' in main and '"H1_OFF"' in main,
+ "H1 live execution wired":"register_h1_execution" in main and '"timeframe":"H1"' in main,
+ "H1 closed-bar only":'!=45:return None' in h1,
+ "H1 Stoch 14-5-3":"nullable_sma(raw,5)" in h1 and "nullable_sma(k,3)" in h1,
+ "H1 W4+ rejected":'W4_PLUS' in h1,
+ "H1 shares causal exit ledger":"recover_m15_execution" in main and '"Source":"EA-H1"' in main,
  "DRY_RUN defaults true":'EA_DRY_RUN","true"' in main,
  "M15 history >=3000":"count=3000" in main,
  "GAS settings cache 300s":'>=300' in main,
