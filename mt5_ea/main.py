@@ -135,9 +135,7 @@ def environment_allowed(sig,env):
         except Exception:return False,"ENV_TIME_INVALID"
     push=str(env_value(env,"TL\u63a8\u9032\u74b0\u5883","TL 推進","TL推進","TL_推進") or "").upper()
     counter=str(env_value(env,"TL\u9006\u30c8\u30ec\u74b0\u5883","TL 逆トレ","TL逆トレ","TL_逆トレ") or "").upper()
-    if push or counter:
-        side=sig["direction"].upper()
-        if side not in (push,counter):return False,"ENV_DIRECTION_BLOCK"
+    dm={chr(8593):"BUY","UP":"BUY","BUY":"BUY",chr(8595):"SELL","DOWN":"SELL","SELL":"SELL"}\n    dirs={dm.get(push,push),dm.get(counter,counter)}\n    dirs.discard("");dirs.discard("NONE")\n    if dirs and sig["direction"].upper() not in dirs:return False,"ENV_DIRECTION_BLOCK"
     return True,"OK"
 
 def open_ea_risk():
