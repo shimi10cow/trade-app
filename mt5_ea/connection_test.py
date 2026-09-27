@@ -34,9 +34,9 @@ def tracker_pairs():
     out=[]
     for r in rows:
         if not isinstance(r,dict): continue
-        p=r.get("Pair") or r.get("PairName") or r.get("通貨ペア") or r.get("pair")
+        p=r.get("PairName（元）") or r.get("PairName") or r.get("Pair") or r.get("通貨ペア") or r.get("pair")
         if p: out.append(str(p).strip())
-    return sorted(set(out))
+    if not out and rows:\n        print(f"[DEBUG] getPairs first row keys={list(rows[0].keys()) if isinstance(rows[0],dict) else type(rows[0]).__name__}")\n    return sorted(set(out))
 
 def target_pairs():
     # EA_PAIRS is only an optional temporary override.
