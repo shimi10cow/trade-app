@@ -100,14 +100,14 @@ def evaluate(pair,m15_rates,spread_price=0.0,_state=None,_save=True):
     pk,pd=k[i-1],d[i-1]
     # State transitions are deliberately independent, and cross + 20/80 exit may finish on one H1 bar.
     bs=ps["buy_state"]
-    if bs==0 and k[i]<20:ps["buy_state"]=1;ps["buy_start"]=i
+    if bs==0 and k[i]<20:ps["buy_state"]=1;ps["buy_start"]=now
     if ps["buy_state"]==1 and pk<=pd and k[i]>d[i]:ps["buy_state"]=2
-    if ps["buy_state"]==2 and k[i]>20:
+    if ps["buy_state"]==2 and pk<=20 and k[i]>20:
         start=ps.get("buy_start");ps["buy_state"]=0;ps["buy_start"]=None;completed.append(("BUY",start))
     ss=ps["sell_state"]
-    if ss==0 and k[i]>80:ps["sell_state"]=1;ps["sell_start"]=i
+    if ss==0 and k[i]>80:ps["sell_state"]=1;ps["sell_start"]=now
     if ps["sell_state"]==1 and pk>=pd and k[i]<d[i]:ps["sell_state"]=2
-    if ps["sell_state"]==2 and k[i]<80:
+    if ps["sell_state"]==2 and pk>=80 and k[i]<80:
         start=ps.get("sell_start");ps["sell_state"]=0;ps["sell_start"]=None;completed.append(("SELL",start))
     ps["last_h1_time"]=now
     if not completed:
@@ -122,26 +122,44 @@ def evaluate(pair,m15_rates,spread_price=0.0,_state=None,_save=True):
     if side*(s480[i]-s480[i-24])<=0:reasons.append("SMA480_SLOPE")
     if side*(s200[i]-s480[i])<-.25*ha[i]:reasons.append("SMA200_480_RELATION")
 
-    strength=min(side*(s200[i]/s200[i-12]-1),side*(s480[i]/s480[i-12]-1))
-    hist=ps["q75"][direction];q75=percentile75(hist) if len(hist)>=100 else None
+    strength=min(side*(s200[i]/s200[i-12]-1),side*(s480[i]/s480[i-24]-1))
+    hist=ps["q75"][direction];q75=percentile75(hist)
     if q75 is not None and strength>q75:reasons.append("Q75")
     hist.append(strength)
     if len(hist)>10000:del hist[:-10000]
 
-    # Pullback extremes are retained in the signal record for audit/backtest diagnostics.
-    start=i if start is None else max(0,int(start))
-    pullback=min(x["low"] for x in h1[start:i+1]) if direction=="BUY" else max(x["high"] for x in h1[start:i+1])
-    # Current production SL rule: M15 SMA200 +/- 10 pips, with at least 10 pips initial distance.
-    mc=[x["close"] for x in rows];m200=sma(mc,200)[-1];entry=float(c[i]);buf=10*pip_size(pair)
-    sl=min(float(m200)-buf,entry-buf) if direction=="BUY" else max(float(m200)+buf,entry+buf)
-    risk=abs(entry-sl)
+    # Wrong-side filter: reject only when both distance and continuous duration conditions hold.
+    wrong_bars=0
+    for j in range(i,-1,-1):
+        if s200[j] is None:break
+        wrong=(c[j]<s200[j]) if direction=="BUY" else (c[j]>s200[j])
+        if not wrong:break
+        wrong_bars+=1
+    wrong_distance=(s200[i]-c[i]) if direction=="BUY" else (c[i]-s200[i])
+    if wrong_distance>=.5*ha[i] and wrong_bars>=6:reasons.append("SMA200_WRONG_SIDE")
+
+    # Pullback interval is inclusive from first extreme bar through completion bar.
+    start_time=now if start is None else int(start)
+    start_i=next((j for j,x in enumerate(h1) if int(x["time"])==start_time),i)
+    pullback=min(x["low"] for x in h1[start_i:i+1]) if direction=="BUY" else max(x["high"] for x in h1[start_i:i+1])
+
+    # Initial SL: search H1 SMA75/H1 SMA200/M15 SMA200 directly from pullback base within 10 pips.
+    mc=[x["close"] for x in rows];m200=sma(mc,200)[-1];entry=float(c[i]);p10=10*pip_size(pair);p5=5*pip_size(pair)
+    mas=[float(s75[i]),float(s200[i]),float(m200)]
+    if direction=="BUY":
+        nearby=[x for x in mas if x<pullback and pullback-x<=p10]
+        sl=min(nearby) if nearby else pullback-p5
+        risk=entry-sl
+    else:
+        nearby=[x for x in mas if x>pullback and x-pullback<=p10]
+        sl=max(nearby) if nearby else pullback+p5
+        risk=sl-entry
     if risk<=0:reasons.append("INVALID_RISK")
-    elif spread_price/risk>.10:reasons.append("SPREAD_RISK_GT10")
 
     candidate=not reasons
-    sig={"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"H1_SIMPLE_20260927",
+    sig={"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"H1_STOCH_CURRENT",
          "strategyAllowed":candidate,"strategyReason":"OK" if candidate else ",".join(reasons),
-         "strength":strength,"q75":q75,"initialRisk":risk,"pullbackExtreme":pullback,"h1Time":now}
+         "strength":strength,"q75":q75,"initialRisk":risk,"pullbackExtreme":pullback,"wrongSideBars":wrong_bars,"h1Time":now}
     ps["signals"][pattern]=sig
     if _save:save_state(state)
     return sig
