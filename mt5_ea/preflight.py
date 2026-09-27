@@ -1,7 +1,7 @@
 """Preflight for Hybrid EA. Does not place orders."""
 import ast, pathlib, os, sys
 ROOT=pathlib.Path(__file__).parent
-files=["main.py","m15_strategy.py","connection_test.py"]
+files=["main.py","m15_strategy.py","h1_strategy.py","connection_test.py"]
 bad=[]
 for name in files:
     p=ROOT/name
@@ -13,6 +13,7 @@ for name in files:
 main=(ROOT/"main.py").read_text(encoding="utf-8")
 strategy=(ROOT/"m15_strategy.py").read_text(encoding="utf-8")
 checks={
+ "H1 strategy module present":(ROOT/"h1_strategy.py").exists(),
  "DRY_RUN defaults true":'EA_DRY_RUN","true"' in main,
  "M15 history >=3000":"count=3000" in main,
  "GAS settings cache 300s":'>=300' in main,
