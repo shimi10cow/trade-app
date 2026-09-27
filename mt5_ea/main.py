@@ -3,7 +3,7 @@ import os,time,json,logging,threading,queue,sqlite3
 from datetime import datetime,timezone,timedelta
 import requests
 import MetaTrader5 as mt5
-from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution
+from m15_strategy import evaluate as evaluate_m15_strategy, load_state as load_m15_state, register_execution as register_m15_execution, bootstrap as bootstrap_m15, collect_virtual_updates, recover_execution as recover_m15_execution, pip_size as m15_pip_size
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
@@ -313,7 +313,7 @@ def save_virtual_exits(base):
     for t in collect_virtual_updates(base):
         tid=signal_id(base,t.get("entry_time",0),t.get("pattern",""),t.get("direction",""))
         enqueue_gas("saveEASignal",{"data":{"SignalID":tid,"ExitTime":datetime.fromtimestamp(int(t.get("exit_time",0)),timezone.utc).isoformat() if t.get("exit_time") else "",
-            "ExitPrice":t.get("exit",""),"R":t.get("final_r","")}})
+            "ExitPrice":t.get("exit",""),"Pips":((float(t.get("exit",0))-float(t.get("entry",0)))*(1 if t.get("direction")=="BUY" else -1)/m15_pip_size(base)) if t.get("exit") is not None else "","R":t.get("final_r","")}})
 
 def bootstrap_missing_state(cfg):
     state=load_m15_state(); existing=state.get("pairs") or {}
