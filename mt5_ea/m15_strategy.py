@@ -234,9 +234,11 @@ def evaluate(pair,rates,spread_price=0.0):
     if sum(1 for x in ps.setdefault("trades",{}).values() if x.get("entered") and x.get("open"))>=2:reasons.append("MAX_POSITIONS")
 
     candidate=not reasons
-    trade={"entered":candidate,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,"current_r":0.0,"open":candidate,"entry_time":now,"bar_index":len(rows)-1,"trailing":False}
+    # A strategy candidate is not an executed position. main.py promotes it only after MT5 confirms a fill.
+    trade={"entered":False,"gate_skip":gate_skip,"entry":entry,"sl":sl,"risk":risk,"direction":direction,
+           "current_r":0.0,"open":False,"entry_time":now,"bar_index":len(rows)-1,"trailing":False,
+           "strategy_candidate":candidate}
     ps["signals"][pattern]=trade
-    if candidate:ps.setdefault("trades",{})[f"{now}:{pattern}:{direction}"]=trade
     save_state(state)
     return {"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"M15_SIMPLE_20260926","strategyAllowed":candidate,
             "strategyReason":"OK" if candidate else ",".join(reasons),"retracement":ret,"q75":q75,"strength":strength,"initialRisk":risk}
