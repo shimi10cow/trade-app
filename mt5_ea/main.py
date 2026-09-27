@@ -18,7 +18,8 @@ _cache_lock=threading.Lock()
 _stop=threading.Event()
 _outbox=queue.Queue()
 SETTINGS_MAX_STALE=900
-ENV_MAX_STALE=7200\nOUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
+ENV_MAX_STALE=7200
+OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
@@ -156,7 +157,8 @@ def modify_position_sl(position,new_sl):
     req={"action":mt5.TRADE_ACTION_SLTP,"position":position.ticket,"symbol":position.symbol,"sl":float(new_sl),"tp":float(position.tp or 0),"magic":MAGIC}
     r=mt5.order_send(req)
     return bool(r and r.retcode==mt5.TRADE_RETCODE_DONE)
-\ndef loss_for(symbol,direction,lot,entry,sl):
+
+def loss_for(symbol,direction,lot,entry,sl):
     typ=mt5.ORDER_TYPE_BUY if direction.upper()=="BUY" else mt5.ORDER_TYPE_SELL
     p=mt5.order_calc_profit(typ,symbol,lot,entry,sl)
     if p is None: raise RuntimeError(f"{symbol}: order_calc_profit failed")
@@ -194,7 +196,8 @@ def send_order(sig,pc,cfg=None):
     if getattr(tick,"time",0) and time.time()-float(tick.time)>300:raise RuntimeError(f"{symbol}: stale tick")
     sl=float(sig["sl"])
     if (buy and sl>=price) or ((not buy) and sl<=price):raise RuntimeError(f"{symbol}: invalid SL side")
-    lot=lot_for(symbol,sig["direction"],price,sl,pc)\n    if cfg is not None and not total_risk_allowed(symbol,sig["direction"],lot,price,sl,cfg):raise RuntimeError("TOTAL_RISK_CAP")
+    lot=lot_for(symbol,sig["direction"],price,sl,pc)
+    if cfg is not None and not total_risk_allowed(symbol,sig["direction"],lot,price,sl,cfg):raise RuntimeError("TOTAL_RISK_CAP")
     req={"action":mt5.TRADE_ACTION_DEAL,"symbol":symbol,"volume":lot,
          "type":mt5.ORDER_TYPE_BUY if buy else mt5.ORDER_TYPE_SELL,
          "price":price,"sl":sl,"deviation":20,"magic":MAGIC,
@@ -318,6 +321,7 @@ def run():
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 result=send_order({**sig,"symbol":symbol},pc,cfg)
                 if not result.get("dry_run",False):
+                    register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),ts,result.get("spread",0.0),result.get("order"),result.get("deal"))
                     enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("order",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
                 logging.info("%s %s %s",symbol,sig["direction"],result)
             except Exception as e:
