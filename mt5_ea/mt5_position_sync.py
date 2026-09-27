@@ -68,6 +68,9 @@ def _scan_connected(magic,state_path=STATE_PATH):
     _save(state,state_path);return events
 
 def _account_configs():
+    # Extra/manual MT5 accounts are opt-in. Primary EA account is always synced above.
+    if os.getenv("EA_SYNC_EXTRA_ACCOUNTS","false").strip().lower() not in ("1","true","yes","on"):
+        return []
     try:
         raw=json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8-sig"))
         rows=raw.get("accounts",raw) if isinstance(raw,dict) else raw
