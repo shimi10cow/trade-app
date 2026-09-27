@@ -4146,12 +4146,9 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-480', p['H4MA480.1200']);
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
-  const peEaDir = document.getElementById('pe-ea-dir');
-  const peEaTlGo = document.getElementById('pe-ea-tlgo');
-  const peEaTlRev = document.getElementById('pe-ea-tlrev');
-  if (peEaDir) peEaDir.value = p['EA許可方向'] || '両方';
-  if (peEaTlGo) peEaTlGo.value = p['TL推進環境'] || '';
-  if (peEaTlRev) peEaTlRev.value = p['TL逆トレ環境'] || '';
+  setBtn('pe-ea-dir', p['EA許可方向'] || '両方');
+  setBtn('pe-ea-tlgo', p['TL推進環境'] || 'なし');
+  setBtn('pe-ea-tlrev', p['TL逆トレ環境'] || 'なし');
   const peEaConfirmed = document.getElementById('pe-ea-confirmed');
   if (peEaConfirmed) peEaConfirmed.textContent = p['EA環境確認日時'] ? '最終確認: ' + formatDateDisplay(p['EA環境確認日時']) : '最終確認: 未確認';
 
@@ -4222,9 +4219,9 @@ async function savePairEdit() {
       'H4MA480.1200':  getBtnVal('pe-ma-480'),
       'H1MA20.80':     getBtnVal('pe-ma-h1-20'),
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
-      'EA許可方向':     document.getElementById('pe-ea-dir')?.value || '両方',
-      'TL推進環境':     document.getElementById('pe-ea-tlgo')?.value || '',
-      'TL逆トレ環境':   document.getElementById('pe-ea-tlrev')?.value || '',
+      'EA許可方向':     getBtnVal('pe-ea-dir') || '両方',
+      'TL推進環境':     getBtnVal('pe-ea-tlgo') === 'なし' ? '' : getBtnVal('pe-ea-tlgo'),
+      'TL逆トレ環境':   getBtnVal('pe-ea-tlrev') === 'なし' ? '' : getBtnVal('pe-ea-tlrev'),
       'EA環境確認日時': new Date().toISOString(),
     };
 
@@ -4948,6 +4945,11 @@ async function submitEntryData() {
       'Direction': direction,
       'DowRule': document.getElementById('ne-dow-rule').value,
       'TakeProfitPips': document.getElementById('ne-tp').value,
+      'EntryPrice': document.getElementById('ne-entry-price')?.value || '',
+      'ExitPrice': document.getElementById('ne-exit-price')?.value || '',
+      'InitialSLPrice': document.getElementById('ne-sl-price')?.value || '',
+      'TakeProfitPrice': document.getElementById('ne-tp-price')?.value || '',
+      'ExitTime': document.getElementById('ne-exit-time')?.value || '',
       'StopLossPips': document.getElementById('ne-sl').value,
       'Lot': document.getElementById('ne-lot').value,
       'エントリー時メモ': document.getElementById('ne-memo').value,
@@ -5438,6 +5440,11 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-tp').value = t['TP'] || t['TakeProfitPips'] || t['StopProfitPips'] || '';
   document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
   document.getElementById('td-lot').value = t['Lot'] || '';
+  document.getElementById('td-entry-price').value = t['EntryPrice'] || t['エントリー価格'] || '';
+  document.getElementById('td-exit-price').value = t['ExitPrice'] || t['決済価格'] || '';
+  document.getElementById('td-sl-price').value = t['InitialSLPrice'] || t['SLPrice'] || t['損切り価格'] || '';
+  document.getElementById('td-tp-price').value = t['TakeProfitPrice'] || t['TPPrice'] || t['利確価格'] || '';
+  document.getElementById('td-exit-time').value = formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || '');
 
   // existing values
   document.getElementById('td-pips').value = t['実取得pips'] || '';
@@ -5760,6 +5767,11 @@ async function saveTradeDetail() {
       '指標決済': (() => { const b = document.querySelector('#td-indicator-exit button.active'); return b ? b.textContent.trim() : ''; })(),
       '決済メモ': document.getElementById('td-exit-memo').value,
       'TakeProfitPips': document.getElementById('td-tp')?.value || '',
+      'EntryPrice': document.getElementById('td-entry-price')?.value || '',
+      'ExitPrice': document.getElementById('td-exit-price')?.value || '',
+      'InitialSLPrice': document.getElementById('td-sl-price')?.value || '',
+      'TakeProfitPrice': document.getElementById('td-tp-price')?.value || '',
+      'ExitTime': document.getElementById('td-exit-time')?.value || '',
       'StopLossPips': document.getElementById('td-sl')?.value || '',
       'Lot': document.getElementById('td-lot')?.value || '',
       'DowRule': document.getElementById('td-dow-rule')?.value || '',
