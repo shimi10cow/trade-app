@@ -99,7 +99,10 @@ def retracement(direction,entry,pv):
             if d>0:return (entry-b["price"])/d*100
     return None
 
-def trade_r(t):\n    return float(t.get("current_r",t.get("final_r",0)))\n\ndef update_trade_ledger(ps,row,pv,current_index):
+def trade_r(t):
+    return float(t.get("current_r",t.get("final_r",0)))
+
+def update_trade_ledger(ps,row,pv,current_index):
     now=int(row["time"]); hi=float(row["high"]); lo=float(row["low"]); close=float(row["close"])
     ps.setdefault("trades",{})
     for t in ps["trades"].values():
@@ -128,7 +131,8 @@ def trade_r(t):\n    return float(t.get("current_r",t.get("final_r",0)))\n\ndef 
                         if side=="BUY" and candidate>active_sl:t["pending_sl"]=candidate
                         if side=="SELL" and candidate<active_sl:t["pending_sl"]=candidate
             if t.get("open",False):
-                gross=(close-entry)/risk if side=="BUY" else (entry-close)/risk\n                t["current_r"]=gross-float(t.get("spread_r",0))
+                gross=(close-entry)/risk if side=="BUY" else (entry-close)/risk
+                t["current_r"]=gross-float(t.get("spread_r",0))
         else:t["current_r"]=float(t.get("final_r",0))
 
 def evaluate(pair,rates,spread_price=0.0):
@@ -198,7 +202,10 @@ def evaluate(pair,rates,spread_price=0.0):
         prior=[p1,p2]
         # Gate skips are the only missing-position exception.
         nongate_missing=any(x is None or (not x.get("entered") and not x.get("gate_skip")) for x in prior)
-        existing=[]\n        for x in prior:\n            if x and x.get("entered"):\n                tid=x.get("trade_id"); existing.append(ps["trades"].get(tid,x) if tid else x)
+        existing=[]
+        for x in prior:
+            if x and x.get("entered"):
+                tid=x.get("trade_id"); existing.append(ps["trades"].get(tid,x) if tid else x)
         if nongate_missing:reasons.append("P3_PRIOR_NON_GATE_REJECT")
         elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
 
