@@ -17,7 +17,7 @@ PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip
 LIVE_LOGIN=os.getenv("EA_LIVE_LOGIN","").strip()
 LIVE_SERVER=os.getenv("EA_LIVE_SERVER","").strip()
 LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false").lower()=="true"
-MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))
+MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))\nCONTROL_FETCH_SEC=max(3,int(os.getenv("EA_CONTROL_FETCH_SEC","10")))
 LIVE_REQUIRE_REAL=os.getenv("EA_LIVE_REQUIRE_REAL","true").lower()=="true"
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
@@ -377,11 +377,16 @@ def refresh_runtime_once():
     save_runtime_disk_cache()
 
 def runtime_refresher():
+    last_control=0.0
     while not _stop.is_set():
         now=time.time()
         with _cache_lock:
-            need_s=_cache["settings"] is None or now-_cache["settings_at"]>=300
+            current=_cache["settings"] or {}
+            settings_interval=max(30.0,float(current.get("settingsRefreshMin",5) or 5)*60.0)
+            need_s=_cache["settings"] is None or now-_cache["settings_at"]>=settings_interval
             need_e=_cache["env"] is None or now-_cache["env_at"]>=ENV_FETCH_SEC
+        if now-last_control>=CONTROL_FETCH_SEC:
+            refresh_global_control();last_control=time.time()
         if need_s:
             x=pair_settings()
             if x is not None:
