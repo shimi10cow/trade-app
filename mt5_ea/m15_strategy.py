@@ -186,26 +186,28 @@ def recover_execution(pair,direction,entry,sl,entry_time,ticket=None):
     save_state(state);return True
 
 def bootstrap(pair,rates,spread_price=0.0):
-    """Rebuild missing strategy state from closed M15 history without future bars."""
+    """Rebuild missing strategy state causally, persisting only once at the end."""
     state=load_state()
-    if pair in (state.get("pairs") or {}) and int(state["pairs"][pair].get("last_time",0))>0:
+    existing=(state.get("pairs") or {}).get(pair,{})
+    if int(existing.get("last_time",0))>0 and existing.get("bootstrapped"):
         return False
-    state.setdefault("pairs",{}).pop(pair,None); save_state(state)
+    state.setdefault("pairs",{}).pop(pair,None)
     start=max(2100,1)
+    # Keep one in-memory state object during replay. The previous implementation
+    # re-read/re-wrote JSON for every historical bar, which was extremely slow.
     for end in range(start,len(rates)+1):
-        evaluate(pair,rates[:end],spread_price)
-    state=load_state(); ps=pair_state(state,pair)
+        evaluate(pair,rates[:end],spread_price,_state=state,_save=False)
+    ps=pair_state(state,pair)
     for t in ps.setdefault("virtual_trades",{}).values():
-        # Bootstrap history predates this runtime, so never emit orphan GAS exit rows.
         t["gas_synced"]=True
     ps["bootstrapped"]=True
     save_state(state)
     return True
 
-def evaluate(pair,rates,spread_price=0.0):
+def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True):
     rows=[{k:(int(r[k]) if k=="time" else float(r[k])) for k in ("time","open","high","low","close")} for r in rates]
     if len(rows)<2100:return None
-    state=load_state(); ps=pair_state(state,pair); now=rows[-1]["time"]
+    state=_state if _state is not None else load_state(); ps=pair_state(state,pair); now=rows[-1]["time"]
     if now<=int(ps.get("last_time",0)):return None
     c=[x["close"] for x in rows];h=[x["high"] for x in rows];l=[x["low"] for x in rows]
     m200=sma(c,200);ma=atr(h,l,c);mk,md=stoch(h,l,c);pv=pivots(rows,ma)
@@ -238,7 +240,9 @@ def evaluate(pair,rates,spread_price=0.0):
         elif ss==1 and pk>=pd and k<d:ps["sell_state"]=2
         elif ss==2 and pk>=80 and k<80:ps["sell_state"]=0;completed.append("SELL")
     ps["last_time"]=now
-    if not completed:save_state(state);return None
+    if not completed:
+        if _save:save_state(state)
+        return None
 
     direction=completed[0];ps["p_count"]+=1;pnum=ps["p_count"];pattern=f"P{pnum}";entry=c[-1];reasons=[]
     if ps["regime"]!=direction:reasons.append("TREND_REGIME")
@@ -296,6 +300,6 @@ def evaluate(pair,rates,spread_price=0.0):
         ps.setdefault("virtual_trades",{})[vtid]=vtrade
         trade["virtual_trade_id"]=vtid
     ps["signals"][pattern]=trade
-    save_state(state)
+    if _save:save_state(state)
     return {"direction":direction,"pattern":pattern,"entry":entry,"sl":sl,"tp":None,"rule":"M15_SIMPLE_20260926","strategyAllowed":candidate,
             "strategyReason":"OK" if candidate else ",".join(reasons),"retracement":ret,"q75":q75,"strength":strength,"initialRisk":risk}
