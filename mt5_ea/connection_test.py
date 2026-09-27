@@ -9,7 +9,11 @@ REQUESTED=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
 def gas(action):
     r=requests.get(GAS,params={"action":action},timeout=15)
     r.raise_for_status()
-    x=r.json()
+    try:
+        x=r.json()
+    except Exception:
+        preview=(r.text or "")[:300].replace("\r"," ").replace("\n"," ")
+        raise RuntimeError(f"GAS returned non-JSON: status={r.status_code} final_url={r.url} body={preview!r}")
     if x.get("success") is False: raise RuntimeError(x.get("error",x))
     return x.get("data",x)
 
@@ -52,7 +56,12 @@ try:
     if not a: raise RuntimeError("account_info unavailable")
     print(f"[PASS] MT5 login={a.login} server={a.server} balance={a.balance}")
 
-    pairs=target_pairs()
+    try:
+        pairs=target_pairs()
+    except Exception as e:
+        print(f"[FAIL] GAS getPairs before MT5 scan: {e}")
+        pairs=[]
+        ok=False
     print(f"[INFO] Trade Tracker target pairs={len(pairs)}")
     usable=0
     for base in pairs:
