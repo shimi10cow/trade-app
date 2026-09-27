@@ -21,7 +21,7 @@ checks={
  "H1 independent of M15 signal":"if results:process_signal" in main and "if pc.get(\"h1\",False)" in main,
  "Shared actual position cap":'if len(current)>=2:raise RuntimeError("MAX_POSITIONS")' in main,
  "H1 app toggle wired":'pc.get("h1",False)' in main and '"H1_OFF"' in main,
- "H1 live execution wired":"register_h1_execution" in main and '"timeframe":"H1"' in main,
+ "H1 live execution wired":"register_h1_execution" in main and 'process_signal(base_symbol,symbol,h1_results[-1],ts,cfg,envmap,runtime_ok,"H1")' in main and 'if tf=="H1":' in main,
  "H1 closed-bar only":'!=45:return None' in h1,
  "H1 Stoch 14-5-3":"nullable_sma(raw,5)" in h1 and "nullable_sma(k,3)" in h1,
  "H1 W4+ rejected":'W4_PLUS' in h1,
@@ -39,7 +39,7 @@ checks={
  "P3 causal ledger implemented":"trade_id" in strategy and "update_trade_ledger" in strategy and "trade_r" in strategy,
  "Spread included in R":"spread_r" in strategy,
  "Async GAS runtime":"runtime_refresher" in main and "outbox_worker" in main and "RUNTIME_CACHE_STALE" in main,
- "App global stop immediate contract":'gas_get("getAppSettings")' in main and "CONTROL_FETCH_SEC" in main and 'GLOBAL_STOP' in main,
+ "App global stop immediate contract":'def refresh_global_control():' in main and 'gas_get("getAppSettings")' in main and "CONTROL_FETCH_SEC" in main and 'GLOBAL_STOP' in main,
  "Persistent GAS outbox":"sqlite3" in main and "next_attempt" in main and "attempts" in main,
  "Environment freshness + direction":"ENV_TIME_MISSING" in main and "ENV_DIRECTION_BLOCK" in main and "envRefreshMin" in main,
  "Total simultaneous risk cap":"TOTAL_RISK_CAP" in main and "open_ea_risk" in main,
@@ -78,13 +78,3 @@ if bad:
     for x in bad: print(" - "+x)
     sys.exit(1)
 
-
-def check_app_kill_switch_contract():
-    root=Path(__file__).resolve().parents[1]
-    ea=(root/"ea.js").read_text(encoding="utf-8")
-    main=(root/"mt5_ea"/"main.py").read_text(encoding="utf-8")
-    assert "window.eaGlobal=async function" in ea
-    assert "saveAppSettings" in ea and "globalEntry:v?'ON':'OFF'" in ea
-    assert 'gas_get("getAppSettings")' in main
-    assert "CONTROL_FETCH_SEC" in main
-    assert 'if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"' in main
