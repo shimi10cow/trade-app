@@ -2811,6 +2811,10 @@ function applyAnalysisFilters() {
 
   // 1. Base filter: Closed trades only
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  // 裁量 / EA 切替（既存データはSource未設定=裁量として扱う）
+  const eaType = window.eaAnalysisType || 'all';
+  if (eaType === 'manual') filtered = filtered.filter(t => !/EA/i.test(String(t['Source'] || t['TradeType'] || '')));
+  if (eaType === 'ea') filtered = filtered.filter(t => /EA/i.test(String(t['Source'] || t['TradeType'] || '')));
 
   // 2. Apply advanced filters
   const { current: currentMonthStr, last: lastMonthStr } = getDataMonthRange();
