@@ -17,7 +17,8 @@ PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip
 LIVE_LOGIN=os.getenv("EA_LIVE_LOGIN","").strip()
 LIVE_SERVER=os.getenv("EA_LIVE_SERVER","").strip()
 LIVE_ARMED=os.getenv("EA_LIVE_ARMED","false").lower()=="true"
-MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))\nCONTROL_FETCH_SEC=max(3,int(os.getenv("EA_CONTROL_FETCH_SEC","10")))
+MAX_SIGNAL_AGE_SEC=int(os.getenv("EA_MAX_SIGNAL_AGE_SEC","1200"))
+CONTROL_FETCH_SEC=max(3,int(os.getenv("EA_CONTROL_FETCH_SEC","10")))
 LIVE_REQUIRE_REAL=os.getenv("EA_LIVE_REQUIRE_REAL","true").lower()=="true"
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
