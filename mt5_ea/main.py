@@ -255,8 +255,18 @@ def account_snapshot():
     a=mt5.account_info()
     return {"Account":str(a.login) if a else "","Server":str(a.server) if a else "","AccountMode":"DEMO" if a and getattr(a,"trade_mode",None)==mt5.ACCOUNT_TRADE_MODE_DEMO else "REAL" if a else ""}
 
+def validate_live_pair_config(pc):
+    if DRY_RUN:return True
+    if not isinstance(pc,dict) or pc.get("mode")!="auto":raise RuntimeError("LIVE_PAIR_NOT_AUTO")
+    method=pc.get("riskType")
+    value=float(pc.get("riskValue",0) or 0)
+    if method not in ("fixedLot","fixedLoss","riskPercent") or value<=0:raise RuntimeError("LIVE_RISK_CONFIG_INVALID")
+    if pc.get("riskCapEnabled",True) and float(pc.get("riskCap",0) or 0)<=0:raise RuntimeError("LIVE_RISK_CAP_INVALID")
+    return True
+
 def send_order(sig,pc,cfg=None):
     live_safety_check()
+    validate_live_pair_config(pc)
     symbol=sig["symbol"]
     if not mt5.symbol_select(symbol,True):raise RuntimeError(f"{symbol}: symbol_select failed")
     tick=mt5.symbol_info_tick(symbol)
