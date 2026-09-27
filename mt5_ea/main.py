@@ -3,6 +3,7 @@ import os,time,json,logging
 from datetime import datetime,timezone
 import requests
 import MetaTrader5 as mt5
+from m15_strategy import evaluate as evaluate_m15_strategy
 
 GAS_URL=os.getenv("EA_GAS_URL","")
 DRY_RUN=os.getenv("EA_DRY_RUN","true").lower()=="true"
@@ -11,6 +12,7 @@ MAGIC=int(os.getenv("EA_MAGIC","560001"))
 PAIR_OVERRIDE=[x.strip() for x in os.getenv("EA_PAIRS","").split(",") if x.strip()]
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
+_cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
@@ -85,15 +87,15 @@ def environment():
     except Exception as e:
         logging.error("environment fetch failed: %s",e);return []
 
-def evaluate_m15(symbol,closed_bars,settings,env):
-    """ONLY strategy adapter. Return None or a dict like:
-    {"direction":"BUY","pattern":"P2","entry":1.0,"sl":0.9,"tp":None,"reason":"..."}
-    Insert the already-backtested M15 rule here; never use the forming candle.
-    """
-    return None
+def evaluate_m15(base_symbol,broker_symbol,closed_bars):
+    tick=mt5.symbol_info_tick(broker_symbol)
+    spread=0.0
+    if tick and tick.ask and tick.bid: spread=max(0.0,float(tick.ask)-float(tick.bid))
+    return evaluate_m15_strategy(base_symbol,closed_bars,spread)
 
 def allowed(sig,cfg,env):
     if not sig:return False,"NO_SIGNAL"
+    if not sig.get("strategyAllowed",False):return False,sig.get("strategyReason","STRATEGY_REJECT")
     if not cfg.get("globalEntry",False):return False,"GLOBAL_STOP"
     pc=(cfg.get("pairs") or {}).get(sig["symbol"],{})
     mode=pc.get("mode","stop")
@@ -156,10 +158,20 @@ def send_order(sig,pc):
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     return {"dry_run":False,"order":res.order,"deal":res.deal,"price":res.price,"volume":res.volume}
 
+def cached_runtime():
+    now=time.time()
+    if _cache["settings"] is None or now-_cache["settings_at"]>=300:
+        new=pair_settings()
+        if new is not None:_cache["settings"],_cache["settings_at"]=new,now
+    if _cache["env"] is None or now-_cache["env_at"]>=3600:
+        new=environment()
+        if new is not None:_cache["env"],_cache["env_at"]=new,now
+    return _cache["settings"] or {"globalEntry":False,"pairs":{}},_cache["env"] or []
+
 def run():
     connect()
     while True:
-        cfg=pair_settings();envs=environment()
+        cfg,envs=cached_runtime()
         envmap={str(x.get("PairName（元）") or x.get("PairName") or x.get("Pair") or x.get("通貨ペア") or ""):x for x in envs if isinstance(x,dict)}
         targets=PAIR_OVERRIDE or [pair_name(x) for x in envs if pair_name(x)]
         for base_symbol in sorted(set(targets)):
@@ -172,11 +184,11 @@ def run():
                 ts=int(b[-1]["time"])
                 if last_bar.get(symbol)==ts:continue
                 last_bar[symbol]=ts
-                raw=evaluate_m15(base_symbol,b,cfg,envmap.get(base_symbol,{}))
+                raw=evaluate_m15(base_symbol,symbol,b)
                 if not raw:continue
                 sig={"symbol":base_symbol,"brokerSymbol":symbol,"time":datetime.fromtimestamp(ts,timezone.utc).isoformat(),**raw}
                 ok,reason=allowed(sig,cfg,envmap.get(base_symbol,{}))
-                saved=gas_post("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                saved=gas_post("saveEASignal",{"data":{"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"P":sig.get("pattern",""),"MachineSignal":"ON","EntryStatus":"ENTRY" if ok else "SKIP","BlockReason":reason,"StrategyReason":sig.get("strategyReason",""),"Retracement":sig.get("retracement",""),"Q75":sig.get("q75",""),"Strength":sig.get("strength",""),"PairSnapshotJSON":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"EASettingSnapshotJSON":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if isinstance(saved,dict) and saved.get("signalId"):sig["signalId"]=saved["signalId"]
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
