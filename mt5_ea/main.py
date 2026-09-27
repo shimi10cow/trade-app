@@ -58,6 +58,7 @@ def live_safety_check():
     if float(getattr(a,"equity",0) or 0)<=0:raise RuntimeError("LIVE_EQUITY_NOT_POSITIVE")
     if not bool(getattr(a,"trade_allowed",False)):raise RuntimeError("ACCOUNT_TRADE_NOT_ALLOWED")
     if not bool(getattr(t,"trade_allowed",False)):raise RuntimeError("TERMINAL_TRADE_NOT_ALLOWED")
+    if not bool(getattr(t,"connected",False)):raise RuntimeError("TERMINAL_NOT_CONNECTED")
     return True
 
 def bars(symbol,tf,count=3000):
@@ -218,6 +219,7 @@ def total_risk_allowed(symbol,direction,lot,entry,sl,cfg):
 
 def modify_position_sl(position,new_sl):
     if DRY_RUN:return True
+    live_safety_check()
     req={"action":mt5.TRADE_ACTION_SLTP,"position":position.ticket,"symbol":position.symbol,"sl":float(new_sl),"tp":float(position.tp or 0),"magic":MAGIC}
     r=mt5.order_send(req)
     return bool(r and r.retcode==mt5.TRADE_RETCODE_DONE)
