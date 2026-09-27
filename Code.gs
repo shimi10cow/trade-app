@@ -111,6 +111,8 @@ function doPost(e) {
     result = saveEASignal(body.data);
   } else if (action === 'saveMT5Execution') {
     result = saveMT5Execution(body.data);
+  } else if (action === 'syncMT5Trade') {
+    result = syncMT5Trade(body.data);
   } else if (action === 'saveEAError') {
     result = saveEAError(body.data);
   } else if (action === 'saveAppSettings') {
@@ -1352,6 +1354,48 @@ function saveEASignal(data){
   upsertByKey_(EA_SIGNALS_SHEET,EA_SIGNALS_HEADERS,'SignalID',data);
   return {success:true,signalId:data.SignalID};
 }
+function syncMT5Trade(data){
+  ensureEASheets(); data=data||{};
+  if(!data.SyncKey || !data.Pair || !data.Direction) return {success:false,error:'SyncKey/Pair/Direction required'};
+  ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','EAルール','ExitPrice','ExitDate','ExitTime','Profit','損益']);
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID), sh=ss.getSheetByName(ENTRIES_SHEET);
+  const vals=sh.getDataRange().getValues(), hs=vals[0].map(v=>String(v).trim());
+  const col=n=>hs.indexOf(n), syncCol=col('MT5SyncKey');
+  let row=-1;
+  if(syncCol>=0) for(let i=1;i<vals.length;i++) if(String(vals[i][syncCol])===String(data.SyncKey)){row=i+1;break;}
+  // Manual split entries across accounts/tickets join an existing manual group only when
+  // Pair + Direction match and first entry is within the agreed 24 hour window.
+  let group='';
+  if(row<0 && data.Source==='MT5-MANUAL'){
+    const pc=col('PairName（元）')>=0?col('PairName（元）'):col('PairName'), dc=col('Direction'), sc=col('Source'), gc=col('TradeGroupID'), ed=col('EntryDate'), et=col('EntryTime');
+    const incoming=new Date(data.EntryTime||0).getTime();
+    for(let i=1;i<vals.length;i++){
+      if(String(vals[i][sc])!=='MT5-MANUAL'||String(vals[i][pc])!==String(data.Pair)||String(vals[i][dc]).toUpperCase()!==String(data.Direction).toUpperCase())continue;
+      const t=new Date(String(vals[i][ed]||'').replace(/\//g,'-')+'T'+String(vals[i][et]||'00:00')+':00+09:00').getTime();
+      if(isFinite(incoming)&&isFinite(t)&&Math.abs(incoming-t)<=24*3600*1000){group=String(vals[i][gc]||'');break;}
+    }
+  }
+  if(!group) group=(data.Source==='EA'?'EA-':'MANUAL-')+data.SyncKey;
+  const dt=x=>{const d=new Date(x||Date.now());return {date:Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd'),time:Utilities.formatDate(d,'Asia/Tokyo','HH:mm')}};
+  const en=dt(data.EntryTime), ex=data.ExitTime?dt(data.ExitTime):{date:'',time:''};
+  const obj={
+    'TradeGroupID':group,'MT5SyncKey':data.SyncKey,'MT5Account':data.Account||'','MT5Ticket':data.Ticket||'',
+    'Source':data.Source||'MT5-MANUAL','TradeType':data.TradeType||'裁量','PairName（元）':data.Pair,'PairName':data.Pair,
+    'Direction':String(data.Direction).toUpperCase()==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
+    'EntryPrice':data.EntryPrice||'','Lot':data.Lot||'','InitialSLPrice':data.SL||'','TakeProfitPrice':data.TP||'',
+    'ステータス':data.Status==='CLOSED'?'決済':'保有中','ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':data.ExitPrice||'',
+    'Profit':data.Profit||'','損益':data.Profit||'','EAルール':data.Source==='EA'?'MT5 EA':''
+  };
+  if(row<0){
+    const saved=saveEntry(obj);
+    CacheService.getScriptCache().remove(CACHE_KEY);
+    return {success:!!saved.success,entryId:saved.entryId,tradeGroupId:group};
+  }
+  hs.forEach((h,i)=>{if(Object.prototype.hasOwnProperty.call(obj,h))sh.getRange(row,i+1).setValue(obj[h]);});
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return {success:true,tradeGroupId:group};
+}
+
 function saveMT5Execution(data){
   ensureEASheets(); data=data||{};
   if(!data.ExecutionID) data.ExecutionID=Utilities.getUuid();
