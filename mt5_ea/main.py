@@ -5,7 +5,8 @@ import requests
 import MetaTrader5 as mt5
 from m15_strategy import evaluate as evaluate_m15_strategy
 
-DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"\nGAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
+DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
+GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
 DRY_RUN=os.getenv("EA_DRY_RUN","true").lower()=="true"
 POLL_SEC=int(os.getenv("EA_POLL_SEC","2"))
 MAGIC=int(os.getenv("EA_MAGIC","560001"))
