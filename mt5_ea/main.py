@@ -100,7 +100,9 @@ def evaluate_m15(base_symbol,broker_symbol,closed_bars):
     tick=mt5.symbol_info_tick(broker_symbol)
     spread=0.0
     if tick and tick.ask and tick.bid: spread=max(0.0,float(tick.ask)-float(tick.bid))
-    return evaluate_m15_strategy(base_symbol,closed_bars,spread)
+    result=evaluate_m15_strategy(base_symbol,closed_bars,spread)
+    if result is not None:result["spreadPrice"]=spread
+    return result
 
 def allowed(sig,cfg,env):
     if not sig:return False,"NO_SIGNAL"
@@ -363,7 +365,7 @@ def run():
                     eok,ereason=environment_allowed(sig,envmap.get(base_symbol,{}),cfg.get("envRefreshMin",60))
                     if not eok:ok,reason=False,ereason
                 if ok and not runtime_ok:ok,reason=False,"RUNTIME_CACHE_STALE"
-                enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl",""),"InitialRiskPips":sig.get("initialRisk",""),"EnvironmentSnapshot":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"SettingsSnapshot":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
+                enqueue_gas("saveEASignal",{"data":{"SignalID":sid,"SignalTime":sig["time"],"Pair":base_symbol,"Direction":sig["direction"],"Rule":sig.get("rule","M15"),"Pullback":sig.get("pattern",""),"Executed":"DRY_RUN" if ok and DRY_RUN else ("YES" if ok else "NO"),"SkipReason":reason if not ok else "","EntryPrice":sig.get("entry",""),"InitialSL":sig.get("sl",""),"InitialRiskPips":(float(sig.get("initialRisk",0))/m15_pip_size(base_symbol) if sig.get("initialRisk") is not None else ""),"SpreadPips":(float(sig.get("spreadPrice",0))/m15_pip_size(base_symbol)),"EnvironmentSnapshot":json.dumps(envmap.get(base_symbol,{}),ensure_ascii=False,default=str),"SettingsSnapshot":json.dumps((cfg.get("pairs") or {}).get(base_symbol,{}),ensure_ascii=False,default=str)}})
                 if not ok:continue
                 pc=(cfg.get("pairs") or {}).get(base_symbol,{})
                 result=send_order({**sig,"symbol":symbol},pc,cfg)
