@@ -87,6 +87,11 @@ def pair_settings():
                 "riskCap":float(r.get("Risk上限%") or 1),
                 "autoExit":str(r.get("決済方法") or "auto").lower() not in ("off","manual","裁量","手動決済")
             }
+        # A missing EA_Settings row must never enable trading. Keep requested test pairs
+        # visible in DRY RUN as explicit STOP defaults so market-data/strategy checks can run.
+        for p in PAIR_OVERRIDE:
+            cfg["pairs"].setdefault(p,{"mode":"stop","direction":"Both","m15":True,"h1":False,
+                "riskType":"fixedLot","riskValue":0.01,"riskCapEnabled":True,"riskCap":1.0,"autoExit":True})
         return cfg
     except Exception as e:
         logging.error("settings fetch failed: %s",e)
