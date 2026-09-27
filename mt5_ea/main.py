@@ -249,8 +249,12 @@ def manage_ea_positions(cfg=None):
         if positions:
             ps=(load_m15_state().get("pairs") or {}).get(base,ps)
         trades=[t for t in (ps.get("trades") or {}).values() if t.get("entered") and t.get("open")]
-        trades.sort(key=lambda t:t.get("entry_time",0))
-        for p,t in zip(positions,trades):
+        by_ticket={str(t.get("ticket")):t for t in trades if t.get("ticket") not in (None,"")}
+        for p in positions:
+            t=by_ticket.get(str(p.ticket))
+            if not t:
+                logging.error("%s: no strategy ledger match for MT5 position ticket=%s; SL unchanged",base,p.ticket)
+                continue
             target=float(t.get("sl") or 0)
             current=float(getattr(p,"sl",0) or 0)
             buy=p.type==mt5.POSITION_TYPE_BUY
