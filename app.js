@@ -2832,6 +2832,7 @@ function applyAnalysisFilters() {
 
   // 1. Base filter: Closed trades only
   let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  if (eaType === 'ea' && fStatus === 'signal') filtered = [];
   // 裁量 / EA 切替（既存データはSource未設定=裁量として扱う）
   const eaType = window._eaAnalysisType || 'all';
   if (eaType === 'manual') filtered = filtered.filter(t => !/EA/i.test(String(t['Source'] || t['TradeType'] || '')));
@@ -2844,6 +2845,7 @@ function applyAnalysisFilters() {
   filtered = filtered.filter(t => {
     if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
+    if (fStatus === 'signal') return false;
     if (fPair !== 'all' && (t['PairName（元）'] || t.PairName || t.Pair) !== fPair) return false;
     if (fTimezone !== 'all' && t['時間帯'] !== fTimezone) return false;
     if (fRule !== 'all' && t.DowRule != fRule) return false;
