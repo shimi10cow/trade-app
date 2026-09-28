@@ -1425,3 +1425,25 @@ function getHybridConfig(){
   ensureEASheets();
   return {pairs:getPairs(),settings:getEASettings(),appSettings:sheetObjects_(APP_SETTINGS_SHEET)};
 }
+
+const EA_REPLAY_HEADERS = ['RequestID','Pair','Start','End','M15','H1','Status','Message','CreatedAt','UpdatedAt'];
+function ensureEAReplaySheet_(){ ensureSheetWithHeaders_(EA_REPLAY_SHEET,EA_REPLAY_HEADERS); }
+function requestEAReplay(data){
+  ensureEAReplaySheet_(); data=data||{};
+  if(!data.Pair||!data.Start||!data.End) return {success:false,error:'Pair / Start / End are required'};
+  const row={RequestID:Utilities.getUuid(),Pair:String(data.Pair),Start:String(data.Start),End:String(data.End),M15:data.M15?'ON':'OFF',H1:data.H1?'ON':'OFF',Status:'PENDING',Message:'',CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
+  upsertByKey_(EA_REPLAY_SHEET,EA_REPLAY_HEADERS,'RequestID',row);
+  return {success:true,requestId:row.RequestID};
+}
+function getEAReplayRequest(){
+  ensureEAReplaySheet_();
+  const rows=sheetObjects_(EA_REPLAY_SHEET).filter(function(x){return String(x.Status||'').toUpperCase()==='PENDING';});
+  return rows.length?rows[0]:{};
+}
+function updateEAReplayRequest(data){
+  ensureEAReplaySheet_(); data=data||{};
+  if(!data.RequestID) return {success:false,error:'RequestID required'};
+  data.UpdatedAt=new Date().toISOString();
+  upsertByKey_(EA_REPLAY_SHEET,EA_REPLAY_HEADERS,'RequestID',data);
+  return {success:true};
+}
