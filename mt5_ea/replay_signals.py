@@ -46,12 +46,12 @@ def main():
           mr=m15_strategy.evaluate(a.pair,rows[:n],spread,_state=ms,_save=False,_cache=cache,_end=n)
           if a.m15 and mr and mr.get("strategyAllowed") and start_ts<=bt<=end_ts:
             sid=f"REPLAY-M15-{a.pair}-{bt}-{mr.get('pattern','')}-{mr['direction']}"
-            signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":mr["direction"],"Rule":mr.get("rule","M15"),"TF":"M15","Pullback":mr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":mr.get("entry",""),"InitialSL":mr.get("sl",""),"Replay":"YES"}
+            signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":mr["direction"],"Rule":"M15","TF":"M15","Pullback":mr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":mr.get("entry",""),"InitialSL":mr.get("sl",""),"InitialRiskPips":(abs(float(mr.get("entry",0))-float(mr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
           if a.h1 and ((bt%3600)//60)==45:
             hr=h1_strategy.evaluate(a.pair,rows[:n],spread,_state=hs,_save=False)
             if hr and hr.get("strategyAllowed") and start_ts<=bt<=end_ts:
               sid=f"REPLAY-H1-{a.pair}-{bt}-{hr.get('pattern','')}-{hr['direction']}"
-              signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":hr["direction"],"Rule":hr.get("rule","H1"),"TF":"H1","Pullback":hr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":hr.get("entry",""),"InitialSL":hr.get("sl",""),"Replay":"YES"}
+              signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":hr["direction"],"Rule":"H1","TF":"H1","Pullback":hr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":hr.get("entry",""),"InitialSL":hr.get("sl",""),"InitialRiskPips":(abs(float(hr.get("entry",0))-float(hr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
         # M15 strategy already maintained its causal virtual ledger during replay.
         for t in (ms.get("pairs",{}).get(a.pair,{}) or {}).get("virtual_trades",{}).values():
           et=int(t.get("entry_time",0)); key=next((k for k,v in signals.items() if v["TF"]=="M15" and int(datetime.fromisoformat(v["SignalTime"]).timestamp())==et and v["Direction"]==t.get("direction")),None)
