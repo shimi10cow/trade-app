@@ -1,6 +1,6 @@
 """M15 SIMPLE STRATEGY 2026-09-26.
 Extreme Switch + Retracement Gate. Closed M15 bars only.
-240h activates M15 causal ZigZag trailing; it never forces an exit.
+M15 trades force-exit at 240h. H1 trades sharing this exit ledger activate trailing at 240h instead.
 """
 import json, math, os
 from pathlib import Path
@@ -126,12 +126,17 @@ def update_trade_ledger(ps,row,pv,current_index):
                 exit_price=active_sl
                 t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk)-float(t.get("spread_r",0)),"exit_time":now})
             else:
-                # 2) +2R or 240h activates trailing. 240h itself never closes the trade.
+                # 2) M15: 240h is a forced exit. H1: 240h activates trailing (no forced exit).
                 favorable=(hi-entry)/risk if side=="BUY" else (entry-lo)/risk
                 age_hours=(now-int(t["entry_time"]))/3600.0
-                if favorable>=2.0 or age_hours>=240.0:t["trailing"]=True
+                is_h1=str(t.get("strategy","M15")).upper()=="H1"
+                if (not is_h1) and age_hours>=240.0:
+                    exit_price=close
+                    t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk)-float(t.get("spread_r",0)),"exit_time":now,"exit_reason":"TIME_240H"})
+                elif favorable>=2.0 or (is_h1 and age_hours>=240.0):
+                    t["trailing"]=True
                 # 3-5) Use only pivots confirmed no later than this closed bar.
-                if t.get("trailing"):
+                if t.get("open",False) and t.get("trailing"):
                     relevant="L" if side=="BUY" else "H"
                     usable=[p for p in pv if p["type"]==relevant and p["confirmed"]<=current_index]
                     if usable:
@@ -167,13 +172,13 @@ def register_execution(pair,pattern,direction,entry,sl,entry_time,spread_price=0
     tid=f"LIVE:{int(entry_time)}:{pattern}:{direction}"
     trade={**sig,"entered":True,"open":True,"entry":float(entry),"sl":float(sl),"risk":risk,
            "current_r":0.0,"entry_time":int(entry_time),"trailing":False,"trade_id":tid,
-           "spread_r":max(0.0,float(spread_price))/risk,"ticket":ticket,"deal":deal}
+           "spread_r":max(0.0,float(spread_price))/risk,"ticket":ticket,"deal":deal,"strategy":"M15"}
     ps["trades"][tid]=trade
     sig.update({"entered":True,"open":True,"trade_id":tid})
     save_state(state)
     return tid
 
-def recover_execution(pair,direction,entry,sl,entry_time,ticket=None):
+def recover_execution(pair,direction,entry,sl,entry_time,ticket=None,strategy="M15"):
     state=load_state(); ps=pair_state(state,pair)
     if ticket is not None:
         for t in ps.setdefault("trades",{}).values():
@@ -182,7 +187,7 @@ def recover_execution(pair,direction,entry,sl,entry_time,ticket=None):
     if risk<=0:return False
     tid=f"RECOVERED:{ticket or int(entry_time)}"
     ps.setdefault("trades",{})[tid]={"entered":True,"open":True,"entry":float(entry),"sl":float(sl),"risk":risk,
-        "direction":direction,"current_r":0.0,"entry_time":int(entry_time),"trailing":False,"ticket":ticket,"recovered":True}
+        "direction":direction,"current_r":0.0,"entry_time":int(entry_time),"trailing":False,"ticket":ticket,"recovered":True,"strategy":str(strategy).upper()}
     save_state(state);return True
 
 def _bootstrap_cache(rates):
