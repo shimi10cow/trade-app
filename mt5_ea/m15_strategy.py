@@ -312,7 +312,7 @@ def evaluate(pair,rates,spread_price=0.0,_state=None,_save=True,_cache=None,_end
             if x and x.get("strategy_candidate"):
                 tid=x.get("virtual_trade_id"); existing.append(ps["virtual_trades"].get(tid,x) if tid else x)
         if nongate_missing:reasons.append("P3_PRIOR_NON_GATE_REJECT")
-        elif existing and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
+        elif len(existing)==2 and all(trade_r(x)<=0 for x in existing):reasons.append("P3_BOTH_NONPOSITIVE")
 
     buf=(10.0 if pair=="XAUUSD" else 10*pip_size(pair))
     base=m200[current_index]-buf if direction=="BUY" else m200[current_index]+buf
