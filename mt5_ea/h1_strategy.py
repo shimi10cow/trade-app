@@ -100,14 +100,22 @@ def evaluate(pair,m15_rates,spread_price=0.0,_state=None,_save=True):
     pk,pd=k[i-1],d[i-1]
     # State transitions are deliberately independent, and cross + 20/80 exit may finish on one H1 bar.
     bs=ps["buy_state"]
-    if bs==0 and k[i]<20:ps["buy_state"]=1;ps["buy_start"]=now
-    if ps["buy_state"]==1 and pk<=pd and k[i]>d[i]:ps["buy_state"]=2
-    if ps["buy_state"]==2 and pk<=20 and k[i]>20:
+    if bs==0 and k[i]<20:
+        ps["buy_state"]=1;ps["buy_start"]=now
+    elif bs==1 and pk<=pd and k[i]>d[i]:
+        ps["buy_state"]=2
+        if pk<=20 and k[i]>20:
+            start=ps.get("buy_start");ps["buy_state"]=0;ps["buy_start"]=None;completed.append(("BUY",start))
+    elif bs==2 and pk<=20 and k[i]>20:
         start=ps.get("buy_start");ps["buy_state"]=0;ps["buy_start"]=None;completed.append(("BUY",start))
     ss=ps["sell_state"]
-    if ss==0 and k[i]>80:ps["sell_state"]=1;ps["sell_start"]=now
-    if ps["sell_state"]==1 and pk>=pd and k[i]<d[i]:ps["sell_state"]=2
-    if ps["sell_state"]==2 and pk>=80 and k[i]<80:
+    if ss==0 and k[i]>80:
+        ps["sell_state"]=1;ps["sell_start"]=now
+    elif ss==1 and pk>=pd and k[i]<d[i]:
+        ps["sell_state"]=2
+        if pk>=80 and k[i]<80:
+            start=ps.get("sell_start");ps["sell_state"]=0;ps["sell_start"]=None;completed.append(("SELL",start))
+    elif ss==2 and pk>=80 and k[i]<80:
         start=ps.get("sell_start");ps["sell_state"]=0;ps["sell_start"]=None;completed.append(("SELL",start))
     ps["last_h1_time"]=now
     if not completed:
