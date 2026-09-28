@@ -111,6 +111,10 @@ function doPost(e) {
     result = saveEASettings(body.data);
   } else if (action === 'saveEASignal') {
     result = saveEASignal(body.data);
+  } else if (action === 'updateEASignal') {
+    result = saveEASignal(body.data);
+  } else if (action === 'deleteEASignal') {
+    result = deleteEASignal(body.signalId);
   } else if (action === 'saveMT5Execution') {
     result = saveMT5Execution(body.data);
   } else if (action === 'syncMT5Trade') {
@@ -1286,7 +1290,7 @@ function testIdeasCRUD() {
 // Hybrid EA
 // =============================================
 const EA_SETTINGS_HEADERS = ['Pair','稼働方法','許可方向','M15','H1','Lot方式','Lot値','Risk上限ON','Risk上限%','決済方法','通知Signal','通知Entry','通知Exit','通知Error','更新日時'];
-const EA_SIGNALS_HEADERS = ['SignalID','SignalTime','Pair','Direction','Rule','Pullback','Executed','SkipReason','EntryPrice','InitialSL','InitialRiskPips','SpreadPips','ExitTime','ExitPrice','Pips','R','TradeGroupID','EnvironmentSnapshot','SettingsSnapshot','CreatedAt'];
+const EA_SIGNALS_HEADERS = ['SignalID','SignalTime','Pair','Direction','Rule','TF','Pullback','Decision','Status','Replay','Executed','SkipReason','EntryPrice','InitialSL','InitialRiskPips','SpreadPips','ExitTime','ExitPrice','Pips','R','TradeGroupID','EnvironmentSnapshot','SettingsSnapshot','ChartM15','ChartH1','ChartH4','CreatedAt'];
 const MT5_EXEC_HEADERS = ['ExecutionID','Account','Ticket','Deal','Source','Pair','Direction','EntryTime','EntryPrice','ExitTime','ExitPrice','Lot','SpreadPips','Profit','Pips','SL','TP','TradeGroupID','Status','EntryChartURL','ExitChartURL','CreatedAt'];
 const EA_PAIR_HEADERS = ['EA許可方向','TL推進環境','TL逆トレ環境','EA環境確認日時'];
 
@@ -1359,6 +1363,12 @@ function saveEASignal(data){
   data.CreatedAt=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
   upsertByKey_(EA_SIGNALS_SHEET,EA_SIGNALS_HEADERS,'SignalID',data);
   return {success:true,signalId:data.SignalID};
+}
+function deleteEASignal(signalId){
+  ensureEASheets(); if(!signalId)return {success:false,error:'SignalID required'};
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(EA_SIGNALS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),col=hs.indexOf('SignalID');
+  for(let i=1;i<vals.length;i++){if(String(vals[i][col])===String(signalId)){sh.deleteRow(i+1);return {success:true};}}
+  return {success:false,error:'Signal not found'};
 }
 function syncMT5Trade(data){
   ensureEASheets(); data=data||{};
