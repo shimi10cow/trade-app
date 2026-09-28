@@ -601,7 +601,7 @@ function renderHistoryList() {
   });
 
   if (histStatus === 'signal') {
-    const sigs=(window._eaSignals||[]).filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes' && !/entry$/i.test(String(x.Decision||'')));
+    const sigs=(window._eaSignals||[]).filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes' && !/entry$/i.test(String(x.Decision||''))).filter(x=>{if(!filtered.length)return true;const p=String(x.Pair||'').toUpperCase(),t=String(x.SignalTime||'').slice(0,10).replace(/-/g,'/');return filtered.some(e=>String(e['PairName（元）']||e.PairName||e.Pair||'').toUpperCase()===p && (!t||String(e.EntryDate||'').slice(0,10)===t));});
     container.innerHTML=sigs.length?sigs.slice().reverse().map((x,i)=>`<div class="list-card" onclick="openSignalDetail(${(window._eaSignals||[]).indexOf(x)},'all')" style="cursor:pointer"><div style="font-weight:700">${x.Pair||'--'} <span class="badge">${x.Direction||''}</span> </div><div style="font-size:11px;color:#94a3b8;margin-top:5px">${x.SignalTime||''} · ${x.TF||x.Rule||''} ${x.Pattern||x.Pullback||''}</div></div>`).join(''):'<div style="color:#64748b;text-align:center;padding:20px;">シグナル履歴がありません</div>';return;
   }
   if (filtered.length === 0) {
