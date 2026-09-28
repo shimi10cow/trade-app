@@ -1,6 +1,6 @@
 """M15 SIMPLE STRATEGY 2026-09-26.
 Extreme Switch + Retracement Gate. Closed M15 bars only.
-M15 trades force-exit at 240h. H1 trades sharing this exit ledger activate trailing at 240h instead.
+240h activates M15 causal ZigZag trailing for both M15 and H1 strategies; it never forces an exit.
 """
 import json, math, os
 from pathlib import Path
@@ -126,15 +126,10 @@ def update_trade_ledger(ps,row,pv,current_index):
                 exit_price=active_sl
                 t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk)-float(t.get("spread_r",0)),"exit_time":now})
             else:
-                # 2) M15: 240h is a forced exit. H1: 240h activates trailing (no forced exit).
+                # 2) +2R or 240h activates trailing for both M15 and H1. 240h never forces an exit.
                 favorable=(hi-entry)/risk if side=="BUY" else (entry-lo)/risk
                 age_hours=(now-int(t["entry_time"]))/3600.0
-                is_h1=str(t.get("strategy","M15")).upper()=="H1"
-                if (not is_h1) and age_hours>=240.0:
-                    exit_price=close
-                    t.update({"open":False,"exit":exit_price,"final_r":((exit_price-entry)/risk if side=="BUY" else (entry-exit_price)/risk)-float(t.get("spread_r",0)),"exit_time":now,"exit_reason":"TIME_240H"})
-                elif favorable>=2.0 or (is_h1 and age_hours>=240.0):
-                    t["trailing"]=True
+                if favorable>=2.0 or age_hours>=240.0:t["trailing"]=True
                 # 3-5) Use only pivots confirmed no later than this closed bar.
                 if t.get("open",False) and t.get("trailing"):
                     relevant="L" if side=="BUY" else "H"
