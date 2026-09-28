@@ -117,7 +117,7 @@ def evaluate(pair,m15_rates,spread_price=0.0,_state=None,_save=True):
     direction,start=completed[0];ps["p_count"]+=1;pnum=ps["p_count"];pattern=f"W{pnum}";side=1 if direction=="BUY" else -1
     reasons=[]
     if ps["regime"]!=direction:reasons.append("TREND_REGIME")
-    if pnum>1:reasons.append("W2_PLUS")
+    if pnum>3:reasons.append("W4_PLUS")
     if side*(s200[i]-s200[i-12])<=0:reasons.append("SMA200_SLOPE")
     if side*(s480[i]-s480[i-24])<=0:reasons.append("SMA480_SLOPE")
     if side*(s200[i]-s480[i])<-.25*ha[i]:reasons.append("SMA200_480_RELATION")
