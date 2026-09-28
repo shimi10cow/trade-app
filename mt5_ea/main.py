@@ -357,7 +357,7 @@ def manage_ea_positions(cfg=None):
         known={str(t.get("ticket","")) for t in (ps.get("trades") or {}).values()}
         for p in positions:
             if str(p.ticket) not in known and float(getattr(p,"sl",0) or 0)>0:
-                recover_m15_execution(base,"BUY" if p.type==mt5.POSITION_TYPE_BUY else "SELL",float(p.price_open),float(p.sl),int(getattr(p,"time",time.time())),p.ticket)
+                recover_m15_execution(base,"BUY" if p.type==mt5.POSITION_TYPE_BUY else "SELL",float(p.price_open),float(p.sl),int(getattr(p,"time",time.time())),p.ticket,"H1" if "H1" in str(getattr(p,"comment","")).upper() else "M15")
         if positions:
             ps=(load_m15_state().get("pairs") or {}).get(base,ps)
         trades=[t for t in (ps.get("trades") or {}).values() if t.get("entered") and t.get("open")]
@@ -535,7 +535,7 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
         # signal exactly as if it had been entered, without sending an MT5 order.
         if tf=="H1":
             register_h1_execution(base_symbol,sig.get("pattern",""),sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,sig.get("spreadPrice",0.0),None,None)
-            recover_m15_execution(base_symbol,sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,None)
+            recover_m15_execution(base_symbol,sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,None,"H1")
         else:
             register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],sig.get("entry"),sig.get("sl"),sig_ts,sig.get("spreadPrice",0.0),None,None)
         return
@@ -545,7 +545,7 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
     if not result.get("dry_run",False):
         if tf=="H1":
             register_h1_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
-            recover_m15_execution(base_symbol,sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("ticket"))
+            recover_m15_execution(base_symbol,sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("ticket"),"H1")
         else:
             register_m15_execution(base_symbol,sig.get("pattern",""),sig["direction"],result.get("price"),result.get("sl",sig["sl"]),sig_ts,result.get("spread",0.0),result.get("ticket"),result.get("deal"))
         enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"SignalID":sid,"Source":"EA-H1" if tf=="H1" else "EA","Pair":base_symbol,"Direction":sig["direction"],"EntryTime":sig["time"],"EntryPrice":result.get("price",""),"Lot":result.get("volume",""),"Ticket":result.get("ticket",""),"Deal":result.get("deal",""),"SL":sig.get("sl","")}})
