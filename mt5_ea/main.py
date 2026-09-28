@@ -552,6 +552,24 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
         notify_entry(sig,result,cfg)
     logging.info("%s %s %s %s",symbol,tf,sig["direction"],result)
 
+def process_replay_request():
+    """Poll one app replay request. Runs isolated replay in a child process."""
+    try:
+        req=gas_get("getEAReplayRequest") or {}
+        if not isinstance(req,dict) or str(req.get("Status","")).upper()!="PENDING":return
+        rid=str(req.get("RequestID","")).strip()
+        if not rid:return
+        import subprocess,sys
+        args=[sys.executable,str(Path(__file__).with_name("replay_signals.py")),"--pair",str(req.get("Pair","")),"--start",str(req.get("Start","")),"--end",str(req.get("End","")),"--gas-url",GAS_URL]
+        if truth(req.get("M15"),True):args.append("--m15")
+        if truth(req.get("H1"),False):args.append("--h1")
+        enqueue_gas("updateEAReplayRequest",{"data":{"RequestID":rid,"Status":"RUNNING","Message":""}})
+        p=subprocess.run(args,capture_output=True,text=True,timeout=600)
+        msg=(p.stdout or p.stderr or "").strip()[-1500:]
+        enqueue_gas("updateEAReplayRequest",{"data":{"RequestID":rid,"Status":"DONE" if p.returncode==0 else "ERROR","Message":msg}})
+    except Exception as e:
+        logging.exception("historical signal replay failed")
+
 def run():
     connect()
     init_outbox()
@@ -572,6 +590,8 @@ def run():
         configured=set((cfg.get("pairs") or {}).keys())
         targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
         manage_ea_positions(cfg)
+        try:process_replay_request()
+        except Exception as e:logging.exception("replay request poll failed")
         try:sync_mt5_positions(MAGIC,enqueue_gas)
         except Exception as e:logging.exception("MT5 position sync failed")
         for base_symbol in sorted(targets):
