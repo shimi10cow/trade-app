@@ -27,9 +27,9 @@ def main():
       from main import resolve_symbol
       symbol=resolve_symbol(a.pair)
       if not symbol:raise SystemExit("Broker symbol not found")
-      # 23 days of warmup covers H1 SMA480 plus margin. Replay through now so
+      # 35 calendar days safely covers H1 SMA480 across weekends plus margin. Replay through now so
       # signals opened inside the requested interval can reach their causal exit.
-      warm=start-timedelta(days=23); now=datetime.now(timezone.utc)
+      warm=start-timedelta(days=35); now=datetime.now(timezone.utc)
       rates=mt5.copy_rates_range(symbol,mt5.TIMEFRAME_M15,warm,now)
       if rates is None or len(rates)<2100:raise SystemExit("Not enough M15 history")
       rows=list(rates); spread=0.0
@@ -49,7 +49,7 @@ def main():
             signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":mr["direction"],"Rule":"M15","TF":"M15","Pullback":mr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":mr.get("entry",""),"InitialSL":mr.get("sl",""),"InitialRiskPips":(abs(float(mr.get("entry",0))-float(mr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
           if a.h1 and ((bt%3600)//60)==45:
             hr=h1_strategy.evaluate(a.pair,rows[:n],spread,_state=hs,_save=False)
-            if hr and hr.get("strategyAllowed") and str(hr.get("pattern",""))=="W1" and start_ts<=bt<=end_ts:
+            if hr and hr.get("strategyAllowed") and str(hr.get("pattern","")) in ("W1","W2","W3") and start_ts<=bt<=end_ts:
               sid=f"REPLAY-H1-{a.pair}-{bt}-{hr.get('pattern','')}-{hr['direction']}"
               signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":hr["direction"],"Rule":"H1","TF":"H1","Pullback":hr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":hr.get("entry",""),"InitialSL":hr.get("sl",""),"InitialRiskPips":(abs(float(hr.get("entry",0))-float(hr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
         # M15 strategy already maintained its causal virtual ledger during replay.
@@ -57,22 +57,24 @@ def main():
           et=int(t.get("entry_time",0)); key=next((k for k,v in signals.items() if v["TF"]=="M15" and int(datetime.fromisoformat(v["SignalTime"]).timestamp())==et and v["Direction"]==t.get("direction")),None)
           if key and not t.get("open",False):
             v=signals[key];v.update({"Status":"決済","ExitTime":datetime.fromtimestamp(int(t.get("exit_time",0)),timezone.utc).isoformat(),"ExitPrice":t.get("exit",""),"Pips":((float(t["exit"])-float(t["entry"]))*(1 if t["direction"]=="BUY" else -1)/m15_strategy.pip_size(a.pair)),"R":t.get("final_r","")})
-        # H1 entries share the M15 exit model in live. Reconstruct those entries in
-        # a dedicated M15 ledger, then replay subsequent bars causally.
+        # H1 entries share the M15 causal exit model. Inject each H1 trade only
+        # when its entry bar has actually been reached; never expose future entries.
         if a.h1:
-          ps=ms.setdefault("pairs",{}).setdefault(a.pair,m15_strategy.pair_state(ms,a.pair))
-          hsignals=[v for v in signals.values() if v["TF"]=="H1"]
-          for v in hsignals:
-            et=int(datetime.fromisoformat(v["SignalTime"]).timestamp());risk=abs(float(v["EntryPrice"])-float(v["InitialSL"]))
-            if risk<=0:continue
-            tid="H1REPLAY:"+v["SignalID"];ps.setdefault("virtual_trades",{})[tid]={"entered":True,"open":True,"entry":float(v["EntryPrice"]),"sl":float(v["InitialSL"]),"risk":risk,"direction":v["Direction"],"entry_time":et,"trailing":False,"spread_r":spread/risk}
-          # replay ledger only, using precomputed causal pivots
+          hps={"virtual_trades":{}}
+          pending=sorted([v for v in signals.values() if v["TF"]=="H1"],key=lambda v:int(datetime.fromisoformat(v["SignalTime"]).timestamp()))
+          pi=0
           for i,row in enumerate(cache["rows"]):
             bt=int(row["time"])
-            if bt<start_ts:continue
+            while pi<len(pending) and int(datetime.fromisoformat(pending[pi]["SignalTime"]).timestamp())<=bt:
+              v=pending[pi];et=int(datetime.fromisoformat(v["SignalTime"]).timestamp());risk=abs(float(v["EntryPrice"])-float(v["InitialSL"]))
+              if risk>0:
+                tid="H1REPLAY:"+v["SignalID"]
+                hps["virtual_trades"][tid]={"trade_id":tid,"entered":True,"open":True,"entry":float(v["EntryPrice"]),"sl":float(v["InitialSL"]),"risk":risk,"direction":v["Direction"],"entry_time":et,"trailing":False,"spread_r":spread/risk,"strategy":"H1"}
+              pi+=1
+            if not hps["virtual_trades"]:continue
             pv=[p for p in cache["pv"] if p["confirmed"]<=i]
-            m15_strategy.update_virtual_ledger(ps,row,pv,i)
-          for t in ps.get("virtual_trades",{}).values():
+            m15_strategy.update_virtual_ledger(hps,row,pv,i)
+          for t in hps.get("virtual_trades",{}).values():
             if not str(t.get("trade_id","")).startswith("H1REPLAY:") or t.get("open",False):continue
             sid=str(t["trade_id"]).split("H1REPLAY:",1)[1]
             if sid in signals:
