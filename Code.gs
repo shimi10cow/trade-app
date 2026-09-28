@@ -13,6 +13,7 @@ const EA_SETTINGS_SHEET = 'EA_Settings';
 const EA_SIGNALS_SHEET = 'EA_Signals';
 const MT5_EXECUTIONS_SHEET = 'MT5_Executions';
 const APP_SETTINGS_SHEET = 'App_Settings';
+const EA_REPLAY_SHEET = 'EA_Replay_Requests';
 
 // =============================================
 // エントリーポイント
@@ -29,6 +30,7 @@ const GAS_ACTIONS = {
   getMT5Executions: () => getMT5Executions(),
   getHybridConfig:  () => getHybridConfig(),
   getAppSettings:   () => Object.fromEntries(sheetObjects_(APP_SETTINGS_SHEET).map(r=>[String(r.Key),r.Value])),
+  getEAReplayRequest: () => getEAReplayRequest(),
 };
 
 function doGet(e) {
@@ -117,6 +119,10 @@ function doPost(e) {
     result = saveEAError(body.data);
   } else if (action === 'saveAppSettings') {
     result = saveAppSettings(body.data);
+  } else if (action === 'requestEAReplay') {
+    result = requestEAReplay(body.data);
+  } else if (action === 'updateEAReplayRequest') {
+    result = updateEAReplayRequest(body.data);
   } else if (action === 'ensureEASheets') {
     result = ensureEASheets();
   } else {
