@@ -49,7 +49,7 @@ def main():
             signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":mr["direction"],"Rule":"M15","TF":"M15","Pullback":mr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":mr.get("entry",""),"InitialSL":mr.get("sl",""),"InitialRiskPips":(abs(float(mr.get("entry",0))-float(mr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
           if a.h1 and ((bt%3600)//60)==45:
             hr=h1_strategy.evaluate(a.pair,rows[:n],spread,_state=hs,_save=False)
-            if hr and hr.get("strategyAllowed") and str(hr.get("pattern","")) in ("W1","W2","W3") and start_ts<=bt<=end_ts:
+            if hr and hr.get("strategyAllowed") and str(hr.get("pattern",""))=="W1" and start_ts<=bt<=end_ts:
               sid=f"REPLAY-H1-{a.pair}-{bt}-{hr.get('pattern','')}-{hr['direction']}"
               signals[sid]={"SignalID":sid,"SignalTime":datetime.fromtimestamp(bt,timezone.utc).isoformat(),"Pair":a.pair,"Direction":hr["direction"],"Rule":"H1","TF":"H1","Pullback":hr.get("pattern",""),"Decision":"SIGNAL_ONLY","Status":"監視中","Executed":"NO","SkipReason":"","EntryPrice":hr.get("entry",""),"InitialSL":hr.get("sl",""),"InitialRiskPips":(abs(float(hr.get("entry",0))-float(hr.get("sl",0)))/m15_strategy.pip_size(a.pair)),"Replay":"YES"}
         # M15 strategy already maintained its causal virtual ledger during replay.
