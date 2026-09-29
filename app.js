@@ -1633,6 +1633,15 @@ function checkEntryEventWarning() {
 }
 
 // 通貨ペアタブ: 今週/来週の重要指標リスト
+function calendarEventKey(ev){return [ev.datetime,ev.currency,eventDisplayName(ev)].join('|');}
+function loadCalendarReminderState(){try{return JSON.parse(localStorage.getItem('calendarReminders_v1')||'{}');}catch(e){return {};}}
+function saveCalendarReminderState(x){localStorage.setItem('calendarReminders_v1',JSON.stringify(x));}
+window.toggleCalendarReminder=function(key){
+ const ev=(App.data.calendar||[]).find(x=>calendarEventKey(x)===key);if(!ev)return;
+ const s=loadCalendarReminderState(),on=!s[key];s[key]=on;saveCalendarReminderState(s);renderWeekEvents();
+ const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo';
+ gasPost({action:'saveCalendarReminder',data:{EventKey:key,Title:eventDisplayName(ev),Currency:ev.currency,EventTimeJST:ev.datetime,ClientTimeZone:tz,NotifyMinutes:5,Enabled:on?'ON':'OFF'}}).then(x=>{if(x&&x.success===false)throw new Error(x.error||'save failed');if(window.showToast)showToast(on?'指標通知をONにしました 🔔':'指標通知をOFFにしました');}).catch(()=>{s[key]=!on;saveCalendarReminderState(s);renderWeekEvents();if(window.showToast)showToast('指標通知の保存に失敗しました');});
+};
 function renderWeekEvents() {
   const section = document.getElementById('calendar-week-section');
   const list = document.getElementById('calendar-week-list');
@@ -1671,6 +1680,7 @@ function renderWeekEvents() {
         <span style="font-weight:700; color:${impactColor}; min-width:34px;">${ev.currency}</span>
         <span style="flex:1; color:#e2e8f0;">${eventDisplayName(ev)}</span>
         ${isToday ? '<span style="color:#ef4444; font-size:10px; font-weight:700;">今日</span>' : ''}
+        <button onclick="event.stopPropagation();toggleCalendarReminder('${calendarEventKey(ev).replace(/'/g,"\\'")}')" style="border:0;background:transparent;font-size:18px;cursor:pointer" title="5分前にTelegram通知">${loadCalendarReminderState()[calendarEventKey(ev)]?'🔔':'🔕'}</button>
       </div>`;
   }).join('');
 }
