@@ -32,8 +32,8 @@ def start():
 
 def enabled(cfg,kind):
     if not configured() or not isinstance(cfg,dict): return False
-    key={"signal":"notifySignal","entry":"notifyEntry","exit":"notifyExit","error":"notifyError"}.get(kind)
-    return bool(key and cfg.get(key,False))
+    key={"signal":"notifySignal","entry":"notifyEntry","exit":"notifyExit","error":"notifyError","calendar":"notifyCalendar"}.get(kind)
+    return bool(key and cfg.get(key, True if kind=="calendar" else False))
 
 def send(kind,text,cfg):
     if not enabled(cfg,kind): return False
