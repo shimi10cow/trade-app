@@ -109,6 +109,8 @@ function doPost(e) {
     result = migrateEntryFieldsV2();
   } else if (action === 'saveEASettings') {
     result = saveEASettings(body.data);
+  } else if (action === 'saveEASettingsBatch') {
+    result = saveEASettingsBatch(body.data);
   } else if (action === 'saveEASignal') {
     result = saveEASignal(body.data);
   } else if (action === 'updateEASignal') {
@@ -125,6 +127,8 @@ function doPost(e) {
     result = saveAppSettings(body.data);
   } else if (action === 'requestEAReplay') {
     result = requestEAReplay(body.data);
+  } else if (action === 'getEAReplayStatus') {
+    result = getEAReplayStatus(body.requestId);
   } else if (action === 'updateEAReplayRequest') {
     result = updateEAReplayRequest(body.data);
   } else if (action === 'ensureEASheets') {
@@ -1357,6 +1361,15 @@ function saveEASettings(data){
   upsertByKey_(EA_SETTINGS_SHEET,EA_SETTINGS_HEADERS,'Pair',data);
   return {success:true};
 }
+function saveEASettingsBatch(rows){
+  ensureEASheets(); rows=Array.isArray(rows)?rows:[];
+  if(!rows.length)return {success:false,error:'No settings'};
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID),sh=ss.getSheetByName(EA_SETTINGS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),pc=hs.indexOf('Pair'),now=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss'),map={};
+  for(let i=1;i<vals.length;i++)map[String(vals[i][pc])]=i;
+  rows.forEach(function(d){if(!d||!d.Pair)return;d['更新日時']=now;let i=map[String(d.Pair)];if(i===undefined){i=vals.length;vals.push(new Array(hs.length).fill(''));map[String(d.Pair)]=i;}hs.forEach(function(h,j){if(Object.prototype.hasOwnProperty.call(d,h))vals[i][j]=d[h];});});
+  sh.getRange(1,1,vals.length,hs.length).setValues(vals);
+  return {success:true,count:rows.length};
+}
 function saveEASignal(data){
   ensureEASheets(); data=data||{};
   if(!data.SignalID) data.SignalID=Utilities.getUuid();
@@ -1449,6 +1462,11 @@ function getEAReplayRequest(){
   ensureEAReplaySheet_();
   const rows=sheetObjects_(EA_REPLAY_SHEET).filter(function(x){return String(x.Status||'').toUpperCase()==='PENDING';});
   return rows.length?rows[0]:{};
+}
+function getEAReplayStatus(requestId){
+  ensureEAReplaySheet_(); if(!requestId)return {success:false,error:'RequestID required'};
+  const row=sheetObjects_(EA_REPLAY_SHEET).find(function(x){return String(x.RequestID)===String(requestId);});
+  return row||{};
 }
 function updateEAReplayRequest(data){
   ensureEAReplaySheet_(); data=data||{};
