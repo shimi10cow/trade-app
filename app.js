@@ -61,6 +61,15 @@ function gasPost(payload) {
   return fetchRetry(GAS_URL, { method: 'POST', body: JSON.stringify(payload) }).then(r => r.json());
 }
 
+// Fast-start cache: render stable reference data immediately, then refresh from GAS.
+const FAST_CACHE_KEY='tradeAppFastStart_v1';
+function readFastCache(){try{return JSON.parse(localStorage.getItem(FAST_CACHE_KEY)||'{}');}catch(e){return {};}}
+function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now()};localStorage.setItem(FAST_CACHE_KEY,JSON.stringify(x));}catch(e){}}
+function hydrateFastCache(){
+  var x=readFastCache();
+  if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
+}
+
 // ---- オフライン保存キュー (IndexedDB) ----
 // オフライン時・リトライ全滅時に書き込み系POSTを退避し、再接続時に自動送信する
 const QUEUE_DB_NAME = 'trade-app-queue';
@@ -352,8 +361,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupModalInteractions();
   setupPullToRefresh();
-  flushQueue();          // 前回オフライン時の未送信データを先に同期
+  hydrateFastCache();    // 通貨ペア等は前回値を即表示し、GAS結果で後から更新
   loadData();
+  setTimeout(() => flushQueue(), 1500); // 未送信同期は初期表示を邪魔しないよう後段へ
   updateImgBBStatusBar();
 });
 
@@ -1065,6 +1075,7 @@ async function loadData() {
 
     const pairsP = gasGet('getPairs').then(res => {
       App.data.pairs = res.data || [];
+      writeFastCache('pairs',App.data.pairs);
       populateFilterPairs();
       renderPairs();       // ② ペア
       renderPlans();       // ポジションタブのプラン一覧
