@@ -553,6 +553,28 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
         notify_entry(sig,result,cfg)
     logging.info("%s %s %s %s",symbol,tf,sig["direction"],result)
 
+def process_calendar_reminders(cfg):
+    """Send selected event reminders before the event, displayed in the phone-selected timezone."""
+    try:
+        rows=gas_get("getCalendarReminders") or []
+        if not isinstance(rows,list):return
+        from datetime import datetime,timezone
+        from zoneinfo import ZoneInfo
+        now=datetime.now(timezone.utc)
+        for x in rows:
+            if str(x.get("Enabled","")).upper()!="ON" or str(x.get("Sent","")).upper()=="YES":continue
+            try:
+                jst=datetime.strptime(str(x.get("EventTimeJST","")),"%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Tokyo"))
+                mins=float(x.get("NotifyMinutes") or 5);delta=(jst.astimezone(timezone.utc)-now).total_seconds()/60
+                if 0<=delta<=mins:
+                    tzname=str(x.get("ClientTimeZone") or "Asia/Tokyo")
+                    try:local=jst.astimezone(ZoneInfo(tzname))
+                    except Exception:local=jst
+                    telegram.send("calendar",f"ECONOMIC EVENT in {int(round(delta))} min\n{local.strftime('%H:%M')} {x.get('Currency','')} {x.get('Title','')}\nJapan time: {jst.strftime('%H:%M')}",cfg)
+                    enqueue_gas("saveCalendarReminder",{"data":{**x,"Sent":"YES"}})
+            except Exception:continue
+    except Exception:logging.exception("calendar reminder poll failed")
+
 def process_replay_request():
     """Poll one app replay request. Runs isolated replay in a child process."""
     try:
@@ -593,6 +615,8 @@ def run():
         manage_ea_positions(cfg)
         try:process_replay_request()
         except Exception as e:logging.exception("replay request poll failed")
+        try:process_calendar_reminders(cfg)
+        except Exception as e:logging.exception("calendar reminder poll failed")
         try:sync_mt5_positions(MAGIC,enqueue_gas)
         except Exception as e:logging.exception("MT5 position sync failed")
         for base_symbol in sorted(targets):
