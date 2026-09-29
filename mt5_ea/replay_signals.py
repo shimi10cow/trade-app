@@ -84,6 +84,7 @@ def main():
           res=sess.post(a.gas_url,json={"action":"saveEASignal","data":v},timeout=20);res.raise_for_status()
           body=res.json()
           if body.get("success") is False:raise RuntimeError(body.get("error","GAS save failed"))
-        print(json.dumps({"success":True,"pair":a.pair,"count":len(signals),"m15":a.m15,"h1":a.h1},ensure_ascii=False))
+        m15_count=sum(1 for v in signals.values() if v.get("TF")=="M15");h1_count=sum(1 for v in signals.values() if v.get("TF")=="H1")
+        print(json.dumps({"success":True,"pair":a.pair,"count":len(signals),"m15_count":m15_count,"h1_count":h1_count},ensure_ascii=False))
     finally:mt5.shutdown()
 if __name__=="__main__":main()
