@@ -26,7 +26,7 @@ checks={
  "H1 live execution wired":"register_h1_execution" in main and 'process_signal(base_symbol,symbol,h1_results[-1],ts,cfg,envmap,runtime_ok,"H1")' in main and 'if tf=="H1":' in main,
  "H1 closed-bar only":'!=45:return None' in h1,
  "H1 Stoch 14-5-3":"nullable_sma(raw,5)" in h1 and "nullable_sma(k,3)" in h1,
- "H1 W4+ rejected":'W4_PLUS' in h1,
+ "H1 W2+ rejected (W1 only)":'W2_PLUS' in h1,
  "H1 shares causal exit ledger":"recover_m15_execution" in main and '"Source":"EA-H1"' in main,
  "DRY_RUN defaults true":'EA_DRY_RUN","true"' in main,
  "M15 history >=3000":"count=3000" in main,
