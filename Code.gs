@@ -127,6 +127,10 @@ function doPost(e) {
     result = saveAppSettings(body.data);
   } else if (action === 'requestEAReplay') {
     result = requestEAReplay(body.data);
+  } else if (action === 'saveCalendarReminder') {
+    result = saveCalendarReminder(body.data);
+  } else if (action === 'getCalendarReminders') {
+    result = getCalendarReminders();
   } else if (action === 'getEAReplayStatus') {
     result = getEAReplayStatus(body.requestId);
   } else if (action === 'updateEAReplayRequest') {
@@ -795,6 +799,16 @@ const CALENDAR_URL_THISWEEK = 'https://nfs.faireconomy.media/ff_calendar_thiswee
 const CALENDAR_URL_NEXTWEEK = 'https://nfs.faireconomy.media/ff_calendar_nextweek.json';
 const CALENDAR_CACHE_KEY = 'calendar_cache_v1';
 const CALENDAR_NEXT_CACHE_KEY = 'calendar_next_cache_v1';
+const CALENDAR_REMINDER_SHEET='EA_Calendar_Reminders';
+const CALENDAR_REMINDER_HEADERS=['ReminderID','EventKey','Title','Currency','EventTimeJST','ClientTimeZone','NotifyMinutes','Enabled','Sent','CreatedAt','UpdatedAt'];
+function ensureCalendarReminderSheet_(){ensureSheetWithHeaders_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS);}
+function getCalendarReminders(){ensureCalendarReminderSheet_();return sheetObjects_(CALENDAR_REMINDER_SHEET);}
+function saveCalendarReminder(data){
+  ensureCalendarReminderSheet_();data=data||{};if(!data.EventKey||!data.EventTimeJST)return {success:false,error:'EventKey/EventTimeJST required'};
+  const rows=sheetObjects_(CALENDAR_REMINDER_SHEET),old=rows.find(function(x){return String(x.EventKey)===String(data.EventKey);});
+  data.ReminderID=old&&old.ReminderID?old.ReminderID:Utilities.getUuid();data.NotifyMinutes=Number(data.NotifyMinutes||5);data.Enabled=data.Enabled===false||String(data.Enabled).toUpperCase()==='OFF'?'OFF':'ON';data.Sent=data.Enabled==='ON'?'NO':String(old&&old.Sent||'NO');data.CreatedAt=old&&old.CreatedAt?old.CreatedAt:new Date().toISOString();data.UpdatedAt=new Date().toISOString();
+  upsertByKey_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS,'ReminderID',data);return {success:true,reminderId:data.ReminderID};
+}
 
 function getCalendarEvents() {
   // 土日（日本時間）は来週データを優先。取得失敗時は今週にフォールバック
