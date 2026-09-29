@@ -1459,8 +1459,12 @@ function saveAppSettings(data){
   return {success:true};
 }
 function getHybridConfig(){
+  const cache=CacheService.getScriptCache(),key='hybrid_config_v2',hit=cache.get(key);
+  if(hit){try{return JSON.parse(hit);}catch(e){}}
   ensureEASheets();
-  return {pairs:getPairs(),settings:getEASettings(),appSettings:sheetObjects_(APP_SETTINGS_SHEET)};
+  const result={pairs:getPairs(),eaSettings:sheetObjects_(EA_SETTINGS_SHEET),appSettings:sheetObjects_(APP_SETTINGS_SHEET)};
+  try{cache.put(key,JSON.stringify(result),60);}catch(e){}
+  return result;
 }
 
 const EA_REPLAY_HEADERS = ['RequestID','Pair','Start','End','M15','H1','Status','Message','CreatedAt','UpdatedAt'];
