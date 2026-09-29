@@ -2,11 +2,14 @@
 (function(){
 const KEY='hybridEASettings_v3';
 const DEMO_KEY='hybridEADemo_v1';
+let _hydratePromise=null,_hydratedAt=0;
 const DEF={globalEntry:false,notifySignal:true,notifyEntry:true,notifyExit:true,notifyError:true,pairs:{}};
 function load(){try{return Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}'));}catch(e){return Object.assign({},DEF);}}
 function store(s){localStorage.setItem(KEY,JSON.stringify(s));}
-async function hydrateGlobal(){
- try{
+async function hydrateGlobal(force){
+ if(!force&&_hydratePromise)return _hydratePromise;
+ if(!force&&_hydratedAt&&Date.now()-_hydratedAt<60000)return true;
+ _hydratePromise=(async function(){try{
   var r=await gasGet('getHybridConfig'),d=(r&&r.data)||r||{},a=d.appSettings||{};
   if(Array.isArray(a)){var z={};a.forEach(function(x){if(x&&x.Key)z[String(x.Key)]=x.Value;});a=z;}
   var s=load(),on=function(v,def){if(v===undefined||v===null||v==='')return def;return ['1','true','on','yes','有効','on（有効）'].indexOf(String(v).trim().toLowerCase())>=0;};
@@ -15,8 +18,8 @@ async function hydrateGlobal(){
   s.notifyExit=on(a.notifyExit,s.notifyExit!==false);s.notifyError=on(a.notifyError,s.notifyError!==false);
   if(a.envRefreshMin)s.envRefreshMin=Number(a.envRefreshMin)||60;if(a.settingsRefreshMin)s.settingsRefreshMin=Number(a.settingsRefreshMin)||5;if(a.groupHours)s.groupHours=Number(a.groupHours)||24;s.allSignals=on(a.allSignals,s.allSignals!==false);s.allEntryM15=on(a.allEntryM15,s.allEntryM15!==false);s.allEntryH1=on(a.allEntryH1,!!s.allEntryH1);
   if(Array.isArray(d.eaSettings)){s.pairs=s.pairs||{};d.eaSettings.forEach(function(x){var n=pairName(x);if(!n)return;var p=pcfg(s,n),m=String(x['稼働方法']||'');p.mode=m==='自動売買'?'auto':m==='シグナルのみ'?'signal':m==='停止'?'stop':p.mode;p.m15=on(x.M15,p.m15);p.h1=on(x.H1,p.h1);var ad=String(x['許可方向']||'両方').toUpperCase();p.buy=ad==='両方'||ad==='BUY';p.sell=ad==='両方'||ad==='SELL';s.pairs[n]=p;});}
-  store(s);return true;
- }catch(e){return false;}
+  store(s);_hydratedAt=Date.now();return true;
+ }catch(e){return false;}finally{_hydratePromise=null;}})();return _hydratePromise;
 }
 function pairName(p){if(!p)return '';var keys=['PairName（元）','PairName','Pair','通貨ペア','pair','pairName','Symbol','symbol'];for(var i=0;i<keys.length;i++){var v=p[keys[i]];if(v&&String(v).trim())return String(v).trim();}for(var k in p){if(/pair|通貨ペア|symbol/i.test(k)&&p[k])return String(p[k]).trim();}return '';}
 function pairRows(){var pools=[];var app=(window.TradeApp||(typeof App!=='undefined'?App:null));if(app&&app.data){['pairs','Pairs','pairData'].forEach(function(k){if(Array.isArray(app.data[k]))pools=pools.concat(app.data[k]);});}if(Array.isArray(window.pairsData))pools=pools.concat(window.pairsData);return pools;}
@@ -24,7 +27,7 @@ function names(){return [...new Set(pairRows().map(pairName).filter(Boolean))].s
 function pcfg(s,n){return Object.assign({mode:'stop',m15:true,h1:false,buy:true,sell:true,riskType:'fixedLot',riskValue:0.01,riskCapEnabled:true,riskCap:1,eaExit:true},(s.pairs||{})[n]||{});}
 function styles(){var x=document.createElement('style');x.textContent='.ea-card{background:#111c31;border:1px solid #26364f;border-radius:12px;padding:12px;margin-bottom:10px}.ea-row{display:flex;gap:7px;align-items:center;margin:8px 0}.ea-row>label{min-width:92px;color:#94a3b8;font-size:12px}.ea-input{flex:1;min-width:0;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:9px}.ea-btn{border:1px solid #334155;background:#172033;color:#94a3b8;border-radius:8px;padding:9px;font-weight:700}.ea-btn.on{background:#0f766e;color:#fff;border-color:#14b8a6}.ea-btn.buy.on{background:#075985;border-color:#38bdf8}.ea-btn.sell.on{background:#991b1b;border-color:#ef4444}.ea-two{display:grid;grid-template-columns:1fr 1fr;gap:7px;flex:1}.ea-mini3{display:flex;flex-direction:column;gap:7px}.ea-mini3 label{font-size:10px;color:#64748b;display:block;margin-bottom:3px}.ea-save{width:100%;padding:12px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.ea-save:disabled{opacity:.65}.ea-spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:eaSpin .7s linear infinite}@keyframes eaSpin{to{transform:rotate(360deg)}}.ea-mode3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:1}.ea-mode3 .ea-btn{padding:9px 5px;font-size:12px}.ea-note{font-size:11px;color:#64748b}.ea-demo{border-left:4px solid #38bdf8}.ea-tabs{display:flex;gap:5px;margin:8px 0}.ea-tabs button{flex:1}.tabs{overflow-x:auto}.tabs .tab{min-width:68px}';document.head.appendChild(x);}
 function ensure(){
- var nav=document.querySelector('.tabs');if(nav&&!nav.querySelector('[data-tab="ea"]')){var t=document.createElement('div');t.className='tab';t.dataset.tab='ea';t.innerHTML='<span class="tab-icon">🤖</span>EA設定';nav.appendChild(t);t.onclick=async function(){document.querySelectorAll('.tab').forEach(function(z){z.classList.remove('active')});t.classList.add('active');document.querySelectorAll('.screen').forEach(function(z){z.classList.remove('active')});document.getElementById('screen-ea').classList.add('active');await hydrateGlobal();renderEA();};}
+ var nav=document.querySelector('.tabs');if(nav&&!nav.querySelector('[data-tab="ea"]')){var t=document.createElement('div');t.className='tab';t.dataset.tab='ea';t.innerHTML='<span class="tab-icon">🤖</span>EA設定';nav.appendChild(t);t.onclick=function(){document.querySelectorAll('.tab').forEach(function(z){z.classList.remove('active')});t.classList.add('active');document.querySelectorAll('.screen').forEach(function(z){z.classList.remove('active')});document.getElementById('screen-ea').classList.add('active');renderEA();hydrateGlobal().then(function(){if(document.getElementById('screen-ea')?.classList.contains('active'))renderEA();});};}
  var main=document.querySelector('main.content');if(main&&!document.getElementById('screen-ea')){var sc=document.createElement('div');sc.id='screen-ea';sc.className='screen';sc.innerHTML='<div id="ea-root"></div>';main.appendChild(sc);}
  ensureAnalysis();var ast=document.getElementById('flt-status');if(ast&&(!window._eaAnalysisType||window._eaAnalysisType==='all'))ast.style.display='none';
 }
