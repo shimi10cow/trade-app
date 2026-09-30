@@ -1138,7 +1138,6 @@ async function loadData() {
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v1', '1');
-            showToast('データ移行完了: ' + res.updated + '件更新');
             loadData();
           }
         })
@@ -1149,7 +1148,7 @@ async function loadData() {
         .then(function(res) {
           if (res.success) {
             localStorage.setItem('_entryFieldsMigrated_v2', '1');
-            if (res.updated > 0) { showToast('v2移行完了: ' + res.updated + '件更新'); loadData(); }
+            if (res.updated > 0) { loadData(); }
           }
         })
         .catch(function(){});
