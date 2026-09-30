@@ -31,6 +31,7 @@ const GAS_ACTIONS = {
   getHybridConfig:  () => getHybridConfig(),
   getAppSettings:   () => Object.fromEntries(sheetObjects_(APP_SETTINGS_SHEET).map(r=>[String(r.Key),r.Value])),
   getEAReplayRequest: () => getEAReplayRequest(),
+  getCalendarReminders: () => getCalendarReminders(),
 };
 
 function doGet(e) {
