@@ -25,6 +25,7 @@ LIVE_REQUIRE_REAL=os.getenv("EA_LIVE_REQUIRE_REAL","true").lower()=="true"
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 last_bar={}
 _symbol_cache={}
+_calendar_poll_at=0.0
 _cache={"settings":None,"settings_at":0.0,"env":None,"env_at":0.0}
 _cache_lock=threading.Lock()
 _stop=threading.Event()
@@ -555,9 +556,15 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
 
 def process_calendar_reminders(cfg):
     """Send selected event reminders before the event, displayed in the phone-selected timezone."""
+    global _calendar_poll_at
+    now_mono=time.monotonic()
+    if now_mono-_calendar_poll_at<30:return
+    _calendar_poll_at=now_mono
     try:
         rows=gas_get("getCalendarReminders") or []
-        if not isinstance(rows,list):return
+        if not isinstance(rows,list):
+            logging.warning("calendar reminder response is not a list: %r",rows)
+            return
         from datetime import datetime,timezone
         from zoneinfo import ZoneInfo
         now=datetime.now(timezone.utc)
@@ -570,8 +577,11 @@ def process_calendar_reminders(cfg):
                     tzname=str(x.get("ClientTimeZone") or "Asia/Tokyo")
                     try:local=jst.astimezone(ZoneInfo(tzname))
                     except Exception:local=jst
-                    telegram.send("calendar",f"ECONOMIC EVENT in {int(round(delta))} min\n{local.strftime('%H:%M')} {x.get('Currency','')} {x.get('Title','')}\nJapan time: {jst.strftime('%H:%M')}",cfg)
-                    enqueue_gas("saveCalendarReminder",{"data":{**x,"Sent":"YES"}})
+                    sent=telegram.send("calendar",f"ECONOMIC EVENT in {int(round(delta))} min\n{local.strftime('%H:%M')} {x.get('Currency','')} {x.get('Title','')}\nJapan time: {jst.strftime('%H:%M')}",cfg)
+                    if sent:
+                        logging.info("calendar reminder queued: %s %s",x.get("Currency",""),x.get("Title",""))
+                        enqueue_gas("saveCalendarReminder",{"data":{**x,"Sent":"YES"}})
+                    else:logging.warning("calendar reminder not queued; Telegram calendar notification disabled/unconfigured")
             except Exception:continue
     except Exception:logging.exception("calendar reminder poll failed")
 
