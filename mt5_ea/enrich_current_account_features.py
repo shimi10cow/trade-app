@@ -29,6 +29,19 @@ def calc(r,p):
  k,d=stoch(r);o[p+"_stoch_k"]=k;o[p+"_stoch_d"]=d;o[p+"_atr14"]=atr(r)
  o[p+"_ma20_gt_75"]=(o[p+"_ma20"]>o[p+"_ma75"]) if o[p+"_ma20"] and o[p+"_ma75"] else None;o[p+"_ma200_gt_480"]=(o[p+"_ma200"]>o[p+"_ma480"]) if o[p+"_ma200"] and o[p+"_ma480"] else None
  o[p+"_ma200_slope12_pct"]=slope(c,200,12);o[p+"_ma480_slope24_pct"]=slope(c,480,24);return o
+def bulk_rates(sym,tf,lo,hi):
+ # MT5 terminals can cap bars returned for a very long range, especially M15.
+ # Load in bounded chunks and deduplicate by bar timestamp.
+ step=timedelta(days=180)
+ cur=lo;by={}
+ while cur<hi:
+  end=min(cur+step,hi)
+  arr=mt5.copy_rates_range(sym,tf,cur,end)
+  if arr is not None:
+   for z in arr:
+    by[int(z["time"])]={"time":int(z["time"]),"high":float(z["high"]),"low":float(z["low"]),"close":float(z["close"])}
+  cur=end
+ return [by[k] for k in sorted(by)]
 def main():
  if not PATH.exists():raise SystemExit("Run py analyze_captured_history.py first.")
  print("Connecting to current MT5 account...",flush=True)
@@ -47,7 +60,7 @@ def main():
    times=[datetime.fromisoformat(x["entry_time"].replace("Z","+00:00")).astimezone(timezone.utc) for x in xs];lo=min(times)-timedelta(days=100);hi=max(times)+timedelta(hours=1)
    print(f"Loading {sym}: {lo.date()} -> {hi.date()} ...",flush=True)
    for p,tf in TFS.items():
-    arr=mt5.copy_rates_range(sym,tf,lo,hi);rr=[] if arr is None else [{"time":int(z["time"]),"high":float(z["high"]),"low":float(z["low"]),"close":float(z["close"])} for z in arr];caches[(sym,p)]=(rr,[z["time"] for z in rr]);print(f"  {p.upper()}: {len(rr)} bars",flush=True)
+    rr=bulk_rates(sym,tf,lo,hi);caches[(sym,p)]=(rr,[z["time"] for z in rr]);print(f"  {p.upper()}: {len(rr)} bars",flush=True)
   for i,x in enumerate(targets,1):
    t=datetime.fromisoformat(x["entry_time"].replace("Z","+00:00")).astimezone(timezone.utc);ts=int(t.timestamp());sym=x.get("broker_symbol") or x["symbol"]
    for p in TFS:
