@@ -132,6 +132,8 @@ function doPost(e) {
     result = setMT5ImportStatus(body.executionIds, body.status);
   } else if (action === 'linkMT5ToEntry') {
     result = linkMT5ToEntry(body.executionIds, body.entryId);
+  } else if (action === 'unlinkMT5FromEntry') {
+    result = unlinkMT5FromEntry(body.entryId);
   } else if (action === 'restoreMT5Import') {
     result = setMT5ImportStatus(body.executionIds, '未確認');
   } else if (action === 'adoptMT5Trade') {
@@ -1659,3 +1661,22 @@ function linkMT5ToEntry(executionIds,entryId){
   const group=String(e.TradeGroupID||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   return adoptMT5Trade(allIds,{entryId:String(entryId),tradeGroupId:group});
 }
+function unlinkMT5FromEntry(entryId){
+  if(!entryId)return {success:false,error:'EntryID required'};
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET);
+  if(!sh)return {success:false,error:'MT5 sheet not found'};
+  const vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim());
+  const ec=hs.indexOf('EntryID'),gc=hs.indexOf('TradeGroupID'),sc=hs.indexOf('ImportStatus');
+  let n=0;
+  for(let i=1;i<vals.length;i++){
+    if(String(vals[i][ec])!==String(entryId))continue;
+    if(gc>=0)sh.getRange(i+1,gc+1).clearContent();
+    if(ec>=0)sh.getRange(i+1,ec+1).clearContent();
+    if(sc>=0)sh.getRange(i+1,sc+1).setValue('未確認');
+    n++;
+  }
+  const mt5Fields={TradeGroupID:'',MT5SyncKey:'',MT5Account:'',MT5Ticket:'',Source:'',TradeType:'',MT5ExecutionIDs:'',MT5LastSyncAt:'',MT5OpenLot:'',MT5ClosedLot:'',MT5EntryCount:'',MT5ExitCount:''};
+  if(n)updateEntry(String(entryId),mt5Fields);
+  return {success:true,updated:n};
+}
+
