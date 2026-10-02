@@ -1507,13 +1507,13 @@ function updateEAReplayRequest(data){
 // =============================================
 // MT5 manual import (read-only terminal -> raw executions -> adopted Entry)
 // =============================================
-const MT5_IMPORT_REQ_HEADERS=['RequestID','Days','Status','Account','Server','Message','CreatedAt','UpdatedAt'];
+const MT5_IMPORT_REQ_HEADERS=['RequestID','Days','Mode','Status','Account','Server','Message','CreatedAt','UpdatedAt'];
 
 function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS); }
 
 function requestMT5Import(data){
   ensureEASheets(); ensureMT5ImportSheet_(); data=data||{};
-  const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
+  const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Mode:String(data.Mode||'IMPORT'),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',row);
   return {success:true,requestId:row.RequestID};
 }
