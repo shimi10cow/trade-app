@@ -21,7 +21,9 @@
     <div style="display:flex; align-items:center; gap:8px;">
       <span id="queue-status" class="badge bg-amber hidden" onclick="flushQueue()" style="cursor:pointer;"></span>
       <span id="network-status" class="badge bg-green hidden">Online</span>
-      <span onclick="openSettingsModal()" style="font-size:20px; cursor:pointer; padding:4px;">⚙️</span>
+      <span onclick="openRecordShortcut('memo')" title="メモ" style="font-size:19px; cursor:pointer; padding:5px;">📝</span>
+      <span onclick="openRecordShortcut('gallery')" title="ギャラリー" style="font-size:19px; cursor:pointer; padding:5px;">🖼️</span>
+      <span onclick="openSettingsModal()" style="font-size:20px; cursor:pointer; padding:5px;">⚙️</span>
     </div>
   </header>
 
@@ -36,8 +38,8 @@
     <div class="tab" data-tab="analysis">
       <span class="tab-icon">📊</span>分析
     </div>
-    <div class="tab" data-tab="gallery">
-      <span class="tab-icon">📝</span>記録
+    <div class="tab" data-tab="mt5">
+      <span class="tab-icon">🔄</span>MT5
     </div>
   </nav>
 
@@ -1418,6 +1420,7 @@
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
   <script src="./app.js?v=20261002b" charset="utf-8"></script>
+  <script src="./mt5_import.js?v=20261002a" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
 </html>
