@@ -1,5 +1,4 @@
 @echo off
 cd /d "%~dp0"
-echo Starting read-only MT5 import worker...
-py mt5_import_worker.py
-pause
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_mt5_import.ps1"
+if errorlevel 1 pause
