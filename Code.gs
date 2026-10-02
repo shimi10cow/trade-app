@@ -1569,7 +1569,7 @@ function mt5Aggregate_(rows){
   const wavg=(a,pk,vk)=>{const v=sum(a,vk);return v?a.reduce((s,r)=>s+(Number(r[pk])||0)*(Number(r[vk])||0),0)/v:0;};
   const entryVol=sum(entries,'DealVolume') || sum(positionRows,'Lot');
   const exitVol=sum(exits,'DealVolume');
-  const open=Math.max(0,entryVol-exitVol) || sum(positionRows,'Lot');
+  const open=positionRows.length?sum(positionRows,'Lot'):Math.max(0,entryVol-exitVol);
   const sortTime=a=>a.slice().sort((x,y)=>String(x.DealTime||x.EntryTime||'').localeCompare(String(y.DealTime||y.EntryTime||'')));
   const se=sortTime(entries.length?entries:positionRows),sx=sortTime(exits);
   return {Pair:first.Pair||'',Direction:dir,Account:first.Account||'',Server:first.Server||'',
