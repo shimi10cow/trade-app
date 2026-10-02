@@ -1103,10 +1103,11 @@ async function loadData() {
       renderWeekEvents();
       renderTodayEvents();
     }).catch((e) => {
-      App.data.calendar = [];
-      App.data.calendarIsNextWeek = false;
-      App.state.calendarError = '通信失敗: ' + (e && e.message || '');
+      // A transient GAS/upstream failure must not erase calendar data already loaded in this session.
+      App.data.calendar = App.data.calendar || [];
+      App.state.calendarError = App.data.calendar.length ? '' : '通信失敗: ' + (e && e.message || '');
       renderWeekEvents();
+      renderTodayEvents();
     });
 
     // エントリーが揃ったら分析・ギャラリー
