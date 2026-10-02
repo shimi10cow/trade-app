@@ -5484,7 +5484,7 @@ function deleteTradeImage(slot) {
     const targetField = findEntryImageFieldName(t);
     document.getElementById('td-image-preview').src = '';
     document.getElementById('td-top-image-area').style.display = 'none';
-    if (!fromHistory) {
+    {
       App.state.pendingEntryImgDelete = targetField || 'ChartImage';
       const ea = document.getElementById('td-entry-upload-area');
       if (ea) {
@@ -5501,7 +5501,7 @@ function deleteTradeImage(slot) {
     const targetField = findExitImageFieldName(t);
     document.getElementById('td-exit-image-preview').src = '';
     document.getElementById('td-exit-image-container').style.display = 'none';
-    if (!fromHistory) {
+    {
       App.state.pendingExitImgDelete = targetField || '決済チャート';
       const ea = document.getElementById('td-exit-upload-area');
       if (ea) {
@@ -5823,7 +5823,6 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     const input = document.getElementById(inputId);
     const lt = document.getElementById(labelId);
     if (!area) return;
-    if (fromHistory) { area.style.display = 'none'; return; }
     area.style.display = 'block';
     if (input) input.value = '';
     const lbl = area.querySelector('label');
@@ -6075,9 +6074,8 @@ async function saveTradeDetail() {
     });
     updateData['エントリースコア'] = String(calcScore);
 
-    // 画像保存（保留中の削除 & 新規アップロード）
-    const fromHistory = App.state.detailFromHistory;
-    if (!fromHistory) {
+    // 画像保存（履歴から開いたTradeも追加・変更・削除可能）
+    {
       // 保留中の削除を適用
       if (App.state.pendingEntryImgDelete) {
         updateData[App.state.pendingEntryImgDelete] = '';
