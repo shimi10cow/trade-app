@@ -1513,14 +1513,14 @@ function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQU
 
 function requestMT5Import(data){
   ensureEASheets(); ensureMT5ImportSheet_(); data=data||{};
-  const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Status:'PENDING',Account:'',Server:'',Message:'',CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
+  const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',row);
   return {success:true,requestId:row.RequestID};
 }
 function getMT5ImportRequest(){
   ensureMT5ImportSheet_();
   const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).filter(r=>String(r.Status||'').toUpperCase()==='PENDING');
-  return rows.length?rows[0]:{};
+  if(!rows.length)return {}; const r=rows[0]; if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message); return r;
 }
 function getMT5ImportStatus(){
   ensureMT5ImportSheet_();
