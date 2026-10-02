@@ -1543,8 +1543,9 @@ function saveMT5ImportBatch(requestId,account,server,rows){
     d.UpdatedAt=now; if(oldStatus&&oldStatus!=='未確認')d.ImportStatus=oldStatus;
     hs.forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(d,h))sh.getRange(rn,j+1).setValue(d[h]);});
   });
-  if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'new '+inserted+' / updated '+updated});
-  return {success:true,inserted:inserted,updated:updated,count:rows.length};
+  const auto=autoAttachMT5Continuations_();
+  if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'new '+inserted+' / updated '+updated+' / auto '+auto.attached});
+  return {success:true,inserted:inserted,updated:updated,count:rows.length,autoAttached:auto.attached};
 }
 function setMT5ImportStatus(ids,status){
   ensureEASheets(); ids=Array.isArray(ids)?ids:[]; const set=new Set(ids.map(String));
@@ -1610,4 +1611,27 @@ function mergeMT5Trades(entryIds){
   const ids=rows.map(r=>r.ExecutionID); if(!ids.length)return {success:false,error:'No executions'};
   const keep=entryIds[0]; const r=adoptMT5Trade(ids,{entryId:keep});
   return Object.assign(r,{mergedInto:keep,sourceEntryIds:entryIds});
+}
+
+function autoAttachMT5Continuations_(){
+  const rows=sheetObjects_(MT5_EXECUTIONS_SHEET),byEntry={};
+  rows.forEach(r=>{if(r.EntryID)(byEntry[r.EntryID]||(byEntry[r.EntryID]=[])).push(r);});
+  const adopted=Object.keys(byEntry).map(id=>{const rr=byEntry[id],a=mt5Aggregate_(rr),first=rr[0]||{};return {entryId:id,rows:rr,a:a,group:first.TradeGroupID||'',pos:new Set(rr.map(x=>String(x.PositionID||'')).filter(Boolean))};});
+  let attached=0; const touched=new Set();
+  rows.filter(r=>!r.EntryID&&(!r.ImportStatus||r.ImportStatus==='未確認')).forEach(r=>{
+    let hit=adopted.find(g=>r.PositionID&&g.pos.has(String(r.PositionID)));
+    if(!hit){
+      const incomingTime=new Date(r.DealTime||r.EntryTime||0).getTime();
+      hit=adopted.find(g=>g.a.Status==='OPEN'&&String(g.a.Account)===String(r.Account)&&String(g.a.Server)===String(r.Server)&&String(g.a.Pair)===String(r.Pair)&&String(g.a.Direction).toUpperCase()===String(r.Direction).toUpperCase()&&isFinite(incomingTime)&&incomingTime>=new Date(g.a.EntryTime||0).getTime());
+    }
+    if(hit){
+      const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),sc=hs.indexOf('ImportStatus'),ec=hs.indexOf('EntryID');
+      for(let i=1;i<vals.length;i++)if(String(vals[i][ic])===String(r.ExecutionID)){sh.getRange(i+1,gc+1).setValue(hit.group);sh.getRange(i+1,sc+1).setValue('採用済み');sh.getRange(i+1,ec+1).setValue(hit.entryId);attached++;touched.add(hit.entryId);break;}
+    }
+  });
+  if(touched.size){
+    const fresh=sheetObjects_(MT5_EXECUTIONS_SHEET);
+    touched.forEach(id=>{const rr=fresh.filter(r=>String(r.EntryID)===String(id));if(rr.length){const group=rr[0].TradeGroupID||'';adoptMT5Trade(rr.map(r=>r.ExecutionID),{entryId:id,tradeGroupId:group});}});
+  }
+  return {attached:attached};
 }
