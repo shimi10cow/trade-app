@@ -56,3 +56,20 @@ py -m pip install -r requirements.txt
 - GAS保存はSQLite outboxへ先に永続化し、失敗時は指数backoffで再送
 - Poison messageが他の保存を永久停止させないよう、再送待ちの行を飛ばして処理
 - DRY RUN起動スクリプトはpreflightとstrategy unit testを先に実行
+
+
+## MT5 manual import
+
+The app's MT5 tab uses a separate read-only worker. It reads only the account currently logged in to the single MT5 terminal and never sends/modifies orders.
+
+Start once on Windows:
+
+`MT5_IMPORT_START.bat`
+
+Workflow:
+1. Switch account manually in MT5.
+2. Open the app MT5 tab.
+3. Tap "MT5から取得".
+4. New trades appear as candidates. Existing adopted trades are recalculated from raw executions on re-sync.
+
+Raw executions remain in `MT5_Executions`. Existing manual fields (score, rationale, emotion, review, images) are not overwritten by MT5 refresh.
