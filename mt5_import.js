@@ -102,7 +102,7 @@ function paintMT5(root){
   }).join('');
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
     '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><button class="ea-btn" style="width:100%;margin-top:9px" onclick="getMT5AccountInfo()">口座情報を取得</button><div style="font-size:11px;color:#64748b;margin-top:7px">最終同期: '+esc(st.UpdatedAt?localDT(st.UpdatedAt):'未同期')+'</div>'+
-    '<button class="ea-save" style="margin-top:12px" onclick="requestMT5Import('latest')">最終同期以降を取得</button>'+
+    '<button class="ea-save" style="margin-top:12px" onclick="requestMT5Import("latest")">最終同期以降を取得</button>'+
     '<div style="display:flex;gap:6px;margin-top:7px"><button class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">過去90日を再取得</button></div></div>'+
     '<div style="display:flex;gap:8px;margin:12px 0;font-size:11px;color:#94a3b8"><span>新規 '+pending.length+'</span><span>保留 '+hold+'</span></div>'+
     (cards||'<div style="text-align:center;color:#64748b;padding:28px 8px;">確認が必要な新規Tradeはありません</div>')+'<div style="margin-top:16px"><button class="ea-btn" style="width:100%" onclick="mt5ShowArchived()">保留 '+hold+' / 除外 '+excluded+' を確認</button></div></div><div id="mt5-sheet" class="modal-overlay" onclick="if(event.target===this)this.classList.remove(\'active\')"><div class="modal-content" style="max-height:82vh"><div class="modal-header"><div class="modal-title" id="mt5-sheet-title">MT5</div><button class="modal-close" onclick="document.getElementById(\'mt5-sheet\').classList.remove(\'active\')">×</button></div><div class="modal-body" id="mt5-sheet-body"></div></div></div>';
@@ -112,7 +112,7 @@ window.renderMT5Import=async function(force){
   ensureUI();var root=document.getElementById('mt5-import-root');if(!root)return;
   if(S.loaded&&!force){paintMT5(root);return;}
   // Paint controls immediately; network data is loaded afterwards.
-  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="requestMT5Import('latest')" style="width:100%;padding:14px;margin:8px 0;">最終同期以降を取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="toggle-btn" onclick="requestMT5Import(90)">過去90日を再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
+  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="requestMT5Import("latest")" style="width:100%;padding:14px;margin:8px 0;">最終同期以降を取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="toggle-btn" onclick="requestMT5Import(90)">過去90日を再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
   await new Promise(function(resolve){requestAnimationFrame(function(){resolve();});});
   try{
     var rs=await Promise.all([gasGet('getMT5ImportDashboard')]);
