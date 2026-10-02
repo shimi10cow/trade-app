@@ -89,7 +89,7 @@ window.requestMT5Import=async function(days){
   }catch(e){hideLoader();showToast('⚠️ '+e.message);}
 };
 window.mt5Adopt=async function(i){var g=S.groups.filter(function(x){return x.pending&&x.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});})[i];if(!g)return;try{showLoader();await gasPost({action:'adoptMT5Trade',executionIds:g.ids,options:{}});hideLoader();showToast('記録しました');renderMT5Import();}catch(e){hideLoader();showToast('⚠️ '+e.message);}};
-async function status(i,s){var a=S.groups.filter(function(x){return x.pending;})[i];if(!a)return;try{await gasPost({action:'setMT5ImportStatus',executionIds:a.ids,status:s});showToast(s+'にしました');renderMT5Import();}catch(e){showToast('⚠️ '+e.message);}}
+async function status(i,s){var a=S.groups.filter(function(x){return x.pending&&x.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});})[i];if(!a)return;try{await gasPost({action:'setMT5ImportStatus',executionIds:a.ids,status:s});showToast(s+'にしました');renderMT5Import();}catch(e){showToast('⚠️ '+e.message);}}
 window.mt5Hold=function(i){status(i,'保留')};window.mt5Exclude=function(i){status(i,'除外')};
 document.addEventListener('DOMContentLoaded',function(){ensureUI();});
 })();
