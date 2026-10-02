@@ -683,7 +683,7 @@ function openRecordShortcut(kind) {
     state[key] = false;
     localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
   } catch (_) {}
-  requestAnimationFrame(() => section.scrollIntoView({ behavior: 'auto', block: 'start' }));
+  requestAnimationFrame(() => { section.scrollIntoView({ behavior: 'auto', block: 'start' }); window.scrollBy(0, -96); });
 }
 
 function setupEventListeners() {
@@ -1003,6 +1003,42 @@ function closeEntryModal() {
   document.getElementById('modal-entry').classList.remove('active');
   App.state.planContext = null; // キャンセル時はプランを残す（クリアは保存成功後のみ）
 }
+
+function openMT5EntryModal(mt5) {
+  openEntryModal(false);
+  App.state.mt5PendingImport = mt5 || null;
+  if (!mt5) return;
+  const set = (id, value) => { const el=document.getElementById(id); if(el && value!==undefined && value!==null && value!=='') el.value=value; };
+  const localParts = value => {
+    if (!value) return {date:'',time:''};
+    const d=new Date(value);
+    if (isNaN(d.getTime())) return {date:'',time:''};
+    return {
+      date:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),
+      time:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')
+    };
+  };
+  const en=localParts(mt5.entryTime), ex=localParts(mt5.exitTime);
+  const pairSel=document.getElementById('ne-pair');
+  if(pairSel){
+    let opt=Array.from(pairSel.options).find(o=>String(o.value).toUpperCase()===String(mt5.pair||'').toUpperCase());
+    if(!opt && mt5.pair){ opt=new Option(mt5.pair,mt5.pair); pairSel.add(opt); }
+    pairSel.value=opt?opt.value:'';
+    autoLoadPairInfo('ne',true);
+  }
+  document.querySelectorAll('#ne-dir button').forEach(b=>{
+    b.classList.remove('active');
+    const txt=b.textContent.toUpperCase();
+    if((mt5.direction==='BUY'&&txt.includes('BUY'))||(mt5.direction==='SELL'&&txt.includes('SELL'))) b.classList.add('active');
+  });
+  set('ne-date',en.date); set('ne-time',en.time); set('ne-exit-time',ex.time);
+  set('ne-entry-price',mt5.entryPrice); set('ne-exit-price',mt5.exitPrice);
+  set('ne-lot',mt5.lot); set('ne-pips',mt5.pips);
+  const title=document.querySelector('#modal-entry .modal-title');
+  if(title){title.textContent='MT5トレードを記録';title.style.color='#38bdf8';}
+  calculateEntryScore();
+}
+window.openMT5EntryModal=openMT5EntryModal;
 
 function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
   const sel = document.getElementById(`${prefix}-pair`);
@@ -5146,7 +5182,7 @@ async function submitEntryData() {
       'Lot': document.getElementById('ne-lot').value,
       'エントリー時メモ': document.getElementById('ne-memo').value,
       '事前メモ': document.getElementById('ne-pre-memo')?.textContent?.replace('(ペアを選択すると表示されます)', '').replace('(事前メモなし)', '').trim() || '',
-      'ステータス': App.state.isMissedEntry ? '保有中（見逃し）' : '保有中',
+      'ステータス': App.state.mt5PendingImport?.closed ? '決済' : (App.state.isMissedEntry ? '保有中（見逃し）' : '保有中'),
     };
 
     // グリッドボタン（トレンド方向/MA条件/エントリー根拠）
@@ -5211,6 +5247,14 @@ async function submitEntryData() {
     const res = await gasPostQueued({ action: 'saveEntry', data: entryData }, 'エントリー記録: ' + pairName);
 
     if (!res.success) throw new Error(res.error || '保存に失敗しました');
+
+    // MT5候補から開いた場合は、手入力内容を保存したEntryへ約定を紐付ける。
+    if (App.state.mt5PendingImport && !res.queued && res.entryId) {
+      const mt5Pending = App.state.mt5PendingImport;
+      const linked = await gasPost({ action:'linkMT5ToEntry', executionIds:mt5Pending.executionIds || [], entryId:res.entryId });
+      if (!linked.success) throw new Error(linked.error || 'MT5約定の紐付けに失敗しました');
+      App.state.mt5PendingImport = null;
+    }
 
     closeEntryModal();
     // プラン経由なら、保存成功後にペアのプラン欄をクリア
