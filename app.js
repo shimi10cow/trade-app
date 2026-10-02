@@ -5882,7 +5882,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 }
 
 async function unlinkCurrentMT5Trade() {
-  const idx=App.state.currentTradeIndex;
+  const idx=App.state.activeTradeIndex;
   const t=App.data.entries[idx];
   if(!t||!t.EntryID)return;
   if(!confirm('MT5との紐付けを解除して未確認へ戻しますか？\n手入力したTrade自体は残ります。'))return;
