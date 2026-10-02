@@ -37,6 +37,18 @@ def side_from_deal(d):
     if t==mt5.DEAL_TYPE_SELL:return "SELL"
     return ""
 
+def fetch_current_account(request):
+    if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
+    try:
+        a=mt5.account_info()
+        if not a:raise RuntimeError("MT5 account_info unavailable")
+        account=str(a.login);server=str(getattr(a,"server","") or "")
+        gas_post("updateMT5ImportRequest",data={"RequestID":request.get("RequestID",""),"Status":"DONE","Account":account,"Server":server,"Message":"ACCOUNT_INFO"})
+        logging.info("MT5 account info account=%s server=%s",account,server)
+        return {"account":account,"server":server}
+    finally:
+        mt5.shutdown()
+
 def import_current_account(request):
     if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
     try:
@@ -96,7 +108,7 @@ def run():
                 rid=str(req.get("RequestID",""))
                 gas_post("updateMT5ImportRequest",data={"RequestID":rid,"Status":"RUNNING","Message":""})
                 try:
-                    import_current_account(req)
+                    fetch_current_account(req) if str(req.get("Mode","")).upper()=="ACCOUNT" else import_current_account(req)
                 except Exception as e:
                     gas_post("updateMT5ImportRequest",data={"RequestID":rid,"Status":"ERROR","Message":str(e)[:1000]})
                     raise
