@@ -35,6 +35,7 @@ const GAS_ACTIONS = {
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
   getMT5ImportStatus: () => getMT5ImportStatus(),
+  getMT5ImportDashboard: () => getMT5ImportDashboard(),
 };
 
 function doGet(e) {
@@ -129,6 +130,10 @@ function doPost(e) {
     result = saveMT5ImportBatch(body.requestId, body.account, body.server, body.data);
   } else if (action === 'setMT5ImportStatus') {
     result = setMT5ImportStatus(body.executionIds, body.status);
+  } else if (action === 'linkMT5ToEntry') {
+    result = linkMT5ToEntry(body.executionIds, body.entryId);
+  } else if (action === 'restoreMT5Import') {
+    result = setMT5ImportStatus(body.executionIds, '未確認');
   } else if (action === 'adoptMT5Trade') {
     result = adoptMT5Trade(body.executionIds, body.options || {});
   } else if (action === 'splitMT5Trade') {
@@ -1634,4 +1639,23 @@ function autoAttachMT5Continuations_(){
     touched.forEach(id=>{const rr=fresh.filter(r=>String(r.EntryID)===String(id));if(rr.length){const group=rr[0].TradeGroupID||'';adoptMT5Trade(rr.map(r=>r.ExecutionID),{entryId:id,tradeGroupId:group});}});
   }
   return {attached:attached};
+}
+
+function getMT5ImportDashboard(){
+  ensureEASheets(); ensureMT5ImportSheet_();
+  const exec=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.Source||'')==='MT5-MANUAL');
+  const req=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')))[0]||{};
+  const entries=getEntries().filter(e=>!e.MT5SyncKey && !/EA/i.test(String(e.Source||e.TradeType||''))).slice(-250);
+  return {executions:exec,status:req,manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
+}
+function linkMT5ToEntry(executionIds,entryId){
+  if(!entryId)return {success:false,error:'EntryID required'};
+  const entries=getEntries(),e=entries.find(x=>String(x.EntryID)===String(entryId));
+  if(!e)return {success:false,error:'Entry not found'};
+  const rows=mt5RowsByIds_(executionIds);
+  if(!rows.length)return {success:false,error:'No executions'};
+  const existing=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.EntryID)===String(entryId));
+  const allIds=Array.from(new Set(existing.concat(rows).map(r=>String(r.ExecutionID)).filter(Boolean)));
+  const group=String(e.TradeGroupID||('MANUAL-'+Utilities.getUuid().substring(0,12)));
+  return adoptMT5Trade(allIds,{entryId:String(entryId),tradeGroupId:group});
 }
