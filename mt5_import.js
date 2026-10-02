@@ -100,7 +100,7 @@ window.renderMT5Import=async function(force){
     var d=rs[0].data||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.groups=buildGroups(S.rows);S.loaded=true;
   }catch(e){root.innerHTML='<div class="section"><div style="color:#ef4444;padding:16px;">'+esc(e.message)+'</div></div>';return;}
 function paintMT5(root){
-  var st=S.status||{},acct=st.Account?('口座 '+esc(st.Account)+(st.Server?' · '+esc(st.Server):'')):'MT5接続待ち';
+  var st=S.status||{},acct=(S.accountInfo&&S.accountInfo.Account)?('口座 '+esc(S.accountInfo.Account)+(S.accountInfo.Server?' · '+esc(S.accountInfo.Server):'')):'口座情報未取得';
   var pending=S.groups.filter(function(g){return g.pending&&g.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});});
   var hold=S.groups.filter(function(g){return g.rows.some(function(r){return r.ImportStatus==='保留';});}).length;var excluded=S.groups.filter(function(g){return g.rows.some(function(r){return r.ImportStatus==='除外';});}).length;
   var cards=pending.map(function(g,idx){
@@ -111,7 +111,7 @@ function paintMT5(root){
       '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;margin-top:10px"><button class="ea-btn on" onclick="mt5Review('+idx+')">記録する</button><button class="ea-btn" onclick="mt5Hold('+idx+')">保留</button><button class="ea-btn" onclick="mt5Exclude('+idx+')">除外</button></div>'+(g.prevEntryId?'<button class="ea-btn" style="width:100%;margin-top:6px;border-color:#f59e0b;color:#f59e0b" onclick="mt5AdoptToPrevious('+idx+')">↩ 前のTradeに追加</button>':'')+'<button class="ea-btn" style="width:100%;margin-top:6px" onclick="mt5ChooseExisting('+idx+')">既存の手入力Tradeに紐付け</button><button class="ea-btn" style="width:100%;margin-top:6px" onclick="mt5ShowExecutions('+idx+')">約定 '+g.ids.length+'件を見る</button></div>';
   }).join('');
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
-    '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">最終同期: '+esc(st.UpdatedAt?localDT(st.UpdatedAt):'未同期')+'</div>'+
+    '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><button class="ea-btn" style="width:100%;margin-top:9px" onclick="getMT5AccountInfo()">口座情報を取得</button><div style="font-size:11px;color:#64748b;margin-top:7px">最終同期: '+esc(st.UpdatedAt?localDT(st.UpdatedAt):'未同期')+'</div>'+
     '<button class="ea-save" style="margin-top:12px" onclick="requestMT5Import('latest')">最終同期以降を取得</button>'+
     '<div style="display:flex;gap:6px;margin-top:7px"><button class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">過去90日を再取得</button></div></div>'+
     '<div style="display:flex;gap:8px;margin:12px 0;font-size:11px;color:#94a3b8"><span>新規 '+pending.length+'</span><span>保留 '+hold+'</span></div>'+
@@ -119,6 +119,27 @@ function paintMT5(root){
 
 }
   paintMT5(root);
+};
+window.getMT5AccountInfo=async function(){
+  try{
+    showLoader();
+    var r=await gasPost({action:'requestMT5Import',data:{Mode:'ACCOUNT',Days:1}});
+    if(!r.success)throw new Error(r.error||'口座情報取得を開始できません');
+    var tries=0;
+    while(tries++<12){
+      await new Promise(function(resolve){setTimeout(resolve,500);});
+      var s=await gasGet('getMT5ImportStatus');
+      var st=s.data||s||{};
+      if(st.RequestID===r.requestId&&st.Status==='DONE'){
+        S.accountInfo={Account:st.Account||'',Server:st.Server||''};
+        paintMT5(document.getElementById('mt5-import-root'));
+        showToast('口座情報を取得しました');
+        return;
+      }
+      if(st.RequestID===r.requestId&&st.Status==='ERROR')throw new Error(st.Message||'口座情報を取得できません');
+    }
+    throw new Error('口座情報の取得がタイムアウトしました');
+  }catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}
 };
 window.requestMT5Import=async function(days){
   try{showLoader();var latest=days==='latest',payload=latest?{Days:30,Since:(S.status&&S.status.UpdatedAt)||''}:{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload});showToast('MT5取得を依頼しました');hideLoader();
