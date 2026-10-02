@@ -1440,6 +1440,7 @@ function saveEAError(data){
 function saveAppSettings(data){
   ensureEASheets(); data=data||{};
   Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')}));
+  try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
   return {success:true};
 }
 function getHybridConfig(){
