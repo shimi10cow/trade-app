@@ -5581,7 +5581,8 @@ function openTradeDetailFromHistory(index) {
     dateFrom: document.getElementById('hist-date-from')?.value || '',
     dateTo: document.getElementById('hist-date-to')?.value || '',
     status: document.getElementById('hist-status')?.value || 'all',
-    baseFilter: App.state.historyBaseFilter || null
+    baseFilter: App.state.historyBaseFilter || null,
+    scrollTop: document.getElementById('modal-history')?.querySelector('.modal-body')?.scrollTop || 0
   };
   document.getElementById('modal-history').classList.remove('active');
   openTradeDetail(index, false, true);
@@ -5933,6 +5934,8 @@ function closeTradeDetail() {
       const statusEl = document.getElementById('hist-status');
       if (statusEl) statusEl.value = snap.status;
       renderHistoryList();
+      const hb=document.getElementById('modal-history')?.querySelector('.modal-body');
+      if(hb) requestAnimationFrame(()=>{ hb.scrollTop=snap.scrollTop||0; });
     } else {
       openHistoryModal();
     }
