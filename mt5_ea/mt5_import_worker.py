@@ -11,7 +11,7 @@ import MetaTrader5 as mt5
 
 DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec"
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
-POLL_SEC=max(2,int(os.getenv("MT5_IMPORT_POLL_SEC","3")))
+POLL_SEC=max(1,int(os.getenv("MT5_IMPORT_POLL_SEC","1")))
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 
 def gas_get(action,**params):
