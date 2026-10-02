@@ -5775,6 +5775,18 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   calculateRuleMetrics(); // Update Rule pips/profit
   calculateExitMetrics(); // Update M15/H1 exit profit displays
 
+  // MT5 sync summary: keep the normal detail UI intact and add only a compact read-only block.
+  let mt5Box=document.getElementById('td-mt5-sync-summary');
+  if(!mt5Box){
+    mt5Box=document.createElement('div');mt5Box.id='td-mt5-sync-summary';
+    const body=modal.querySelector('.modal-body'); if(body)body.insertBefore(mt5Box,body.firstChild);
+  }
+  if(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL'){
+    const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
+    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div></div>';
+    mt5Box.style.display='block';
+  } else mt5Box.style.display='none';
+
   // Apply read-only mode if requested (e.g. opened from similar trades)
   if (readOnly) {
     modal.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
