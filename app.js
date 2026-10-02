@@ -5852,7 +5852,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
   if(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL'){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
-    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div></div>';
+    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div><button type="button" onclick="unlinkCurrentMT5Trade()" style="margin-top:8px;background:transparent;border:1px solid #475569;color:#94a3b8;border-radius:7px;padding:6px 9px;font-size:11px;cursor:pointer">MT5紐付けを解除</button></div>';
     mt5Box.style.display='block';
   } else mt5Box.style.display='none';
 
@@ -5869,6 +5869,22 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   _tdm.classList.add('active');
   requestAnimationFrame(() => { _tdm.querySelector('.modal-body').scrollTop = 0; });
 }
+
+async function unlinkCurrentMT5Trade() {
+  const idx=App.state.currentTradeIndex;
+  const t=App.data.entries[idx];
+  if(!t||!t.EntryID)return;
+  if(!confirm('MT5との紐付けを解除して未確認へ戻しますか？\n手入力したTrade自体は残ります。'))return;
+  try{
+    showLoader();
+    const r=await gasPost({action:'unlinkMT5FromEntry',entryId:t.EntryID});
+    if(!r.success)throw new Error(r.error||'解除に失敗しました');
+    showToast('MT5紐付けを解除しました');
+    await loadData();
+    closeTradeDetail();
+  }catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}
+}
+window.unlinkCurrentMT5Trade=unlinkCurrentMT5Trade;
 
 function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
