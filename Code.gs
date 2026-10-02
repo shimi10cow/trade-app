@@ -1507,7 +1507,7 @@ function updateEAReplayRequest(data){
 // =============================================
 // MT5 manual import (read-only terminal -> raw executions -> adopted Entry)
 // =============================================
-const MT5_IMPORT_REQ_HEADERS=['RequestID','Days','Mode','Status','Account','Server','Message','CreatedAt','UpdatedAt'];
+const MT5_IMPORT_REQ_HEADERS=['RequestID','Days','Status','Account','Server','Message','CreatedAt','UpdatedAt','Mode'];
 
 function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS); }
 
