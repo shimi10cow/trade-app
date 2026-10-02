@@ -78,6 +78,8 @@ window.eaFlip=function(id){var b=document.getElementById(id);if(!b)return;b.clas
 window.eaNotifyToggle=function(id){
  var map={'ea-notify-signal':['notifySignal','Signal'],'ea-notify-entry':['notifyEntry','Entry'],'ea-notify-exit':['notifyExit','Exit'],'ea-notify-error':['notifyError','Error']},x=map[id];if(!x)return;
  var s=load(),key=x[0];s[key]=!(s[key]!==false);store(s);renderEA();
+ // Persist notification changes immediately so closing/reloading the app cannot revert them.
+ gasPost({action:'saveAppSettings',data:{[key]:s[key]?'ON':'OFF'}}).then(function(r){if(r&&r.success===false)throw new Error(r.error||'save failed');_hydratedAt=0;}).catch(function(){if(window.showToast)showToast('通知設定の保存に失敗しました');});
 };
 window.eaGlobal=function(v){var s=load();s.globalEntry=!!v;store(s);renderEA();};
 window.eaAllSignals=function(v){var s=load();s.allSignals=!!v;store(s);renderEA();};
