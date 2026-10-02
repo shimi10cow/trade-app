@@ -75,7 +75,7 @@ window.renderMT5Import=async function(){
     return '<div class="ea-card" style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(g.pair)+' '+esc(g.dir)+'</b><span class="badge">'+(g.open>0?'保有中':'決済')+'</span></div>'+
       '<div style="font-size:11px;color:#94a3b8;margin-top:6px">'+vol.toFixed(2)+' lot · 約定 '+(entries.length+exits.length)+'件'+(sw?' · Swap '+sw.toFixed(0):'')+'</div>'+
       (g.reentry?'<div style="font-size:11px;color:#f59e0b;margin-top:5px">↩ 24時間以内の再エントリー候補</div>':'')+
-      '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;margin-top:10px"><button class="ea-btn on" onclick="mt5Adopt('+idx+')">記録する</button><button class="ea-btn" onclick="mt5Hold('+idx+')">保留</button><button class="ea-btn" onclick="mt5Exclude('+idx+')">除外</button></div></div>';
+      '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;margin-top:10px"><button class="ea-btn on" onclick="mt5Adopt('+idx+')">記録する</button><button class="ea-btn" onclick="mt5Hold('+idx+')">保留</button><button class="ea-btn" onclick="mt5Exclude('+idx+')">除外</button></div>'+(g.prevEntryId?'<button class="ea-btn" style="width:100%;margin-top:6px;border-color:#f59e0b;color:#f59e0b" onclick="mt5AdoptToPrevious('+idx+')">↩ 前のTradeに追加</button>':'')+'</div>';
   }).join('');
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
     '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">最終同期: '+esc(st.UpdatedAt||'未同期')+'</div>'+
@@ -89,8 +89,8 @@ window.requestMT5Import=async function(days){
     var tries=0,timer=setInterval(async function(){tries++;try{var s=await gasGet('getMT5ImportStatus'),d=s.data||{};if(d.Status==='DONE'||d.Status==='ERROR'||tries>40){clearInterval(timer);if(d.Status==='ERROR')showToast('⚠️ '+(d.Message||'MT5取得エラー'));renderMT5Import();}}catch(e){}},1500);
   }catch(e){hideLoader();showToast('⚠️ '+e.message);}
 };
-window.mt5Adopt=async function(i){var g=S.groups.filter(function(x){return x.pending&&x.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});})[i];if(!g)return;try{showLoader();await gasPost({action:'adoptMT5Trade',executionIds:g.ids,options:{}});hideLoader();showToast('記録しました');renderMT5Import();}catch(e){hideLoader();showToast('⚠️ '+e.message);}};
-async function status(i,s){var a=S.groups.filter(function(x){return x.pending&&x.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});})[i];if(!a)return;try{await gasPost({action:'setMT5ImportStatus',executionIds:a.ids,status:s});showToast(s+'にしました');renderMT5Import();}catch(e){showToast('⚠️ '+e.message);}}
+function visiblePending(){return S.groups.filter(function(x){return x.pending&&x.rows.some(function(r){return r.ImportStatus!=='除外'&&r.ImportStatus!=='保留';});});}\nwindow.mt5Adopt=async function(i){var g=visiblePending()[i];if(!g)return;try{showLoader();await gasPost({action:'adoptMT5Trade',executionIds:g.ids,options:{}});hideLoader();showToast('記録しました');renderMT5Import();}catch(e){hideLoader();showToast('⚠️ '+e.message);}};\nwindow.mt5AdoptToPrevious=async function(i){var g=visiblePending()[i];if(!g||!g.prevEntryId)return;try{showLoader();await gasPost({action:'adoptMT5Trade',executionIds:g.ids,options:{entryId:g.prevEntryId,tradeGroupId:g.prevGroupId}});hideLoader();showToast('前のTradeに追加しました');renderMT5Import();}catch(e){hideLoader();showToast('⚠️ '+e.message);}};
+async function status(i,s){var a=visiblePending()[i];if(!a)return;try{await gasPost({action:'setMT5ImportStatus',executionIds:a.ids,status:s});showToast(s+'にしました');renderMT5Import();}catch(e){showToast('⚠️ '+e.message);}}
 window.mt5Hold=function(i){status(i,'保留')};window.mt5Exclude=function(i){status(i,'除外')};
 document.addEventListener('DOMContentLoaded',function(){ensureUI();});
 })();
