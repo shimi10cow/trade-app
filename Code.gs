@@ -1645,10 +1645,14 @@ function autoAttachMT5Continuations_(){
 
 function getMT5ImportDashboard(){
   ensureEASheets(); ensureMT5ImportSheet_();
+  const cache=CacheService.getScriptCache(),key='mt5_import_dashboard_v1',hit=cache.get(key);
+  if(hit){try{return JSON.parse(hit);}catch(e){}}
   const exec=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.Source||'')==='MT5-MANUAL');
   const req=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')))[0]||{};
   const entries=getEntries().filter(e=>!e.MT5SyncKey && !/EA/i.test(String(e.Source||e.TradeType||''))).slice(-250);
-  return {executions:exec,status:req,manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
+  const result={executions:exec,status:req,manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
+  try{cache.put(key,JSON.stringify(result),30);}catch(e){}
+  return result;
 }
 function linkMT5ToEntry(executionIds,entryId){
   if(!entryId)return {success:false,error:'EntryID required'};
