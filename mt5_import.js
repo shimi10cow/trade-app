@@ -81,20 +81,13 @@ window.openRecordShortcut=function(kind){
   var s=document.getElementById('screen-gallery');if(!s)return;s.classList.add('active');
   if(typeof renderGallery==='function')renderGallery();
   if(typeof renderIdeas==='function')renderIdeas();
-  var key=kind==='memo'?'g-memo':'g-gallery';
-  var el=document.querySelector('[data-collapse-key="'+key+'"]');
-  if(el){
-    el.classList.remove('collapsed');
-    try{
-      var state=JSON.parse(localStorage.getItem('analysisCollapsed_v1')||'{}');
-      state[key]=false;
-      localStorage.setItem('analysisCollapsed_v1',JSON.stringify(state));
-    }catch(_){}
-    requestAnimationFrame(function(){
-      var top=el.offsetTop;window.scrollTo({top:Math.max(0,top-8),behavior:'auto'});
-      setTimeout(function(){var y=el.getBoundingClientRect().top+window.scrollY-8;window.scrollTo({top:Math.max(0,y),behavior:'auto'});},60);
-    });
-  }
+  var memo=s.querySelector('[data-collapse-key="g-memo"]'),gallery=s.querySelector('[data-collapse-key="g-gallery"]');
+  var target=kind==='memo'?memo:gallery,other=kind==='memo'?gallery:memo;
+  if(target)target.style.display='block';
+  if(other)other.style.display='none';
+  if(target)target.classList.remove('collapsed');
+  window.scrollTo({top:0,behavior:'auto'});
+  requestAnimationFrame(function(){window.scrollTo({top:0,behavior:'auto'});setTimeout(function(){window.scrollTo({top:0,behavior:'auto'});},80);});
 };
 function paintMT5(root){
   var st=S.status||{},acct=(S.accountInfo&&S.accountInfo.Account)?('口座 '+esc(S.accountInfo.Account)+(S.accountInfo.Server?' · '+esc(S.accountInfo.Server):'')):'口座情報未取得';
