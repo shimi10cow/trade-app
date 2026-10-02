@@ -68,6 +68,7 @@ function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now(
 function hydrateFastCache(){
   var x=readFastCache();
   if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
+  if(Array.isArray(x.calendar?.data?.events)&&x.calendar.data.events.length){App.data.calendar=x.calendar.data.events;App.data.calendarIsNextWeek=!!x.calendar.data.isNextWeek;App.state.calendarError='';}
 }
 
 // ---- オフライン保存キュー (IndexedDB) ----
@@ -1096,10 +1097,10 @@ async function loadData() {
     // 経済指標カレンダー（失敗しても他機能に影響なし）
     gasGet('getCalendar').then(res => {
       const data = res.data || {};
-      App.data.calendar = data.events || [];
-      App.data.calendarIsNextWeek = !!data.isNextWeek;
-      // GAS未再デプロイ（Unknown action）やフェッチ失敗を画面に出す
-      App.state.calendarError = data.error || (res.success === false ? (res.error || '取得失敗') : '');
+      var fresh=data.events || [];
+      if(fresh.length){App.data.calendar=fresh;App.data.calendarIsNextWeek=!!data.isNextWeek;writeFastCache('calendar',{events:fresh,isNextWeek:!!data.isNextWeek});}
+      // Keep last-good data visible on transient upstream/GAS failures.
+      App.state.calendarError = App.data.calendar.length ? '' : (data.error || (res.success === false ? (res.error || '取得失敗') : ''));
       renderWeekEvents();
       renderTodayEvents();
     }).catch((e) => {
