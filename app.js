@@ -762,7 +762,12 @@ function switchTab(tabId) {
   document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
 
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(`screen-${tabId}`).classList.add('active');
+  const targetScreen = document.getElementById(`screen-${tabId}`);
+  if (!targetScreen) {
+    console.warn('Screen not found:', tabId);
+    return;
+  }
+  targetScreen.classList.add('active');
 
   App.state.currentTab = tabId;
 
