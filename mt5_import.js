@@ -36,11 +36,14 @@ function buildGroups(rows){
     else groups.push({server:p.server,account:p.account,pair:p.pair,dir:p.dir,start:p.start,end:p.end,open:p.open,parts:[p],rows:p.rows.slice()});
   });
   groups.forEach(function(g,i){
-    var prev=groups.slice(0,i).reverse().find(function(x){return x.account===g.account&&x.server===g.server&&x.pair===g.pair&&x.dir===g.dir&&x.end<=g.start;});
-    g.reentry=!!(prev&&g.start-prev.end<=24*3600*1000);
     g.ids=Array.from(new Set(g.rows.map(function(r){return r.ExecutionID}).filter(Boolean)));
     g.pending=g.rows.some(function(r){return !r.ImportStatus||r.ImportStatus==='未確認';});
     g.adoptedEntry=(g.rows.find(function(r){return r.EntryID;})||{}).EntryID||'';
+    g.groupId=(g.rows.find(function(r){return r.TradeGroupID;})||{}).TradeGroupID||'';
+    var prev=groups.slice(0,i).reverse().find(function(x){return x.account===g.account&&x.server===g.server&&x.pair===g.pair&&x.dir===g.dir&&x.end<=g.start;});
+    g.reentry=!!(prev&&g.start-prev.end<=24*3600*1000);
+    g.prevEntryId=g.reentry?(prev.adoptedEntry||''):'';
+    g.prevGroupId=g.reentry?(prev.groupId||''):'';
   });
   return groups;
 }
