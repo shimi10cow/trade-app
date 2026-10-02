@@ -667,15 +667,17 @@ function renderHistoryList() {
 // Navigation
 // ==========================================
 function openRecordShortcut(kind) {
-  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-  document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
   const screen = document.getElementById('screen-gallery');
   if (!screen) return;
+  // Fade the destination in so the shortcut does not feel like an abrupt screen jump.
+  screen.classList.add('record-shortcut-transition');
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
   screen.classList.add('active');
   if (typeof renderGallery === 'function') renderGallery();
   if (typeof renderIdeas === 'function') renderIdeas();
   const key = kind === 'memo' ? 'g-memo' : 'g-gallery';
-  const section = document.querySelector('[data-collapse-key="' + key + '"]');
+  const section = screen.querySelector('[data-collapse-key="' + key + '"]');
   if (!section) return;
   section.classList.remove('collapsed');
   try {
@@ -683,7 +685,15 @@ function openRecordShortcut(kind) {
     state[key] = false;
     localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
   } catch (_) {}
-  requestAnimationFrame(() => { section.scrollIntoView({ behavior: 'auto', block: 'start' }); window.scrollBy(0, -96); });
+  requestAnimationFrame(() => {
+    // Position the section heading immediately below the fixed app navigation.
+    const fixedTop = 104;
+    const y = window.scrollY + section.getBoundingClientRect().top - fixedTop;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    section.classList.add('record-shortcut-highlight');
+    setTimeout(() => section.classList.remove('record-shortcut-highlight'), 420);
+    setTimeout(() => screen.classList.remove('record-shortcut-transition'), 260);
+  });
 }
 
 function setupEventListeners() {
