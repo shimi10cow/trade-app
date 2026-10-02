@@ -73,3 +73,14 @@ Workflow:
 4. New trades appear as candidates. Existing adopted trades are recalculated from raw executions on re-sync.
 
 Raw executions remain in `MT5_Executions`. Existing manual fields (score, rationale, emotion, review, images) are not overwritten by MT5 refresh.
+
+
+### Desktop START / STOP
+
+Run this once after pulling the repository:
+
+`powershell -ExecutionPolicy Bypass -File .\mt5_ea\SETUP_MT5_LINK_DESKTOP.ps1`
+
+It creates two shortcuts on the Windows desktop:
+- `MT5連携 START` — starts only the read-only MT5 import worker; duplicate starts are ignored.
+- `MT5連携 STOP` — stops only the MT5 import worker. It does not stop MT5 or the EA.
