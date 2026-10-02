@@ -1,6 +1,10 @@
 (function(){
 'use strict';
 var S={rows:[],status:null,groups:[],manualEntries:[],selected:null};
+var MT5_CACHE_KEY='mt5ImportFast_v1';
+function readCache(){try{return JSON.parse(localStorage.getItem(MT5_CACHE_KEY)||'null');}catch(e){return null;}}
+function writeCache(d){try{localStorage.setItem(MT5_CACHE_KEY,JSON.stringify({at:Date.now(),data:d}));}catch(e){}}
+function applyDash(d){d=d||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.accountInfo=d.accountInfo||S.accountInfo;S.groups=buildGroups(S.rows);S.loaded=true;}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(x){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]});}
 function n(v){return Number(v)||0;}
 function t(r){return new Date(r.DealTime||r.EntryTime||0).getTime()||0;}
@@ -86,7 +90,10 @@ window.openRecordShortcut=function(kind){
       state[key]=false;
       localStorage.setItem('analysisCollapsed_v1',JSON.stringify(state));
     }catch(_){}
-    requestAnimationFrame(function(){el.scrollIntoView({behavior:'auto',block:'start'});});
+    requestAnimationFrame(function(){
+      var top=el.offsetTop;window.scrollTo({top:Math.max(0,top-8),behavior:'auto'});
+      setTimeout(function(){var y=el.getBoundingClientRect().top+window.scrollY-8;window.scrollTo({top:Math.max(0,y),behavior:'auto'});},60);
+    });
   }
 };
 function paintMT5(root){
@@ -111,14 +118,13 @@ function paintMT5(root){
 window.renderMT5Import=async function(force){
   ensureUI();var root=document.getElementById('mt5-import-root');if(!root)return;
   if(S.loaded&&!force){paintMT5(root);return;}
-  // Paint controls immediately; network data is loaded afterwards.
-  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="requestMT5Import("latest")" style="width:100%;padding:14px;margin:8px 0;">最終同期以降を取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="toggle-btn" onclick="requestMT5Import(90)">過去90日を再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
-  await new Promise(function(resolve){requestAnimationFrame(function(){resolve();});});
+  var cached=readCache();if(cached&&cached.data){applyDash(cached.data);paintMT5(root);}
+  else root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
+  await new Promise(function(resolve){requestAnimationFrame(resolve);});
   try{
-    var rs=await Promise.all([gasGet('getMT5ImportDashboard')]);
-    var d=rs[0].data||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.groups=buildGroups(S.rows);S.loaded=true;
-  }catch(e){root.innerHTML='<div class="section"><div style="color:#ef4444;padding:16px;">'+esc(e.message)+'</div></div>';return;}
-  paintMT5(root);
+    var rs=await Promise.all([gasGet('getMT5ImportDashboard')]),d=rs[0].data||{};
+    applyDash(d);writeCache(d);paintMT5(root);
+  }catch(e){if(!S.loaded)root.innerHTML='<div class="section"><div style="color:#ef4444;padding:16px;">'+esc(e.message)+'</div></div>';}
 };
 window.getMT5AccountInfo=async function(){
   try{
