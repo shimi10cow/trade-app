@@ -93,7 +93,7 @@ window.renderMT5Import=async function(force){
   ensureUI();var root=document.getElementById('mt5-import-root');if(!root)return;
   if(S.loaded&&!force){paintMT5(root);return;}
   // Paint controls immediately; network data is loaded afterwards.
-  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="requestMT5Import(30)" style="width:100%;padding:14px;margin:8px 0;">MT5から取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="requestMT5Import(7)">7日再取得</button><button class="toggle-btn" onclick="requestMT5Import(90)">90日再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
+  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="requestMT5Import('latest')" style="width:100%;padding:14px;margin:8px 0;">最終同期以降を取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="toggle-btn" onclick="requestMT5Import(90)">過去90日を再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
   await new Promise(function(resolve){requestAnimationFrame(function(){resolve();});});
   try{
     var rs=await Promise.all([gasGet('getMT5ImportDashboard')]);
@@ -112,8 +112,8 @@ function paintMT5(root){
   }).join('');
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
     '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">最終同期: '+esc(st.UpdatedAt?localDT(st.UpdatedAt):'未同期')+'</div>'+
-    '<button class="ea-save" style="margin-top:12px" onclick="requestMT5Import(30)">MT5から取得</button>'+
-    '<div style="display:flex;gap:6px;margin-top:7px"><button class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">7日再取得</button><button class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">90日再取得</button></div></div>'+
+    '<button class="ea-save" style="margin-top:12px" onclick="requestMT5Import('latest')">最終同期以降を取得</button>'+
+    '<div style="display:flex;gap:6px;margin-top:7px"><button class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">過去7日を再取得</button><button class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">過去90日を再取得</button></div></div>'+
     '<div style="display:flex;gap:8px;margin:12px 0;font-size:11px;color:#94a3b8"><span>新規 '+pending.length+'</span><span>保留 '+hold+'</span></div>'+
     (cards||'<div style="text-align:center;color:#64748b;padding:28px 8px;">確認が必要な新規Tradeはありません</div>')+'<div style="margin-top:16px"><button class="ea-btn" style="width:100%" onclick="mt5ShowArchived()">保留 '+hold+' / 除外 '+excluded+' を確認</button></div></div><div id="mt5-sheet" class="modal-overlay" onclick="if(event.target===this)this.classList.remove(\'active\')"><div class="modal-content" style="max-height:82vh"><div class="modal-header"><div class="modal-title" id="mt5-sheet-title">MT5</div><button class="modal-close" onclick="document.getElementById(\'mt5-sheet\').classList.remove(\'active\')">×</button></div><div class="modal-body" id="mt5-sheet-body"></div></div></div>';
 
@@ -121,7 +121,7 @@ function paintMT5(root){
   paintMT5(root);
 };
 window.requestMT5Import=async function(days){
-  try{showLoader();var r=await gasPost({action:'requestMT5Import',data:{Days:days}});showToast('MT5取得を依頼しました');hideLoader();
+  try{showLoader();var latest=days==='latest',payload=latest?{Days:30,Since:(S.status&&S.status.UpdatedAt)||''}:{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload});showToast('MT5取得を依頼しました');hideLoader();
     var tries=0,timer=setInterval(async function(){tries++;try{var s=await gasGet('getMT5ImportStatus'),d=s.data||{};if(d.Status==='DONE'||d.Status==='ERROR'||tries>40){clearInterval(timer);if(d.Status==='ERROR')showToast('⚠️ '+(d.Message||'MT5取得エラー'));renderMT5Import(true);}}catch(e){}},1500);
   }catch(e){hideLoader();showToast('⚠️ '+e.message);}
 };
