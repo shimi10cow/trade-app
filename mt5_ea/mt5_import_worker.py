@@ -45,7 +45,15 @@ def import_current_account(request):
         account=str(a.login);server=str(getattr(a,"server","") or "")
         days=max(1,min(3650,int(request.get("Days") or 30)))
         end=datetime.now(timezone.utc)+timedelta(minutes=5)
-        start=end-timedelta(days=days)
+        since=request.get("Since")
+        if since:
+            try:
+                start=datetime.fromisoformat(str(since).replace("Z","+00:00"))-timedelta(minutes=5)
+                if start.tzinfo is None:start=start.replace(tzinfo=timezone.utc)
+            except (ValueError,TypeError):
+                start=end-timedelta(days=days)
+        else:
+            start=end-timedelta(days=days)
         deals=list(mt5.history_deals_get(start,end) or [])
         positions=list(mt5.positions_get() or [])
         rows=[]
