@@ -23,7 +23,8 @@ function buildGroups(rows){
     if(!ev.length&&open.length)ev.push({time:t(open[0]),delta:n(open[0].Lot),row:open[0]});
     ev.sort(function(a,b){return a.time-b.time;});
     var start=ev.length?ev[0].time:0,end=ev.length?ev[ev.length-1].time:0,net=ev.reduce(function(s,x){return s+x.delta},0);
-    return {key:k,rows:a,server:a[0].Server,account:a[0].Account,pair:a[0].Pair,dir:dir,start:start,end:end,open:Math.max(0,net)};
+    var openVol=open.length?open.reduce(function(s,x){return s+n(x.Lot)},0):Math.max(0,net);
+    return {key:k,rows:a,server:a[0].Server,account:a[0].Account,pair:a[0].Pair,dir:dir,start:start,end:end,open:openVol};
   }).filter(Boolean).sort(function(a,b){return a.start-b.start;});
   var groups=[];
   pos.forEach(function(p){
