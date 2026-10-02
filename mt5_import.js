@@ -59,11 +59,24 @@ window.openRecordShortcut=function(kind){
   document.querySelectorAll('.screen').forEach(function(x){x.classList.remove('active')});
   var s=document.getElementById('screen-gallery');if(!s)return;s.classList.add('active');
   if(typeof renderGallery==='function')renderGallery();
-  setTimeout(function(){var key=kind==='memo'?'g-memo':'g-gallery',el=document.querySelector('[data-collapse-key="'+key+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},50);
+  if(typeof renderIdeas==='function')renderIdeas();
+  var key=kind==='memo'?'g-memo':'g-gallery';
+  var el=document.querySelector('[data-collapse-key="'+key+'"]');
+  if(el){
+    el.classList.remove('collapsed');
+    try{
+      var state=JSON.parse(localStorage.getItem('analysisCollapsed_v1')||'{}');
+      state[key]=false;
+      localStorage.setItem('analysisCollapsed_v1',JSON.stringify(state));
+    }catch(_){}
+    requestAnimationFrame(function(){el.scrollIntoView({behavior:'auto',block:'start'});});
+  }
 };
 window.renderMT5Import=async function(){
   ensureUI();var root=document.getElementById('mt5-import-root');if(!root)return;
-  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><div style="color:#64748b;font-size:12px;padding:16px 0;">読み込み中...</div></div>';
+  // Paint controls immediately; network data is loaded afterwards.
+  root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div><button class="action-btn" onclick="mt5Request(30)" style="width:100%;padding:14px;margin:8px 0;">MT5から取得</button><div style="display:flex;gap:8px;"><button class="toggle-btn" onclick="mt5Request(7)">7日再取得</button><button class="toggle-btn" onclick="mt5Request(90)">90日再取得</button></div><div style="color:#64748b;font-size:12px;padding:12px 0;">同期状況を読み込み中...</div></div>';
+  await new Promise(function(resolve){requestAnimationFrame(function(){resolve();});});
   try{
     var rs=await Promise.all([gasGet('getMT5ImportDashboard')]);
     var d=rs[0].data||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.groups=buildGroups(S.rows);
