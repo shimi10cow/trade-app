@@ -5851,8 +5851,10 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
   if(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL'){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
-    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div><button type="button" onclick="unlinkCurrentMT5Trade()" style="margin-top:8px;background:transparent;border:1px solid #475569;color:#94a3b8;border-radius:7px;padding:6px 9px;font-size:11px;cursor:pointer">MT5紐付けを解除</button></div>';
+    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div><button type="button" id="td-mt5-unlink-btn" style="position:relative;z-index:2;width:100%;margin-top:9px;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">MT5紐付けを解除</button></div>';
     mt5Box.style.display='block';
+    const unlinkBtn=document.getElementById('td-mt5-unlink-btn');
+    if(unlinkBtn){unlinkBtn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();unlinkCurrentMT5Trade();};}
   } else mt5Box.style.display='none';
 
   // Apply read-only mode if requested (e.g. opened from similar trades)
