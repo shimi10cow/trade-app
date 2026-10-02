@@ -666,6 +666,26 @@ function renderHistoryList() {
 // ==========================================
 // Navigation
 // ==========================================
+function openRecordShortcut(kind) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
+  const screen = document.getElementById('screen-gallery');
+  if (!screen) return;
+  screen.classList.add('active');
+  if (typeof renderGallery === 'function') renderGallery();
+  if (typeof renderIdeas === 'function') renderIdeas();
+  const key = kind === 'memo' ? 'g-memo' : 'g-gallery';
+  const section = document.querySelector('[data-collapse-key="' + key + '"]');
+  if (!section) return;
+  section.classList.remove('collapsed');
+  try {
+    const state = getCollapsedSections();
+    state[key] = false;
+    localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
+  } catch (_) {}
+  requestAnimationFrame(() => section.scrollIntoView({ behavior: 'auto', block: 'start' }));
+}
+
 function setupEventListeners() {
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
