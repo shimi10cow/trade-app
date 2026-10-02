@@ -812,57 +812,40 @@ function saveCalendarReminder(data){
 }
 
 function getCalendarEvents() {
-  // 土日（日本時間）は来週データを優先。取得失敗時は今週にフォールバック
-  const now = new Date();
-  const jstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const dow = jstHour.getUTCDay(); // 0=日, 6=土
-  const isWeekend = (dow === 0 || dow === 6);
-
-  const cache = CacheService.getScriptCache();
-
-  // 候補URLリスト（土日は来週→今週の順で試みる）
-  const candidates = isWeekend
-    ? [{ url: CALENDAR_URL_NEXTWEEK, cacheKey: CALENDAR_NEXT_CACHE_KEY, isNext: true  },
-       { url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }]
-    : [{ url: CALENDAR_URL_THISWEEK, cacheKey: CALENDAR_CACHE_KEY,      isNext: false }];
-
-  let lastErr = '';
-  for (const c of candidates) {
-    const cached = cache.get(c.cacheKey);
-    if (cached) {
-      try { return JSON.parse(cached); } catch(e) {}
-    }
-    try {
-      const res = UrlFetchApp.fetch(c.url, {
-        muteHttpExceptions: true,
-        followRedirects: true,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-          'Accept': 'application/json,text/plain,*/*',
-        },
-      });
-      const code = res.getResponseCode();
-      if (code !== 200) { lastErr = 'HTTP ' + code; continue; } // 次の候補へ
-      const raw = JSON.parse(res.getContentText());
-      const events = raw
-        .filter(e => e && e.date && e.country)
-        .map(e => ({
-          title:    String(e.title || ''),
-          currency: String(e.country || '').toUpperCase(),
-          datetime: Utilities.formatDate(new Date(e.date), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
-          impact:   String(e.impact || ''),
-        }))
-        .filter(e => e.impact === 'High' || e.impact === 'Medium');
-      const result = { events: events, isNextWeek: c.isNext };
-      try { cache.put(c.cacheKey, JSON.stringify(result), 21600); } catch(e) {}
-      return result;
-    } catch(e) {
-      lastErr = (e && e.message) || String(e);
-      continue; // ネットワークエラーは次の候補へ
+  const now=new Date(),jstHour=new Date(now.getTime()+9*60*60*1000),dow=jstHour.getUTCDay(),isWeekend=(dow===0||dow===6);
+  const cache=CacheService.getScriptCache(),props=PropertiesService.getScriptProperties(),staleKey='calendar_last_good_v2';
+  const candidates=isWeekend
+    ? [{url:CALENDAR_URL_NEXTWEEK,cacheKey:CALENDAR_NEXT_CACHE_KEY,isNext:true},{url:CALENDAR_URL_THISWEEK,cacheKey:CALENDAR_CACHE_KEY,isNext:false}]
+    : [{url:CALENDAR_URL_THISWEEK,cacheKey:CALENDAR_CACHE_KEY,isNext:false}];
+  let lastErr='';
+  for(const c of candidates){
+    const cached=cache.get(c.cacheKey);
+    if(cached){try{return JSON.parse(cached);}catch(e){}}
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const res=UrlFetchApp.fetch(c.url,{muteHttpExceptions:true,followRedirects:true,headers:{'User-Agent':'Mozilla/5.0','Accept':'application/json,text/plain,*/*'}});
+        const code=res.getResponseCode();if(code!==200){lastErr='HTTP '+code;continue;}
+        const raw=JSON.parse(res.getContentText());
+        if(!Array.isArray(raw)||!raw.length){lastErr='empty response';continue;}
+        const events=raw.filter(e=>e&&e.date&&e.country).map(e=>({title:String(e.title||''),currency:String(e.country||'').toUpperCase(),datetime:Utilities.formatDate(new Date(e.date),'Asia/Tokyo','yyyy-MM-dd HH:mm'),impact:String(e.impact||'')})).filter(e=>e.impact==='High'||e.impact==='Medium');
+        if(!events.length){lastErr='no calendar events';continue;}
+        const result={events:events,isNextWeek:c.isNext,stale:false};
+        try{cache.put(c.cacheKey,JSON.stringify(result),21600);}catch(e){}
+        try{props.setProperty(staleKey,JSON.stringify({savedAt:Date.now(),result:result}));}catch(e){}
+        return result;
+      }catch(e){lastErr=(e&&e.message)||String(e);}
+      if(attempt===0)Utilities.sleep(350);
     }
   }
-
-  return { error: '指標データの取得に失敗しました' + (lastErr ? '（' + lastErr + '）' : ''), events: [], isNextWeek: isWeekend };
+  // Upstream occasionally fails. Keep the last successfully fetched calendar instead of blanking the app.
+  try{
+    const saved=JSON.parse(props.getProperty(staleKey)||'null');
+    if(saved&&saved.result&&Array.isArray(saved.result.events)&&saved.result.events.length){
+      const age=Date.now()-Number(saved.savedAt||0);
+      if(age<7*24*60*60*1000)return Object.assign({},saved.result,{stale:true,warning:'最新データの取得に失敗したため直近の取得済みデータを表示しています'});
+    }
+  }catch(e){}
+  return {error:'指標データの取得に失敗しました'+(lastErr?'（'+lastErr+'）':''),events:[],isNextWeek:isWeekend};
 }
 
 // =============================================
