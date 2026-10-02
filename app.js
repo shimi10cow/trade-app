@@ -771,6 +771,7 @@ function switchTab(tabId) {
   if (tabId === 'pairs') renderPairs();
   if (tabId === 'analysis') renderAnalysis();
   if (tabId === 'gallery') renderGallery();
+  if (tabId === 'mt5' && typeof renderMT5Import === 'function') renderMT5Import();
 }
 
 function renderAnalysis() {
