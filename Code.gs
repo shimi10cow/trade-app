@@ -130,6 +130,8 @@ function doPost(e) {
     result = saveMT5ImportBatch(body.requestId, body.account, body.server, body.data);
   } else if (action === 'setMT5ImportStatus') {
     result = setMT5ImportStatus(body.executionIds, body.status);
+  } else if (action === 'deleteMT5ImportRows') {
+    result = deleteMT5ImportRows(body.executionIds);
   } else if (action === 'linkMT5ToEntry') {
     result = linkMT5ToEntry(body.executionIds, body.entryId);
   } else if (action === 'unlinkMT5FromEntry') {
