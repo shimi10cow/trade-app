@@ -354,7 +354,7 @@ function buildScoreGroups(containerId, prefix) {
 // ==========================================
 // Initialization
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => { hydrateCalendarReminderState();
   initServiceWorker();
   loadScoreConfig();
   loadMcConfig();
@@ -1637,6 +1637,14 @@ function checkEntryEventWarning() {
 function calendarEventKey(ev){return [ev.datetime,ev.currency,eventDisplayName(ev)].join('|');}
 function loadCalendarReminderState(){try{return JSON.parse(localStorage.getItem('calendarReminders_v1')||'{}');}catch(e){return {};}}
 function saveCalendarReminderState(x){localStorage.setItem('calendarReminders_v1',JSON.stringify(x));}
+async function hydrateCalendarReminderState(){
+ try{
+  const r=await gasGet('getCalendarReminders'),rows=(r&&r.data)||r||[];
+  if(!Array.isArray(rows))return;
+  const s={};rows.forEach(x=>{if(x&&x.EventKey)s[String(x.EventKey)]=String(x.Enabled||'').toUpperCase()==='ON';});
+  saveCalendarReminderState(s);renderWeekEvents();
+ }catch(e){}
+}
 window.toggleCalendarReminder=function(key){
  const ev=(App.data.calendar||[]).find(x=>calendarEventKey(x)===key);if(!ev)return;
  const s=loadCalendarReminderState(),on=!s[key];s[key]=on;saveCalendarReminderState(s);renderWeekEvents();
