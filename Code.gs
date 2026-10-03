@@ -1624,7 +1624,7 @@ function mt5Aggregate_(rows){
   const sortTime=a=>a.slice().sort((x,y)=>String(x.DealTime||x.EntryTime||'').localeCompare(String(y.DealTime||y.EntryTime||'')));
   const se=sortTime(entries.length?entries:positionRows),sx=sortTime(exits);
   return {Pair:first.Pair||'',Direction:dir,Account:first.Account||'',Server:first.Server||'',
-    EntryTime:(se[0]||{}).DealTime||(se[0]||{}).EntryTime||'',EntryPrice:wavg(entries,'DealPrice','DealVolume')||wavg(positionRows,'EntryPrice','Lot'),
+    EntryTime:(se[0]||{}).DealTime||(se[0]||{}).EntryTime||first.EntryTime||'',EntryPrice:wavg(entries,'DealPrice','DealVolume')||wavg(rows.filter(r=>Number(r.EntryPrice)>0),'EntryPrice','DealVolume')||wavg(positionRows,'EntryPrice','Lot')||Number(first.EntryPrice)||0,
     Lot:entryVol,OpenLot:open,ClosedLot:exitVol,ExitTime:(sx[sx.length-1]||{}).DealTime||'',ExitPrice:wavg(exits,'DealPrice','DealVolume'),
     Profit:sum(deals,'Profit'),Swap:sum(deals,'Swap'),SL:Number((positionRows[0]||{}).SL)||'',TP:Number((positionRows[0]||{}).TP)||'',
     Status:open>0?'OPEN':'CLOSED',EntryCount:entries.length||positionRows.length,ExitCount:exits.length};
