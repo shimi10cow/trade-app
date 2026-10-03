@@ -1814,11 +1814,30 @@ function adoptMT5Trade(executionIds,options){
   obj.EntryID=entryId; return {success:true,entryId:entryId,tradeGroupId:group,aggregate:a,entry:obj};
 }
 function splitMT5Trade(entryId,executionIds){
-  setMT5ImportStatus(executionIds,'未確認');
-  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),set=new Set((executionIds||[]).map(String));
-  const ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),ec=hs.indexOf('EntryID');
-  for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){sh.getRange(i+1,gc+1).clearContent();sh.getRange(i+1,ec+1).clearContent();}
-  return {success:true};
+  entryId=String(entryId||''); executionIds=(executionIds||[]).map(String).filter(Boolean);
+  if(!entryId||!executionIds.length)return {success:false,error:'EntryID and executions required'};
+  const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),set=new Set(executionIds);
+  const ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),ec=hs.indexOf('EntryID'),sc=hs.indexOf('ImportStatus');
+  const detached=[];
+  for(let i=1;i<vals.length;i++)if(String(vals[i][ec])===entryId&&set.has(String(vals[i][ic]))){
+    if(gc>=0)vals[i][gc]=''; if(ec>=0)vals[i][ec]=''; if(sc>=0)vals[i][sc]='未確認'; detached.push(i+1);
+  }
+  detached.forEach(r=>sh.getRange(r,1,1,hs.length).setValues([vals[r-1]]));
+  const remaining=vals.slice(1).filter(r=>String(r[ec])===entryId).map(r=>String(r[ic])).filter(Boolean);
+  if(remaining.length){
+    const current=getEntries().find(x=>String(x.EntryID)===entryId)||{};
+    const rr=adoptMT5Trade(remaining,{entryId:entryId,tradeGroupId:String(current.TradeGroupID||current.MT5SyncKey||'')});
+    if(!rr.success)return rr;
+  }else{
+    const current=getEntries().find(x=>String(x.EntryID)===entryId)||{};
+    if(current.MT5ManualBackup){
+      let restore={};try{restore=JSON.parse(String(current.MT5ManualBackup));}catch(e){}
+      Object.assign(restore,{TradeGroupID:'',MT5SyncKey:'',MT5Account:'',MT5Ticket:'',Source:'',TradeType:'',MT5ExecutionIDs:'',MT5LastSyncAt:'',MT5OpenLot:'',MT5ClosedLot:'',MT5EntryCount:'',MT5ExitCount:'',MT5ManualBackup:''});
+      updateEntry(entryId,restore);
+    }
+  }
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');CacheService.getScriptCache().remove(CACHE_KEY);}catch(e){}
+  return {success:true,detached:detached.length,remaining:remaining.length};
 }
 function mergeMT5Trades(entryIds){
   entryIds=(entryIds||[]).map(String); if(entryIds.length<2)return {success:false,error:'2 trades required'};
