@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v200';
+const CACHE_NAME = 'trade-app-v201';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -31,17 +31,10 @@ self.addEventListener('fetch', event => {
     url.pathname.endsWith('/ai_prompt.js');
 
   if (liveAsset) {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-store' })
-        .then(response => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
+    // Code/UI files must always come from the network. Keeping old JS as an
+    // offline fallback made deployments look successful while the PWA could
+    // silently execute stale code.
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
