@@ -5983,25 +5983,41 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 }
 
 async function unlinkCurrentMT5Trade() {
-  const idx=App.state.activeTradeIndex;
-  const t=App.data.entries[idx];
+  const idx=App.state.activeTradeIndex,t=App.data.entries[idx];
   if(!t||!t.EntryID)return;
-  const hasManualBackup=!!t.MT5ManualBackup;
-  const msg=hasManualBackup
-    ? 'MT5との紐付けを解除して未確認へ戻しますか？\n元の手入力Tradeは残り、MT5上書き前の値へ戻ります。'
-    : 'MT5との紐付けを解除して未確認へ戻しますか？\nMT5から作成したTradeなので、このTradeは履歴・保有一覧から削除されます。';
-  if(!confirm(msg))return;
   try{
     showLoader();
-    const r=await gasPost({action:'unlinkMT5FromEntry',entryId:t.EntryID});
-    if(!r.success)throw new Error(r.error||'解除に失敗しました');
-    showToast(r.deleted?'MT5 Tradeを履歴から外して未確認へ戻しました':(r.restored?'手入力Tradeを復元してMT5を未確認へ戻しました':'MT5紐付けを解除して未確認へ戻しました'));
-    // MT5タブのブラウザキャッシュも破棄し、未確認候補を即座に復活させる。
-    if(window.refreshMT5AfterUnlink)window.refreshMT5AfterUnlink().catch(()=>{});
-    await loadData();
-    closeTradeDetail();
-  }catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}
+    const r=await gasPost({action:'getMT5LinkedTradeGroups',entryId:t.EntryID});
+    hideLoader();
+    if(!r||r.success===false)throw new Error(r&&r.error||'紐付け情報を取得できません');
+    const gs=r.groups||[];
+    if(!gs.length){showToast('紐付いているMT5 Tradeがありません');return;}
+    const escHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const html='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">外したいMT5 Tradeを選択してください。外したTradeはMT5の未確認へ戻ります。</div>'+gs.map((g,i)=>
+      '<button type="button" style="width:100%;text-align:left;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;margin-bottom:8px;color:#e2e8f0" onclick="unlinkOneMT5Group('+i+')">'+
+      '<b>'+escHtml(g.pair)+' '+escHtml(g.direction)+'</b><span style="float:right;color:'+(Number(g.profit)>=0?'#10b981':'#ef4444')+'">'+(Number(g.profit)>=0?'+':'')+Math.round(Number(g.profit)||0).toLocaleString()+'円</span>'+
+      '<div style="font-size:11px;color:#94a3b8;margin-top:5px">'+escHtml(g.entryTime)+(g.exitTime?' → '+escHtml(g.exitTime):' · 保有中')+' · '+escHtml(g.positionCount)+'ポジション</div></button>'
+    ).join('');
+    App.state.mt5UnlinkGroups=gs;
+    if(window.openMT5UnlinkSheet)window.openMT5UnlinkSheet(html);
+    else {const sh=document.getElementById('mt5-sheet');if(sh){document.getElementById('mt5-sheet-title').textContent='MT5紐付け解除';document.getElementById('mt5-sheet-body').innerHTML=html;sh.classList.add('active');}}
+  }catch(e){hideLoader();showToast('⚠️ '+e.message);}
 }
+window.unlinkOneMT5Group=async function(i){
+  const idx=App.state.activeTradeIndex,t=App.data.entries[idx],g=(App.state.mt5UnlinkGroups||[])[i];
+  if(!t||!g)return;
+  if(!confirm(g.entryTime+' のMT5 Tradeだけ紐付け解除しますか？'))return;
+  try{
+    showLoader();
+    const r=await gasPost({action:'splitMT5Trade',entryId:t.EntryID,executionIds:g.executionIds});
+    if(!r||r.success===false)throw new Error(r&&r.error||'解除に失敗しました');
+    const sh=document.getElementById('mt5-sheet');if(sh)sh.classList.remove('active');
+    hideLoader();showToast('選択したMT5 Tradeだけ未確認へ戻しました');
+    if(window.refreshMT5AfterUnlink)window.refreshMT5AfterUnlink().catch(()=>{});
+    Promise.resolve().then(()=>loadData()).catch(()=>{});
+    closeTradeDetail();
+  }catch(e){hideLoader();showToast('⚠️ '+e.message);}
+};
 window.unlinkCurrentMT5Trade=unlinkCurrentMT5Trade;
 
 function closeTradeDetail() {
