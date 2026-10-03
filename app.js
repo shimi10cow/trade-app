@@ -5127,8 +5127,10 @@ function calcTimezone(timeStr) {
 
 function plannedPipSize_(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
-  if(pair.includes('JPY'))return 0.01;
+  // Non-FX instruments use one price unit as one app pip. Check these before JPY,
+  // otherwise BTCJPY/ETHJPY would incorrectly inherit the FX JPY pip size (0.01).
   if(/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(pair))return 1;
+  if(pair.includes('JPY'))return 0.01;
   return 0.0001;
 }
 function updatePlannedPrices_(prefix){
