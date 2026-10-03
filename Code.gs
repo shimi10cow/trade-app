@@ -1690,7 +1690,7 @@ function getMT5ImportDashboard(){
   if(hit){try{return JSON.parse(hit);}catch(e){}}
   const exec=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.Source||'')==='MT5-MANUAL');
   const reqs=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
-  const req=reqs[0]||{},acctReq=reqs.find(x=>x.Account)||{},lastSyncByAccount={};
+  const req=reqs[0]||{},acctReq=reqs.find(x=>x.Account&&String(x.Status||'').toUpperCase()==='DONE')||{},lastSyncByAccount={};
   reqs.forEach(x=>{const a=String(x.Account||'');if(!a||String(x.Mode||'IMPORT').toUpperCase()==='ACCOUNT'||String(x.Status||'').toUpperCase()!=='DONE'||lastSyncByAccount[a])return;lastSyncByAccount[a]=x.UpdatedAt||'';});
   const entries=getEntries().filter(e=>!e.MT5SyncKey && !/EA/i.test(String(e.Source||e.TradeType||''))).slice(-250);
   const result={executions:exec,status:req,accountInfo:acctReq.Account?{Account:String(acctReq.Account),Server:String(acctReq.Server||'')}:null,lastSyncByAccount:lastSyncByAccount,settings:getMT5ImportSettings(),manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
