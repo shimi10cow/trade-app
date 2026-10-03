@@ -1517,6 +1517,7 @@ function requestMT5Import(data){
   ensureEASheets(); ensureMT5ImportSheet_(); data=data||{};
   const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Mode:String(data.Mode||'IMPORT'),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',row);
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true,requestId:row.RequestID};
 }
 function getMT5ImportRequest(){
@@ -1535,6 +1536,7 @@ function updateMT5ImportRequest(data){
   if(!data.RequestID)return {success:false,error:'RequestID required'};
   data.UpdatedAt=new Date().toISOString();
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',data);
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true};
 }
 function saveMT5ImportBatch(requestId,account,server,rows){
