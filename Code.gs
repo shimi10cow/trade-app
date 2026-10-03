@@ -1753,7 +1753,7 @@ function adoptMT5Trade(executionIds,options){
     if(existing)return {success:true,entryId:existingId,tradeGroupId:String(existing.TradeGroupID||rows[0].TradeGroupID||''),entry:existing,reused:true};
   }
   const a=mt5Aggregate_(rows); if(!a.Pair||!a.Direction)return {success:false,error:'Cannot determine trade'};
-  ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','ExitPrice','ExitDate','ExitTime','Profit','損益','Swap','実取得pips','MT5ExecutionIDs','MT5LastSyncAt','MT5OpenLot','MT5ClosedLot','MT5EntryCount','MT5ExitCount','MT5ManualBackup']);
+  ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','EntryPrice','InitialSLPrice','TakeProfitPrice','ExitPrice','ExitDate','ExitTime','Profit','損益','Swap','実取得pips','MT5ExecutionIDs','MT5LastSyncAt','MT5OpenLot','MT5ClosedLot','MT5EntryCount','MT5ExitCount','MT5ManualBackup']);
   const group=String(options.tradeGroupId||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   const dt=x=>{if(!x)return {date:'',time:''};const d=new Date(x);return {date:Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd'),time:Utilities.formatDate(d,'Asia/Tokyo','HH:mm')}};
   const en=dt(a.EntryTime),ex=dt(a.ExitTime);
