@@ -146,8 +146,10 @@ window.requestMT5Import=async function(days){
   if(!(S.accountInfo&&S.accountInfo.Account)){try{var dash=await gasGet('getMT5ImportDashboard'),dd=dash.data||dash||{};if(dd.accountInfo&&dd.accountInfo.Account){applyDash(dd);writeCache(dd);paintMT5(document.getElementById('mt5-import-root'));}}catch(e){}}
   if(!(S.accountInfo&&S.accountInfo.Account)){showToast('⚠️ 先に口座情報を取得してください');return;}
   try{S.syncing=days;if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
+    // Count only trades that newly appear in the 未確認 list during this fetch.
+    var beforePending=new Set(visiblePending().map(function(g){return g.ids.slice().sort().join('|');}));
     var latest=days==='latest',acct=S.accountInfo&&S.accountInfo.Account?String(S.accountInfo.Account):'',since=acct&&S.lastSyncByAccount?S.lastSyncByAccount[acct]||'':'',payload=latest?(since?{Days:30,Since:since}:{Days:7}):{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload});if(!r.success)throw new Error(r.error||'MT5取得を開始できません');
-    for(var tries=1;tries<=40;tries++){await new Promise(function(resolve){setTimeout(resolve,750);});var s=await gasGet('getMT5ImportStatus'),d=s.data||s||{};if(d.RequestID!==r.requestId)continue;if(d.Status==='DONE'){var msg=String(d.Message||''),m=msg.match(/trades\s+(\d+)\s+\/\s+executions\s+(\d+)/i),label=m?('MT5取得完了：'+m[1]+'トレード'): 'MT5取得が完了しました';showToast(label);await renderMT5Import(true);return;}if(d.Status==='ERROR')throw new Error(d.Message||'MT5取得エラー');}
+    for(var tries=1;tries<=40;tries++){await new Promise(function(resolve){setTimeout(resolve,750);});var s=await gasGet('getMT5ImportStatus'),d=s.data||s||{};if(d.RequestID!==r.requestId)continue;if(d.Status==='DONE'){await renderMT5Import(true);var newCount=visiblePending().filter(function(g){return !beforePending.has(g.ids.slice().sort().join('|'));}).length;showToast(newCount>0?('新規 '+newCount+'トレードを取得しました'):'新しいトレードはありません');return;}if(d.Status==='ERROR')throw new Error(d.Message||'MT5取得エラー');}
     throw new Error('MT5取得がタイムアウトしました');
   }catch(e){showToast('⚠️ '+e.message);}finally{S.syncing=null;var b=document.getElementById(id);if(b){b.disabled=false;b.innerHTML=old;}}
 };
