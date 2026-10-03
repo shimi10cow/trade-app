@@ -139,6 +139,8 @@ function doPost(e) {
     result = deleteMT5ImportRows(body.executionIds);
   } else if (action === 'linkMT5ToEntry') {
     result = linkMT5ToEntry(body.executionIds, body.entryId);
+  } else if (action === 'getMT5LinkedTradeGroups') {
+    result = getMT5LinkedTradeGroups(body.entryId);
   } else if (action === 'unlinkMT5FromEntry') {
     result = unlinkMT5FromEntry(body.entryId);
   } else if (action === 'restoreMT5Import') {
@@ -1893,6 +1895,29 @@ function linkMT5ToEntry(executionIds,entryId){
   const allIds=Array.from(new Set(existing.concat(rows).map(r=>String(r.ExecutionID)).filter(Boolean)));
   const group=String(e.TradeGroupID||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   return adoptMT5Trade(allIds,{entryId:String(entryId),tradeGroupId:group});
+}
+function getMT5LinkedTradeGroups(entryId){
+  entryId=String(entryId||''); if(!entryId)return {success:false,error:'EntryID required'};
+  const rows=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.EntryID||'')===entryId);
+  if(!rows.length)return {success:true,groups:[]};
+  // PositionID is the safest MT5 unit. Nearby positions opened as one split
+  // entry are folded into one user-facing trade when their first entries are
+  // within the configured split window (default 6h).
+  const byPos={};
+  rows.forEach(r=>{const k=String(r.PositionID||r.Ticket||r.ExecutionID);(byPos[k]||(byPos[k]=[])).push(r);});
+  const parts=Object.keys(byPos).map(k=>{const rr=byPos[k],a=mt5Aggregate_(rr);return {key:k,rows:rr,a:a,time:new Date(a.EntryTime||0).getTime()||0};}).sort((x,y)=>x.time-y.time);
+  let splitHours=6;try{const st=getMT5ImportSettings();if(st&&isFinite(Number(st.splitEntryHours)))splitHours=Number(st.splitEntryHours);}catch(e){}
+  const gap=splitHours*3600000, groups=[];
+  parts.forEach(p=>{
+    let g=groups[groups.length-1];
+    if(!g||!g.time||!p.time||p.time-g.time>gap){g={time:p.time,parts:[]};groups.push(g);}
+    g.parts.push(p);
+  });
+  const dt=x=>{if(!x)return '';const d=new Date(x);return Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd HH:mm');};
+  return {success:true,groups:groups.map((g,i)=>{
+    const rr=[].concat.apply([],g.parts.map(p=>p.rows)),a=mt5Aggregate_(rr);
+    return {id:'linked-'+i,executionIds:rr.map(r=>String(r.ExecutionID)).filter(Boolean),positionCount:g.parts.length,entryTime:dt(a.EntryTime),exitTime:dt(a.ExitTime),entryPrice:a.EntryPrice||'',exitPrice:a.ExitPrice||'',lot:a.Lot||'',profit:(Number(a.Profit)||0)+(Number(a.Swap)||0),pair:mt5AppPair_(a.Pair),direction:a.Direction};
+  })};
 }
 function unlinkMT5FromEntry(entryId){
   if(!entryId)return {success:false,error:'EntryID required'};
