@@ -5895,12 +5895,16 @@ async function unlinkCurrentMT5Trade() {
   const idx=App.state.activeTradeIndex;
   const t=App.data.entries[idx];
   if(!t||!t.EntryID)return;
-  if(!confirm('MT5との紐付けを解除して未確認へ戻しますか？\n手入力したTrade自体は残ります。'))return;
+  const hasManualBackup=!!t.MT5ManualBackup;
+  const msg=hasManualBackup
+    ? 'MT5との紐付けを解除して未確認へ戻しますか？\n元の手入力Tradeは残り、MT5上書き前の値へ戻ります。'
+    : 'MT5との紐付けを解除して未確認へ戻しますか？\nMT5から作成したTradeなので、このTradeは履歴・保有一覧から削除されます。';
+  if(!confirm(msg))return;
   try{
     showLoader();
     const r=await gasPost({action:'unlinkMT5FromEntry',entryId:t.EntryID});
     if(!r.success)throw new Error(r.error||'解除に失敗しました');
-    showToast('MT5紐付けを解除しました');
+    showToast(r.deleted?'MT5 Tradeを履歴から外して未確認へ戻しました':(r.restored?'手入力Tradeを復元してMT5を未確認へ戻しました':'MT5紐付けを解除して未確認へ戻しました'));
     await loadData();
     closeTradeDetail();
   }catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}
