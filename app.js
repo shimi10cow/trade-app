@@ -5400,6 +5400,47 @@ function previewUploadImage(input, slot) {
   }
 }
 
+function setImageFileInput_(input,file,previewFn,slot){
+  if(!input||!file||!String(file.type||'').startsWith('image/'))return false;
+  try{var dt=new DataTransfer();dt.items.add(file);input.files=dt.files;}catch(e){return false;}
+  if(slot!==undefined)previewFn(input,slot);else previewFn(input);
+  return true;
+}
+function activeImageTarget_(){
+  var detail=document.getElementById('modal-trade-detail');
+  if(detail&&detail.classList.contains('active')){
+    var exit=document.getElementById('td-exit-image-upload'),entry=document.getElementById('td-entry-image-upload');
+    // Prefer an empty entry slot; if entry already exists and exit is available, use exit.
+    var entryPreview=document.getElementById('td-image-preview');
+    var hasEntry=entryPreview&&entryPreview.src&&entryPreview.style.display!=='none';
+    return hasEntry&&exit?{input:exit,fn:previewUploadImageTD}:{input:entry,fn:previewUploadEntryImageTD};
+  }
+  var entryModal=document.getElementById('modal-new-entry');
+  if(entryModal&&entryModal.classList.contains('active')){
+    var p1=document.getElementById('ne-image-preview'),i1=document.getElementById('ne-image-upload'),i2=document.getElementById('ne-image2-upload');
+    var has1=p1&&p1.src&&p1.style.display!=='none';
+    return has1?{input:i2,fn:previewUploadImage,slot:2}:{input:i1,fn:previewUploadImage,slot:1};
+  }
+  return null;
+}
+function acceptDesktopImage_(file){
+  var t=activeImageTarget_();if(!t)return false;
+  var ok=setImageFileInput_(t.input,file,t.fn,t.slot);
+  if(ok)showToast('画像を追加しました');
+  return ok;
+}
+document.addEventListener('paste',function(e){
+  var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
+  for(var i=0;i<items.length;i++)if(items[i].type&&items[i].type.indexOf('image/')===0){
+    var f=items[i].getAsFile();if(f&&acceptDesktopImage_(f)){e.preventDefault();return;}
+  }
+});
+document.addEventListener('dragover',function(e){if(activeImageTarget_()&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();});
+document.addEventListener('drop',function(e){
+  var t=activeImageTarget_(),files=e.dataTransfer&&e.dataTransfer.files;if(!t||!files)return;
+  for(var i=0;i<files.length;i++)if(String(files[i].type||'').startsWith('image/')){e.preventDefault();acceptDesktopImage_(files[i]);return;}
+});
+
 let canvasParams = { isDrawing: false, ctx: null, color: '#ef4444' };
 
 function openCanvasEditor() {
