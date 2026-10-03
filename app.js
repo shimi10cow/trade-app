@@ -2793,15 +2793,14 @@ function openGalleryFlip(index) {
     if (raw && raw !== 'undefined') imgs.push({ label, raw });
   };
   add('📋 事前チャート', t['事前チャート']);
-  add('📷 エントリー1', findEntryImageField(t));
-  add('📷 エントリー2', t['ChartImage2']);
-  add('🏁 決済', findExitImageField(t));
+  tradeEntryImages(t).forEach(function(raw,i){add('📷 エントリー '+(i+1),raw);});
+  tradeExitImages(t).forEach(function(raw,i){add('🏁 決済 '+(i+1),raw);});
   if (imgs.length === 0) return;
 
   App.state.flipImgs = imgs;
   App.state.flipTradeIndex = index;
   // 決済画像があればそこから表示（ギャラリーのサムネと一致）
-  const exitIdx = imgs.findIndex(i => i.label === '🏁 決済');
+  const exitIdx = imgs.findIndex(i => i.label.indexOf('🏁 決済') === 0);
   App.state.flipIdx = exitIdx >= 0 ? exitIdx : 0;
   renderGalleryFlip();
   document.getElementById('gallery-flip').style.display = 'flex';
