@@ -1777,6 +1777,19 @@ function adoptMT5Trade(executionIds,options){
       const backup={};keys.forEach(k=>backup[k]=current[k]===undefined?'':current[k]);
       obj.MT5ManualBackup=JSON.stringify(backup);
     }
+    // MT5 is authoritative for execution facts when attaching to an existing
+    // holding/history row. Analysis/review fields are intentionally untouched.
+    obj.EntryDate=en.date||current.EntryDate||'';
+    obj.EntryTime=en.time||current.EntryTime||'';
+    obj.EntryPrice=Number(a.EntryPrice)||current.EntryPrice||'';
+    if(isForex)obj.Lot=a.Lot||current.Lot||'';
+    obj.Profit=Number(a.Profit)||0;
+    obj['損益']=Number(a.Profit)||0;
+    obj.Swap=Number(a.Swap)||0;
+    obj['実取得pips']=mt5Pips===''?'':Math.round(mt5Pips*10)/10;
+    obj['ステータス']=a.Status==='CLOSED'?'決済':'保有中';
+    if(a.ExitTime){obj.ExitDate=ex.date;obj.ExitTime=ex.time;obj.ExitPrice=Number(a.ExitPrice)||'';}
+    else {obj.ExitDate='';obj.ExitTime='';obj.ExitPrice='';}
     const r=updateEntry(entryId,obj);if(!r.success)return r;
   }
   else {const r=saveEntry(obj);if(!r.success)return r;entryId=r.entryId;}
