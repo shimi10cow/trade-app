@@ -1536,7 +1536,7 @@ function saveMT5ImportSettings(data){
 function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS); }
 
 function requestMT5Import(data){
-  ensureEASheets(); const sh=ensureMT5ImportSheet_(); data=data||{};
+  const sh=ensureMT5ImportSheet_(); data=data||{};
   const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Mode:String(data.Mode||'IMPORT'),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   const hs=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(v=>String(v).trim());
   sh.getRange(sh.getLastRow()+1,1,1,hs.length).setValues([hs.map(h=>Object.prototype.hasOwnProperty.call(row,h)?row[h]:'')]);
@@ -1544,16 +1544,16 @@ function requestMT5Import(data){
   return {success:true,requestId:row.RequestID};
 }
 function getMT5ImportRequest(){
-  ensureMT5ImportSheet_();
   const cache=CacheService.getScriptCache(),hit=cache.get('mt5_import_pending_v1');
   if(hit){try{const r=JSON.parse(hit);if(String(r.Status||'').toUpperCase()==='PENDING'){if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message);return r;}}catch(e){}}
+  ensureMT5ImportSheet_();
   const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).filter(r=>String(r.Status||'').toUpperCase()==='PENDING');
   if(!rows.length)return {}; const r=rows[0];try{cache.put('mt5_import_pending_v1',JSON.stringify(r),120);}catch(e){}if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message);return r;
 }
 function getMT5ImportStatus(){
-  ensureMT5ImportSheet_();
   const cache=CacheService.getScriptCache(),hit=cache.get('mt5_import_status_v1');
   if(hit){try{return JSON.parse(hit);}catch(e){}}
+  ensureMT5ImportSheet_();
   const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET);rows.sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
   const r=rows[0]||{};try{cache.put('mt5_import_status_v1',JSON.stringify(r),120);}catch(e){}return r;
 }
@@ -1807,9 +1807,9 @@ function autoAttachMT5Continuations_(){
 }
 
 function getMT5ImportDashboard(){
-  ensureMT5ImportSheet_();
   const cache=CacheService.getScriptCache(),key='mt5_import_dashboard_v1',hit=cache.get(key);
   if(hit){try{return JSON.parse(hit);}catch(e){}}
+  ensureMT5ImportSheet_();
   const exec=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.Source||'')==='MT5-MANUAL');
   const reqs=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
   const req=reqs[0]||{},acctReq=reqs.find(x=>x.Account&&String(x.Status||'').toUpperCase()==='DONE')||{},lastSyncByAccount={};
