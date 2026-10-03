@@ -990,7 +990,10 @@ function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
   App.state.neFavorite = false;
+  App.state.neImages = [];
+  App.state.imagePasteTarget = 'entry';
   updateNeFavButton();
+  setTimeout(function(){renderNewEntryImages_();},0);
   const planBanner = document.getElementById('ne-plan-banner');
   if (planBanner) planBanner.style.display = 'none';
   const eventWarning = document.getElementById('ne-event-warning');
@@ -1267,7 +1270,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', 'ChartImage3', 'ChartImage4', '決済チャート2', '決済チャート3', '決済チャート4', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
       gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
@@ -2651,6 +2654,17 @@ function findExitImageField(t) {
   return '';
 }
 
+function tradeEntryImages(t){return [findEntryImageField(t),t['ChartImage2'],t['ChartImage3'],t['ChartImage4']].map(v=>String(v||'').trim()).filter(v=>v&&v!=='undefined');}
+function tradeExitImages(t){return [findExitImageField(t),t['決済チャート2'],t['決済チャート3'],t['決済チャート4']].map(v=>String(v||'').trim()).filter(v=>v&&v!=='undefined');}
+function renderTradeDetailImages_(){
+  [['entry','detailEntryImages','td-top-image-area','td-image-preview'],['exit','detailExitImages','td-exit-image-container','td-exit-image-preview']].forEach(function(z){
+    var arr=App.state[z[1]]||[],area=document.getElementById(z[2]),img=document.getElementById(z[3]);if(!area||!img)return;
+    var car=area.querySelector('.trade-image-carousel');if(!car){img.style.display='none';car=document.createElement('div');car.className='trade-image-carousel';img.parentNode.insertBefore(car,img);var dots=document.createElement('div');dots.className='trade-image-dots';car.after(dots);}
+    car.innerHTML=arr.map((x,i)=>'<div class="trade-image-slide"><img src="'+String(x.preview||getImageUrl(x.raw)||x.raw).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="removeTradeDetailImage_(\''+z[0]+'\','+i+')">🗑️</button></div>').join('');
+    car.querySelectorAll('img').forEach(makeTappable);var dots=car.nextElementSibling;dots.innerHTML=imageDots_(arr.length,0);bindCarouselDots_(car,dots);area.style.display=arr.length?'block':'none';
+  });
+}
+function removeTradeDetailImage_(kind,i){var key=kind==='exit'?'detailExitImages':'detailEntryImages';var arr=App.state[key]||[];arr.splice(i,1);renderTradeDetailImages_();}
 // ギャラリー用：エントリー→決済の順で最初に見つかったものを返す
 function findImageField(t) {
   const entry = findEntryImageField(t);
@@ -5323,14 +5337,8 @@ async function submitEntryData() {
     if (App.state.neFavorite) entryData['お気に入り'] = 'ON';
 
     // 画像保存：Drive優先、失敗時はbase64フォールバック
-    const imgPreview = document.getElementById('ne-image-preview');
-    if (imgPreview && imgPreview.src && imgPreview.src.startsWith('data:image')) {
-      entryData['ChartImage'] = await uploadImageSmart(imgPreview.src, 'entry_' + Date.now() + '.jpg');
-    }
-    const imgPreview2 = document.getElementById('ne-image2-preview');
-    if (imgPreview2 && imgPreview2.src && imgPreview2.src.startsWith('data:image')) {
-      entryData['ChartImage2'] = await uploadImageSmart(imgPreview2.src, 'entry2_' + Date.now() + '.jpg');
-    }
+    const neImgs=(App.state.neImages||[]).slice(0,4);
+    for(let i=0;i<neImgs.length;i++) entryData[i===0?'ChartImage':'ChartImage'+(i+1)] = await uploadImageSmart(neImgs[i], 'entry_'+(i+1)+'_'+Date.now()+'.jpg');
 
     // GAS に saveEntry POST（オフライン時はキューに退避）
     const res = await gasPostQueued({ action: 'saveEntry', data: entryData }, 'エントリー記録: ' + pairName);
@@ -5366,69 +5374,39 @@ async function submitEntryData() {
 // ==========================================
 // Chart Image & Canvas Markup
 // ==========================================
-function previewUploadImage(input, slot) {
-  slot = slot || 1;
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      if (slot === 1) {
-        const img = document.getElementById('ne-image-preview');
-        img.src = e.target.result;
-        img.style.display = 'block';
-        document.getElementById('image-preview-container').style.display = 'block';
-        makeTappable(img);
-        const labelText = document.getElementById('ne-image-label-text');
-        if (labelText) labelText.textContent = '✅ 画像1選択済み（タップで変更）';
-        const label = document.getElementById('ne-image-label');
-        if (label) label.style.borderColor = '#10b981';
-        // 2枚目ボタンを表示
-        const label2 = document.getElementById('ne-image2-label');
-        if (label2) label2.style.display = 'flex';
-      } else {
-        const img = document.getElementById('ne-image2-preview');
-        img.src = e.target.result;
-        img.style.display = 'block';
-        document.getElementById('image2-preview-container').style.display = 'block';
-        makeTappable(img);
-        const labelText = document.getElementById('ne-image2-label-text');
-        if (labelText) labelText.textContent = '✅ 画像2選択済み（タップで変更）';
-        const label2 = document.getElementById('ne-image2-label');
-        if (label2) label2.style.borderColor = '#10b981';
-      }
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
+function imageDots_(n,idx){return n>1?Array.from({length:n},(_,i)=>'<span class="'+(i===idx?'active':'')+'"></span>').join(''):'';}
+function bindCarouselDots_(el,dots){if(!el||!dots)return;el.onscroll=function(){var w=el.clientWidth||1,idx=Math.round(el.scrollLeft/w);dots.innerHTML=imageDots_(el.children.length,idx);};}
+function renderNewEntryImages_(){
+  var wrap=document.getElementById('ne-image-carousel-wrap'),car=document.getElementById('ne-image-carousel'),dots=document.getElementById('ne-image-dots');
+  if(!wrap||!car)return;var imgs=App.state.neImages||[];wrap.style.display=imgs.length?'block':'none';
+  car.innerHTML=imgs.map((src,i)=>'<div class="trade-image-slide"><img src="'+src+'" onclick="makeTappable(this)"><button type="button" class="trade-image-delete" onclick="removeNewEntryImage_('+i+')">🗑️</button></div>').join('');
+  if(dots)dots.innerHTML=imageDots_(imgs.length,0);bindCarouselDots_(car,dots);
 }
-
+function removeNewEntryImage_(i){App.state.neImages=(App.state.neImages||[]).filter((_,x)=>x!==i);renderNewEntryImages_();}
+function addImageFileToList_(file,listKey,render){
+  if(!file||!String(file.type||'').startsWith('image/'))return false;
+  var arr=App.state[listKey]||(App.state[listKey]=[]);if(arr.length>=4){showToast('画像は最大4枚です');return false;}
+  var reader=new FileReader();reader.onload=function(e){arr.push(e.target.result);render();};reader.readAsDataURL(file);return true;
+}
+function previewUploadImage(input){if(input.files&&input.files[0]){addImageFileToList_(input.files[0],'neImages',renderNewEntryImages_);input.value='';}}
 function setImageFileInput_(input,file,previewFn,slot){
   if(!input||!file||!String(file.type||'').startsWith('image/'))return false;
   try{var dt=new DataTransfer();dt.items.add(file);input.files=dt.files;}catch(e){return false;}
   if(slot!==undefined)previewFn(input,slot);else previewFn(input);
   return true;
 }
+function selectImagePasteTarget_(target){
+  App.state.imagePasteTarget=target;
+  document.querySelectorAll('.image-add-target').forEach(function(x){x.classList.toggle('image-target-active',x.dataset.imageTarget===target);});
+}
 function activeImageTarget_(){
   var detail=document.getElementById('modal-trade-detail');
-  if(detail&&detail.classList.contains('active')){
-    var exit=document.getElementById('td-exit-image-upload'),entry=document.getElementById('td-entry-image-upload');
-    // Prefer an empty entry slot; if entry already exists and exit is available, use exit.
-    var entryPreview=document.getElementById('td-image-preview');
-    var hasEntry=entryPreview&&entryPreview.src&&entryPreview.style.display!=='none';
-    return hasEntry&&exit?{input:exit,fn:previewUploadImageTD}:{input:entry,fn:previewUploadEntryImageTD};
-  }
-  var entryModal=document.getElementById('modal-new-entry');
-  if(entryModal&&entryModal.classList.contains('active')){
-    var p1=document.getElementById('ne-image-preview'),i1=document.getElementById('ne-image-upload'),i2=document.getElementById('ne-image2-upload');
-    var has1=p1&&p1.src&&p1.style.display!=='none';
-    return has1?{input:i2,fn:previewUploadImage,slot:2}:{input:i1,fn:previewUploadImage,slot:1};
-  }
+  if(detail&&detail.classList.contains('active'))return {kind:App.state.imagePasteTarget==='exit'?'detailExitImages':'detailEntryImages',render:renderTradeDetailImages_};
+  var entryModal=document.getElementById('modal-entry');
+  if(entryModal&&entryModal.classList.contains('active'))return {kind:'neImages',render:renderNewEntryImages_};
   return null;
 }
-function acceptDesktopImage_(file){
-  var t=activeImageTarget_();if(!t)return false;
-  var ok=setImageFileInput_(t.input,file,t.fn,t.slot);
-  if(ok)showToast('画像を追加しました');
-  return ok;
-}
+function acceptDesktopImage_(file){var t=activeImageTarget_();if(!t)return false;var ok=addImageFileToList_(file,t.kind,t.render);if(ok)showToast('画像を追加しました');return ok;}
 document.addEventListener('paste',function(e){
   var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
   for(var i=0;i<items.length;i++)if(items[i].type&&items[i].type.indexOf('image/')===0){
@@ -5658,40 +5636,11 @@ function findExitImageFieldName(t) {
   return keys.find(k => t[k] && String(t[k]).trim()) || '';
 }
 
-function previewUploadEntryImageTD(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const img = document.getElementById('td-image-preview');
-      img.style.display = 'block';
-      img.src = e.target.result;
-      document.getElementById('td-top-image-area').style.display = 'block';
-      // アップロードエリアは非表示にせず「選択済み」表示に更新（決済写真と同じ動作）
-      const labelText = document.getElementById('td-entry-upload-label-text');
-      if (labelText) { labelText.textContent = '✅ 画像選択済み（タップで変更）'; labelText.style.color = '#10b981'; }
-      const label = input.closest('label');
-      if (label) label.style.borderColor = '#10b981';
-      makeTappable(img);
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-function previewUploadImageTD(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const img = document.getElementById('td-exit-image-preview');
-      img.src = e.target.result;
-      document.getElementById('td-exit-image-container').style.display = 'block';
-      makeTappable(img);
-      const labelText = document.getElementById('td-exit-upload-label-text');
-      if (labelText) { labelText.textContent = '✅ 画像選択済み（タップで変更）'; labelText.style.color = '#10b981'; }
-      const label = input.closest('label');
-      if (label) label.style.borderColor = '#10b981';
-    }
-    reader.readAsDataURL(input.files[0]);
-  }
+function previewUploadEntryImageTD(input){if(input.files&&input.files[0]){selectImagePasteTarget_('entry');addImageFileToDetail_(input.files[0],'detailEntryImages');input.value='';}}
+function previewUploadImageTD(input){if(input.files&&input.files[0]){selectImagePasteTarget_('exit');addImageFileToDetail_(input.files[0],'detailExitImages');input.value='';}}
+function addImageFileToDetail_(file,key){
+ if(!file||!String(file.type||'').startsWith('image/'))return false;var arr=App.state[key]||(App.state[key]=[]);if(arr.length>=4){showToast('画像は最大4枚です');return false;}
+ var reader=new FileReader();reader.onload=function(e){arr.push({raw:'',preview:e.target.result});renderTradeDetailImages_();};reader.readAsDataURL(file);return true;
 }
 
 function openTradeDetailFromHistory(index) {
@@ -5877,6 +5826,10 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   // 履歴  ：上=決済写真、  下=エントリー写真
   const rawEntryImg = findEntryImageField(t);
   const rawExitImg = findExitImageField(t);
+  App.state.detailEntryImages=tradeEntryImages(t).map(raw=>({raw:raw}));
+  App.state.detailExitImages=tradeExitImages(t).map(raw=>({raw:raw}));
+  App.state.imagePasteTarget='entry';
+  setTimeout(renderTradeDetailImages_,0);
 
   // 事前チャート（トレードプラン時のシナリオ画像・読み取り専用）
   const planImgArea = document.getElementById('td-plan-image-area');
@@ -6231,27 +6184,13 @@ async function saveTradeDetail() {
     });
     updateData['エントリースコア'] = String(calcScore);
 
-    // 画像保存（履歴から開いたTradeも追加・変更・削除可能）
+    // 画像保存：Entry / Exit 各最大4枚。既存画像は維持し、新規data URLだけアップロードする。
     {
-      // 保留中の削除を適用
-      if (App.state.pendingEntryImgDelete) {
-        updateData[App.state.pendingEntryImgDelete] = '';
-      }
-      if (App.state.pendingExitImgDelete) {
-        updateData[App.state.pendingExitImgDelete] = '';
-      }
-      // 新規選択ファイルのアップロード（fileInputにファイルがある場合のみ）
-      const entryFileInput = document.getElementById('td-entry-image-upload');
-      if (entryFileInput && entryFileInput.files && entryFileInput.files[0]) {
-        const entryImgPreview = document.getElementById('td-image-preview');
-        const entryField = findEntryImageFieldName(t) || 'ChartImage';
-        updateData[entryField] = await uploadImageSmart(entryImgPreview.src, 'entry_' + Date.now() + '.jpg');
-      }
-      const exitFileInput = document.getElementById('td-exit-image-upload');
-      if (exitFileInput && exitFileInput.files && exitFileInput.files[0]) {
-        const exitImgPreview = document.getElementById('td-exit-image-preview');
-        updateData['決済チャート'] = await uploadImageSmart(exitImgPreview.src, 'exit_' + Date.now() + '.jpg');
-      }
+      const entryFields=['ChartImage','ChartImage2','ChartImage3','ChartImage4'];
+      const exitFields=['決済チャート','決済チャート2','決済チャート3','決済チャート4'];
+      const saveImgs=async function(items,fields,prefix){for(let i=0;i<4;i++){var item=items[i];if(!item){updateData[fields[i]]='';continue;}updateData[fields[i]]=item.preview?await uploadImageSmart(item.preview,prefix+'_'+(i+1)+'_'+Date.now()+'.jpg'):item.raw;}};
+      await saveImgs(App.state.detailEntryImages||[],entryFields,'entry');
+      await saveImgs(App.state.detailExitImages||[],exitFields,'exit');
     }
 
     // MT5候補は詳細確認中はドラフト。変更内容を保存した時点で初めてEntriesへ採用する。
