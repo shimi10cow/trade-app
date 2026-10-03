@@ -892,17 +892,6 @@
             </div>
             
             <div style="margin-top:16px;">
-              <!-- エントリータイミング -->
-              <div class="form-row">
-                <span class="form-label" style="font-size:10px;">ｴﾝﾄﾘｰﾀｲﾐﾝｸﾞ</span>
-                <select class="form-input" id="td-entry-ref">
-                  <option value="">選択...</option>
-                  <option value="エントリータイミングOK">エントリータイミングOK</option>
-                  <option value="アーリー">アーリー</option>
-                  <option value="レイト">レイト</option>
-                  <option value="DowRule外">DowRule外</option>
-                </select>
-              </div>
               <!-- 指標前エントリー / 再エントリー -->
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;">
                 <div style="display:flex; flex-direction:column; gap:2px;">
@@ -968,19 +957,6 @@
                   </div>
                 </div>
               </div>
-              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">エントリー時メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-entry-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-entry-memo').value=''">✕</button></div></div><!-- 決済タイミング -->
-              <div class="form-row">
-                <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
-                <select class="form-input" id="td-exit-ref" onchange="calculateRuleMetrics()">
-                  <option value="">選択...</option>
-                  <option value="決済タイミングOK">決済タイミングOK</option>
-                  <option value="ビビり決済">ビビり決済</option>
-                  <option value="利確逃し">利確逃し</option>
-                  <option value="SLずらし">SLずらし</option>
-                  <option value="SL設定ミス">SL設定ミス</option>
-                  <option value="ルール外気づき">ルール外気づき</option>
-                </select>
-              </div>
               <!-- 指標決済 -->
               <div style="display:flex; flex-direction:column; gap:2px; margin-top:4px;">
                 <span style="font-size:10px; color:#94a3b8;">指標決済</span>
@@ -989,6 +965,30 @@
                   <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">指標前</button>
                   <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">指標後</button>
                 </div>
+              </div>
+              <!-- エントリータイミング -->
+              <div class="form-row">
+                <span class="form-label" style="font-size:10px;min-width:92px;">エントリータイミング</span>
+                <select class="form-input" id="td-entry-ref" style="flex:1;min-width:0;width:100%;">
+                  <option value="">選択...</option>
+                  <option value="エントリータイミングOK">エントリータイミングOK</option>
+                  <option value="アーリー">アーリー</option>
+                  <option value="レイト">レイト</option>
+                  <option value="DowRule外">DowRule外</option>
+                </select>
+              </div>
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">エントリー時メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-entry-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-entry-memo').value=''">✕</button></div></div><!-- 決済タイミング -->
+              <div class="form-row">
+                <span class="form-label" style="font-size:10px;min-width:92px;">決済タイミング</span>
+                <select class="form-input" id="td-exit-ref" style="flex:1;min-width:0;width:100%;" onchange="calculateRuleMetrics()">
+                  <option value="">選択...</option>
+                  <option value="決済タイミングOK">決済タイミングOK</option>
+                  <option value="ビビり決済">ビビり決済</option>
+                  <option value="利確逃し">利確逃し</option>
+                  <option value="SLずらし">SLずらし</option>
+                  <option value="SL設定ミス">SL設定ミス</option>
+                  <option value="ルール外気づき">ルール外気づき</option>
+                </select>
               </div>
               <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">決済時メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-exit-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-exit-memo" rows="3" placeholder="なぜ誤認識が起きたか..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-exit-memo').value=''">✕</button></div></div><!-- エントリー画像アップロード（保有中のみ表示） -->
               <div id="td-entry-upload-area" style="display:none; margin-top:10px;">
