@@ -17,7 +17,7 @@ function groupSummary(g){
  var entries=g.rows.filter(isIn),exits=g.rows.filter(isOut);
  var ev=entries.reduce(function(s,r){return s+n(r.DealVolume)},0)||g.rows.reduce(function(s,r){return s+n(r.Lot)},0);
  var wavg=function(rows,pk,vk){var v=rows.reduce(function(s,r){return s+n(r[vk])},0);return v?rows.reduce(function(s,r){return s+n(r[pk])*n(r[vk])},0)/v:0;};
- var ep=wavg(entries,'DealPrice','DealVolume')||wavg(g.rows.filter(function(r){return r.Status==='OPEN'&&!r.Deal;}),'EntryPrice','Lot');
+ var ep=wavg(entries,'DealPrice','DealVolume')||wavg(g.rows.filter(function(r){return n(r.EntryPrice)>0&&n(r.DealVolume)>0;}),'EntryPrice','DealVolume')||wavg(g.rows.filter(function(r){return r.Status==='OPEN'&&!r.Deal;}),'EntryPrice','Lot')||n((g.rows.find(function(r){return n(r.EntryPrice)>0;})||{}).EntryPrice);
  var xp=wavg(exits,'DealPrice','DealVolume');
  var profit=g.rows.filter(function(r){return r.Deal;}).reduce(function(s,r){return s+n(r.Profit)+n(r.Swap)},0);
  var et=(entries.slice().sort(function(a,b){return t(a)-t(b)})[0]||g.rows[0]||{}).DealTime||g.rows[0]?.EntryTime||'';
@@ -122,7 +122,7 @@ window.renderMT5Import=async function(force){
 };
 window.getMT5AccountInfo=async function(){
   var btn=document.getElementById('mt5-account-btn'),old=btn?btn.innerHTML:'口座情報を取得';
-  try{S.syncing=days;if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
+  try{if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
     var r=await gasPost({action:'requestMT5Import',data:{Mode:'ACCOUNT',Days:1}});if(!r.success)throw new Error(r.error||'口座情報取得を開始できません');
     for(var tries=1;tries<=20;tries++){await new Promise(function(resolve){setTimeout(resolve,250);});var s=await gasGet('getMT5ImportStatus'),st=s.data||s||{};if(st.RequestID!==r.requestId)continue;if(st.Status==='DONE'){S.accountInfo={Account:String(st.Account||''),Server:String(st.Server||'')};S.loaded=true;var cached=readCache(),cd=cached&&cached.data?cached.data:{};cd.accountInfo=S.accountInfo;cd.lastSyncByAccount=S.lastSyncByAccount||cd.lastSyncByAccount||{};cd.settings=S.settings||cd.settings;cd.executions=S.rows||cd.executions||[];cd.manualEntries=S.manualEntries||cd.manualEntries||[];writeCache(cd);paintMT5(document.getElementById('mt5-import-root'));showToast('口座情報を取得しました');return;}if(st.Status==='ERROR')throw new Error(st.Message||'口座情報を取得できません');if(tries===20&&String(st.Status).toUpperCase()==='PENDING')throw new Error('MT5連携からの応答を確認できませんでした。PC側のMT5連携を確認してください');}
     throw new Error('PC側のMT5連携から応答がありません');
