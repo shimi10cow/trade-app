@@ -1595,13 +1595,14 @@ function saveMT5ImportBatch(requestId,account,server,rows){
     hs.forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(d,h))row[j]=d[h];});
     if(idx===undefined)appended.push(row); else changed.push({row:idx+1,values:row});
   });
-  // One write per existing execution instead of one write per cell.
-  changed.forEach(x=>sh.getRange(x.row,1,1,hs.length).setValues([x.values]));
+  // Batch consecutive existing rows to keep 7/90-day re-imports fast.
+  changed.sort((a,b)=>a.row-b.row);
+  for(let i=0;i<changed.length;){let j=i+1;while(j<changed.length&&changed[j].row===changed[j-1].row+1)j++;sh.getRange(changed[i].row,1,j-i,hs.length).setValues(changed.slice(i,j).map(x=>x.values));i=j;}
   // New executions are contiguous, so append them in a single Sheets call.
   if(appended.length)sh.getRange(sh.getLastRow()+1,1,appended.length,hs.length).setValues(appended);
-  const auto=autoAttachMT5Continuations_();
-  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived+' / auto '+auto.attached});
-  return {success:true,inserted:inserted,updated:updated,revived:revived,count:rows.length,autoAttached:auto.attached};
+  // Re-import only refreshes MT5 candidates. History changes require an explicit user action.
+  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived});
+  return {success:true,inserted:inserted,updated:updated,revived:revived,count:rows.length,autoAttached:0};
 }
 function setMT5ImportStatus(ids,status){
   ensureEASheets(); ids=Array.isArray(ids)?ids:[]; const set=new Set(ids.map(String));
