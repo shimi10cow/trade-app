@@ -1,14 +1,14 @@
 (function(){
 'use strict';
-var S={rows:[],status:null,groups:[],manualEntries:[],selected:null};
+var S={rows:[],status:null,groups:[],manualEntries:[],selected:null,settings:{splitEntryHours:6}};
 var MT5_CACHE_KEY='mt5ImportFast_v1';
 function readCache(){try{return JSON.parse(localStorage.getItem(MT5_CACHE_KEY)||'null');}catch(e){return null;}}
 function writeCache(d){try{localStorage.setItem(MT5_CACHE_KEY,JSON.stringify({at:Date.now(),data:d}));}catch(e){}}
-function applyDash(d){d=d||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.accountInfo=d.accountInfo||S.accountInfo;S.lastSyncByAccount=d.lastSyncByAccount||S.lastSyncByAccount||{};S.groups=buildGroups(S.rows);S.loaded=true;}
+function applyDash(d){d=d||{};S.rows=d.executions||[];S.status=d.status||{};S.manualEntries=d.manualEntries||[];S.accountInfo=d.accountInfo||S.accountInfo;S.lastSyncByAccount=d.lastSyncByAccount||S.lastSyncByAccount||{};S.settings=d.settings||S.settings||{splitEntryHours:6};S.groups=buildGroups(S.rows);S.loaded=true;}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(x){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]});}
 function n(v){return Number(v)||0;}
 function t(r){return new Date(r.DealTime||r.EntryTime||0).getTime()||0;}
-function localDT(v){if(!v)return '';var d=new Date(v);if(isNaN(d.getTime()))return String(v);return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+function localDT(v){if(!v)return '';var d=new Date(v);if(isNaN(d.getTime()))return String(v);var parts=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d),o={};parts.forEach(function(x){o[x.type]=x.value;});return o.year+'/'+o.month+'/'+o.day+' '+o.hour+':'+o.minute;}
 function digits(pair){pair=String(pair||'').toUpperCase();if(/BTC|ETH|LTC|XRP/.test(pair))return pair.indexOf('JPY')>=0?0:2;if(pair.indexOf('JPY')>=0)return 2;if(/XAU|GOLD|XAG/.test(pair))return 2;return 4;}
 function price(v,pair){var x=Number(v);return Number.isFinite(x)&&x?x.toFixed(digits(pair)):'';}
 function pipValue(pair){pair=String(pair||'').toUpperCase();if(/BTC|ETH|LTC|XRP/.test(pair))return pair.indexOf('JPY')>=0?1000:1;if(/XAU|GOLD/.test(pair))return 0.1;if(/XAG/.test(pair))return 0.01;return pair.indexOf('JPY')>=0?0.01:0.0001;}
@@ -52,7 +52,8 @@ function buildGroups(rows){
     var g=groups.length?groups[groups.length-1]:null;
     var same=g&&g.server===p.server&&g.account===p.account&&g.pair===p.pair&&g.dir===p.dir;
     var overlap=same&&p.start<=g.end&&g.open>0;
-    var splitBatch=same&&Math.abs(p.start-g.start)<=5*60*1000;
+    var splitHours=Number((S.settings||{}).splitEntryHours);if(!Number.isFinite(splitHours))splitHours=6;
+    var splitBatch=same&&Math.abs(p.start-g.start)<=splitHours*3600*1000;
     if(overlap||splitBatch){g.parts.push(p);g.rows=g.rows.concat(p.rows);g.end=Math.max(g.end,p.end);g.open+=p.open;}
     else groups.push({server:p.server,account:p.account,pair:p.pair,dir:p.dir,start:p.start,end:p.end,open:p.open,parts:[p],rows:p.rows.slice()});
   });
@@ -103,7 +104,7 @@ function paintMT5(root){
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
     '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><button id="mt5-account-btn" class="ea-btn" style="width:100%;margin-top:9px" onclick="getMT5AccountInfo()">口座情報を取得</button><div style="font-size:11px;color:#64748b;margin-top:7px">最終同期: '+esc(lastSync?localDT(lastSync):'未同期')+'</div>'+
     '<button id="mt5-sync-latest" class="ea-save" style="margin-top:12px" onclick="requestMT5Import(&quot;latest&quot;)">最終同期以降を取得</button>'+
-    '<div style="display:flex;gap:6px;margin-top:7px"><button id="mt5-sync-7" class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">過去7日を再取得</button><button id="mt5-sync-90" class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">過去90日を再取得</button></div></div>'+
+    '<div style="display:flex;gap:6px;margin-top:7px"><button id="mt5-sync-7" class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">過去7日を再取得</button><button id="mt5-sync-90" class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">過去90日を再取得</button></div><details style="margin-top:10px;border-top:1px solid #1e293b;padding-top:9px"><summary style="font-size:12px;color:#94a3b8;cursor:pointer">同期設定</summary><div style="display:flex;align-items:center;gap:8px;margin-top:9px"><span style="font-size:11px;color:#cbd5e1;flex:1">分割エントリーを同一Tradeにまとめる時間</span><input id="mt5-split-hours" type="number" min="0" max="48" step="0.5" value="'+esc((S.settings&&S.settings.splitEntryHours)!=null?S.settings.splitEntryHours:6)+'" class="form-input" style="width:74px;text-align:center"><span style="font-size:11px;color:#94a3b8">時間</span></div><button class="ea-btn" style="width:100%;margin-top:8px" onclick="saveMT5Settings()">設定を保存</button></details></div>'+
     '<div style="display:flex;gap:8px;margin:12px 0;font-size:11px;color:#94a3b8"><span>新規 '+pending.length+'</span><span>保留 '+hold+'</span></div>'+
     (cards||'<div style="text-align:center;color:#64748b;padding:28px 8px;">確認が必要な新規Tradeはありません</div>')+'<div style="margin-top:16px"><button class="ea-btn" style="width:100%" onclick="mt5ShowArchived()">保留 '+hold+' を確認</button></div></div><div id="mt5-sheet" class="modal-overlay" onclick="if(event.target===this)this.classList.remove(\'active\')"><div class="modal-content" style="max-height:82vh"><div class="modal-header"><div class="modal-title" id="mt5-sheet-title">MT5</div><button class="modal-close" onclick="document.getElementById(\'mt5-sheet\').classList.remove(\'active\')">×</button></div><div class="modal-body" id="mt5-sheet-body"></div></div></div>';
 
@@ -127,6 +128,7 @@ window.getMT5AccountInfo=async function(){
     throw new Error('PC側のMT5連携から応答がありません');
   }catch(e){showToast('⚠️ '+e.message);}finally{var b=document.getElementById('mt5-account-btn');if(b){b.disabled=false;b.innerHTML=old;}}
 };
+window.saveMT5Settings=async function(){var el=document.getElementById('mt5-split-hours'),h=Number(el&&el.value);if(!Number.isFinite(h)||h<0||h>48){showToast('⚠️ 0〜48時間で入力してください');return;}try{showLoader();var r=await gasPost({action:'saveMT5ImportSettings',data:{splitEntryHours:h}});if(!r.success)throw new Error(r.error||'設定を保存できません');S.settings={splitEntryHours:h};S.groups=buildGroups(S.rows);paintMT5(document.getElementById('mt5-import-root'));showToast('MT5同期設定を保存しました');}catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}};
 window.requestMT5Import=async function(days){
   var id=days==='latest'?'mt5-sync-latest':days===7?'mt5-sync-7':'mt5-sync-90',btn=document.getElementById(id),old=btn?btn.innerHTML:'';
   try{if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
