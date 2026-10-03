@@ -1413,6 +1413,8 @@ function deleteEASignal(signalId){
 function syncMT5Trade(data){
   ensureEASheets(); data=data||{};
   if(!data.SyncKey || !data.Pair || !data.Direction) return {success:false,error:'SyncKey/Pair/Direction required'};
+  // Manual MT5 trades must go through the MT5 review tab. Never create Entries automatically.
+  if(String(data.Source||'').toUpperCase()==='MT5-MANUAL') return {success:true,ignored:true,reason:'manual-review-required'};
   ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','EAルール','ExitPrice','ExitDate','ExitTime','Profit','損益']);
   const ss=SpreadsheetApp.openById(SPREADSHEET_ID), sh=ss.getSheetByName(ENTRIES_SHEET);
   const vals=sh.getDataRange().getValues(), hs=vals[0].map(v=>String(v).trim());
