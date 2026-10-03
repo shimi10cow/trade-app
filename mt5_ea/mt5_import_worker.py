@@ -67,6 +67,16 @@ def import_current_account(request):
         else:
             start=end-timedelta(days=days)
         deals=list(mt5.history_deals_get(start,end) or [])
+        # Incremental windows can contain an exit while its entry happened earlier.
+        # Backfill the complete deal history for every touched position so EntryPrice
+        # is always calculated from the real MT5 entry execution.
+        touched={int(getattr(d,"position_id",0) or 0) for d in deals}
+        touched.discard(0)
+        by_ticket={int(getattr(d,"ticket",0) or 0):d for d in deals}
+        for position_id in touched:
+            for d in list(mt5.history_deals_get(position=position_id) or []):
+                by_ticket[int(getattr(d,"ticket",0) or 0)]=d
+        deals=list(by_ticket.values())
         positions=list(mt5.positions_get() or [])
         rows=[]
         for d in deals:
