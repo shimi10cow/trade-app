@@ -1763,10 +1763,13 @@ function adoptMT5Trade(executionIds,options){
     const pip=/BTC|ETH|LTC|XRP/.test(pairU)?10:(/XAU|GOLD|XAG|SILVER/.test(pairU)?1:(pairU.includes('JPY')?0.01:0.0001));
     const savedSL=Number(current.InitialSLPrice||current.SLPrice||current['損切り価格']||0);
     const savedTP=Number(current.TakeProfitPrice||current.TPPrice||current['利確価格']||0);
-    const slPrice=Number(a.SL)||savedSL,tpPrice=Number(a.TP)||savedTP,entry=Number(a.EntryPrice)||0;
+    // Existing manual prices are authoritative once entered. MT5 only fills a
+    // missing price; it must never blank or unexpectedly replace the review plan.
+    const slPrice=savedSL||Number(a.SL)||0,tpPrice=savedTP||Number(a.TP)||0,entry=Number(a.EntryPrice)||Number(current.EntryPrice)||0;
     const pipsFromPrice=(price,isSL)=>price>0&&entry>0?Math.round(Math.max(0,(dir==='BUY'?(isSL?entry-price:price-entry):(isSL?price-entry:entry-price))/pip)*10)/10:'';
-    obj.InitialSLPrice=slPrice||'';
-    obj.TakeProfitPrice=tpPrice||'';
+    obj.EntryPrice=entry||current.EntryPrice||'';
+    obj.InitialSLPrice=slPrice||current.InitialSLPrice||current.SLPrice||current['損切り価格']||'';
+    obj.TakeProfitPrice=tpPrice||current.TakeProfitPrice||current.TPPrice||current['利確価格']||'';
     obj.StopLossPips=pipsFromPrice(slPrice,true);
     obj.TakeProfitPips=pipsFromPrice(tpPrice,false);
     if(!current.MT5SyncKey&&!current.MT5ManualBackup){
