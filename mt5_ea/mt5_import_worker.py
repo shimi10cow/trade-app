@@ -77,6 +77,15 @@ def import_current_account(request):
             for d in list(mt5.history_deals_get(position=position_id) or []):
                 by_ticket[int(getattr(d,"ticket",0) or 0)]=d
         deals=list(by_ticket.values())
+        # Build canonical entry metadata per MT5 position.  Exit deals have the
+        # opposite deal side, so keep the original IN deal price/time explicitly.
+        pos_entry={}
+        for d in sorted(deals,key=lambda x:getattr(x,"time",0)):
+            pid=str(getattr(d,"position_id","") or "")
+            if pid and int(getattr(d,"entry",-1)) in (mt5.DEAL_ENTRY_IN,mt5.DEAL_ENTRY_INOUT):
+                v=float(getattr(d,"volume",0) or 0); p=float(getattr(d,"price",0) or 0)
+                x=pos_entry.setdefault(pid,{"time":iso(getattr(d,"time",0)),"pv":0.0,"vol":0.0})
+                x["pv"]+=p*v; x["vol"]+=v
         positions=list(mt5.positions_get() or [])
         rows=[]
         for d in deals:
@@ -90,6 +99,8 @@ def import_current_account(request):
               "Source":"MT5-MANUAL","Pair":base_symbol(getattr(d,"symbol","")),"Direction":side,
               "DealEntry":str(getattr(d,"entry","")),"DealTime":iso(getattr(d,"time",0)),
               "DealPrice":float(getattr(d,"price",0) or 0),"DealVolume":float(getattr(d,"volume",0) or 0),
+              "EntryTime":pos_entry.get(posid,{}).get("time",""),
+              "EntryPrice":(pos_entry.get(posid,{}).get("pv",0)/pos_entry.get(posid,{}).get("vol",1)) if pos_entry.get(posid,{}).get("vol",0) else 0,
               "Profit":float(getattr(d,"profit",0) or 0),"Swap":float(getattr(d,"swap",0) or 0),
               "Status":"RAW","ImportStatus":"未確認"
             })
