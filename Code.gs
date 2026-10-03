@@ -1756,6 +1756,20 @@ function adoptMT5Trade(executionIds,options){
   let entryId=String(options.entryId||'');
   if(entryId){
     const current=getEntries().find(x=>String(x.EntryID)===entryId)||{};
+    // Linking MT5 executions to an existing manual trade must preserve the user's
+    // planned SL/TP distances. Rebuild their prices from the newly aggregated
+    // entry price instead of overwriting them with blank MT5 SL/TP values.
+    const keepSL=Number(current.StopLossPips||current.SL||0);
+    const keepTP=Number(current.TakeProfitPips||current.TP||current.StopProfitPips||0);
+    const appPair=mt5AppPair_(a.Pair),dir=a.Direction==='BUY'?'BUY':'SELL';
+    const cryptoOrMetal=/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(String(appPair).toUpperCase());
+    const pip=cryptoOrMetal?1:(String(appPair).toUpperCase().includes('JPY')?0.01:0.0001);
+    const digits=/BTC|ETH|LTC|XRP/.test(String(appPair).toUpperCase())?(String(appPair).toUpperCase().includes('JPY')?0:2):(String(appPair).toUpperCase().includes('JPY')?2:(/XAU|GOLD|XAG|SILVER/.test(String(appPair).toUpperCase())?2:4));
+    const px=(distance,isSL)=>distance>0&&Number(a.EntryPrice)>0?Number((Number(a.EntryPrice)+(dir==='BUY'?(isSL?-1:1):(isSL?1:-1))*distance*pip).toFixed(digits)):'';
+    if(keepSL>0){obj.StopLossPips=keepSL;obj.InitialSLPrice=px(keepSL,true);}
+    else if(!a.SL)obj.InitialSLPrice=current.InitialSLPrice||current.SLPrice||current['損切り価格']||'';
+    if(keepTP>0){obj.TakeProfitPips=keepTP;obj.TakeProfitPrice=px(keepTP,false);}
+    else if(!a.TP)obj.TakeProfitPrice=current.TakeProfitPrice||current.TPPrice||current['利確価格']||'';
     if(!current.MT5SyncKey&&!current.MT5ManualBackup){
       const keys=['PairName（元）','PairName','Direction','EntryDate','EntryTime','EntryPrice','Lot','InitialSLPrice','TakeProfitPrice','ステータス','ExitDate','ExitTime','ExitPrice','Profit','損益','実取得pips','Swap'];
       const backup={};keys.forEach(k=>backup[k]=current[k]===undefined?'':current[k]);
