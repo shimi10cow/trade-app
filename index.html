@@ -557,27 +557,18 @@
         <!-- TP / SL / Lot -->
         <div class="section">
           <div class="section-title">TP / SL / Lot</div>
-          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
-            <div class="grid-item">
-              <span class="grid-label">TP(pips)</span>
-              <input type="number" class="form-input" id="ne-tp" oninput="calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;">
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">SL(pips)</span>
-              <input type="number" class="form-input" id="ne-sl" oninput="calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;">
-            </div>
-            <div class="grid-item">
-              <span class="grid-label">Lot</span>
-              <input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center; min-width:0; padding:10px 4px;">
-            </div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px;">
+            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="ne-entry-price" style="text-align:center;padding:10px 4px;" oninput="updatePlannedPrices_('ne')"></div>
+            <div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="ne-exit-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="ne-sl-price" style="text-align:center;padding:10px 4px;" readonly></div>
+            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="ne-tp-price" style="text-align:center;padding:10px 4px;" readonly></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top:8px;">
+            <div class="grid-item"><span class="grid-label">TP (pips)</span><input type="number" min="0" class="form-input" id="ne-tp" oninput="updatePlannedPrices_('ne'); calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL (pips)</span><input type="number" min="0" class="form-input" id="ne-sl" oninput="updatePlannedPrices_('ne'); calculateRR()" style="text-align:center; min-width:0; padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center; min-width:0; padding:10px 4px;"></div>
           </div>
           <div class="calc-info" id="ne-rr-display">RR: --</div>
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px;">
-            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="ne-entry-price" style="text-align:center;padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="ne-exit-price" style="text-align:center;padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="ne-sl-price" style="text-align:center;padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="ne-tp-price" style="text-align:center;padding:10px 4px;"></div>
-          </div>
         </div>
         
         <!-- 指標前エントリー / 再エントリー -->
@@ -836,17 +827,16 @@
           <div id="td-score-groups-container" class="grid-2col"></div>
         </div>
 
-          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
-            <div class="grid-item"><span class="grid-label">TP</span><input type="number" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()"></div>
-            <div class="grid-item"><span class="grid-label">SL</span><input type="number" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;" oninput="calculateRRTD(); calculateRuleMetrics()"></div>
-            <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
-          </div>
-
           <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0;">
-            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="td-entry-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="td-entry-price" style="text-align:center;padding:10px 4px;" oninput="updatePlannedPrices_('td')"></div>
             <div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="td-exit-price" style="text-align:center;padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="td-sl-price" style="text-align:center;padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="td-tp-price" style="text-align:center;padding:10px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="td-sl-price" style="text-align:center;padding:10px 4px;" readonly></div>
+            <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="td-tp-price" style="text-align:center;padding:10px 4px;" readonly></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
+            <div class="grid-item"><span class="grid-label">TP (pips)</span><input type="number" min="0" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;" oninput="updatePlannedPrices_('td'); calculateRuleMetrics()"></div>
+            <div class="grid-item"><span class="grid-label">SL (pips)</span><input type="number" min="0" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;" oninput="updatePlannedPrices_('td'); calculateRRTD(); calculateRuleMetrics()"></div>
+            <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
           </div>
 
           <div id="closing-fields">
