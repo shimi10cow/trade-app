@@ -1194,6 +1194,7 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
     setMA(3, (dir === 'Buy' && p['H4MA20.80'] === '↑') || (dir === 'Sell' && p['H4MA20.80'] === '↓') ? '◎' : '✕');
   }
 
+  updatePlannedPrices_(prefix);
   if (prefix === 'ne') calculateEntryScore();
   else calculateEntryScoreTD();
 }
@@ -5124,6 +5125,22 @@ function calcTimezone(timeStr) {
   return ''; // 12-15は対象外
 }
 
+function plannedPipSize_(pair){
+  pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
+  if(pair.includes('JPY'))return 0.01;
+  if(/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(pair))return 1;
+  return 0.0001;
+}
+function updatePlannedPrices_(prefix){
+  var entry=Number(document.getElementById(prefix+'-entry-price')?.value),sl=Number(document.getElementById(prefix+'-sl')?.value),tp=Number(document.getElementById(prefix+'-tp')?.value);
+  var pair=document.getElementById(prefix+'-pair')?.value||'',active=document.querySelector('#'+prefix+'-dir button.active');
+  var dir=active&&/sell|▼/i.test(active.textContent)?'SELL':active?'BUY':'';
+  var slEl=document.getElementById(prefix+'-sl-price'),tpEl=document.getElementById(prefix+'-tp-price');
+  if(!entry||!dir){if(slEl)slEl.value='';if(tpEl)tpEl.value='';return;}
+  var pip=plannedPipSize_(pair),digits=pair.toUpperCase().includes('JPY')?2:(/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(pair.toUpperCase())?2:4);
+  if(slEl)slEl.value=sl>0?(entry+(dir==='BUY'?-1:1)*sl*pip).toFixed(digits):'';
+  if(tpEl)tpEl.value=tp>0?(entry+(dir==='BUY'?1:-1)*tp*pip).toFixed(digits):'';
+}
 function calculateRR() {
   const tp = parseFloat(document.getElementById('ne-tp').value);
   const sl = parseFloat(document.getElementById('ne-sl').value);
