@@ -351,6 +351,26 @@ function buildScoreGroups(containerId, prefix) {
   }).join('');
 }
 
+// Voice memo: use browser speech recognition where available; iPhone falls back to native dictation.
+window.voiceMemo=function(id,btn){
+  var el=document.getElementById(id); if(!el)return;
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    el.focus();
+    showToast('iPhoneのキーボードのマイクから音声入力できます');
+    return;
+  }
+  try{
+    var rec=new SR(); rec.lang='ja-JP'; rec.interimResults=false; rec.continuous=false;
+    var old=btn?btn.innerHTML:'';
+    if(btn){btn.disabled=true;btn.innerHTML='🎙️ 聞き取り中...';}
+    rec.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;var base=String(el.value||'').trim();el.value=base?(base+'\n'+s):s;el.dispatchEvent(new Event('input',{bubbles:true}));};
+    rec.onerror=function(){el.focus();showToast('音声認識を開始できません。キーボードのマイクも使えます');};
+    rec.onend=function(){if(btn){btn.disabled=false;btn.innerHTML=old;}};
+    rec.start();
+  }catch(e){el.focus();if(btn)btn.disabled=false;showToast('キーボードのマイクから音声入力してください');}
+};
+
 // ==========================================
 // Initialization
 // ==========================================
@@ -5873,7 +5893,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
   if(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL'){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
-    mt5Box.innerHTML='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#cbd5e1"><div style="font-weight:800;color:#38bdf8;margin-bottom:5px">MT5同期済み</div><div>Entry '+(t.EntryPrice||'-')+' · Total '+lot+' lot · Open '+open+' · Closed '+closed+'</div><div style="margin-top:3px">Swap '+swap+' · Entry約定 '+cnt+'件</div><button type="button" id="td-mt5-unlink-btn" style="position:relative;z-index:2;width:100%;margin-top:9px;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation">MT5紐付けを解除</button></div>';
+    mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5同期済み</span><span style="overflow:hidden;text-overflow:ellipsis">'+lot+' lot · '+cnt+'約定</span><button type="button" id="td-mt5-unlink-btn" style="margin-left:auto;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;white-space:nowrap">紐付け解除</button></div>';
     mt5Box.style.display='block';
     const unlinkBtn=document.getElementById('td-mt5-unlink-btn');
     if(unlinkBtn){unlinkBtn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();unlinkCurrentMT5Trade();};}
