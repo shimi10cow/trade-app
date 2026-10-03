@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261003n">
+  <link rel="stylesheet" href="./style.css?v=20261003p">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -41,7 +41,7 @@
     <div class="tab" data-tab="mt5">
       <span class="tab-icon">🔄</span>MT5
     </div>
-  </nav>
+  </nav>\n  <div id="ptr-anchor"></div>
 
   <!-- Screens -->
   <main class="content">
@@ -1401,7 +1401,7 @@
       </div>
       <div class="modal-body">
 
-        <div class="section-title">🎯 今週意識することPOP</div>
+        <div class="section-title">🎯 今週意識することPOP</div>\n        <button onclick="editPromiseFromSettings()" style="width:100%;padding:10px 12px;margin-bottom:10px;background:#172033;border:1px solid #475569;color:#e2e8f0;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ 表示内容を編集</button>
         <div style="font-size:11px; color:#64748b; margin-bottom:8px;">週次レビューで書いた約束を起動時に表示します</div>
         <div class="btn-group" id="set-pop-freq" style="display:flex; width:100%; gap:6px; margin-bottom:16px;">
           <button class="toggle-btn" data-val="always" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">毎回</button>
@@ -1419,14 +1419,14 @@
         </div>
         <div style="font-size:10px; color:#64748b; margin-bottom:12px;">厳選 = 雇用統計 / CPI / FOMC / パウエル議長発言 / ISM製造業 / ISMサービス業</div>
 
-        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">警告範囲</div>
+        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">エントリー前後の警告時間</div>
         <div class="btn-group" id="set-cal-window" style="display:flex; width:100%; gap:6px; margin-bottom:12px;">
           <button class="toggle-btn" data-val="1" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後1h</button>
           <button class="toggle-btn" data-val="2" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後2h</button>
           <button class="toggle-btn" data-val="3" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">前後3h</button>
         </div>
 
-        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">「すべて」表示時の対象</div>
+        <div style="font-size:11px; color:#94a3b8; font-weight:700; margin-bottom:6px;">「すべて」選択時に一覧へ表示する重要度</div>
         <div class="btn-group" id="set-cal-importance" style="display:flex; width:100%; gap:6px; margin-bottom:4px;">
           <button class="toggle-btn" data-val="high" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">Highのみ</button>
           <button class="toggle-btn" data-val="medhigh" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">High+Med</button>
@@ -1438,7 +1438,7 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003n" charset="utf-8"></script>
+  <script src="./app.js?v=20261003p" charset="utf-8"></script>
   <script src="./mt5_import.js?v=20261003o" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
