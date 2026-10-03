@@ -1535,26 +1535,37 @@ function requestMT5Import(data){
   ensureEASheets(); ensureMT5ImportSheet_(); data=data||{};
   const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Mode:String(data.Mode||'IMPORT'),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',row);
-  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
+  try{const c=CacheService.getScriptCache();c.put('mt5_import_pending_v1',JSON.stringify(row),120);c.put('mt5_import_status_v1',JSON.stringify(row),120);c.remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true,requestId:row.RequestID};
 }
 function getMT5ImportRequest(){
   ensureMT5ImportSheet_();
+  const cache=CacheService.getScriptCache(),hit=cache.get('mt5_import_pending_v1');
+  if(hit){try{const r=JSON.parse(hit);if(String(r.Status||'').toUpperCase()==='PENDING'){if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message);return r;}}catch(e){}}
   const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).filter(r=>String(r.Status||'').toUpperCase()==='PENDING');
-  if(!rows.length)return {}; const r=rows[0]; if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message); return r;
+  if(!rows.length)return {}; const r=rows[0];try{cache.put('mt5_import_pending_v1',JSON.stringify(r),120);}catch(e){}if(String(r.Message||'').match(/^\d{4}-\d{2}-\d{2}T/))r.Since=String(r.Message);return r;
 }
 function getMT5ImportStatus(){
   ensureMT5ImportSheet_();
-  const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET);
-  rows.sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
-  return rows[0]||{};
+  const cache=CacheService.getScriptCache(),hit=cache.get('mt5_import_status_v1');
+  if(hit){try{return JSON.parse(hit);}catch(e){}}
+  const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET);rows.sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
+  const r=rows[0]||{};try{cache.put('mt5_import_status_v1',JSON.stringify(r),120);}catch(e){}return r;
 }
 function updateMT5ImportRequest(data){
   ensureMT5ImportSheet_(); data=data||{};
   if(!data.RequestID)return {success:false,error:'RequestID required'};
   data.UpdatedAt=new Date().toISOString();
   upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',data);
-  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
+  try{
+    const c=CacheService.getScriptCache(),hit=c.get('mt5_import_status_v1');let full={};
+    if(hit){try{full=JSON.parse(hit)||{};}catch(e){}}
+    if(String(full.RequestID||'')!==String(data.RequestID))full={RequestID:data.RequestID};
+    Object.keys(data).forEach(k=>full[k]=data[k]);
+    c.put('mt5_import_status_v1',JSON.stringify(full),120);
+    if(String(data.Status||'').toUpperCase()!=='PENDING')c.remove('mt5_import_pending_v1');
+    c.remove('mt5_import_dashboard_v1');
+  }catch(e){}
   return {success:true};
 }
 function mt5CountTradeGroups_(rows){
