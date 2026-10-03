@@ -35,7 +35,7 @@ const GAS_ACTIONS = {
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
   getMT5ImportStatus: () => getMT5ImportStatus(),
-  waitMT5ImportStatus: () => waitMT5ImportStatus_(p.requestId,p.timeoutMs),
+  waitMT5ImportStatus: p => waitMT5ImportStatus_(p.requestId,p.timeoutMs),
   getMT5ImportResult: () => getMT5ImportResult(),
   getMT5ImportDashboard: () => getMT5ImportDashboard(),
   getMT5ImportSettings: () => getMT5ImportSettings(),
@@ -55,7 +55,7 @@ function doGet(e) {
 
   let result;
   if (action && GAS_ACTIONS[action]) {
-    result = { success: true, data: GAS_ACTIONS[action]() };
+    result = { success: true, data: GAS_ACTIONS[action](e.parameter || {}) };
   } else {
     result = { success: false, error: 'Unknown action: ' + action };
   }
