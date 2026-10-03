@@ -1614,7 +1614,9 @@ function saveMT5ImportBatch(requestId,account,server,rows){
   // New executions are contiguous, so append them in a single Sheets call.
   if(appended.length)sh.getRange(sh.getLastRow()+1,1,appended.length,hs.length).setValues(appended);
   // Re-import only refreshes MT5 candidates. History changes require an explicit user action.
-  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived});
+  // The imported batch already contains everything needed for grouping.
+  // Avoid re-reading the entire MT5 executions sheet only to calculate this count.
+  const groups=mt5CountTradeGroups_(rows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived});
   return {success:true,inserted:inserted,updated:updated,revived:revived,count:rows.length,autoAttached:0};
 }
 function setMT5ImportStatus(ids,status){
