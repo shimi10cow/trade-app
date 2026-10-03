@@ -72,8 +72,15 @@ def import_current_account(request):
         # is always calculated from the real MT5 entry execution.
         touched={int(getattr(d,"position_id",0) or 0) for d in deals}
         touched.discard(0)
+        # Only backfill positions whose entry execution is outside the requested
+        # window. Positions that already contain an IN deal need no extra MT5 call.
+        positions_with_entry={
+            int(getattr(d,"position_id",0) or 0) for d in deals
+            if int(getattr(d,"entry",-1)) in (mt5.DEAL_ENTRY_IN,mt5.DEAL_ENTRY_INOUT)
+        }
+        need_backfill=touched-positions_with_entry
         by_ticket={int(getattr(d,"ticket",0) or 0):d for d in deals}
-        for position_id in touched:
+        for position_id in need_backfill:
             for d in list(mt5.history_deals_get(position=position_id) or []):
                 by_ticket[int(getattr(d,"ticket",0) or 0)]=d
         deals=list(by_ticket.values())
