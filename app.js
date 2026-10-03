@@ -699,11 +699,12 @@ function renderHistoryList() {
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
     const pips = parseFloat(t['実取得pips']) || 0;
-    const isWin = pips > 10;
-    const isLoss = pips < -10;
-    const pipsColor = isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b');
+    // History colors have separate meanings:
+    // left rail = trade type (actual red / missed orange)
+    // pips text = result (profit green / loss red / flat neutral)
+    const pipsColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
     const pipsSign = pips > 0 ? '+' : '';
-    const borderColor = isMissed ? '#f59e0b' : (isWin ? '#10b981' : (isLoss ? '#ef4444' : '#f59e0b'));
+    const borderColor = isMissed ? '#f59e0b' : '#ef4444';
 
     return `
       <div class="list-card" onclick="openTradeDetailFromHistory(${index})" style="cursor:pointer; border-left: 4px solid ${borderColor}">
