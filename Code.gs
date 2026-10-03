@@ -1748,8 +1748,8 @@ function getMT5ImportDashboard(){
   const reqs=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET).sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
   const req=reqs[0]||{},acctReq=reqs.find(x=>x.Account&&String(x.Status||'').toUpperCase()==='DONE')||{},lastSyncByAccount={};
   reqs.forEach(x=>{const a=String(x.Account||'');if(!a||String(x.Mode||'IMPORT').toUpperCase()==='ACCOUNT'||String(x.Status||'').toUpperCase()!=='DONE'||lastSyncByAccount[a])return;lastSyncByAccount[a]=x.UpdatedAt||'';});
-  const entries=getEntries().filter(e=>!e.MT5SyncKey && !/EA/i.test(String(e.Source||e.TradeType||''))).slice(-250);
-  const result={executions:exec,status:req,accountInfo:acctReq.Account?{Account:String(acctReq.Account),Server:String(acctReq.Server||'')}:null,lastSyncByAccount:lastSyncByAccount,settings:getMT5ImportSettings(),manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
+  const entries=getEntries().filter(e=>!/EA/i.test(String(e.Source||e.TradeType||''))).slice(-500);
+  const result={executions:exec,status:req,accountInfo:acctReq.Account?{Account:String(acctReq.Account),Server:String(acctReq.Server||'')}:null,lastSyncByAccount:lastSyncByAccount,settings:getMT5ImportSettings(),manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||'',MT5Linked:!!e.MT5SyncKey}))};
   try{cache.put(key,JSON.stringify(result),30);}catch(e){}
   return result;
 }
