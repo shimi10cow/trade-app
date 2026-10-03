@@ -143,7 +143,7 @@
           <span style="color:#94a3b8;">〜</span>
           <input type="date" id="flt-date-to" class="form-input" style="padding:6px; flex:1;">
         </div>
-        <select id="flt-pair">
+        <select id="flt-pair" multiple size="1" title="複数選択可">
           <option value="all">全ペア</option>
           <!-- populated dynamically -->
         </select>
@@ -152,14 +152,14 @@
           <option value="entry">実エントリーのみ</option>
           <option value="missed">見逃しのみ</option>
         </select>
-        <select id="flt-timezone">
+        <select id="flt-timezone" multiple size="1" title="複数選択可">
           <option value="all">全時間帯</option>
           <option value="T2-9">T2-9</option>
           <option value="T9-12">T9-12</option>
           <option value="T15-18">T15-18</option>
           <option value="T18-2">T18-2</option>
         </select>
-        <select id="flt-rule">
+        <select id="flt-rule" multiple size="1" title="複数選択可">
           <option value="all">全DowRule</option>
           <option value="1">1: D1〇H4〇　H4出入口</option>
           <option value="2">2: D1〇H4〇　H4砦</option>
@@ -173,7 +173,7 @@
           <option value="10">10: D1✕H4✕　D1出入口</option>
           <option value="ルール外">ルール外</option>
         </select>
-        <select id="flt-score">
+        <select id="flt-score" multiple size="1" title="複数選択可">
           <option value="all">スコア指定なし</option>
           <option value="6">6</option>
           <option value="5">5</option>
@@ -182,13 +182,12 @@
           <option value="2">2</option>
           <option value="1">1</option>
           <option value="0">0</option>
-          <option value="high">高スコア (4以上)</option>
         </select>
-        <select id="flt-entry-ref">
+        <select id="flt-entry-ref" multiple size="1" title="複数選択可">
           <option value="all">エントリー振り返り：全て</option>
           <!-- populated dynamically -->
         </select>
-        <select id="flt-exit-ref">
+        <select id="flt-exit-ref" multiple size="1" title="複数選択可">
           <option value="all">決済振り返り：全て</option>
           <!-- populated dynamically -->
         </select>
@@ -197,6 +196,14 @@
             <select id="flt-ea-tf"><option value="all">EAルール：すべて</option><option value="M15">M15</option><option value="H1">H1</option></select>
             <select id="flt-ea-p"><option value="all">P：全て</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select>
           </div>
+        </div>
+        <div id="flt-manual-ma">
+          <select id="flt-ma" multiple size="1" title="MA条件（複数選択可）">
+            <option value="h4dev">H4MA乖離 ○</option>
+            <option value="h4480">H4MA480・1200 ○</option>
+            <option value="h1ma">H1MA20・80 ○</option>
+            <option value="h4ma">H4MA20・80 ○</option>
+          </select>
         </div>
         <select id="flt-plan">
           <option value="all">計画/衝動：全て</option>
@@ -1411,7 +1418,7 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003selectiveunlink" charset="utf-8"></script>
+  <script src="./app.js?v=20261004multifilter" charset="utf-8"></script>
   <script src="./mt5_import.js?v=20261003bgpostsave" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
