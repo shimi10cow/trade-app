@@ -1676,9 +1676,7 @@ function adoptMT5Trade(executionIds,options){
   const group=String(options.tradeGroupId||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   const dt=x=>{if(!x)return {date:'',time:''};const d=new Date(x);return {date:Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd'),time:Utilities.formatDate(d,'Asia/Tokyo','HH:mm')}};
   const en=dt(a.EntryTime),ex=dt(a.ExitTime);
-  const symbol=String(a.Pair||'').toUpperCase();
-  const pipSize=/BTC|ETH|LTC|XRP/.test(symbol)?(/JPY$/i.test(symbol)?1000:1):(/XAU|GOLD/i.test(symbol)?0.1:(/XAG/i.test(symbol)?0.01:(/JPY$/i.test(symbol)?0.01:0.0001)));
-  const isForex=/^[A-Z]{6}$/.test(symbol)&&!/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(symbol);
+  const isForex=mt5IsFxPair_(a.Pair);
   const mt5Pips=mt5Pips_(a.Pair,a.Direction,a.EntryPrice,a.ExitPrice);
   const obj={'TradeGroupID':group,'MT5SyncKey':group,'MT5Account':a.Account,'Source':'MT5-MANUAL','TradeType':'裁量',
     'PairName（元）':mt5AppPair_(a.Pair),'PairName':mt5AppPair_(a.Pair),'Direction':a.Direction==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
@@ -1698,8 +1696,11 @@ function adoptMT5Trade(executionIds,options){
   }
   else {const r=saveEntry(obj);if(!r.success)return r;entryId=r.entryId;}
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim());
-  const ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),sc=hs.indexOf('ImportStatus'),ec=hs.indexOf('EntryID'),set=new Set(executionIds.map(String));
-  for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){sh.getRange(i+1,gc+1).setValue(group);sh.getRange(i+1,sc+1).setValue('採用済み');sh.getRange(i+1,ec+1).setValue(entryId);}
+  const ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),sc=hs.indexOf('ImportStatus'),ec=hs.indexOf('EntryID'),set=new Set(executionIds.map(String)),changed=[];
+  for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){vals[i][gc]=group;vals[i][sc]='採用済み';vals[i][ec]=entryId;changed.push(i+1);}
+  // Write each affected row once instead of three separate cell writes.
+  changed.forEach(r=>sh.getRange(r,1,1,hs.length).setValues([vals[r-1]]));
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
   obj.EntryID=entryId; return {success:true,entryId:entryId,tradeGroupId:group,aggregate:a,entry:obj};
 }
 function splitMT5Trade(entryId,executionIds){
