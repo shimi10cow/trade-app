@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261003b">
+  <link rel="stylesheet" href="./style.css?v=20261003c">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -762,11 +762,17 @@
 
         <!-- Basic Info -->
         <div class="section">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
-            <div class="grid-item"><span class="grid-label">エントリー日</span><input type="date" class="form-input" id="td-date" style="text-align:center;padding:9px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">エントリー時刻</span><input type="time" class="form-input" id="td-time" style="text-align:center;padding:9px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">決済日</span><input type="date" class="form-input" id="td-exit-date" style="text-align:center;padding:9px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">決済時刻</span><input type="time" class="form-input" id="td-exit-time" style="text-align:center;padding:9px 4px;"></div>
+          <div class="trade-datetime-block">
+            <div class="trade-datetime-row">
+              <span class="trade-datetime-label">エントリー日時</span>
+              <input type="date" class="form-input trade-date-input" id="td-date">
+              <input type="time" class="form-input trade-time-input" id="td-time">
+            </div>
+            <div class="trade-datetime-row">
+              <span class="trade-datetime-label">決済日時</span>
+              <input type="date" class="form-input trade-date-input" id="td-exit-date">
+              <input type="time" class="form-input trade-time-input" id="td-exit-time">
+            </div>
           </div>
           <div class="form-row">
             <span class="form-label">ペア</span>
