@@ -3116,18 +3116,27 @@ function updateMonthlyStats() {
   }
 }
 
+
+// Analysis multi-select helpers (native select UI, checkmarks supplied by browser).
+function analysisValues(id){
+  const el=document.getElementById(id); if(!el)return [];
+  return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(v=>v!=='all');
+}
+function analysisHas(vals,v){return !vals.length||vals.includes(String(v));}
+
 // ==========================================
 // Analysis Logic
 // ==========================================
 function applyAnalysisFilters() {
   const fPeriod = document.getElementById('flt-period').value;
-  const fPair = document.getElementById('flt-pair').value;
+  const fPairs = analysisValues('flt-pair');
   const fStatus = document.getElementById('flt-status').value;
-  const fTimezone = document.getElementById('flt-timezone').value;
-  const fRule = document.getElementById('flt-rule').value;
-  const fScore = document.getElementById('flt-score').value;
-  const fEntryRef = document.getElementById('flt-entry-ref')?.value || 'all';
-  const fExitRef = document.getElementById('flt-exit-ref')?.value || 'all';
+  const fTimezones = analysisValues('flt-timezone');
+  const fRules = analysisValues('flt-rule');
+  const fScores = analysisValues('flt-score');
+  const fEntryRefs = analysisValues('flt-entry-ref');
+  const fExitRefs = analysisValues('flt-exit-ref');
+  const fMA = analysisValues('flt-ma');
   const fPlan = document.getElementById('flt-plan')?.value || 'all';
   const fEaTf = document.getElementById('flt-ea-tf')?.value || 'all';
   const fEaP = document.getElementById('flt-ea-p')?.value || 'all';
@@ -3150,14 +3159,17 @@ function applyAnalysisFilters() {
     if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'signal') return false;
-    if (fPair !== 'all' && (t['PairName（元）'] || t.PairName || t.Pair) !== fPair) return false;
-    if (fTimezone !== 'all' && t['時間帯'] !== fTimezone) return false;
-    if (fRule !== 'all' && t.DowRule != fRule) return false;
+    if (!analysisHas(fPairs,(t['PairName（元）'] || t.PairName || t.Pair))) return false;
+    if (!analysisHas(fTimezones,t['時間帯'])) return false;
+    if (!analysisHas(fRules,t.DowRule)) return false;
     const score = parseInt(t['エントリースコア']) || 0;
-    if (fScore === 'high' && score < 4) return false;
-    if (fScore !== 'all' && fScore !== 'high' && score.toString() !== fScore) return false;
-    if (fEntryRef !== 'all' && entryComplianceCategory(t) !== fEntryRef) return false;
-    if (fExitRef !== 'all' && (t['決済振り返り'] || '') !== fExitRef) return false;
+    if (!analysisHas(fScores,score)) return false;
+    if (!analysisHas(fEntryRefs,entryComplianceCategory(t))) return false;
+    if (!analysisHas(fExitRefs,(t['決済振り返り'] || ''))) return false;
+    if(eaType==='manual'&&fMA.length){
+      const maMap={h4dev:'H4MA乖離',h4480:'H4MA480.1200',h1ma:'H1MA20.80',h4ma:'H4MA20.80'};
+      if(!fMA.some(k=>String(t[maMap[k]]||'').includes('○')||String(t[maMap[k]]||'').includes('〇')||String(t[maMap[k]]||'').includes('◎')))return false;
+    }
     if (eaType === 'ea') { const rule=String(t['EAルール']||t.Rule||''); if(fEaTf!=='all'&&!rule.includes(fEaTf))return false; if(fEaP!=='all'&&!rule.includes(fEaP))return false; }
 
     return true;
