@@ -2792,16 +2792,14 @@ function openGalleryFlip(index) {
     raw = String(raw || '').trim();
     if (raw && raw !== 'undefined') imgs.push({ label, raw });
   };
-  add('📋 事前チャート', t['事前チャート']);
   tradeEntryImages(t).forEach(function(raw,i){add('📷 エントリー '+(i+1),raw);});
   tradeExitImages(t).forEach(function(raw,i){add('🏁 決済 '+(i+1),raw);});
   if (imgs.length === 0) return;
 
   App.state.flipImgs = imgs;
   App.state.flipTradeIndex = index;
-  // 決済画像があればそこから表示（ギャラリーのサムネと一致）
-  const exitIdx = imgs.findIndex(i => i.label.indexOf('🏁 決済') === 0);
-  App.state.flipIdx = exitIdx >= 0 ? exitIdx : 0;
+  // 代表画像と同じ先頭（Entry優先）から開く
+  App.state.flipIdx = 0;
   renderGalleryFlip();
   document.getElementById('gallery-flip').style.display = 'flex';
 }
@@ -2877,8 +2875,8 @@ function renderGallery() {
   let galleryTrades = App.data.entries.filter(t => {
     const st = t['ステータス'] || '';
     if (st !== '決済' && st !== '決済（見逃し）') return false;
-    const img = findExitImageField(t) || findEntryImageField(t);
-    return img && img.trim() !== '';
+    const img = tradeEntryImages(t)[0] || tradeExitImages(t)[0];
+    return !!img;
   });
 
   // スコアフィルター
@@ -2935,7 +2933,7 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = findExitImageField(t) || findEntryImageField(t);
+    const rawUrl = tradeEntryImages(t)[0] || tradeExitImages(t)[0];
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
