@@ -43,18 +43,20 @@ def ensure_mt5():
     if mt5.terminal_info() is None and not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
 
 def fetch_current_account(request):
+    t0=time.perf_counter()
     ensure_mt5()
     try:
         a=mt5.account_info()
         if not a:raise RuntimeError("MT5 account_info unavailable")
         account=str(a.login);server=str(getattr(a,"server","") or "")
         gas_post("updateMT5ImportRequest",data={"RequestID":request.get("RequestID",""),"Status":"DONE","Account":account,"Server":server,"Message":"ACCOUNT_INFO"})
-        logging.info("MT5 account info account=%s server=%s",account,server)
+        logging.info("MT5 account info account=%s server=%s total=%.2fs",account,server,time.perf_counter()-t0)
         return {"account":account,"server":server}
     finally:
         pass
 
 def import_current_account(request):
+    t0=time.perf_counter()
     ensure_mt5()
     try:
         a=mt5.account_info()
@@ -71,7 +73,9 @@ def import_current_account(request):
                 start=end-timedelta(days=days)
         else:
             start=end-timedelta(days=days)
+        t_mt5=time.perf_counter()
         deals=list(mt5.history_deals_get(start,end) or [])
+        history_sec=time.perf_counter()-t_mt5
         # Incremental windows can contain an exit while its entry happened earlier.
         # Backfill the complete deal history for every touched position so EntryPrice
         # is always calculated from the real MT5 entry execution.
@@ -126,8 +130,10 @@ def import_current_account(request):
               "Lot":float(p.volume),"SL":float(getattr(p,"sl",0) or 0),"TP":float(getattr(p,"tp",0) or 0),
               "Status":"OPEN","ImportStatus":"未確認"
             })
+        t_save=time.perf_counter()
         result=gas_post("saveMT5ImportBatch",requestId=request.get("RequestID",""),account=account,server=server,data=rows)
-        logging.info("MT5 import account=%s server=%s rows=%s",account,server,len(rows))
+        save_sec=time.perf_counter()-t_save
+        logging.info("MT5 import account=%s server=%s rows=%s history=%.2fs save=%.2fs total=%.2fs",account,server,len(rows),history_sec,save_sec,time.perf_counter()-t0)
         return result
     finally:
         pass
