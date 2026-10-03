@@ -364,7 +364,7 @@ window.voiceMemo=function(id,btn){
     var rec=new SR(); rec.lang='ja-JP'; rec.interimResults=false; rec.continuous=false;
     var old=btn?btn.innerHTML:'';
     if(btn){btn.disabled=true;btn.innerHTML='🎙️ 聞き取り中...';}
-    rec.onresult=function(e){var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;var base=String(el.value||'').trim();el.value=base?(base+'\n'+s):s;el.dispatchEvent(new Event('input',{bubbles:true}));};
+    rec.onresult=function(e){if(btn)btn.innerHTML='<span class="mt5-spin">◌</span> 反映中...';var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;setTimeout(function(){var base=String(el.value||'').trim();el.value=base?(base+'\n'+s):s;el.dispatchEvent(new Event('input',{bubbles:true}));},30);};
     rec.onerror=function(){el.focus();showToast('音声認識を開始できません。キーボードのマイクも使えます');};
     rec.onend=function(){if(btn){btn.disabled=false;btn.innerHTML=old;}};
     rec.start();
@@ -6193,15 +6193,12 @@ async function deleteEntry() {
     if (!res.success) throw new Error(res.error || '削除に失敗しました');
 
     closeTradeDetail();
-    if (res.queued) {
-      // ローカルからも除去して即時反映（サーバーへは再接続時に送信）
-      App.data.entries = App.data.entries.filter(x => x['EntryID'] !== entryId);
-      renderPositions();
-      showToast('📥 削除を保存待ちに追加しました');
-    } else {
-      showToast('削除しました 🗑️');
-      loadData(); // バックグラウンドで再読み込み
-    }
+    // サーバー応答後は再取得を待たずローカルから即時除去
+    App.data.entries = App.data.entries.filter(x => x['EntryID'] !== entryId);
+    renderPositions();
+    if (window.renderHistoryList) renderHistoryList();
+    showToast(res.queued ? '📥 削除を保存待ちに追加しました' : '削除しました 🗑️');
+    if (!res.queued) setTimeout(() => loadData(), 0);
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {
