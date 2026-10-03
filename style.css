@@ -359,3 +359,10 @@ textarea.form-input { resize: vertical; }
   #screen-gallery.record-shortcut-transition,
   #screen-gallery .collapse-section.record-shortcut-highlight { animation:none; }
 }
+
+/* Compact shared trade datetime editor: used by positions and history detail. */
+.trade-datetime-block{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.trade-datetime-row{display:grid;grid-template-columns:92px minmax(0,1.35fr) minmax(0,.9fr);gap:6px;align-items:center}
+.trade-datetime-label{font-size:12px;font-weight:700;color:#94a3b8;white-space:nowrap}
+.trade-datetime-row .form-input{min-width:0;width:100%;padding:8px 5px;text-align:center;font-size:13px}
+@media(max-width:390px){.trade-datetime-row{grid-template-columns:82px minmax(0,1.4fr) minmax(0,.9fr);gap:4px}.trade-datetime-label{font-size:11px}.trade-datetime-row .form-input{padding:8px 2px;font-size:12px}}
