@@ -406,7 +406,7 @@ function setupPullToRefresh() {
   const ind = document.createElement('div');
   ind.id = 'ptr-bar';
   ind.style.cssText = [
-    'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:8888',
+    'position:relative', 'width:100%', 'z-index:50',
     'height:0', 'overflow:hidden', 'background:#0f172a',
     'display:flex', 'align-items:center', 'justify-content:center',
     'transition:height 0.15s ease', 'will-change:height'
@@ -416,7 +416,7 @@ function setupPullToRefresh() {
       <span id="ptr-spinner" style="font-size:18px;display:inline-block;transition:transform 0.3s;">↓</span>
       <span id="ptr-label">引っ張ってリロード</span>
     </div>`;
-  document.body.appendChild(ind);
+  const anchor=document.getElementById('ptr-anchor'); if(anchor)anchor.appendChild(ind); else document.body.insertBefore(ind,document.body.firstChild);
 
   // ページ全体のスクロール量を取得（.screenはdisplay:blockのみでスクロールしない）
   function getScrollTop() {
@@ -2320,6 +2320,17 @@ async function editPromiseFromPop() {
     .map(line => `<div style="padding:4px 0;">${line.startsWith('→') ? line : '→ ' + line}</div>`)
     .join('');
   gasPostQueued({ action: 'updateReview', reviewId: latest.id, data: { '約束': edited } }, '約束編集').catch(() => {});
+}
+
+function editPromiseFromSettings() {
+  const latest = getWeeklyReviewsSorted()[0];
+  if (!latest) { showToast('編集できる今週の内容がありません'); return; }
+  const edited = prompt('今週意識することを編集:', latest['約束'] || '');
+  if (edited === null) return;
+  latest['約束'] = edited;
+  gasPostQueued({ action:'updateReview', reviewId:latest.id, data:{'約束':edited} }, '約束編集')
+    .then(() => showToast('今週意識することを更新しました'))
+    .catch(() => showToast('⚠️ 更新に失敗しました'));
 }
 
 // ---- 月次総括 ----
