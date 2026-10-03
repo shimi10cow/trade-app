@@ -6168,7 +6168,7 @@ async function saveTradeDetail() {
 
     // MT5候補は詳細確認中はドラフト。変更内容を保存した時点で初めてEntriesへ採用する。
     let res;
-    if(t._mt5Draft){res=await gasPost({action:'adoptMT5Trade',executionIds:t._mt5ExecutionIds||[],options:{overlay:updateData}});if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,res.entry||{},updateData,{EntryID:res.entryId});delete t._mt5Draft;delete t._mt5ExecutionIds;}else{res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);}
+    if(t._mt5Draft){const _mt5ids=(t._mt5ExecutionIds||[]).slice();res=await gasPost({action:'adoptMT5Trade',executionIds:_mt5ids,options:{overlay:updateData}});if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,res.entry||{},updateData,{EntryID:res.entryId});delete t._mt5Draft;delete t._mt5ExecutionIds;if(window.mt5CommitLocal)window.mt5CommitLocal(_mt5ids);}else{res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);}
 
     const payloadStatus = updateData['ステータス'];
     const payloadPips = updateData['実取得pips'];
