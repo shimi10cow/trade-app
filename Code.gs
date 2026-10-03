@@ -1705,7 +1705,7 @@ function mt5RowsByIds_(ids){
 function mt5RawSymbol_(pair){return String(pair||'').toUpperCase().replace(/#/g,'').replace(/\s+/g,'');}
 function mt5IsFxPair_(pair){const p=mt5RawSymbol_(pair).replace(/CASH$/,'');return /^(EUR|USD|JPY|GBP|AUD|NZD|CAD|CHF)(EUR|USD|JPY|GBP|AUD|NZD|CAD|CHF)$/.test(p);}
 function mt5AppPair_(pair){const p=mt5RawSymbol_(pair).replace(/CASH$/,'');const map={XAUUSD:'GOLD',GOLD:'GOLD',XAGUSD:'SILVER',SILVER:'SILVER',NGAS:'NATGAS',NATGAS:'NATGAS',NATURALGAS:'NATGAS',US500:'US500',US30:'US30',UK100:'UK100',EU50:'EU50'};return map[p]||p;}
-function mt5Pips_(pair,dir,en,ex){en=Number(en);ex=Number(ex);if(!en||!ex)return '';const p=mt5RawSymbol_(pair),step=mt5IsFxPair_(p)?(p.indexOf('JPY')>=0?0.01:0.0001):1;return Math.round(((String(dir).toUpperCase()==='SELL'?en-ex:ex-en)/step)*10)/10;}
+function mt5Pips_(pair,dir,en,ex){en=Number(en);ex=Number(ex);if(!en||!ex)return '';const p=mt5RawSymbol_(pair),step=/BTC|ETH|LTC|XRP/.test(p)?10:(mt5IsFxPair_(p)?(p.indexOf('JPY')>=0?0.01:0.0001):1);return Math.round(((String(dir).toUpperCase()==='SELL'?en-ex:ex-en)/step)*10)/10;}
 function mt5Aggregate_(rows){
   const deals=rows.filter(r=>String(r.Deal||'')&&String(r.DealEntry||'')!=='');
   const entries=deals.filter(r=>String(r.DealEntry)==='0'||String(r.DealEntry)==='2');
@@ -1759,17 +1759,16 @@ function adoptMT5Trade(executionIds,options){
     // Linking MT5 executions to an existing manual trade must preserve the user's
     // planned SL/TP distances. Rebuild their prices from the newly aggregated
     // entry price instead of overwriting them with blank MT5 SL/TP values.
-    const keepSL=Number(current.StopLossPips||current.SL||0);
-    const keepTP=Number(current.TakeProfitPips||current.TP||current.StopProfitPips||0);
-    const appPair=mt5AppPair_(a.Pair),dir=a.Direction==='BUY'?'BUY':'SELL';
-    const cryptoOrMetal=/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(String(appPair).toUpperCase());
-    const pip=cryptoOrMetal?1:(String(appPair).toUpperCase().includes('JPY')?0.01:0.0001);
-    const digits=/BTC|ETH|LTC|XRP/.test(String(appPair).toUpperCase())?(String(appPair).toUpperCase().includes('JPY')?0:2):(String(appPair).toUpperCase().includes('JPY')?2:(/XAU|GOLD|XAG|SILVER/.test(String(appPair).toUpperCase())?2:4));
-    const px=(distance,isSL)=>distance>0&&Number(a.EntryPrice)>0?Number((Number(a.EntryPrice)+(dir==='BUY'?(isSL?-1:1):(isSL?1:-1))*distance*pip).toFixed(digits)):'';
-    if(keepSL>0){obj.StopLossPips=keepSL;obj.InitialSLPrice=px(keepSL,true);}
-    else if(!a.SL)obj.InitialSLPrice=current.InitialSLPrice||current.SLPrice||current['損切り価格']||'';
-    if(keepTP>0){obj.TakeProfitPips=keepTP;obj.TakeProfitPrice=px(keepTP,false);}
-    else if(!a.TP)obj.TakeProfitPrice=current.TakeProfitPrice||current.TPPrice||current['利確価格']||'';
+    const appPair=mt5AppPair_(a.Pair),dir=a.Direction==='BUY'?'BUY':'SELL',pairU=String(appPair).toUpperCase();
+    const pip=/BTC|ETH|LTC|XRP/.test(pairU)?10:(/XAU|GOLD|XAG|SILVER/.test(pairU)?1:(pairU.includes('JPY')?0.01:0.0001));
+    const savedSL=Number(current.InitialSLPrice||current.SLPrice||current['損切り価格']||0);
+    const savedTP=Number(current.TakeProfitPrice||current.TPPrice||current['利確価格']||0);
+    const slPrice=Number(a.SL)||savedSL,tpPrice=Number(a.TP)||savedTP,entry=Number(a.EntryPrice)||0;
+    const pipsFromPrice=(price,isSL)=>price>0&&entry>0?Math.round(Math.max(0,(dir==='BUY'?(isSL?entry-price:price-entry):(isSL?price-entry:entry-price))/pip)*10)/10:'';
+    obj.InitialSLPrice=slPrice||'';
+    obj.TakeProfitPrice=tpPrice||'';
+    obj.StopLossPips=pipsFromPrice(slPrice,true);
+    obj.TakeProfitPips=pipsFromPrice(tpPrice,false);
     if(!current.MT5SyncKey&&!current.MT5ManualBackup){
       const keys=['PairName（元）','PairName','Direction','EntryDate','EntryTime','EntryPrice','Lot','InitialSLPrice','TakeProfitPrice','ステータス','ExitDate','ExitTime','ExitPrice','Profit','損益','実取得pips','Swap'];
       const backup={};keys.forEach(k=>backup[k]=current[k]===undefined?'':current[k]);
