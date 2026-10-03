@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261003p">
+  <link rel="stylesheet" href="./style.css?v=20261003q">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -630,7 +630,7 @@
           
           <div class="form-row" style="align-items:flex-start;">
             <span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span>
-            <div class="memo-label-stack"><span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;ne-memo&quot;,this)">🎙️ 音声入力</button></div><textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリー時の懸念や感情..." style="flex:1;width:100%;"></textarea>
+            <div class="memo-label-stack"><span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;ne-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('ne-memo').value=''">✕</button></div>
           </div>
         </div>
 
@@ -702,7 +702,7 @@
           <div id="pe-tl-ts" style="font-size:11px;color:#475569;margin-bottom:16px;">未分析</div>
 
           <div class="form-row" style="align-items:flex-start;">
-            <span class="form-label" style="margin-top:8px;">メモ</span>
+            <div class="memo-label-stack" style="margin-top:8px;"><span class="form-label">メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;pe-memo&quot;,this)">🎙️ 音声入力</button></div>
             <div style="flex:1;position:relative;">
               <textarea class="form-input" id="pe-memo" rows="3" placeholder="" style="width:100%;padding-right:32px;"></textarea>
               <button onclick="document.getElementById('pe-memo').value=''" style="position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#334155;color:#94a3b8;border:none;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
@@ -1438,7 +1438,7 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003p" charset="utf-8"></script>
+  <script src="./app.js?v=20261003q" charset="utf-8"></script>
   <script src="./mt5_import.js?v=20261003o" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
