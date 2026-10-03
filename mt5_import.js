@@ -20,9 +20,9 @@ function appLot(pair,lot){return isFxPair(pair)?lot:'';}
 function groupSummary(g){
  var entries=g.rows.filter(isIn),exits=g.rows.filter(isOut);
  var ev=entries.reduce(function(s,r){return s+n(r.DealVolume)},0)||g.rows.reduce(function(s,r){return s+n(r.Lot)},0);
- var wavg=function(rows,pk,vk){var v=rows.reduce(function(s,r){return s+n(r[vk])},0);return v?rows.reduce(function(s,r){return s+n(r[pk])*n(r[vk])},0)/v:0;};
+ var wavg=function(rows,pk,vk){var x=rows.map(function(r){return {p:n(r[pk]),v:n(r[vk])||n(r.DealVolume)||n(r.Lot)};}).filter(function(z){return z.p>0&&z.v>0;}),v=x.reduce(function(s,z){return s+z.v},0);return v?x.reduce(function(s,z){return s+z.p*z.v},0)/v:0;};
  var ep=wavg(entries,'DealPrice','DealVolume')||wavg(g.rows.filter(function(r){return n(r.EntryPrice)>0&&n(r.DealVolume)>0;}),'EntryPrice','DealVolume')||wavg(g.rows.filter(function(r){return r.Status==='OPEN'&&!r.Deal;}),'EntryPrice','Lot')||n((g.rows.find(function(r){return n(r.EntryPrice)>0;})||{}).EntryPrice);
- var xp=wavg(exits,'DealPrice','DealVolume');
+ var xp=wavg(exits,'DealPrice','DealVolume')||n((exits.find(function(r){return n(r.DealPrice)>0;})||{}).DealPrice)||n((exits.find(function(r){return n(r.ExitPrice)>0;})||{}).ExitPrice);
  var exitVol=exits.reduce(function(s,r){return s+n(r.DealVolume)},0);
  var weightedPips=exitVol?exits.reduce(function(s,r){return s+calcPips(g.pair,g.dir,ep,n(r.DealPrice))*n(r.DealVolume)},0)/exitVol:'';
  var profit=g.rows.filter(function(r){return r.Deal;}).reduce(function(s,r){return s+n(r.Profit)+n(r.Swap)},0);
