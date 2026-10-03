@@ -762,8 +762,12 @@
 
         <!-- Basic Info -->
         <div class="section">
-          <div class="form-row"><span class="form-label">日付</span><input type="date" class="form-input" id="td-date"></div>
-          <div class="form-row"><span class="form-label">時間</span><input type="time" class="form-input" id="td-time"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+            <div class="grid-item"><span class="grid-label">エントリー日</span><input type="date" class="form-input" id="td-date" style="text-align:center;padding:9px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">エントリー時刻</span><input type="time" class="form-input" id="td-time" style="text-align:center;padding:9px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">決済日</span><input type="date" class="form-input" id="td-exit-date" style="text-align:center;padding:9px 4px;"></div>
+            <div class="grid-item"><span class="grid-label">決済時刻</span><input type="time" class="form-input" id="td-exit-time" style="text-align:center;padding:9px 4px;"></div>
+          </div>
           <div class="form-row">
             <span class="form-label">ペア</span>
             <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
@@ -847,7 +851,6 @@
             <div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="td-sl-price" style="text-align:center;padding:10px 4px;"></div>
             <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="td-tp-price" style="text-align:center;padding:10px 4px;"></div>
           </div>
-          <div class="form-row"><span class="form-label">決済時刻</span><input type="time" class="form-input" id="td-exit-time"></div>
 
           <div id="closing-fields">
             <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
@@ -1429,8 +1432,8 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003h" charset="utf-8"></script>
-  <script src="./mt5_import.js?v=20261003h" charset="utf-8"></script>
+  <script src="./app.js?v=20261003i" charset="utf-8"></script>
+  <script src="./mt5_import.js?v=20261003i" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
 </html>
