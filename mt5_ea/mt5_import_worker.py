@@ -4,7 +4,7 @@ Polls the app request queue, reads ONLY the account currently logged in to the
 single MT5 terminal, and uploads deals/positions to Google Sheets via GAS.
 It never sends orders and never modifies SL/TP.
 """
-import os,time,logging
+import os,time,logging,atexit
 from datetime import datetime,timezone,timedelta
 import requests
 import MetaTrader5 as mt5
@@ -14,6 +14,7 @@ GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
 POLL_SEC=max(1,int(os.getenv("MT5_IMPORT_POLL_SEC","1")))
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
 HTTP=requests.Session()
+atexit.register(mt5.shutdown)
 
 def gas_get(action,**params):
     r=HTTP.get(GAS_URL,params={"action":action,**params},timeout=10);r.raise_for_status()
