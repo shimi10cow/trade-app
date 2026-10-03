@@ -1706,7 +1706,19 @@ function unlinkMT5FromEntry(entryId){
     try{Object.assign(mt5Fields,JSON.parse(String(current.MT5ManualBackup)));restored=true;}catch(e){}
   }
   mt5Fields.MT5ManualBackup='';
-  if(n)updateEntry(String(entryId),mt5Fields);
-  return {success:true,updated:n,restored:restored};
+  let deleted=false;
+  if(n){
+    if(restored){
+      updateEntry(String(entryId),mt5Fields);
+    }else{
+      // MT5から新規作成されたEntryには復元元の手入力Tradeがないため、
+      // 解除時はEntry自体を削除し、Executionだけ未確認へ戻す。
+      const dr=deleteEntry(String(entryId));
+      if(!dr.success)return dr;
+      deleted=true;
+    }
+  }
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
+  return {success:true,updated:n,restored:restored,deleted:deleted};
 }
 
