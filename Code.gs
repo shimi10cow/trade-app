@@ -1642,7 +1642,15 @@ function mt5Aggregate_(rows){
     Status:open>0?'OPEN':'CLOSED',EntryCount:entries.length||positionRows.length,ExitCount:exits.length};
 }
 function adoptMT5Trade(executionIds,options){
-  ensureEASheets(); options=options||{}; const rows=mt5RowsByIds_(executionIds); if(!rows.length)return {success:false,error:'No executions'};
+  ensureEASheets(); options=options||{}; executionIds=Array.from(new Set((executionIds||[]).map(String).filter(Boolean)));
+  const rows=mt5RowsByIds_(executionIds); if(!rows.length)return {success:false,error:'No executions'};
+  // Idempotency guard: an MT5 execution can belong to only one app Entry.
+  // Repeated taps/retries/re-imports return the existing Entry instead of creating duplicates.
+  const linkedIds=Array.from(new Set(rows.map(r=>String(r.EntryID||'')).filter(Boolean)));
+  if(!options.entryId&&linkedIds.length){
+    const existingId=linkedIds[0],existing=getEntries().find(x=>String(x.EntryID)===existingId);
+    if(existing)return {success:true,entryId:existingId,tradeGroupId:String(existing.TradeGroupID||rows[0].TradeGroupID||''),entry:existing,reused:true};
+  }
   const a=mt5Aggregate_(rows); if(!a.Pair||!a.Direction)return {success:false,error:'Cannot determine trade'};
   ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','ExitPrice','ExitDate','ExitTime','Profit','損益','Swap','実取得pips','MT5ExecutionIDs','MT5LastSyncAt','MT5OpenLot','MT5ClosedLot','MT5EntryCount','MT5ExitCount','MT5ManualBackup']);
   const group=String(options.tradeGroupId||('MANUAL-'+Utilities.getUuid().substring(0,12)));
