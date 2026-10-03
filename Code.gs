@@ -1582,13 +1582,24 @@ function mt5CountTradeGroups_(rows){
   let n=0,last=null; positions.forEach(p=>{const same=last&&last.server===p.server&&last.account===p.account&&last.pair===p.pair&&last.dir===p.dir;const within=same&&Math.abs(p.start-last.start)<=6*3600*1000;if(within){last.end=Math.max(last.end,p.end);}else{n++;last=Object.assign({},p);}}); return n;
 }
 function saveMT5ImportBatch(requestId,account,server,rows){
-  ensureEASheets(); rows=Array.isArray(rows)?rows:[];
+  rows=Array.isArray(rows)?rows:[];
+  // No executions means there is nothing to read, compare or write in the MT5
+  // executions sheet. Only mark the request complete.
+  if(!rows.length){
+    if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades 0 / executions 0 / new 0 / updated 0 / revived 0'});
+    return {success:true,inserted:0,updated:0,revived:0,count:0,autoAttached:0};
+  }
   const sh=ensureSheetWithHeaders_(MT5_EXECUTIONS_SHEET,MT5_EXEC_HEADERS);
   const vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),kc=hs.indexOf('ExecutionID');
   const map={}; for(let i=1;i<vals.length;i++)map[String(vals[i][kc])]=i;
   const now=new Date().toISOString(); let inserted=0,updated=0,revived=0;
-  const validEntryIds=new Set(getEntries().map(x=>String(x.EntryID||'')).filter(Boolean));
   const statusCol=hs.indexOf('ImportStatus'),entryCol=hs.indexOf('EntryID'),groupCol=hs.indexOf('TradeGroupID');
+  // Entry history is only needed when a fetched execution is already linked.
+  // Most imports contain only new/unlinked rows, so avoid loading Entries.
+  const fetchedIds=new Set(rows.map(x=>String(x&&x.ExecutionID||'')).filter(Boolean));
+  let needsEntryValidation=false;
+  if(entryCol>=0)for(let i=1;i<vals.length;i++)if(fetchedIds.has(String(vals[i][kc]))&&String(vals[i][entryCol]||'')){needsEntryValidation=true;break;}
+  const validEntryIds=needsEntryValidation?new Set(getEntries().map(x=>String(x.EntryID||'')).filter(Boolean)):new Set();
   const changed=[],appended=[];
   rows.forEach(d=>{
     if(!d||!d.ExecutionID)return;
