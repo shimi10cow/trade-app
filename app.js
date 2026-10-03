@@ -3115,12 +3115,14 @@ function applyAnalysisFilters() {
     const pips = parseFloat(t['実取得pips']) || 0;
     const profit = parseFloat(t['損益']) || 0;
     const lot = parseFloat(t['Lot']) || 0;
+    const lotPair=String(t['PairName（元）']||t.PairName||t.Pair||'').toUpperCase();
+    const isForexLot=/^[A-Z]{6}$/.test(lotPair)&&!/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(lotPair);
     const entryRef = t['エントリー振り返り'] || '';
     const exitRef = t['決済振り返り'] || '';
 
     totalPips += pips;
     totalProfit += profit;
-    if (lot > 0) { totalLot += lot; lotCount++; }
+    if (isForexLot && lot > 0) { totalLot += lot; lotCount++; }
 
     // 勝敗判定: ±10pips閾値
     // 勝ち: pips > 10 / 負け: pips < -10 / 引き分け: -10 <= pips <= 10
@@ -5625,6 +5627,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const dateStr = formatDateDisplay(t.EntryDate);
   document.getElementById('td-date').value = dateStr.replace(/\//g, '-');
   document.getElementById('td-time').value = formatTimeDisplay(t.EntryTime);
+  const exitDateEl=document.getElementById('td-exit-date');if(exitDateEl)exitDateEl.value=formatDateDisplay(t.ExitDate||t['決済日']||'').replace(/\//g,'-');
   document.getElementById('td-pair').value = t['PairName（元）'] || t.PairName || t.Pair || '';
 
   // Score display
@@ -5686,9 +5689,15 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-tp').value = t['TP'] || t['TakeProfitPips'] || t['StopProfitPips'] || '';
   document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
-  document.getElementById('td-lot').value = t['Lot'] || '';
-  document.getElementById('td-entry-price').value = t['EntryPrice'] || t['エントリー価格'] || '';
-  document.getElementById('td-exit-price').value = t['ExitPrice'] || t['決済価格'] || '';
+  const tdPair=String(t['PairName（元）']||t.PairName||t.Pair||'').toUpperCase();
+  const tdIsForex=/^[A-Z]{6}$/.test(tdPair)&&!/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(tdPair);
+  const lotItem=document.getElementById('td-lot')?.closest('.grid-item');
+  document.getElementById('td-lot').value = tdIsForex?(t['Lot'] || ''):'';
+  if(lotItem)lotItem.style.visibility=tdIsForex?'visible':'hidden';
+  const priceDigits=/BTC|ETH|LTC|XRP/.test(tdPair)?(tdPair.includes('JPY')?0:2):(tdPair.includes('JPY')?2:(/XAU|GOLD|XAG/.test(tdPair)?2:4));
+  const fmtPx=v=>{const n=Number(v);return Number.isFinite(n)&&n?n.toFixed(priceDigits):'';};
+  document.getElementById('td-entry-price').value = fmtPx(t['EntryPrice'] || t['エントリー価格']);
+  document.getElementById('td-exit-price').value = fmtPx(t['ExitPrice'] || t['決済価格']);
   document.getElementById('td-sl-price').value = t['InitialSLPrice'] || t['SLPrice'] || t['損切り価格'] || '';
   document.getElementById('td-tp-price').value = t['TakeProfitPrice'] || t['TPPrice'] || t['利確価格'] || '';
   { const savedExitTime=formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || ''); const now=new Date(); document.getElementById('td-exit-time').value=savedExitTime || ((t['ステータス']||'').startsWith('保有中') ? String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0') : ''); }
@@ -6053,6 +6062,7 @@ async function saveTradeDetail() {
       'ExitPrice': document.getElementById('td-exit-price')?.value || '',
       'InitialSLPrice': document.getElementById('td-sl-price')?.value || '',
       'TakeProfitPrice': document.getElementById('td-tp-price')?.value || '',
+      'ExitDate': document.getElementById('td-exit-date')?.value.replace(/-/g, '/') || '',
       'ExitTime': document.getElementById('td-exit-time')?.value || '',
       'StopLossPips': document.getElementById('td-sl')?.value || '',
       'Lot': document.getElementById('td-lot')?.value || '',
