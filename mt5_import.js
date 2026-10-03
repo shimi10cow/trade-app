@@ -109,6 +109,11 @@ function paintMT5(root){
     (cards||'<div style="text-align:center;color:#64748b;padding:28px 8px;">確認が必要な新規Tradeはありません</div>')+'<div style="margin-top:16px"><button class="ea-btn" style="width:100%" onclick="mt5ShowArchived()">保留 '+hold+' を確認</button></div></div><div id="mt5-sheet" class="modal-overlay" onclick="if(event.target===this)this.classList.remove(\'active\')"><div class="modal-content" style="max-height:82vh"><div class="modal-header"><div class="modal-title" id="mt5-sheet-title">MT5</div><button class="modal-close" onclick="document.getElementById(\'mt5-sheet\').classList.remove(\'active\')">×</button></div><div class="modal-body" id="mt5-sheet-body"></div></div></div>';
 
 }
+window.refreshMT5AfterUnlink=function(){
+  try{localStorage.removeItem(MT5_CACHE_KEY);}catch(e){}
+  S.loaded=false;
+  return window.renderMT5Import(true);
+};
 window.renderMT5Import=async function(force){
   ensureUI();var root=document.getElementById('mt5-import-root');if(!root)return;
   if(S.loaded&&!force){paintMT5(root);return;}
