@@ -1568,19 +1568,28 @@ function saveMT5ImportBatch(requestId,account,server,rows){
   const sh=ensureSheetWithHeaders_(MT5_EXECUTIONS_SHEET,MT5_EXEC_HEADERS);
   const vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),kc=hs.indexOf('ExecutionID');
   const map={}; for(let i=1;i<vals.length;i++)map[String(vals[i][kc])]=i+1;
-  const now=new Date().toISOString(); let inserted=0,updated=0;
+  const now=new Date().toISOString(); let inserted=0,updated=0,revived=0;
+  const validEntryIds=new Set(getEntries().map(x=>String(x.EntryID||'')).filter(Boolean));
+  const statusCol=hs.indexOf('ImportStatus'),entryCol=hs.indexOf('EntryID'),groupCol=hs.indexOf('TradeGroupID');
   rows.forEach(d=>{
     if(!d||!d.ExecutionID)return;
     let rn=map[String(d.ExecutionID)];
     if(!rn){rn=sh.getLastRow()+1;map[String(d.ExecutionID)]=rn;inserted++;}
     else updated++;
-    const oldStatus=rn<=sh.getLastRow()&&hs.indexOf('ImportStatus')>=0?String(sh.getRange(rn,hs.indexOf('ImportStatus')+1).getValue()||''):'';
-    d.UpdatedAt=now; if(oldStatus&&oldStatus!=='未確認')d.ImportStatus=oldStatus;
+    const oldStatus=rn<=sh.getLastRow()&&statusCol>=0?String(sh.getRange(rn,statusCol+1).getValue()||''):'';
+    const oldEntry=rn<=sh.getLastRow()&&entryCol>=0?String(sh.getRange(rn,entryCol+1).getValue()||''):'';
+    const orphaned=!!(oldEntry&&!validEntryIds.has(oldEntry));
+    d.UpdatedAt=now;
+    if(orphaned){
+      d.ImportStatus='未確認'; d.EntryID=''; d.TradeGroupID=''; revived++;
+      if(entryCol>=0)sh.getRange(rn,entryCol+1).clearContent();
+      if(groupCol>=0)sh.getRange(rn,groupCol+1).clearContent();
+    } else if(oldStatus&&oldStatus!=='未確認') d.ImportStatus=oldStatus;
     hs.forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(d,h))sh.getRange(rn,j+1).setValue(d[h]);});
   });
   const auto=autoAttachMT5Continuations_();
-  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / auto '+auto.attached});
-  return {success:true,inserted:inserted,updated:updated,count:rows.length,autoAttached:auto.attached};
+  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived+' / auto '+auto.attached});
+  return {success:true,inserted:inserted,updated:updated,revived:revived,count:rows.length,autoAttached:auto.attached};
 }
 function setMT5ImportStatus(ids,status){
   ensureEASheets(); ids=Array.isArray(ids)?ids:[]; const set=new Set(ids.map(String));
