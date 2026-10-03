@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var S={rows:[],status:null,groups:[],manualEntries:[],selected:null,settings:{splitEntryHours:6},syncing:null};
+var S={rows:[],status:null,groups:[],manualEntries:[],selected:null,settings:{splitEntryHours:6},syncing:null,accountSyncing:false};
 var MT5_CACHE_KEY='mt5ImportFast_v1';
 function readCache(){try{return JSON.parse(localStorage.getItem(MT5_CACHE_KEY)||'null');}catch(e){return null;}}
 function writeCache(d){try{localStorage.setItem(MT5_CACHE_KEY,JSON.stringify({at:Date.now(),data:d}));}catch(e){}}
@@ -106,7 +106,7 @@ function paintMT5(root){
       '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;margin-top:10px"><button class="ea-btn on" onclick="mt5Review('+idx+')">記録する</button><button class="ea-btn" onclick="mt5Hold('+idx+')">保留</button><button class="ea-btn" style="border-color:#ef4444;color:#fca5a5" onclick="mt5DeletePending('+idx+')">削除</button></div>'+(g.prevEntryId?'<button class="ea-btn" style="width:100%;margin-top:6px;border-color:#f59e0b;color:#f59e0b" onclick="mt5AdoptToPrevious('+idx+')">↩ 前のTradeに追加</button>':'')+'<button class="ea-btn" style="width:100%;margin-top:6px" onclick="mt5ChooseExisting('+idx+')">既存の手入力Tradeに紐付け</button><button class="ea-btn" style="width:100%;margin-top:6px" onclick="mt5ShowExecutions('+idx+')">約定 '+g.ids.length+'件を見る</button></div>';
   }).join('');
   root.innerHTML='<div class="section"><div class="section-title">🔄 MT5同期</div>'+
-    '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><button id="mt5-account-btn" class="ea-btn" style="width:100%;margin-top:9px" onclick="getMT5AccountInfo()">口座情報を取得</button><div style="font-size:11px;color:#64748b;margin-top:7px">最終同期: '+esc(lastSync?deviceDT(lastSync):'未同期')+'</div>'+
+    '<div class="ea-card"><div style="font-weight:800">'+acct+'</div><button id="mt5-account-btn" class="ea-btn" style="width:100%;margin-top:9px" onclick="getMT5AccountInfo()" '+(S.accountSyncing?'disabled':'')+'>'+(S.accountSyncing?'<span class="mt5-spin">◌</span> 取得中...':'口座情報を取得')+'</button><div style="font-size:11px;color:#64748b;margin-top:7px">最終同期: '+esc(lastSync?deviceDT(lastSync):'未同期')+'</div>'+
     '<button id="mt5-sync-latest" class="ea-save" style="margin-top:12px" onclick="requestMT5Import(&quot;latest&quot;)">'+(S.syncing==='latest'?'<span class="mt5-spin">◌</span> 取得中...':'最終同期以降を取得')+'</button>'+
     '<div style="display:flex;gap:6px;margin-top:7px"><button id="mt5-sync-7" class="ea-btn" style="flex:1" onclick="requestMT5Import(7)">'+(S.syncing===7?'<span class="mt5-spin">◌</span> 取得中...':'過去7日を再取得')+'</button><button id="mt5-sync-90" class="ea-btn" style="flex:1" onclick="requestMT5Import(90)">'+(S.syncing===90?'<span class="mt5-spin">◌</span> 取得中...':'過去90日を再取得')+'</button></div><details style="margin-top:10px;border-top:1px solid #1e293b;padding-top:9px"><summary style="font-size:12px;color:#94a3b8;cursor:pointer">同期設定</summary><div style="display:flex;align-items:center;gap:8px;margin-top:9px"><span style="font-size:11px;color:#cbd5e1;flex:1">分割エントリーを同一Tradeにまとめる時間</span><input id="mt5-split-hours" type="number" min="0" max="48" step="0.5" value="'+esc((S.settings&&S.settings.splitEntryHours)!=null?S.settings.splitEntryHours:6)+'" class="form-input" style="width:74px;text-align:center"><span style="font-size:11px;color:#94a3b8">時間</span></div><button class="ea-btn" style="width:100%;margin-top:8px" onclick="saveMT5Settings()">設定を保存</button></details></div>'+
     '<div style="display:flex;gap:8px;margin:12px 0;font-size:11px;color:#94a3b8"><span>新規 '+pending.length+'</span><span>保留 '+hold+'</span></div>'+
@@ -131,15 +131,34 @@ window.renderMT5Import=async function(force){
   }catch(e){if(!S.loaded)root.innerHTML='<div class="section"><div style="color:#ef4444;padding:16px;">'+esc(e.message)+'</div></div>';}
 };
 window.getMT5AccountInfo=async function(){
-  var btn=document.getElementById('mt5-account-btn'),old=btn?btn.innerHTML:'口座情報を取得';
-  try{if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
-    var r=await gasPost({action:'requestMT5Import',data:{Mode:'ACCOUNT',Days:1}});if(!r.success)throw new Error(r.error||'口座情報取得を開始できません');
-    // Keep the button visibly busy until the worker actually completes or errors.
-    // GAS calls themselves can take seconds, so a short 5-second polling window
-    // could make the spinner disappear while the MT5 worker was still healthy.
-    for(var tries=1;tries<=40;tries++){await new Promise(function(resolve){setTimeout(resolve,750);});var s=await gasGet('getMT5ImportStatus'),st=s.data||s||{};if(st.RequestID!==r.requestId)continue;if(st.Status==='DONE'){S.accountInfo={Account:String(st.Account||''),Server:String(st.Server||'')};S.loaded=true;var cached=readCache(),cd=cached&&cached.data?cached.data:{};cd.accountInfo=S.accountInfo;cd.lastSyncByAccount=S.lastSyncByAccount||cd.lastSyncByAccount||{};cd.settings=S.settings||cd.settings;cd.executions=S.rows||cd.executions||[];cd.manualEntries=S.manualEntries||cd.manualEntries||[];writeCache(cd);paintMT5(document.getElementById('mt5-import-root'));showToast('口座情報を取得しました');return;}if(st.Status==='ERROR')throw new Error(st.Message||'口座情報を取得できません');}
+  if(S.accountSyncing){showToast('口座情報を取得中です');return;}
+  var started=performance.now(),requestDone=0,workerDone=0;
+  S.accountSyncing=true;paintMT5(document.getElementById('mt5-import-root'));
+  try{
+    var r=await gasPost({action:'requestMT5Import',data:{Mode:'ACCOUNT',Days:1}});requestDone=performance.now();
+    if(!r.success)throw new Error(r.error||'口座情報取得を開始できません');
+    console.info('[MT5 timing] account request accepted '+((requestDone-started)/1000).toFixed(2)+'s');
+    for(var tries=1;tries<=40;tries++){
+      await new Promise(function(resolve){setTimeout(resolve,750);});
+      var ps=performance.now(),x=await gasGet('getMT5ImportStatus'),pe=performance.now(),st=x.data||x||{};
+      console.info('[MT5 timing] account poll '+tries+' gas='+((pe-ps)/1000).toFixed(2)+'s status='+(st.Status||'')+' elapsed='+((pe-started)/1000).toFixed(2)+'s');
+      if(st.RequestID!==r.requestId)continue;
+      if(st.Status==='DONE'){
+        workerDone=performance.now();
+        S.accountInfo={Account:String(st.Account||''),Server:String(st.Server||'')};S.loaded=true;
+        var cached=readCache(),cd=cached&&cached.data?cached.data:{};cd.accountInfo=S.accountInfo;cd.lastSyncByAccount=S.lastSyncByAccount||cd.lastSyncByAccount||{};cd.settings=S.settings||cd.settings;cd.executions=S.rows||cd.executions||[];cd.manualEntries=S.manualEntries||cd.manualEntries||[];writeCache(cd);
+        // Keep accountSyncing true through this repaint so the spinner cannot
+        // disappear before completion feedback is shown.
+        paintMT5(document.getElementById('mt5-import-root'));
+        showToast('口座情報を取得しました');
+        console.info('[MT5 timing] account DONE total='+((workerDone-started)/1000).toFixed(2)+'s request='+((requestDone-started)/1000).toFixed(2)+'s afterRequest='+((workerDone-requestDone)/1000).toFixed(2)+'s');
+        return;
+      }
+      if(st.Status==='ERROR')throw new Error(st.Message||'口座情報を取得できません');
+    }
     throw new Error('PC側のMT5連携から応答がありません');
-  }catch(e){showToast('⚠️ '+e.message);}finally{var b=document.getElementById('mt5-account-btn');if(b){b.disabled=false;b.innerHTML=old;}}
+  }catch(e){showToast('⚠️ '+e.message);}
+  finally{S.accountSyncing=false;paintMT5(document.getElementById('mt5-import-root'));}
 };
 window.saveMT5Settings=async function(){var el=document.getElementById('mt5-split-hours'),h=Number(el&&el.value);if(!Number.isFinite(h)||h<0||h>48){showToast('⚠️ 0〜48時間で入力してください');return;}try{showLoader();var r=await gasPost({action:'saveMT5ImportSettings',data:{splitEntryHours:h}});if(!r.success)throw new Error(r.error||'設定を保存できません');S.settings={splitEntryHours:h};S.groups=buildGroups(S.rows);paintMT5(document.getElementById('mt5-import-root'));showToast('MT5同期設定を保存しました');}catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}};
 window.requestMT5Import=async function(days){
