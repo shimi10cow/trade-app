@@ -14,7 +14,7 @@ function isFxPair(pair){var p=rawSymbol(pair).replace(/CASH$/,'');return /^(EUR|
 function appPairName(pair){var p=rawSymbol(pair).replace(/CASH$/,'');var map={XAUUSD:'GOLD',GOLD:'GOLD',XAGUSD:'SILVER',SILVER:'SILVER',NGAS:'NATGAS',NATGAS:'NATGAS',NATURALGAS:'NATGAS',US500:'US500',US30:'US30',UK100:'UK100',EU50:'EU50'};return map[p]||p;}
 function digits(pair){var p=rawSymbol(pair);if(/BTC|ETH|LTC|XRP/.test(p))return p.indexOf('JPY')>=0?0:2;if(isFxPair(p))return p.indexOf('JPY')>=0?2:4;if(/XAU|GOLD|XAG|SILVER/.test(p))return 2;return 2;}
 function price(v,pair){var x=Number(v);return Number.isFinite(x)&&x?x.toFixed(digits(pair)):'';}
-function pipValue(pair){var p=rawSymbol(pair);if(!isFxPair(p))return 1;return p.indexOf('JPY')>=0?0.01:0.0001;}
+function pipValue(pair){var p=rawSymbol(pair);if(/BTC|ETH|LTC|XRP/.test(p))return 10;if(!isFxPair(p))return 1;return p.indexOf('JPY')>=0?0.01:0.0001;}
 function calcPips(pair,dir,en,ex){en=Number(en);ex=Number(ex);if(!en||!ex)return '';var p=(String(dir).toUpperCase()==='SELL'?en-ex:ex-en)/pipValue(pair);return Math.round(p*10)/10;}
 function appLot(pair,lot){return isFxPair(pair)?lot:'';}
 function groupSummary(g){
