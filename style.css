@@ -366,3 +366,5 @@ textarea.form-input { resize: vertical; }
 .trade-datetime-label{font-size:12px;font-weight:700;color:#94a3b8;white-space:nowrap}
 .trade-datetime-row .form-input{min-width:0;width:100%;padding:7px 3px;text-align:center;font-size:12px}
 @media(max-width:390px){.trade-datetime-row{grid-template-columns:76px minmax(0,1.16fr) minmax(0,.78fr);gap:3px}.trade-datetime-label{font-size:10px}.trade-datetime-row .form-input{padding:7px 1px;font-size:11px}}
+
+.voice-memo-btn{margin-top:6px;background:#172033;border:1px solid #475569;color:#cbd5e1;border-radius:8px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;min-width:88px}.voice-memo-btn:disabled{opacity:.7}
