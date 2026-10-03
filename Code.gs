@@ -1705,7 +1705,7 @@ function mt5RowsByIds_(ids){
 function mt5RawSymbol_(pair){return String(pair||'').toUpperCase().replace(/#/g,'').replace(/\s+/g,'');}
 function mt5IsFxPair_(pair){const p=mt5RawSymbol_(pair).replace(/CASH$/,'');return /^(EUR|USD|JPY|GBP|AUD|NZD|CAD|CHF)(EUR|USD|JPY|GBP|AUD|NZD|CAD|CHF)$/.test(p);}
 function mt5AppPair_(pair){const p=mt5RawSymbol_(pair).replace(/CASH$/,'');const map={XAUUSD:'GOLD',GOLD:'GOLD',XAGUSD:'SILVER',SILVER:'SILVER',NGAS:'NATGAS',NATGAS:'NATGAS',NATURALGAS:'NATGAS',US500:'US500',US30:'US30',UK100:'UK100',EU50:'EU50'};return map[p]||p;}
-function mt5Pips_(pair,dir,en,ex){en=Number(en);ex=Number(ex);if(!en||!ex)return '';const p=mt5RawSymbol_(pair),step=/BTC|ETH|LTC|XRP/.test(p)?10:(mt5IsFxPair_(p)?(p.indexOf('JPY')>=0?0.01:0.0001):1);return Math.round(((String(dir).toUpperCase()==='SELL'?en-ex:ex-en)/step)*10)/10;}
+function mt5Pips_(pair,dir,en,ex){en=Number(en);ex=Number(ex);if(!en||!ex)return '';const p=mt5RawSymbol_(pair),step=/BTC|ETH|LTC|XRP/.test(p)?(p.indexOf('JPY')>=0?1000:10):(mt5IsFxPair_(p)?(p.indexOf('JPY')>=0?0.01:0.0001):1);return Math.round(((String(dir).toUpperCase()==='SELL'?en-ex:ex-en)/step)*10)/10;}
 function mt5Aggregate_(rows){
   const deals=rows.filter(r=>String(r.Deal||'')&&String(r.DealEntry||'')!=='');
   const entries=deals.filter(r=>String(r.DealEntry)==='0'||String(r.DealEntry)==='2');
@@ -1760,7 +1760,7 @@ function adoptMT5Trade(executionIds,options){
     // planned SL/TP distances. Rebuild their prices from the newly aggregated
     // entry price instead of overwriting them with blank MT5 SL/TP values.
     const appPair=mt5AppPair_(a.Pair),dir=a.Direction==='BUY'?'BUY':'SELL',pairU=String(appPair).toUpperCase();
-    const pip=/BTC|ETH|LTC|XRP/.test(pairU)?10:(/XAU|GOLD|XAG|SILVER/.test(pairU)?1:(pairU.includes('JPY')?0.01:0.0001));
+    const pip=/BTC|ETH|LTC|XRP/.test(pairU)?(pairU.includes('JPY')?1000:10):(/XAU|GOLD|XAG|SILVER/.test(pairU)?1:(pairU.includes('JPY')?0.01:0.0001));
     const savedSL=Number(current.InitialSLPrice||current.SLPrice||current['損切り価格']||0);
     const savedTP=Number(current.TakeProfitPrice||current.TPPrice||current['利確価格']||0);
     // Existing manual prices are authoritative once entered. MT5 only fills a
