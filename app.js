@@ -5374,7 +5374,18 @@ async function submitEntryData() {
 // Chart Image & Canvas Markup
 // ==========================================
 function imageDots_(n,idx){return n>1?Array.from({length:n},(_,i)=>'<span class="'+(i===idx?'active':'')+'"></span>').join(''):'';}
-function bindCarouselDots_(el,dots){if(!el||!dots)return;el.onscroll=function(){var w=el.clientWidth||1,idx=Math.round(el.scrollLeft/w);dots.innerHTML=imageDots_(el.children.length,idx);};}
+function carouselStep_(el,dir){if(!el)return;var w=el.clientWidth||1,idx=Math.round(el.scrollLeft/w),max=Math.max(0,el.children.length-1);idx=Math.max(0,Math.min(max,idx+dir));el.scrollTo({left:idx*w,behavior:'smooth'});}
+function ensureDesktopCarouselArrows_(el){
+  if(!el)return;var host=el.parentElement;if(!host)return;host.classList.add('trade-carousel-host');
+  host.querySelectorAll('.trade-carousel-arrow').forEach(function(x){x.remove();});
+  if(el.children.length<2)return;
+  var prev=document.createElement('button'),next=document.createElement('button');
+  prev.type=next.type='button';prev.className='trade-carousel-arrow trade-carousel-prev';next.className='trade-carousel-arrow trade-carousel-next';
+  prev.textContent='‹';next.textContent='›';prev.setAttribute('aria-label','前の画像');next.setAttribute('aria-label','次の画像');
+  prev.onclick=function(e){e.stopPropagation();carouselStep_(el,-1);};next.onclick=function(e){e.stopPropagation();carouselStep_(el,1);};
+  host.appendChild(prev);host.appendChild(next);
+}
+function bindCarouselDots_(el,dots){if(!el||!dots)return;ensureDesktopCarouselArrows_(el);el.onscroll=function(){var w=el.clientWidth||1,idx=Math.round(el.scrollLeft/w);dots.innerHTML=imageDots_(el.children.length,idx);};}
 function renderNewEntryImages_(){
   var wrap=document.getElementById('ne-image-carousel-wrap'),car=document.getElementById('ne-image-carousel'),dots=document.getElementById('ne-image-dots');
   if(!wrap||!car)return;var imgs=App.state.neImages||[];wrap.style.display=imgs.length?'block':'none';
