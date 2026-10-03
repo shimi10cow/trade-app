@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v199';
+const CACHE_NAME = 'trade-app-v200';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -32,7 +32,7 @@ self.addEventListener('fetch', event => {
 
   if (liveAsset) {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then(response => {
           if (response && response.status === 200) {
             const copy = response.clone();
