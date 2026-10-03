@@ -1357,6 +1357,7 @@ function populateFilterPairs() {
       exitRefSel.appendChild(opt);
     });
   }
+  initAnalysisMultiSelects();
 }
 
 function toggleCustomDate() {
@@ -3123,6 +3124,24 @@ function analysisValues(id){
   return Array.from(el.selectedOptions||[]).map(o=>o.value).filter(v=>v!=='all');
 }
 function analysisHas(vals,v){return !vals.length||vals.includes(String(v));}
+
+function initAnalysisMultiSelects(){
+  ['flt-pair','flt-timezone','flt-rule','flt-score','flt-entry-ref','flt-exit-ref','flt-ma'].forEach(id=>{
+    const sel=document.getElementById(id);if(!sel||sel.dataset.multiReady)return;sel.dataset.multiReady='1';
+    const wrap=document.createElement('div');wrap.className='analysis-multi';wrap.style.cssText='position:relative;min-width:0';
+    sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);sel.style.display='none';
+    const btn=document.createElement('button');btn.type='button';btn.className='analysis-multi-btn';btn.style.cssText='width:100%;text-align:left;padding:9px 10px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;font-size:12px';
+    const menu=document.createElement('div');menu.style.cssText='display:none;position:absolute;z-index:3000;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;background:#0f172a;border:1px solid #475569;border-radius:9px;padding:5px;box-shadow:0 12px 30px rgba(0,0,0,.35)';
+    wrap.appendChild(btn);wrap.appendChild(menu);
+    const opts=Array.from(sel.options).filter(o=>o.value!=='all');
+    const allLabel=(sel.options[0]&&sel.options[0].textContent)||'すべて';
+    function paint(){const chosen=opts.filter(o=>o.selected);btn.textContent=chosen.length?chosen.map(o=>o.textContent).join('、'):allLabel;menu.innerHTML=opts.map((o,i)=>'<label style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;cursor:pointer"><input type="checkbox" data-i="'+i+'" '+(o.selected?'checked':'')+'><span>'+o.textContent+'</span></label>').join('');menu.querySelectorAll('input').forEach(x=>x.onchange=()=>{opts[+x.dataset.i].selected=x.checked;paint();});}
+    btn.onclick=e=>{e.stopPropagation();document.querySelectorAll('.analysis-multi-menu-open').forEach(x=>{if(x!==menu)x.style.display='none';});menu.style.display=menu.style.display==='block'?'none':'block';menu.classList.toggle('analysis-multi-menu-open',menu.style.display==='block');};
+    menu.onclick=e=>e.stopPropagation();paint();
+  });
+  if(!window._analysisMultiClose){window._analysisMultiClose=1;document.addEventListener('click',()=>document.querySelectorAll('.analysis-multi-menu-open').forEach(x=>{x.style.display='none';x.classList.remove('analysis-multi-menu-open');}));}
+}
+
 
 // ==========================================
 // Analysis Logic
