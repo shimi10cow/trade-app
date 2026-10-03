@@ -5388,7 +5388,7 @@ function addImageFileToList_(file,listKey,render){
   var arr=App.state[listKey]||(App.state[listKey]=[]);if(arr.length>=4){showToast('画像は最大4枚です');return false;}
   var reader=new FileReader();reader.onload=function(e){arr.push(e.target.result);render();};reader.readAsDataURL(file);return true;
 }
-function previewUploadImage(input){if(input.files&&input.files[0]){addImageFileToList_(input.files[0],'neImages',renderNewEntryImages_);input.value='';}}
+function previewUploadImage(input){selectImagePasteTarget_('entry');if(input.files&&input.files[0]){addImageFileToList_(input.files[0],'neImages',renderNewEntryImages_);input.value='';}}
 function setImageFileInput_(input,file,previewFn,slot){
   if(!input||!file||!String(file.type||'').startsWith('image/'))return false;
   try{var dt=new DataTransfer();dt.items.add(file);input.files=dt.files;}catch(e){return false;}
@@ -5406,7 +5406,7 @@ function activeImageTarget_(){
   if(entryModal&&entryModal.classList.contains('active'))return {kind:'neImages',render:renderNewEntryImages_};
   return null;
 }
-function acceptDesktopImage_(file){var t=activeImageTarget_();if(!t)return false;var ok=addImageFileToList_(file,t.kind,t.render);if(ok)showToast('画像を追加しました');return ok;}
+function acceptDesktopImage_(file){var t=activeImageTarget_();if(!t)return false;var ok=t.kind==='detailEntryImages'||t.kind==='detailExitImages'?addImageFileToDetail_(file,t.kind):addImageFileToList_(file,t.kind,t.render);if(ok)showToast('画像を追加しました');return ok;}
 document.addEventListener('paste',function(e){
   var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
   for(var i=0;i<items.length;i++)if(items[i].type&&items[i].type.indexOf('image/')===0){
@@ -5917,13 +5917,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     area.style.display = 'block';
     if (input) input.value = '';
     const lbl = area.querySelector('label');
-    if (hasImage) {
-      if (lt) { lt.textContent = '✅ 画像選択済み（タップで変更）'; lt.style.color = '#10b981'; }
-      if (lbl) lbl.style.borderColor = '#10b981';
-    } else {
-      if (lt) { lt.textContent = lt.id === 'td-entry-upload-label-text' ? 'エントリー画像を添付' : '決済画像を添付'; lt.style.color = '#94a3b8'; }
-      if (lbl) lbl.style.borderColor = '#334155';
-    }
+    if (lt) { lt.textContent = lt.id === 'td-entry-upload-label-text' ? 'エントリー画像を追加' : '決済画像を追加'; lt.style.color = '#94a3b8'; }
+    if (lbl) lbl.style.borderColor = '#334155';
   }
   setupUploadArea('td-entry-upload-area', 'td-entry-image-upload', 'td-entry-upload-label-text', !!rawEntryImg);
   setupUploadArea('td-exit-upload-area', 'td-exit-image-upload', 'td-exit-upload-label-text', !!rawExitImg);
