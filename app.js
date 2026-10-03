@@ -1194,7 +1194,7 @@ function autoLoadPairInfo(prefix = 'ne', resetDir = true) {
     setMA(3, (dir === 'Buy' && p['H4MA20.80'] === '↑') || (dir === 'Sell' && p['H4MA20.80'] === '↓') ? '◎' : '✕');
   }
 
-  updatePlannedPrices_(prefix);
+  updatePlannedPips_(prefix);
   if (prefix === 'ne') calculateEntryScore();
   else calculateEntryScoreTD();
 }
@@ -5127,21 +5127,20 @@ function calcTimezone(timeStr) {
 
 function plannedPipSize_(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
-  // Non-FX instruments use one price unit as one app pip. Check these before JPY,
-  // otherwise BTCJPY/ETHJPY would incorrectly inherit the FX JPY pip size (0.01).
-  if(/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(pair))return 1;
+  if(/BTC|ETH|LTC|XRP/.test(pair))return 10;
+  if(/XAU|GOLD|XAG|SILVER/.test(pair))return 1;
   if(pair.includes('JPY'))return 0.01;
   return 0.0001;
 }
-function updatePlannedPrices_(prefix){
-  var entry=Number(document.getElementById(prefix+'-entry-price')?.value),sl=Number(document.getElementById(prefix+'-sl')?.value),tp=Number(document.getElementById(prefix+'-tp')?.value);
+function updatePlannedPips_(prefix){
+  var entry=Number(document.getElementById(prefix+'-entry-price')?.value),slPrice=Number(document.getElementById(prefix+'-sl-price')?.value),tpPrice=Number(document.getElementById(prefix+'-tp-price')?.value);
   var pair=document.getElementById(prefix+'-pair')?.value||'',active=document.querySelector('#'+prefix+'-dir button.active');
-  var dir=active&&/sell|▼/i.test(active.textContent)?'SELL':active?'BUY':'';
-  var slEl=document.getElementById(prefix+'-sl-price'),tpEl=document.getElementById(prefix+'-tp-price');
+  var dir=active&&/sell|▼/i.test(active.textContent)?'SELL':active?'BUY':'',pip=plannedPipSize_(pair);
+  var slEl=document.getElementById(prefix+'-sl'),tpEl=document.getElementById(prefix+'-tp');
   if(!entry||!dir){if(slEl)slEl.value='';if(tpEl)tpEl.value='';return;}
-  var pip=plannedPipSize_(pair),digits=pair.toUpperCase().includes('JPY')?2:(/XAU|GOLD|XAG|SILVER|BTC|ETH|LTC|XRP/.test(pair.toUpperCase())?2:4);
-  if(slEl)slEl.value=sl>0?(entry+(dir==='BUY'?-1:1)*sl*pip).toFixed(digits):'';
-  if(tpEl)tpEl.value=tp>0?(entry+(dir==='BUY'?1:-1)*tp*pip).toFixed(digits):'';
+  if(slEl)slEl.value=slPrice>0?Math.round(Math.max(0,(dir==='BUY'?entry-slPrice:slPrice-entry)/pip)*10)/10:'';
+  if(tpEl)tpEl.value=tpPrice>0?Math.round(Math.max(0,(dir==='BUY'?tpPrice-entry:entry-tpPrice)/pip)*10)/10:'';
+  if(prefix==='ne')calculateRR();else{calculateRRTD();calculateRuleMetrics();}
 }
 function calculateRR() {
   const tp = parseFloat(document.getElementById('ne-tp').value);
