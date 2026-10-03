@@ -202,6 +202,7 @@ function getAppSettings() {
 }
 
 function openSettingsModal() {
+  setTimeout(loadPromiseIntoSettings,0);
   const s = getAppSettings();
   const apply = (groupId, val) => {
     document.querySelectorAll(`#${groupId} button`).forEach(b => {
@@ -2322,15 +2323,18 @@ async function editPromiseFromPop() {
   gasPostQueued({ action: 'updateReview', reviewId: latest.id, data: { '約束': edited } }, '約束編集').catch(() => {});
 }
 
-function editPromiseFromSettings() {
-  const latest = getWeeklyReviewsSorted()[0];
-  if (!latest) { showToast('編集できる今週の内容がありません'); return; }
-  const edited = prompt('今週意識することを編集:', latest['約束'] || '');
-  if (edited === null) return;
-  latest['約束'] = edited;
-  gasPostQueued({ action:'updateReview', reviewId:latest.id, data:{'約束':edited} }, '約束編集')
-    .then(() => showToast('今週意識することを更新しました'))
-    .catch(() => showToast('⚠️ 更新に失敗しました'));
+function loadPromiseIntoSettings() {
+  const el=document.getElementById('settings-promise-text'); if(!el)return;
+  const latest=getWeeklyReviewsSorted()[0]; el.value=latest ? (latest['約束']||'') : '';
+}
+function savePromiseFromSettings() {
+  const latest=getWeeklyReviewsSorted()[0];
+  if(!latest){showToast('編集できる今週の内容がありません');return;}
+  const el=document.getElementById('settings-promise-text'),edited=el?el.value:'';
+  latest['約束']=edited;
+  gasPostQueued({action:'updateReview',reviewId:latest.id,data:{'約束':edited}},'約束編集')
+    .then(()=>showToast('今週意識することを更新しました'))
+    .catch(()=>showToast('⚠️ 更新に失敗しました'));
 }
 
 // ---- 月次総括 ----
