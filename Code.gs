@@ -1677,6 +1677,7 @@ function adoptMT5Trade(executionIds,options){
     'EntryPrice':a.EntryPrice||'','Lot':isForex?(a.Lot||''):'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
     'ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':a.ExitPrice||'','Profit':a.Profit,'損益':a.Profit,'実取得pips':mt5Pips===''?'':Math.round(mt5Pips*10)/10,'Swap':a.Swap,
     'MT5ExecutionIDs':executionIds.join(','),'MT5LastSyncAt':new Date().toISOString(),'MT5OpenLot':a.OpenLot,'MT5ClosedLot':a.ClosedLot,'MT5EntryCount':a.EntryCount,'MT5ExitCount':a.ExitCount};
+  if(options.overlay&&typeof options.overlay==='object')Object.keys(options.overlay).forEach(k=>obj[k]=options.overlay[k]);
   let entryId=String(options.entryId||'');
   if(entryId){
     const current=getEntries().find(x=>String(x.EntryID)===entryId)||{};
