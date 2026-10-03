@@ -1620,8 +1620,10 @@ function saveMT5ImportBatch(requestId,account,server,rows){
 function setMT5ImportStatus(ids,status){
   ensureEASheets(); ids=Array.isArray(ids)?ids:[]; const set=new Set(ids.map(String));
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim());
-  const ic=hs.indexOf('ExecutionID'),sc=hs.indexOf('ImportStatus');let n=0;
-  for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){sh.getRange(i+1,sc+1).setValue(status);n++;}
+  const ic=hs.indexOf('ExecutionID'),sc=hs.indexOf('ImportStatus');let n=0,changed=[];
+  for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){vals[i][sc]=status;changed.push(i+1);n++;}
+  for(let i=0;i<changed.length;){let j=i+1;while(j<changed.length&&changed[j]===changed[j-1]+1)j++;sh.getRange(changed[i],sc+1,j-i,1).setValues(changed.slice(i,j).map(()=>[status]));i=j;}
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true,updated:n};
 }
 function deleteMT5ImportRows(ids){
