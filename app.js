@@ -2661,7 +2661,7 @@ function renderTradeDetailImages_(){
     var arr=App.state[z[1]]||[],area=document.getElementById(z[2]),img=document.getElementById(z[3]);if(!area||!img)return;
     var car=area.querySelector('.trade-image-carousel');if(!car){img.style.display='none';car=document.createElement('div');car.className='trade-image-carousel';img.parentNode.insertBefore(car,img);var dots=document.createElement('div');dots.className='trade-image-dots';car.after(dots);}
     car.innerHTML=arr.map((x,i)=>'<div class="trade-image-slide"><img src="'+String(x.preview||getImageUrl(x.raw)||x.raw).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="removeTradeDetailImage_(\''+z[0]+'\','+i+')">🗑️</button></div>').join('');
-    car.querySelectorAll('img').forEach(makeTappable);var dots=car.nextElementSibling;dots.innerHTML=imageDots_(arr.length,0);bindCarouselDots_(car,dots);area.style.display=arr.length?'block':'none';
+    car.querySelectorAll('img').forEach(function(im,i){makeTappable(im,function(){return Array.from(car.querySelectorAll('img')).map(x=>x.src).filter(Boolean);},i);});var dots=car.nextElementSibling;dots.innerHTML=imageDots_(arr.length,0);bindCarouselDots_(car,dots);area.style.display=arr.length?'block':'none';
   });
 }
 function removeTradeDetailImage_(kind,i){var key=kind==='exit'?'detailExitImages':'detailEntryImages';var arr=App.state[key]||[];arr.splice(i,1);renderTradeDetailImages_();}
@@ -2792,13 +2792,11 @@ function openGalleryFlip(index) {
     raw = String(raw || '').trim();
     if (raw && raw !== 'undefined') imgs.push({ label, raw });
   };
-  tradeEntryImages(t).forEach(function(raw,i){add('📷 エントリー '+(i+1),raw);});
   tradeExitImages(t).forEach(function(raw,i){add('🏁 決済 '+(i+1),raw);});
   if (imgs.length === 0) return;
 
   App.state.flipImgs = imgs;
   App.state.flipTradeIndex = index;
-  // 代表画像と同じ先頭（Entry優先）から開く
   App.state.flipIdx = 0;
   renderGalleryFlip();
   document.getElementById('gallery-flip').style.display = 'flex';
@@ -2875,7 +2873,7 @@ function renderGallery() {
   let galleryTrades = App.data.entries.filter(t => {
     const st = t['ステータス'] || '';
     if (st !== '決済' && st !== '決済（見逃し）') return false;
-    const img = tradeEntryImages(t)[0] || tradeExitImages(t)[0];
+    const img = tradeExitImages(t)[0];
     return !!img;
   });
 
@@ -2933,7 +2931,7 @@ function renderGallery() {
   let html = '';
   galleryTrades.forEach(t => {
     const index = App.data.entries.indexOf(t);
-    const rawUrl = tradeEntryImages(t)[0] || tradeExitImages(t)[0];
+    const rawUrl = tradeExitImages(t)[0];
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl);
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -6253,8 +6251,10 @@ async function deleteEntry() {
 // ==========================================
 // 画像ライトボックス（タップで拡大・全画面）
 // ==========================================
-function openLightbox(src) {
+function openLightbox(src,group,index) {
   if (!src || src.length < 5) return;
+  App.state.lightboxImgs=(group&&group.length?group:[src]).slice();
+  App.state.lightboxIdx=Math.max(0,index||0);
   const lb = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
   img.src = src;
@@ -6266,7 +6266,7 @@ function openLightbox(src) {
   let lastScale = 1, lastTx = 0, lastTy = 0;
   let startDist = 0, startMx = 0, startMy = 0;
   let panStartX = 0, panStartY = 0;
-  let swipeStartY = 0;
+  let swipeStartY = 0, swipeStartX = 0;
 
   function getDist(t) {
     const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
@@ -6286,6 +6286,7 @@ function openLightbox(src) {
       panStartX = e.touches[0].clientX - tx;
       panStartY = e.touches[0].clientY - ty;
       swipeStartY = e.touches[0].clientY;
+      swipeStartX = e.touches[0].clientX;
     }
   };
   lb.ontouchmove = (e) => {
@@ -6309,8 +6310,9 @@ function openLightbox(src) {
     if (scale <= 1) {
       tx = 0; ty = 0; scale = 1;
       applyTransform();
-      // ズームなしのスワイプで閉じる
-      if (Math.abs(e.changedTouches[0].clientY - swipeStartY) > 70) closeLightbox();
+      const dx=e.changedTouches[0].clientX-swipeStartX,dy=e.changedTouches[0].clientY-swipeStartY;
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)){lightboxNav_(dx<0?1:-1);return;}
+      if (Math.abs(dy) > 70) closeLightbox();
     }
   };
   // タップで閉じる（ズームなし時のみ）
@@ -6319,6 +6321,7 @@ function openLightbox(src) {
   };
 }
 
+function lightboxNav_(dir){var xs=App.state.lightboxImgs||[];if(xs.length<2)return;var i=Math.max(0,Math.min(xs.length-1,(App.state.lightboxIdx||0)+dir));if(i===App.state.lightboxIdx)return;App.state.lightboxIdx=i;var img=document.getElementById('lightbox-img');img.src=xs[i];img.style.transform='translate(0px,0px) scale(1)';}
 function closeLightbox() {
   const lb = document.getElementById('lightbox');
   lb.style.display = 'none';
@@ -6329,16 +6332,13 @@ function closeLightbox() {
 }
 
 // img要素にライトボックス用タップを登録（二重登録防止）
-function makeTappable(imgEl) {
-  if (!imgEl || imgEl._lightboxBound) return;
-  imgEl._lightboxBound = true;
+function makeTappable(imgEl,groupProvider,index) {
+  if (!imgEl) return;
   imgEl.style.cursor = 'zoom-in';
-  imgEl.addEventListener('click', (e) => {
-    const src = imgEl.src;
-    if (!src || src === window.location.href || src.endsWith('#') || src.endsWith('/')) return;
-    e.stopPropagation();
-    openLightbox(src);
-  });
+  imgEl.onclick = function(e){
+    const src=imgEl.src;if(!src||src===window.location.href||src.endsWith('#')||src.endsWith('/'))return;
+    e.stopPropagation();var group=typeof groupProvider==='function'?groupProvider():null;openLightbox(src,group,index||0);
+  };
 }
 
 function showToast(msg) {
