@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261003q">
+  <link rel="stylesheet" href="./style.css?v=20261003r">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -41,7 +41,8 @@
     <div class="tab" data-tab="mt5">
       <span class="tab-icon">🔄</span>MT5
     </div>
-  </nav>\n  <div id="ptr-anchor"></div>
+  </nav>
+  <div id="ptr-anchor"></div>
 
   <!-- Screens -->
   <main class="content">
@@ -629,7 +630,6 @@
 
           
           <div class="form-row" style="align-items:flex-start;">
-            <span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span>
             <div class="memo-label-stack"><span class="form-label" style="font-size:11px;">ｴﾝﾄﾘｰ時ﾒﾓ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;ne-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="ne-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('ne-memo').value=''">✕</button></div>
           </div>
         </div>
@@ -968,11 +968,7 @@
                   </div>
                 </div>
               </div>
-              <div class="form-row" style="align-items:flex-start; margin-top:10px;">
-                <span class="form-label" style="font-size:10px;">エントリー時メモ</span>
-                <div style="flex:1"><textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-entry-memo&quot;,this)">🎙️ 音声入力</button></div>
-              </div>
-              <!-- 決済タイミング -->
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">エントリー時メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-entry-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-entry-memo" rows="3" placeholder="エントリー時の懸念や感情..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-entry-memo').value=''">✕</button></div></div><!-- 決済タイミング -->
               <div class="form-row">
                 <span class="form-label" style="font-size:10px;">決済ﾀｲﾐﾝｸﾞ</span>
                 <select class="form-input" id="td-exit-ref" onchange="calculateRuleMetrics()">
@@ -994,12 +990,7 @@
                   <button class="toggle-btn" onclick="toggleBtn(this)" style="flex:1; font-size:11px; padding:4px;">指標後</button>
                 </div>
               </div>
-              <div class="form-row" style="align-items:flex-start; margin-top:10px;">
-                <span class="form-label" style="font-size:10px;">決済時メモ</span>
-                <div style="flex:1"><textarea class="form-input" id="td-exit-memo" rows="3" placeholder="なぜ誤認識が起きたか...&#10;→ 次回エントリーで気を付けることがあれば「→」で書く..."></textarea><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-exit-memo&quot;,this)">🎙️ 音声入力</button></div>
-              </div>
-
-              <!-- エントリー画像アップロード（保有中のみ表示） -->
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">決済時メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-exit-memo&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-exit-memo" rows="3" placeholder="なぜ誤認識が起きたか..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-exit-memo').value=''">✕</button></div></div><!-- エントリー画像アップロード（保有中のみ表示） -->
               <div id="td-entry-upload-area" style="display:none; margin-top:10px;">
                 <label style="display:flex; align-items:center; gap:8px; background:#1e293b; border:1px dashed #334155; border-radius:10px; padding:12px 14px; cursor:pointer;">
                   <span style="font-size:18px;">📷</span>
@@ -1037,7 +1028,7 @@
               </div>
 
               <!-- 決済画像スロット -->
-              <div class="form-row" style="align-items:flex-start;margin-top:12px;"><span class="form-label" style="font-size:10px;">後日振り返り</span><div style="flex:1"><textarea class="form-input" id="td-retro-review" rows="3" placeholder="後日チャートを見直して気づいたこと..." style="width:100%;"></textarea><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-retro-review&quot;,this)">🎙️ 音声入力</button></div></div>\n              <div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">後日振り返り</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-retro-review&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-retro-review" rows="3" placeholder="後日チャートを見直して気づいたこと..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-retro-review').value=''">✕</button></div></div><div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
                 <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 決済写真</div>
                 <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;" referrerpolicy="no-referrer">
                 <button onclick="deleteTradeImage('bottom')" style="position:absolute;top:22px;right:6px;background:rgba(15,23,42,0.8);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
@@ -1355,10 +1346,6 @@
         <div style="text-align:center; font-size:18px; font-weight:800; color:#10b981; margin-bottom:16px;">🎯 今週意識すること</div>
         <div id="pop-promises" style="font-size:15px; color:#f8fafc; line-height:1.9; margin-bottom:20px;"></div>
         <button onclick="ackPromisePop()" style="width:100%; padding:14px; background:#10b981; color:#0f172a; border:none; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer;">OK、意識する</button>
-        <div style="display:flex; justify-content:center; gap:20px; margin-top:12px;">
-          <span onclick="editPromiseFromPop()" style="font-size:12px; color:#64748b; cursor:pointer;">✏️ 編集</span>
-          <span onclick="ackPromisePop(); openSettingsModal();" style="font-size:12px; color:#64748b; cursor:pointer;">⚙️ 表示設定</span>
-        </div>
       </div>
     </div>
   </div>
@@ -1401,7 +1388,11 @@
       </div>
       <div class="modal-body">
 
-        <div class="section-title">🎯 今週意識することPOP</div>\n        <button onclick="editPromiseFromSettings()" style="width:100%;padding:10px 12px;margin-bottom:10px;background:#172033;border:1px solid #475569;color:#e2e8f0;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">✏️ 表示内容を編集</button>
+        <div class="section-title">🎯 今週意識することPOP</div>
+        <div style="margin-bottom:10px;">
+          <textarea id="settings-promise-text" class="form-input" rows="5" placeholder="今週意識すること" style="width:100%;min-height:120px;line-height:1.6;"></textarea>
+          <button onclick="savePromiseFromSettings()" style="width:100%;padding:10px 12px;margin-top:7px;background:#172033;border:1px solid #475569;color:#e2e8f0;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;">💾 表示内容を保存</button>
+        </div>
         <div style="font-size:11px; color:#64748b; margin-bottom:8px;">週次レビューで書いた約束を起動時に表示します</div>
         <div class="btn-group" id="set-pop-freq" style="display:flex; width:100%; gap:6px; margin-bottom:16px;">
           <button class="toggle-btn" data-val="always" onclick="setSettingBtn(this)" style="flex:1; padding:11px 0;">毎回</button>
@@ -1438,8 +1429,8 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003q" charset="utf-8"></script>
-  <script src="./mt5_import.js?v=20261003o" charset="utf-8"></script>
+  <script src="./app.js?v=20261003r" charset="utf-8"></script>
+  <script src="./mt5_import.js?v=20261003r" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
 </html>
