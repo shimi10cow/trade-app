@@ -997,7 +997,6 @@ function openEntryModal(isMissed = false) {
   const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
   document.getElementById('ne-date').value = dateStr;
   document.getElementById('ne-time').value = timeStr;
-  document.getElementById('ne-exit-time').value = '';
 
   document.getElementById('ne-pre-memo').textContent = '(ペアを選択すると表示されます)';
   document.getElementById('ne-judgement-text').textContent = '--';
@@ -1064,7 +1063,7 @@ function openMT5EntryModal(mt5) {
     const txt=b.textContent.toUpperCase();
     if((mt5.direction==='BUY'&&txt.includes('BUY'))||(mt5.direction==='SELL'&&txt.includes('SELL'))) b.classList.add('active');
   });
-  set('ne-date',en.date); set('ne-time',en.time); set('ne-exit-time',ex.time);
+  set('ne-date',en.date); set('ne-time',en.time);
   set('ne-entry-price',mt5.entryPrice); set('ne-exit-price',mt5.exitPrice);
   set('ne-lot',mt5.lot); set('ne-pips',mt5.pips);
   const title=document.querySelector('#modal-entry .modal-title');
@@ -5226,7 +5225,6 @@ async function submitEntryData() {
       'ExitPrice': document.getElementById('ne-exit-price')?.value || '',
       'InitialSLPrice': document.getElementById('ne-sl-price')?.value || '',
       'TakeProfitPrice': document.getElementById('ne-tp-price')?.value || '',
-      'ExitTime': document.getElementById('ne-exit-time')?.value || '',
       'StopLossPips': document.getElementById('ne-sl').value,
       'Lot': document.getElementById('ne-lot').value,
       'エントリー時メモ': document.getElementById('ne-memo').value,
@@ -5737,7 +5735,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-exit-price').value = fmtPx(t['ExitPrice'] || t['決済価格']);
   document.getElementById('td-sl-price').value = t['InitialSLPrice'] || t['SLPrice'] || t['損切り価格'] || '';
   document.getElementById('td-tp-price').value = t['TakeProfitPrice'] || t['TPPrice'] || t['利確価格'] || '';
-  { const savedExitTime=formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || ''); const now=new Date(); document.getElementById('td-exit-time').value=savedExitTime || ((t['ステータス']||'').startsWith('保有中') ? String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0') : ''); }
+  document.getElementById('td-exit-time').value = formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || '');
 
   // existing values
   document.getElementById('td-pips').value = t['実取得pips'] || '';
@@ -5894,7 +5892,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   setupUploadArea('td-entry-upload-area', 'td-entry-image-upload', 'td-entry-upload-label-text', !!rawEntryImg);
   setupUploadArea('td-exit-upload-area', 'td-exit-image-upload', 'td-exit-upload-label-text', !!rawExitImg);
 
-  onStatusChange(); // toggle fields
+  // Do not synthesize exit date/time merely by opening an existing trade.
   calculateEntryScoreTD(); // update score UI
   calculateRRTD(); // Update RR display
   calculateRuleMetrics(); // Update Rule pips/profit
@@ -5996,7 +5994,14 @@ function closeTradeDetail() {
 }
 
 function onStatusChange() {
-  // closing-fields is always visible regardless of status
+  // 決済日時は詳細を開いただけでは自動入力しない。
+  // ユーザーが明示的に「決済」へ切り替えた時だけ、空欄なら現在日時を入れる。
+  const st=document.getElementById('td-status')?.value||'';
+  if(st.startsWith('決済')){
+    const d=document.getElementById('td-exit-date'),tm=document.getElementById('td-exit-time'),now=new Date();
+    if(d&&!d.value)d.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    if(tm&&!tm.value)tm.value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  }
 }
 
 async function saveTradeDetail() {
