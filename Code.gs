@@ -36,6 +36,7 @@ const GAS_ACTIONS = {
   getMT5ImportRequest: () => getMT5ImportRequest(),
   getMT5ImportStatus: () => getMT5ImportStatus(),
   getMT5ImportDashboard: () => getMT5ImportDashboard(),
+  getMT5ImportSettings: () => getMT5ImportSettings(),
 };
 
 function doGet(e) {
@@ -122,6 +123,8 @@ function doPost(e) {
     result = saveEASignal(body.data);
   } else if (action === 'deleteEASignal') {
     result = deleteEASignal(body.signalId);
+  } else if (action === 'saveMT5ImportSettings') {
+    result = saveMT5ImportSettings(body.data);
   } else if (action === 'requestMT5Import') {
     result = requestMT5Import(body.data);
   } else if (action === 'updateMT5ImportRequest') {
@@ -1510,6 +1513,21 @@ function updateEAReplayRequest(data){
 // MT5 manual import (read-only terminal -> raw executions -> adopted Entry)
 // =============================================
 const MT5_IMPORT_REQ_HEADERS=['RequestID','Days','Status','Account','Server','Message','CreatedAt','UpdatedAt','Mode'];
+const MT5_IMPORT_SETTINGS_KEY='MT5_IMPORT_SETTINGS_V1';
+function getMT5ImportSettings(){
+  let raw=PropertiesService.getScriptProperties().getProperty(MT5_IMPORT_SETTINGS_KEY)||'';
+  try{raw=raw?JSON.parse(raw):{};}catch(e){raw={};}
+  const h=Number(raw.splitEntryHours);
+  return {splitEntryHours:isFinite(h)?Math.max(0,Math.min(48,h)):6};
+}
+function saveMT5ImportSettings(data){
+  data=data||{}; const h=Number(data.splitEntryHours);
+  if(!isFinite(h)||h<0||h>48)return {success:false,error:'splitEntryHours must be 0-48'};
+  const out={splitEntryHours:h};
+  PropertiesService.getScriptProperties().setProperty(MT5_IMPORT_SETTINGS_KEY,JSON.stringify(out));
+  try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
+  return {success:true,data:out};
+}
 
 function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS); }
 
@@ -1675,7 +1693,7 @@ function getMT5ImportDashboard(){
   const req=reqs[0]||{},acctReq=reqs.find(x=>x.Account)||{},lastSyncByAccount={};
   reqs.forEach(x=>{const a=String(x.Account||'');if(!a||String(x.Mode||'IMPORT').toUpperCase()==='ACCOUNT'||String(x.Status||'').toUpperCase()!=='DONE'||lastSyncByAccount[a])return;lastSyncByAccount[a]=x.UpdatedAt||'';});
   const entries=getEntries().filter(e=>!e.MT5SyncKey && !/EA/i.test(String(e.Source||e.TradeType||''))).slice(-250);
-  const result={executions:exec,status:req,accountInfo:acctReq.Account?{Account:String(acctReq.Account),Server:String(acctReq.Server||'')}:null,lastSyncByAccount:lastSyncByAccount,manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
+  const result={executions:exec,status:req,accountInfo:acctReq.Account?{Account:String(acctReq.Account),Server:String(acctReq.Server||'')}:null,lastSyncByAccount:lastSyncByAccount,settings:getMT5ImportSettings(),manualEntries:entries.map(e=>({EntryID:e.EntryID,EntryDate:e.EntryDate,EntryTime:e.EntryTime,Pair:e['PairName（元）']||e.PairName||e.Pair||'',Direction:e.Direction||'',Score:e['エントリースコア']||'',Status:e['ステータス']||''}))};
   try{cache.put(key,JSON.stringify(result),30);}catch(e){}
   return result;
 }
