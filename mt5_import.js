@@ -138,19 +138,15 @@ window.getMT5AccountInfo=async function(){
     var r=await gasPost({action:'requestMT5Import',data:{Mode:'ACCOUNT',Days:1}});requestDone=performance.now();
     if(!r.success)throw new Error(r.error||'口座情報取得を開始できません');
     console.info('[MT5 timing] account request accepted '+((requestDone-started)/1000).toFixed(2)+'s');
-    for(var tries=1;tries<=40;tries++){
-      await new Promise(function(resolve){setTimeout(resolve,750);});
-      var ps=performance.now(),x=await gasGet('getMT5ImportStatus'),pe=performance.now(),st=x.data||x||{};
-      console.info('[MT5 timing] account poll '+tries+' gas='+((pe-ps)/1000).toFixed(2)+'s status='+(st.Status||'')+' elapsed='+((pe-started)/1000).toFixed(2)+'s');
+    for(var tries=1;tries<=4;tries++){
+      var ps=performance.now(),x=await gasGet('waitMT5ImportStatus&requestId='+encodeURIComponent(r.requestId)+'&timeoutMs=8000'),pe=performance.now(),st=x.data||x||{};
+      console.info('[MT5 timing] account wait '+tries+' gas='+((pe-ps)/1000).toFixed(2)+'s status='+(st.Status||'')+' elapsed='+((pe-started)/1000).toFixed(2)+'s');
       if(st.RequestID!==r.requestId)continue;
       if(st.Status==='DONE'){
         workerDone=performance.now();
         S.accountInfo={Account:String(st.Account||''),Server:String(st.Server||'')};S.loaded=true;
         var cached=readCache(),cd=cached&&cached.data?cached.data:{};cd.accountInfo=S.accountInfo;cd.lastSyncByAccount=S.lastSyncByAccount||cd.lastSyncByAccount||{};cd.settings=S.settings||cd.settings;cd.executions=S.rows||cd.executions||[];cd.manualEntries=S.manualEntries||cd.manualEntries||[];writeCache(cd);
-        // Keep accountSyncing true through this repaint so the spinner cannot
-        // disappear before completion feedback is shown.
-        paintMT5(document.getElementById('mt5-import-root'));
-        showToast('口座情報を取得しました');
+        paintMT5(document.getElementById('mt5-import-root'));showToast('口座情報を取得しました');
         console.info('[MT5 timing] account DONE total='+((workerDone-started)/1000).toFixed(2)+'s request='+((requestDone-started)/1000).toFixed(2)+'s afterRequest='+((workerDone-requestDone)/1000).toFixed(2)+'s');
         return;
       }
@@ -172,7 +168,7 @@ window.requestMT5Import=async function(days){
     var beforePending=new Set(visiblePending().map(function(g){return g.ids.slice().sort().join('|');}));
     var timingStart=performance.now(),latest=days==='latest',acct=S.accountInfo&&S.accountInfo.Account?String(S.accountInfo.Account):'',since=acct&&S.lastSyncByAccount?S.lastSyncByAccount[acct]||'':'',payload=latest?(since?{Days:30,Since:since}:{Days:7}):{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload}),timingRequest=performance.now();if(!r.success)throw new Error(r.error||'MT5取得を開始できません');
     console.info('[MT5 timing] import '+days+' request accepted '+((timingRequest-timingStart)/1000).toFixed(2)+'s');
-    for(var tries=1;tries<=40;tries++){await new Promise(function(resolve){setTimeout(resolve,750);});var ps=performance.now(),s=await gasGet('getMT5ImportStatus'),pe=performance.now(),d=s.data||s||{};console.info('[MT5 timing] import '+days+' poll '+tries+' gas='+((pe-ps)/1000).toFixed(2)+'s status='+(d.Status||'')+' elapsed='+((pe-timingStart)/1000).toFixed(2)+'s');if(d.RequestID!==r.requestId)continue;if(d.Status==='DONE'){var doneAt=performance.now(),rr=await gasGet('getMT5ImportResult'),rd=rr.data||rr||{},usedDelta=false;if(String(rd.RequestID||'')===String(r.requestId)&&!rd.TooLarge){mergeMT5ResultRows(rd.Rows||[]);paintMT5(document.getElementById('mt5-import-root'));usedDelta=true;}else{await renderMT5Import(true);}var renderedAt=performance.now(),newCount=visiblePending().filter(function(g){return !beforePending.has(g.ids.slice().sort().join('|'));}).length;showToast(newCount>0?('新規 '+newCount+'トレードを取得しました'):'新しいトレードはありません');console.info('[MT5 timing] import '+days+' DONE total='+((renderedAt-timingStart)/1000).toFixed(2)+'s request='+((timingRequest-timingStart)/1000).toFixed(2)+'s wait='+((doneAt-timingRequest)/1000).toFixed(2)+'s result='+((renderedAt-doneAt)/1000).toFixed(2)+'s mode='+(usedDelta?'delta':'dashboard'));return;}if(d.Status==='ERROR')throw new Error(d.Message||'MT5取得エラー');}
+    for(var tries=1;tries<=4;tries++){var ps=performance.now(),s=await gasGet('waitMT5ImportStatus&requestId='+encodeURIComponent(r.requestId)+'&timeoutMs=8000'),pe=performance.now(),d=s.data||s||{};console.info('[MT5 timing] import '+days+' wait '+tries+' gas='+((pe-ps)/1000).toFixed(2)+'s status='+(d.Status||'')+' elapsed='+((pe-timingStart)/1000).toFixed(2)+'s');if(d.RequestID!==r.requestId)continue;if(d.Status==='DONE'){var doneAt=performance.now(),rr=await gasGet('getMT5ImportResult'),rd=rr.data||rr||{},usedDelta=false;if(String(rd.RequestID||'')===String(r.requestId)&&!rd.TooLarge){mergeMT5ResultRows(rd.Rows||[]);paintMT5(document.getElementById('mt5-import-root'));usedDelta=true;}else{await renderMT5Import(true);}var renderedAt=performance.now(),newCount=visiblePending().filter(function(g){return !beforePending.has(g.ids.slice().sort().join('|'));}).length;showToast(newCount>0?('新規 '+newCount+'トレードを取得しました'):'新しいトレードはありません');console.info('[MT5 timing] import '+days+' DONE total='+((renderedAt-timingStart)/1000).toFixed(2)+'s request='+((timingRequest-timingStart)/1000).toFixed(2)+'s wait='+((doneAt-timingRequest)/1000).toFixed(2)+'s result='+((renderedAt-doneAt)/1000).toFixed(2)+'s mode='+(usedDelta?'delta':'dashboard'));return;}if(d.Status==='ERROR')throw new Error(d.Message||'MT5取得エラー');}
     throw new Error('MT5取得がタイムアウトしました');
   }catch(e){showToast('⚠️ '+e.message);}finally{S.syncing=null;var b=document.getElementById(id);if(b){b.disabled=false;b.innerHTML=old;}}
 };
