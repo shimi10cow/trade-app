@@ -132,7 +132,7 @@ window.saveMT5Settings=async function(){var el=document.getElementById('mt5-spli
 window.requestMT5Import=async function(days){
   var id=days==='latest'?'mt5-sync-latest':days===7?'mt5-sync-7':'mt5-sync-90',btn=document.getElementById(id),old=btn?btn.innerHTML:'';
   try{if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 取得中...';}
-    var latest=days==='latest',acct=S.accountInfo&&S.accountInfo.Account?String(S.accountInfo.Account):'',since=acct&&S.lastSyncByAccount?S.lastSyncByAccount[acct]||'':'',payload=latest?{Days:30,Since:since}:{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload});if(!r.success)throw new Error(r.error||'MT5取得を開始できません');
+    var latest=days==='latest',acct=S.accountInfo&&S.accountInfo.Account?String(S.accountInfo.Account):'',since=acct&&S.lastSyncByAccount?S.lastSyncByAccount[acct]||'':'',payload=latest?(since?{Days:30,Since:since}:{Days:7}):{Days:days};var r=await gasPost({action:'requestMT5Import',data:payload});if(!r.success)throw new Error(r.error||'MT5取得を開始できません');
     for(var tries=1;tries<=40;tries++){await new Promise(function(resolve){setTimeout(resolve,750);});var s=await gasGet('getMT5ImportStatus'),d=s.data||s||{};if(d.RequestID!==r.requestId)continue;if(d.Status==='DONE'){showToast('MT5取得が完了しました');await renderMT5Import(true);return;}if(d.Status==='ERROR')throw new Error(d.Message||'MT5取得エラー');if(tries>=3&&String(d.Status).toUpperCase()==='PENDING')throw new Error('PC側のMT5連携が起動していません。PCとMT5連携STARTを確認してください');}
     throw new Error('MT5取得がタイムアウトしました');
   }catch(e){showToast('⚠️ '+e.message);}finally{var b=document.getElementById(id);if(b){b.disabled=false;b.innerHTML=old;}}
