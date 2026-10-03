@@ -1609,9 +1609,18 @@ function saveMT5ImportBatch(requestId,account,server,rows){
         if(groupCol>=0&&!Object.prototype.hasOwnProperty.call(d,'TradeGroupID'))d.TradeGroupID=row[groupCol];
       }
     }
-    d.UpdatedAt=now;
-    hs.forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(d,h))row[j]=d[h];});
-    if(idx===undefined)appended.push(row); else changed.push({row:idx+1,values:row});
+    // Existing MT5 rows are usually identical on a re-fetch. Do not rewrite
+    // them merely to bump UpdatedAt; Sheets I/O is much slower than comparison.
+    let dirty=idx===undefined;
+    hs.forEach((h,j)=>{
+      if(h==='UpdatedAt'||!Object.prototype.hasOwnProperty.call(d,h))return;
+      const nv=d[h]===null||d[h]===undefined?'':d[h],ov=row[j]===null||row[j]===undefined?'':row[j];
+      if(String(ov)!==String(nv)){row[j]=nv;dirty=true;}
+    });
+    if(dirty){
+      const uc=hs.indexOf('UpdatedAt');if(uc>=0)row[uc]=now;
+      if(idx===undefined)appended.push(row); else changed.push({row:idx+1,values:row});
+    }
   });
   // Batch consecutive existing rows to keep 7/90-day re-imports fast.
   changed.sort((a,b)=>a.row-b.row);
