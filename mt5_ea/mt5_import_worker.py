@@ -13,13 +13,14 @@ DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJH
 GAS_URL=os.getenv("EA_GAS_URL",DEFAULT_GAS_URL)
 POLL_SEC=max(1,int(os.getenv("MT5_IMPORT_POLL_SEC","1")))
 logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
+HTTP=requests.Session()
 
 def gas_get(action,**params):
-    r=requests.get(GAS_URL,params={"action":action,**params},timeout=10);r.raise_for_status()
+    r=HTTP.get(GAS_URL,params={"action":action,**params},timeout=10);r.raise_for_status()
     x=r.json();return x.get("data",x)
 
 def gas_post(action,**payload):
-    r=requests.post(GAS_URL,json={"action":action,**payload},timeout=20);r.raise_for_status()
+    r=HTTP.post(GAS_URL,json={"action":action,**payload},timeout=20);r.raise_for_status()
     x=r.json()
     if x.get("success") is False:raise RuntimeError(str(x))
     return x
