@@ -370,3 +370,5 @@ textarea.form-input { resize: vertical; }
 .voice-memo-btn{margin-top:6px;background:#172033;border:1px solid #475569;color:#cbd5e1;border-radius:8px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer;min-width:88px}.voice-memo-btn:disabled{opacity:.7}
 
 .memo-label-stack{width:92px;flex:0 0 92px;display:flex;flex-direction:column;align-items:flex-start;gap:5px}.memo-label-stack .form-label{width:auto}.memo-label-stack .voice-memo-btn{margin-top:0;min-width:0;width:88px;padding:6px 4px;font-size:10px}
+
+.memo-field-wrap{position:relative;flex:1;min-width:0}.memo-field-wrap .form-input{width:100%;padding-right:32px}.memo-clear-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#334155;color:#94a3b8;border:0;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
