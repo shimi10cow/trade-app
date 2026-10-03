@@ -603,21 +603,13 @@
         <!-- Chart & Memo -->
         <div class="section">
           <div class="section-title">チャート画像</div>
-          <label id="ne-image-label" class="action-btn" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
-            <span id="ne-image-label-text">📷 エントリー画像1を追加</span>
-            <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this, 1)">
+          <label id="ne-image-label" class="action-btn image-add-target" data-image-target="new-entry" style="background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; display:flex; justify-content:center; align-items:center; box-shadow:none;">
+            <span id="ne-image-label-text">📷 エントリー画像を追加</span>
+            <input type="file" id="ne-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this)">
           </label>
-          <div id="image-preview-container" style="display:none; margin-top:8px; position:relative;">
-            <img id="ne-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
-            <button onclick="clearNewEntryImage(1)" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.85);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;">🗑️ 削除</button>
-          </div>
-          <label id="ne-image2-label" class="action-btn" style="display:none; margin-top:8px; background:#1e293b; color:#38bdf8; border:1px dashed #38bdf8; padding:12px; justify-content:center; align-items:center; box-shadow:none;">
-            <span id="ne-image2-label-text">📷 エントリー画像2を追加</span>
-            <input type="file" id="ne-image2-upload" accept="image/*" style="display:none;" onchange="previewUploadImage(this, 2)">
-          </label>
-          <div id="image2-preview-container" style="display:none; margin-top:8px; position:relative;">
-            <img id="ne-image2-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
-            <button onclick="clearNewEntryImage(2)" style="position:absolute;top:6px;right:6px;background:rgba(15,23,42,0.85);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;">🗑️ 削除</button>
+          <div id="ne-image-carousel-wrap" class="trade-image-wrap" style="display:none;">
+            <div id="ne-image-carousel" class="trade-image-carousel"></div>
+            <div id="ne-image-dots" class="trade-image-dots"></div>
           </div>
           
           <div class="form-row" style="margin-top:12px;">
@@ -1027,11 +1019,12 @@
               </div>
 
               <!-- 決済画像スロット -->
-              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">後日振り返り</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-retro-review&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-retro-review" rows="3" placeholder="後日チャートを見直して気づいたこと..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-retro-review').value=''">✕</button></div></div><div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
+              <div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
                 <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 決済写真</div>
                 <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;" referrerpolicy="no-referrer">
                 <button onclick="deleteTradeImage('bottom')" style="position:absolute;top:22px;right:6px;background:rgba(15,23,42,0.8);border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:3px 8px;font-size:11px;cursor:pointer;">🗑️</button>
               </div>
+              <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">後日振り返り</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-retro-review&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-retro-review" rows="3" placeholder="後日チャートを見直して気づいたこと..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-retro-review').value=''">✕</button></div></div>
             </div>
           </div>
         </div>
