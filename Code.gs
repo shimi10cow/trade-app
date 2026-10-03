@@ -1659,7 +1659,7 @@ function adoptMT5Trade(executionIds,options){
   const sh=SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(MT5_EXECUTIONS_SHEET),vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim());
   const ic=hs.indexOf('ExecutionID'),gc=hs.indexOf('TradeGroupID'),sc=hs.indexOf('ImportStatus'),ec=hs.indexOf('EntryID'),set=new Set(executionIds.map(String));
   for(let i=1;i<vals.length;i++)if(set.has(String(vals[i][ic]))){sh.getRange(i+1,gc+1).setValue(group);sh.getRange(i+1,sc+1).setValue('採用済み');sh.getRange(i+1,ec+1).setValue(entryId);}
-  return {success:true,entryId:entryId,tradeGroupId:group,aggregate:a};
+  obj.EntryID=entryId; return {success:true,entryId:entryId,tradeGroupId:group,aggregate:a,entry:obj};
 }
 function splitMT5Trade(entryId,executionIds){
   setMT5ImportStatus(executionIds,'未確認');
