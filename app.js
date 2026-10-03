@@ -352,24 +352,66 @@ function buildScoreGroups(containerId, prefix) {
   }).join('');
 }
 
-// Voice memo: use browser speech recognition where available; iPhone falls back to native dictation.
+// Voice memo: browser speech recognition with explicit start/stop/apply states.
+// A second tap stops recognition; keep a spinner visible until the final
+// transcript has actually been applied to the textarea.
+window._voiceMemoSessions=window._voiceMemoSessions||{};
 window.voiceMemo=function(id,btn){
   var el=document.getElementById(id); if(!el)return;
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){
     el.focus();
-    showToast('iPhoneのキーボードのマイクから音声入力できます');
+    showToast('キーボードのマイクから音声入力できます');
     return;
   }
-  try{
-    var rec=new SR(); rec.lang='ja-JP'; rec.interimResults=false; rec.continuous=false;
-    var old=btn?btn.innerHTML:'';
-    if(btn){btn.disabled=true;btn.innerHTML='🎙️ 聞き取り中...';}
-    rec.onresult=function(e){if(btn)btn.innerHTML='<span class="mt5-spin">◌</span> 反映中...';var s='';for(var i=e.resultIndex;i<e.results.length;i++)s+=e.results[i][0].transcript;setTimeout(function(){var base=String(el.value||'').trim();el.value=base?(base+'\n'+s):s;el.dispatchEvent(new Event('input',{bubbles:true}));},30);};
-    rec.onerror=function(){el.focus();showToast('音声認識を開始できません。キーボードのマイクも使えます');};
-    rec.onend=function(){if(btn){btn.disabled=false;btn.innerHTML=old;}};
-    rec.start();
-  }catch(e){el.focus();if(btn)btn.disabled=false;showToast('キーボードのマイクから音声入力してください');}
+  var sessions=window._voiceMemoSessions,cur=sessions[id];
+  if(cur){
+    if(cur.state==='listening'||cur.state==='starting'){
+      cur.state='stopping';
+      if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 反映中...';}
+      try{cur.rec.stop();}catch(e){try{cur.rec.abort();}catch(_){}}
+    }
+    return;
+  }
+  var rec=new SR(),old=btn?btn.innerHTML:'',session={rec:rec,btn:btn,old:old,state:'starting',text:'',hadResult:false,hadError:false};
+  sessions[id]=session;
+  rec.lang='ja-JP';rec.interimResults=false;rec.continuous=true;
+  function finish(){
+    if(sessions[id]!==session)return;
+    if(session.text){
+      var base=String(el.value||'').trim();
+      el.value=base?(base+'\n'+session.text):session.text;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    delete sessions[id];
+    if(btn){btn.disabled=false;btn.innerHTML=old;}
+    el.focus();
+  }
+  rec.onstart=function(){
+    session.state='listening';
+    if(btn){btn.disabled=false;btn.innerHTML='🎙️ 聞き取り中...';}
+  };
+  rec.onresult=function(e){
+    session.hadResult=true;
+    var out='';
+    for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)out+=e.results[i][0].transcript;
+    if(out)session.text+=out;
+    if(session.state==='stopping'&&btn)btn.innerHTML='<span class="mt5-spin">◌</span> 反映中...';
+  };
+  rec.onerror=function(e){
+    session.hadError=true;
+    var code=String(e&&e.error||'');
+    if(code!=='aborted'&&code!=='no-speech')showToast('音声認識を開始できません。キーボードのマイクも使えます');
+  };
+  rec.onend=function(){
+    session.state='applying';
+    if(btn){btn.disabled=true;btn.innerHTML='<span class="mt5-spin">◌</span> 反映中...';}
+    // Let the browser deliver the final result event before restoring the button.
+    setTimeout(finish,80);
+  };
+  if(btn){btn.disabled=false;btn.innerHTML='🎙️ 起動中...';}
+  try{rec.start();}
+  catch(e){delete sessions[id];if(btn){btn.disabled=false;btn.innerHTML=old;}el.focus();showToast('キーボードのマイクから音声入力してください');}
 };
 
 // ==========================================
