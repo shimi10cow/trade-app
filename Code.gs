@@ -1534,9 +1534,10 @@ function saveMT5ImportSettings(data){
 function ensureMT5ImportSheet_(){ return ensureSheetWithHeaders_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS); }
 
 function requestMT5Import(data){
-  ensureEASheets(); ensureMT5ImportSheet_(); data=data||{};
+  ensureEASheets(); const sh=ensureMT5ImportSheet_(); data=data||{};
   const row={RequestID:Utilities.getUuid(),Days:Math.max(1,Math.min(3650,Number(data.Days||30))),Mode:String(data.Mode||'IMPORT'),Status:'PENDING',Account:'',Server:'',Message:String(data.Since||''),CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
-  upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',row);
+  const hs=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(v=>String(v).trim());
+  sh.getRange(sh.getLastRow()+1,1,1,hs.length).setValues([hs.map(h=>Object.prototype.hasOwnProperty.call(row,h)?row[h]:'')]);
   try{const c=CacheService.getScriptCache();c.put('mt5_import_pending_v1',JSON.stringify(row),120);c.put('mt5_import_status_v1',JSON.stringify(row),120);c.remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true,requestId:row.RequestID};
 }
@@ -1555,10 +1556,14 @@ function getMT5ImportStatus(){
   const r=rows[0]||{};try{cache.put('mt5_import_status_v1',JSON.stringify(r),120);}catch(e){}return r;
 }
 function updateMT5ImportRequest(data){
-  ensureMT5ImportSheet_(); data=data||{};
+  const sh=ensureMT5ImportSheet_(); data=data||{};
   if(!data.RequestID)return {success:false,error:'RequestID required'};
   data.UpdatedAt=new Date().toISOString();
-  upsertByKey_(MT5_IMPORT_REQUESTS_SHEET,MT5_IMPORT_REQ_HEADERS,'RequestID',data);
+  const vals=sh.getDataRange().getValues(),hs=vals[0].map(v=>String(v).trim()),kc=hs.indexOf('RequestID');
+  let idx=-1;for(let i=1;i<vals.length;i++)if(String(vals[i][kc])===String(data.RequestID)){idx=i;break;}
+  if(idx<0){idx=vals.length;vals.push(new Array(hs.length).fill(''));}
+  Object.keys(data).forEach(k=>{const c=hs.indexOf(k);if(c>=0)vals[idx][c]=data[k];});
+  sh.getRange(idx+1,1,1,hs.length).setValues([vals[idx]]);
   try{
     const c=CacheService.getScriptCache(),hit=c.get('mt5_import_status_v1');let full={};
     if(hit){try{full=JSON.parse(hit)||{};}catch(e){}}
