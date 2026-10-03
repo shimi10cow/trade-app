@@ -38,8 +38,11 @@ def side_from_deal(d):
     if t==mt5.DEAL_TYPE_SELL:return "SELL"
     return ""
 
+def ensure_mt5():
+    if mt5.terminal_info() is None and not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
+
 def fetch_current_account(request):
-    if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
+    ensure_mt5()
     try:
         a=mt5.account_info()
         if not a:raise RuntimeError("MT5 account_info unavailable")
@@ -48,10 +51,10 @@ def fetch_current_account(request):
         logging.info("MT5 account info account=%s server=%s",account,server)
         return {"account":account,"server":server}
     finally:
-        mt5.shutdown()
+        pass
 
 def import_current_account(request):
-    if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
+    ensure_mt5()
     try:
         a=mt5.account_info()
         if not a:raise RuntimeError("MT5 account_info unavailable")
@@ -126,7 +129,7 @@ def import_current_account(request):
         logging.info("MT5 import account=%s server=%s rows=%s",account,server,len(rows))
         return result
     finally:
-        mt5.shutdown()
+        pass
 
 def run():
     logging.info("MT5 import worker started (READ ONLY)")
