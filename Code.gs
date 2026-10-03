@@ -1601,11 +1601,13 @@ function adoptMT5Trade(executionIds,options){
   const group=String(options.tradeGroupId||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   const dt=x=>{if(!x)return {date:'',time:''};const d=new Date(x);return {date:Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd'),time:Utilities.formatDate(d,'Asia/Tokyo','HH:mm')}};
   const en=dt(a.EntryTime),ex=dt(a.ExitTime);
-  const pipSize=/JPY$/i.test(a.Pair)?0.01:(/XAU|GOLD/i.test(a.Pair)?0.1:0.0001);
+  const symbol=String(a.Pair||'').toUpperCase();
+  const pipSize=/BTC|ETH|LTC|XRP/.test(symbol)?(/JPY$/i.test(symbol)?1000:1):(/XAU|GOLD/i.test(symbol)?0.1:(/XAG/i.test(symbol)?0.01:(/JPY$/i.test(symbol)?0.01:0.0001)));
+  const isForex=/^[A-Z]{6}$/.test(symbol)&&!/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(symbol);
   const mt5Pips=(a.EntryPrice&&a.ExitPrice)?((a.Direction==='BUY'?a.ExitPrice-a.EntryPrice:a.EntryPrice-a.ExitPrice)/pipSize):'';
   const obj={'TradeGroupID':group,'MT5SyncKey':group,'MT5Account':a.Account,'Source':'MT5-MANUAL','TradeType':'裁量',
     'PairName（元）':a.Pair,'PairName':a.Pair,'Direction':a.Direction==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
-    'EntryPrice':a.EntryPrice||'','Lot':a.Lot||'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
+    'EntryPrice':a.EntryPrice||'','Lot':isForex?(a.Lot||''):'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
     'ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':a.ExitPrice||'','Profit':a.Profit,'損益':a.Profit,'実取得pips':mt5Pips===''?'':Math.round(mt5Pips*10)/10,'Swap':a.Swap,
     'MT5ExecutionIDs':executionIds.join(','),'MT5LastSyncAt':new Date().toISOString(),'MT5OpenLot':a.OpenLot,'MT5ClosedLot':a.ClosedLot,'MT5EntryCount':a.EntryCount,'MT5ExitCount':a.ExitCount};
   let entryId=String(options.entryId||'');
