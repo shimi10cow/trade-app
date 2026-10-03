@@ -31,7 +31,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-ser
 }
 
 /* ======== Content ======== */
-.content { padding: 12px; padding-top: calc(50px + env(safe-area-inset-top) + 52px + 12px); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+.content { padding: 12px; padding-top: calc(50px + env(safe-area-inset-top) + 52px + 7px); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 
 /* ======== Tabs ======== */
 .tab {
@@ -372,3 +372,5 @@ textarea.form-input { resize: vertical; }
 .memo-label-stack{width:92px;flex:0 0 92px;display:flex;flex-direction:column;align-items:flex-start;gap:5px}.memo-label-stack .form-label{width:auto}.memo-label-stack .voice-memo-btn{margin-top:0;min-width:0;width:88px;padding:6px 4px;font-size:10px}
 
 .memo-field-wrap{position:relative;flex:1;min-width:0}.memo-field-wrap .form-input{width:100%;padding-right:32px}.memo-clear-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:#334155;color:#94a3b8;border:0;font-size:12px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
+
+#ptr-anchor{position:fixed;top:calc(50px + env(safe-area-inset-top) + 52px);left:0;right:0;z-index:98;pointer-events:none}#ptr-bar{pointer-events:none}
