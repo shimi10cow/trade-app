@@ -35,6 +35,7 @@ const GAS_ACTIONS = {
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
   getMT5ImportStatus: () => getMT5ImportStatus(),
+  getMT5ImportResult: () => getMT5ImportResult(),
   getMT5ImportDashboard: () => getMT5ImportDashboard(),
   getMT5ImportSettings: () => getMT5ImportSettings(),
 };
@@ -1555,6 +1556,20 @@ function getMT5ImportStatus(){
   const rows=sheetObjects_(MT5_IMPORT_REQUESTS_SHEET);rows.sort((a,b)=>String(b.CreatedAt||'').localeCompare(String(a.CreatedAt||'')));
   const r=rows[0]||{};try{cache.put('mt5_import_status_v1',JSON.stringify(r),120);}catch(e){}return r;
 }
+function getMT5ImportResult(){
+  try{const hit=CacheService.getScriptCache().get('mt5_import_result_v1');return hit?JSON.parse(hit):{};}catch(e){return {};}
+}
+function cacheMT5ImportResult_(requestId,account,server,rows){
+  try{
+    rows=Array.isArray(rows)?rows:[];
+    // CacheService values are limited in size. Small/normal imports can be sent
+    // straight back to the browser; large imports fall back to dashboard refresh.
+    const result={RequestID:String(requestId||''),Account:String(account||''),Server:String(server||''),Rows:rows};
+    const json=JSON.stringify(result);
+    if(json.length<80000)CacheService.getScriptCache().put('mt5_import_result_v1',json,120);
+    else CacheService.getScriptCache().put('mt5_import_result_v1',JSON.stringify({RequestID:String(requestId||''),Account:String(account||''),Server:String(server||''),TooLarge:true}),120);
+  }catch(e){}
+}
 function updateMT5ImportRequest(data){
   const sh=ensureMT5ImportSheet_(); data=data||{};
   if(!data.RequestID)return {success:false,error:'RequestID required'};
@@ -1586,6 +1601,7 @@ function saveMT5ImportBatch(requestId,account,server,rows){
   // No executions means there is nothing to read, compare or write in the MT5
   // executions sheet. Only mark the request complete.
   if(!rows.length){
+    cacheMT5ImportResult_(requestId,account,server,[]);
     if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades 0 / executions 0 / new 0 / updated 0 / revived 0'});
     return {success:true,inserted:0,updated:0,revived:0,count:0,autoAttached:0};
   }
@@ -1641,7 +1657,7 @@ function saveMT5ImportBatch(requestId,account,server,rows){
   // Re-import only refreshes MT5 candidates. History changes require an explicit user action.
   // The imported batch already contains everything needed for grouping.
   // Avoid re-reading the entire MT5 executions sheet only to calculate this count.
-  const groups=mt5CountTradeGroups_(rows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived});
+  const groups=mt5CountTradeGroups_(rows); cacheMT5ImportResult_(requestId,account,server,rows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / revived '+revived});
   return {success:true,inserted:inserted,updated:updated,revived:revived,count:rows.length,autoAttached:0};
 }
 function setMT5ImportStatus(ids,status){
