@@ -139,7 +139,8 @@ def run():
             req=gas_get("getMT5ImportRequest") or {}
             if isinstance(req,dict) and str(req.get("Status","")).upper()=="PENDING":
                 rid=str(req.get("RequestID",""))
-                gas_post("updateMT5ImportRequest",data={"RequestID":rid,"Status":"RUNNING","Message":""})
+                # Start MT5 work immediately. A separate RUNNING POST added one full
+                # GAS round trip without contributing to correctness.
                 try:
                     fetch_current_account(req) if str(req.get("Mode","")).upper()=="ACCOUNT" else import_current_account(req)
                 except Exception as e:
