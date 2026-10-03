@@ -5127,7 +5127,7 @@ function calcTimezone(timeStr) {
 
 function plannedPipSize_(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
-  if(/BTC|ETH|LTC|XRP/.test(pair))return 10;
+  if(/BTC|ETH|LTC|XRP/.test(pair))return pair.includes('JPY')?1000:10;
   if(/XAU|GOLD|XAG|SILVER/.test(pair))return 1;
   if(pair.includes('JPY'))return 0.01;
   return 0.0001;
