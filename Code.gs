@@ -1729,6 +1729,10 @@ function mt5Aggregate_(rows){
 function adoptMT5Trade(executionIds,options){
   ensureEASheets(); options=options||{}; executionIds=Array.from(new Set((executionIds||[]).map(String).filter(Boolean)));
   const rows=mt5RowsByIds_(executionIds); if(!rows.length)return {success:false,error:'No executions'};
+  // Creating a brand-new manual Entry from MT5 is destructive state promotion.
+  // Require an explicit UI confirmation marker so imports/detail views/background
+  // sync can never create History rows merely by calling this endpoint.
+  if(!options.entryId&&options.confirmCreate!=='MT5_REVIEW_SAVE')return {success:false,error:'Explicit MT5 review save required'};
   // Idempotency guard: an MT5 execution can belong to only one app Entry.
   // Repeated taps/retries/re-imports return the existing Entry instead of creating duplicates.
   const linkedIds=Array.from(new Set(rows.map(r=>String(r.EntryID||'')).filter(Boolean)));
