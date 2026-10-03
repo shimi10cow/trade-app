@@ -35,6 +35,7 @@ const GAS_ACTIONS = {
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
   getMT5ImportStatus: () => getMT5ImportStatus(),
+  waitMT5ImportStatus: () => waitMT5ImportStatus_(p.requestId,p.timeoutMs),
   getMT5ImportResult: () => getMT5ImportResult(),
   getMT5ImportDashboard: () => getMT5ImportDashboard(),
   getMT5ImportSettings: () => getMT5ImportSettings(),
@@ -1569,6 +1570,27 @@ function cacheMT5ImportResult_(requestId,account,server,rows){
     if(json.length<80000)CacheService.getScriptCache().put('mt5_import_result_v1',json,120);
     else CacheService.getScriptCache().put('mt5_import_result_v1',JSON.stringify({RequestID:String(requestId||''),Account:String(account||''),Server:String(server||''),TooLarge:true}),120);
   }catch(e){}
+}
+function waitMT5ImportStatus_(requestId,timeoutMs){
+  requestId=String(requestId||'');timeoutMs=Math.max(500,Math.min(Number(timeoutMs)||7000,8000));
+  const cache=CacheService.getScriptCache(),deadline=Date.now()+timeoutMs;
+  do{
+    const hit=cache.get('mt5_import_status_v1');
+    if(hit){
+      try{
+        const r=JSON.parse(hit)||{},status=String(r.Status||'').toUpperCase();
+        if((!requestId||String(r.RequestID||'')===requestId)&&(status==='DONE'||status==='ERROR'))return r;
+      }catch(e){}
+    }
+    Utilities.sleep(200);
+  }while(Date.now()<deadline);
+  // Timeout is not an error; return the latest cached status so the browser
+  // can immediately issue one more long poll without doing a sheet read.
+  try{
+    const hit=cache.get('mt5_import_status_v1');
+    if(hit)return JSON.parse(hit)||{};
+  }catch(e){}
+  return {RequestID:requestId,Status:'PENDING'};
 }
 function updateMT5ImportRequest(data){
   const sh=ensureMT5ImportSheet_(); data=data||{};
