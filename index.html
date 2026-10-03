@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261003c">
+  <link rel="stylesheet" href="./style.css?v=20261003i">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
@@ -762,6 +762,17 @@
 
         <!-- Basic Info -->
         <div class="section">
+          <div class="form-row">
+            <span class="form-label">ペア</span>
+            <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
+          </div>
+          <div class="form-row">
+            <span class="form-label">方向</span>
+            <div class="btn-group" id="td-dir">
+              <button class="toggle-btn dir-buy" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▲ Buy</button>
+              <button class="toggle-btn dir-sell" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▼ Sell</button>
+            </div>
+          </div>
           <div class="trade-datetime-block">
             <div class="trade-datetime-row">
               <span class="trade-datetime-label">エントリー日時</span>
@@ -772,17 +783,6 @@
               <span class="trade-datetime-label">決済日時</span>
               <input type="date" class="form-input trade-date-input" id="td-exit-date">
               <input type="time" class="form-input trade-time-input" id="td-exit-time">
-            </div>
-          </div>
-          <div class="form-row">
-            <span class="form-label">ペア</span>
-            <select class="form-input" id="td-pair" onchange="autoLoadPairInfo('td')"></select>
-          </div>
-          <div class="form-row">
-            <span class="form-label">方向</span>
-            <div class="btn-group" id="td-dir">
-              <button class="toggle-btn dir-buy" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▲ Buy</button>
-              <button class="toggle-btn dir-sell" onclick="toggleBtn(this, '#td-dir .dir-buy, #td-dir .dir-sell')">▼ Sell</button>
             </div>
           </div>
           <div class="form-row">
@@ -1438,8 +1438,8 @@
   </div>
 
   <script src="./ai_prompt.js?v=20260927p" charset="utf-8"></script>
-  <script src="./app.js?v=20261003k" charset="utf-8"></script>
-  <script src="./mt5_import.js?v=20261003j" charset="utf-8"></script>
+  <script src="./app.js?v=20261003i" charset="utf-8"></script>
+  <script src="./mt5_import.js?v=20261003i" charset="utf-8"></script>
   <script src="./ea.js?v=20261002b" charset="utf-8"></script>
 </body>
 </html>
