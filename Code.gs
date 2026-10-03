@@ -1714,15 +1714,15 @@ function mt5Aggregate_(rows){
   const first=entries[0]||positionRows[0]||rows[0]||{};
   const dir=String((entries[0]||first).Direction||'').toUpperCase();
   const sum=(a,k)=>a.reduce((s,r)=>s+(Number(r[k])||0),0);
-  const wavg=(a,pk,vk)=>{const v=sum(a,vk);return v?a.reduce((s,r)=>s+(Number(r[pk])||0)*(Number(r[vk])||0),0)/v:0;};
+  const wavg=(a,pk,vk)=>{const x=a.map(r=>({p:Number(r[pk]||0),v:Number(r[vk]||r.DealVolume||r.Lot||0)})).filter(z=>z.p>0&&z.v>0),v=x.reduce((s,z)=>s+z.v,0);return v?x.reduce((s,z)=>s+z.p*z.v,0)/v:0;};
   const entryVol=sum(entries,'DealVolume') || sum(positionRows,'Lot');
   const exitVol=sum(exits,'DealVolume');
   const open=positionRows.length?sum(positionRows,'Lot'):Math.max(0,entryVol-exitVol);
   const sortTime=a=>a.slice().sort((x,y)=>String(x.DealTime||x.EntryTime||'').localeCompare(String(y.DealTime||y.EntryTime||'')));
   const se=sortTime(entries.length?entries:positionRows),sx=sortTime(exits);
   return {Pair:first.Pair||'',Direction:dir,Account:first.Account||'',Server:first.Server||'',
-    EntryTime:(se[0]||{}).DealTime||(se[0]||{}).EntryTime||first.EntryTime||'',EntryPrice:wavg(entries,'DealPrice','DealVolume')||wavg(rows.filter(r=>Number(r.EntryPrice)>0),'EntryPrice','DealVolume')||wavg(positionRows,'EntryPrice','Lot')||Number(first.EntryPrice)||0,
-    Lot:entryVol,OpenLot:open,ClosedLot:exitVol,ExitTime:(sx[sx.length-1]||{}).DealTime||'',ExitPrice:wavg(exits,'DealPrice','DealVolume'),
+    EntryTime:(se[0]||{}).DealTime||(se[0]||{}).EntryTime||first.EntryTime||'',EntryPrice:wavg(entries,'DealPrice','DealVolume')||wavg(rows.filter(r=>Number(r.EntryPrice)>0),'EntryPrice','DealVolume')||wavg(positionRows,'EntryPrice','Lot')||Number((entries.find(r=>Number(r.DealPrice)>0)||{}).DealPrice)||Number(first.EntryPrice)||0,
+    Lot:entryVol,OpenLot:open,ClosedLot:exitVol,ExitTime:(sx[sx.length-1]||{}).DealTime||'',ExitPrice:wavg(exits,'DealPrice','DealVolume')||Number((exits.find(r=>Number(r.DealPrice)>0)||{}).DealPrice)||Number((exits.find(r=>Number(r.ExitPrice)>0)||{}).ExitPrice)||0,
     Profit:sum(deals,'Profit'),Swap:sum(deals,'Swap'),SL:Number((positionRows[0]||{}).SL)||'',TP:Number((positionRows[0]||{}).TP)||'',
     Status:open>0?'OPEN':'CLOSED',EntryCount:entries.length||positionRows.length,ExitCount:exits.length};
 }
