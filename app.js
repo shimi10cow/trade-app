@@ -5949,6 +5949,7 @@ async function unlinkCurrentMT5Trade() {
 window.unlinkCurrentMT5Trade=unlinkCurrentMT5Trade;
 
 function closeTradeDetail() {
+  const _tdi=parseInt(document.getElementById('td-index')?.value);if(!isNaN(_tdi)&&App.data.entries[_tdi]&&App.data.entries[_tdi]._mt5Draft)App.data.entries.splice(_tdi,1);
   document.getElementById('modal-trade-detail').classList.remove('active');
   App.state.pendingEntryImgDelete = null;
   App.state.pendingExitImgDelete = null;
@@ -6163,13 +6164,9 @@ async function saveTradeDetail() {
       }
     }
 
-    // GAS updateEntry を呼び出す（オフライン時はキューに退避）
-    const res = await gasPostQueued({ action: 'updateEntry', entryId: entryId, data: updateData }, 'トレード更新: ' + entryId);
-
-    if (!res.success) throw new Error(res.error || '保存に失敗しました');
-
-    // ローカルにも反映（即時表示用）
-    Object.assign(t, updateData);
+    // MT5候補は詳細確認中はドラフト。変更内容を保存した時点で初めてEntriesへ採用する。
+    let res;
+    if(t._mt5Draft){res=await gasPost({action:'adoptMT5Trade',executionIds:t._mt5ExecutionIds||[],options:{overlay:updateData}});if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,res.entry||{},updateData,{EntryID:res.entryId});delete t._mt5Draft;delete t._mt5ExecutionIds;}else{res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);}
 
     const payloadStatus = updateData['ステータス'];
     const payloadPips = updateData['実取得pips'];
