@@ -356,6 +356,8 @@ function buildScoreGroups(containerId, prefix) {
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => { hydrateCalendarReminderState();
   initServiceWorker();
+  const savedTab = sessionStorage.getItem('ptr-active-tab');
+  if (savedTab) switchTab(savedTab);
   loadScoreConfig();
   loadMcConfig();
   syncCollapseSections(); // 記録タブ等の静的折りたたみ状態を復元
@@ -452,7 +454,7 @@ function setupPullToRefresh() {
       // 現在のタブをsessionStorageに保存してからリロード
       const activeTab = document.querySelector('.tab.active')?.dataset?.tab || '';
       if (activeTab) sessionStorage.setItem('ptr-active-tab', activeTab);
-      setTimeout(() => window.location.reload(), 400);
+      setTimeout(() => window.location.reload(), 150);
     } else {
       // 元に戻す
       ind.style.transition = 'height 0.25s ease';
@@ -1233,8 +1235,8 @@ async function loadData() {
     // プルダウンリフレッシュ後のタブ復元
     const ptrTab = sessionStorage.getItem('ptr-active-tab');
     if (ptrTab) {
-      sessionStorage.removeItem('ptr-active-tab');
       switchTab(ptrTab);
+      sessionStorage.removeItem('ptr-active-tab');
     }
   } catch (err) {
     console.error('Failed to load data:', err);
