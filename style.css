@@ -387,3 +387,8 @@ textarea.form-input { resize: vertical; }
 .trade-image-dots span.active{background:#38bdf8}
 .image-add-target.image-target-active{border-color:#38bdf8!important;box-shadow:0 0 0 1px rgba(56,189,248,.25)!important}
 @media(max-width:600px){.trade-image-slide img{max-height:none}.trade-image-carousel{width:100%}}
+
+.trade-carousel-host{position:relative}
+.trade-carousel-arrow{display:none;position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:38px;height:52px;border-radius:10px;border:1px solid rgba(148,163,184,.45);background:rgba(15,23,42,.78);color:#f8fafc;font-size:32px;line-height:1;cursor:pointer;align-items:center;justify-content:center}
+.trade-carousel-prev{left:8px}.trade-carousel-next{right:8px}
+@media (min-width:701px) and (hover:hover) and (pointer:fine){.trade-carousel-arrow{display:flex}.trade-carousel-arrow:hover{background:rgba(30,41,59,.94);border-color:#38bdf8}}
