@@ -1769,7 +1769,7 @@ function autoAttachMT5Continuations_(){
 }
 
 function getMT5ImportDashboard(){
-  ensureEASheets(); ensureMT5ImportSheet_();
+  ensureMT5ImportSheet_();
   const cache=CacheService.getScriptCache(),key='mt5_import_dashboard_v1',hit=cache.get(key);
   if(hit){try{return JSON.parse(hit);}catch(e){}}
   const exec=sheetObjects_(MT5_EXECUTIONS_SHEET).filter(r=>String(r.Source||'')==='MT5-MANUAL');
