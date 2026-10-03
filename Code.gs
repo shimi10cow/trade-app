@@ -149,6 +149,8 @@ function doPost(e) {
     result = splitMT5Trade(body.entryId, body.executionIds);
   } else if (action === 'mergeMT5Trades') {
     result = mergeMT5Trades(body.entryIds);
+  } else if (action === 'recalcMT5NetProfit') {
+    result = recalcMT5NetProfit();
   } else if (action === 'saveMT5Execution') {
     result = saveMT5Execution(body.data);
   } else if (action === 'syncMT5Trade') {
@@ -1444,7 +1446,7 @@ function syncMT5Trade(data){
     'Direction':String(data.Direction).toUpperCase()==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
     'EntryPrice':data.EntryPrice||'','Lot':data.Lot||'','InitialSLPrice':data.SL||'','TakeProfitPrice':data.TP||'',
     'ステータス':data.Status==='CLOSED'?'決済':'保有中','ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':data.ExitPrice||'',
-    'Profit':data.Profit||'','損益':data.Profit||'','EAルール':data.Source==='EA'?'MT5 EA':''
+    'Profit':data.Profit||'','Swap':data.Swap||'','損益':(Number(data.Profit)||0)+(Number(data.Swap)||0),'EAルール':data.Source==='EA'?'MT5 EA':''
   };
   if(row<0){
     const saved=saveEntry(obj);
@@ -1456,6 +1458,16 @@ function syncMT5Trade(data){
   return {success:true,tradeGroupId:group};
 }
 
+function recalcMT5NetProfit(){
+  const rows=getEntries(),targets=rows.filter(e=>e.MT5SyncKey||/MT5/i.test(String(e.Source||'')));
+  let updated=0;
+  targets.forEach(e=>{
+    const profit=Number(e.Profit)||0,swap=Number(e.Swap)||0,net=profit+swap;
+    if(Number(e['損益'])!==net){const r=updateEntry(String(e.EntryID),{'損益':net});if(r&&r.success)updated++;}
+  });
+  try{CacheService.getScriptCache().remove(CACHE_KEY);}catch(e){}
+  return {success:true,checked:targets.length,updated:updated};
+}
 function saveMT5Execution(data){
   ensureEASheets(); data=data||{};
   if(!data.ExecutionID) data.ExecutionID=Utilities.getUuid();
@@ -1750,7 +1762,7 @@ function adoptMT5Trade(executionIds,options){
   const obj={'TradeGroupID':group,'MT5SyncKey':group,'MT5Account':a.Account,'Source':'MT5-MANUAL','TradeType':'裁量',
     'PairName（元）':mt5AppPair_(a.Pair),'PairName':mt5AppPair_(a.Pair),'Direction':a.Direction==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
     'EntryPrice':a.EntryPrice||'','Lot':isForex?(a.Lot||''):'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
-    'ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':a.ExitPrice||'','Profit':a.Profit,'損益':a.Profit,'実取得pips':mt5Pips===''?'':Math.round(mt5Pips*10)/10,'Swap':a.Swap,
+    'ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':a.ExitPrice||'','Profit':a.Profit,'損益':(Number(a.Profit)||0)+(Number(a.Swap)||0),'実取得pips':mt5Pips===''?'':Math.round(mt5Pips*10)/10,'Swap':a.Swap,
     'MT5ExecutionIDs':executionIds.join(','),'MT5LastSyncAt':new Date().toISOString(),'MT5OpenLot':a.OpenLot,'MT5ClosedLot':a.ClosedLot,'MT5EntryCount':a.EntryCount,'MT5ExitCount':a.ExitCount};
   if(options.overlay&&typeof options.overlay==='object')Object.keys(options.overlay).forEach(k=>obj[k]=options.overlay[k]);
   let entryId=String(options.entryId||'');
@@ -1784,7 +1796,7 @@ function adoptMT5Trade(executionIds,options){
     obj.EntryPrice=Number(a.EntryPrice)||current.EntryPrice||'';
     if(isForex)obj.Lot=a.Lot||current.Lot||'';
     obj.Profit=Number(a.Profit)||0;
-    obj['損益']=Number(a.Profit)||0;
+    obj['損益']=(Number(a.Profit)||0)+(Number(a.Swap)||0);
     obj.Swap=Number(a.Swap)||0;
     obj['実取得pips']=mt5Pips===''?'':Math.round(mt5Pips*10)/10;
     obj['ステータス']=a.Status==='CLOSED'?'決済':'保有中';
