@@ -1557,6 +1557,12 @@ function updateMT5ImportRequest(data){
   try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');}catch(e){}
   return {success:true};
 }
+function mt5CountTradeGroups_(rows){
+  rows=Array.isArray(rows)?rows:[]; const byPos={};
+  rows.forEach(r=>{if(!r||!r.Account||!r.Pair)return;const k=[r.Server||'',r.Account,r.PositionID||r.Ticket||r.ExecutionID].join('|');(byPos[k]||(byPos[k]=[])).push(r);});
+  const positions=Object.keys(byPos).map(k=>{const a=byPos[k],times=a.map(x=>new Date(x.DealTime||x.EntryTime||0).getTime()).filter(Number.isFinite).sort((x,y)=>x-y);return {server:String(a[0].Server||''),account:String(a[0].Account||''),pair:String(a[0].Pair||''),dir:String(a[0].Direction||'').toUpperCase(),start:times[0]||0,end:times[times.length-1]||0};}).filter(x=>x.pair&&x.dir).sort((a,b)=>a.start-b.start);
+  let n=0,last=null; positions.forEach(p=>{const same=last&&last.server===p.server&&last.account===p.account&&last.pair===p.pair&&last.dir===p.dir;const within=same&&Math.abs(p.start-last.start)<=6*3600*1000;if(within){last.end=Math.max(last.end,p.end);}else{n++;last=Object.assign({},p);}}); return n;
+}
 function saveMT5ImportBatch(requestId,account,server,rows){
   ensureEASheets(); rows=Array.isArray(rows)?rows:[];
   const sh=ensureSheetWithHeaders_(MT5_EXECUTIONS_SHEET,MT5_EXEC_HEADERS);
@@ -1573,7 +1579,7 @@ function saveMT5ImportBatch(requestId,account,server,rows){
     hs.forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(d,h))sh.getRange(rn,j+1).setValue(d[h]);});
   });
   const auto=autoAttachMT5Continuations_();
-  if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'new '+inserted+' / updated '+updated+' / auto '+auto.attached});
+  const freshRows=mt5RowsByIds_(rows.map(x=>x&&x.ExecutionID).filter(Boolean)); const groups=mt5CountTradeGroups_(freshRows); if(requestId)updateMT5ImportRequest({RequestID:requestId,Status:'DONE',Account:String(account||''),Server:String(server||''),Message:'trades '+groups+' / executions '+rows.length+' / new '+inserted+' / updated '+updated+' / auto '+auto.attached});
   return {success:true,inserted:inserted,updated:updated,count:rows.length,autoAttached:auto.attached};
 }
 function setMT5ImportStatus(ids,status){
