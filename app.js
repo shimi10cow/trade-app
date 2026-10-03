@@ -5942,6 +5942,8 @@ async function unlinkCurrentMT5Trade() {
     const r=await gasPost({action:'unlinkMT5FromEntry',entryId:t.EntryID});
     if(!r.success)throw new Error(r.error||'解除に失敗しました');
     showToast(r.deleted?'MT5 Tradeを履歴から外して未確認へ戻しました':(r.restored?'手入力Tradeを復元してMT5を未確認へ戻しました':'MT5紐付けを解除して未確認へ戻しました'));
+    // MT5タブのブラウザキャッシュも破棄し、未確認候補を即座に復活させる。
+    if(window.refreshMT5AfterUnlink)window.refreshMT5AfterUnlink().catch(()=>{});
     await loadData();
     closeTradeDetail();
   }catch(e){showToast('⚠️ '+e.message);}finally{hideLoader();}
