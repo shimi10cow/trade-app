@@ -1560,3 +1560,10 @@ button[data-gf-quality]{
 #ea-pair-modal .ea-pair-close{
   margin-right:8px!important;
 }
+
+
+/* 2026-10-04 EA pair close: clear the settings/action panel below, not the modal frame */
+#ea-pair-modal .ea-pair-close{
+  margin-right:0!important;
+  transform:translateY(-6px)!important;
+}
