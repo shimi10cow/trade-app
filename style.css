@@ -1179,3 +1179,51 @@ button[data-gf-quality]{
   width:34px!important;min-width:34px!important;flex:0 0 34px!important;
   padding:5px!important;font-size:15px!important;line-height:1!important;
 }
+
+
+/* 2026-10-04 targeted layout/state restoration */
+
+/* Gallery = two equal columns. Left: win/loss. Right: quality ○ ×. */
+#gf-winloss.gallery-filter-full{
+  width:auto!important;
+  flex:1 1 0!important;
+  min-width:0!important;
+}
+#gf-winloss.gallery-filter-full + div{
+  flex:1 1 0!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:5px!important;
+}
+button[data-gf-quality]{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  flex:auto!important;
+  box-sizing:border-box!important;
+}
+
+/* EA pair modal: same cyan selected language as the rest of the app. */
+#ea-pair-modal .ea-btn.on{
+  background:rgba(34,211,238,.08)!important;
+  color:#22d3ee!important;
+  border-color:#22d3ee!important;
+  box-shadow:0 0 8px rgba(34,211,238,.14)!important;
+}
+#ea-pair-modal .ea-pair-close{
+  width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;
+  flex:0 0 36px!important;padding:0!important;margin-left:12px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  border-radius:9px!important;font-size:18px!important;line-height:1!important;
+}
+
+/* Restore strong running/stopped state frames. */
+#screen-ea .ea-global-status.is-running{
+  border-color:#84cc16!important;
+  box-shadow:0 0 12px rgba(132,204,22,.22),inset 0 0 0 1px rgba(163,230,53,.08)!important;
+}
+#screen-ea .ea-global-status.is-stopped{
+  border-color:#ef4444!important;
+  box-shadow:0 0 12px rgba(239,68,68,.18),inset 0 0 0 1px rgba(248,113,113,.06)!important;
+}
