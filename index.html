@@ -435,10 +435,9 @@
             <option value="SL設定ミス">SL設定ミス</option>
             <option value="ルール外気づき">ルール外気づき</option>
           </select>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <button class="toggle-btn active" onclick="galleryFilterBtn(this,'quality','all')" data-gf-quality="all" style="padding:6px 10px;font-size:12px;">すべて</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'quality','GOOD')" data-gf-quality="GOOD" style="padding:6px 10px;font-size:12px;">○ よくできた</button>
-            <button class="toggle-btn" onclick="galleryFilterBtn(this,'quality','BAD')" data-gf-quality="BAD" style="padding:6px 10px;font-size:12px;">× ダメだった</button>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;">
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'GOOD')" data-gf-quality="GOOD" style="padding:6px 10px;font-size:12px;white-space:nowrap;flex:0 0 auto;">○ よくできた</button>
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'BAD')" data-gf-quality="BAD" style="padding:6px 10px;font-size:12px;white-space:nowrap;flex:0 0 auto;">× ダメだった</button>
           </div>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
