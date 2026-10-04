@@ -1520,3 +1520,30 @@ button[data-gf-quality]{
     box-sizing:border-box!important;
   }
 }
+
+
+/* 2026-10-04 pair detail modal: lock horizontal movement while vertically swiping */
+#modal-pair-edit{
+  overflow-x:hidden!important;
+  overscroll-behavior-x:none!important;
+}
+#modal-pair-edit .modal-content{
+  width:calc(100% - 20px)!important;
+  max-width:540px!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+  touch-action:pan-y!important;
+}
+#modal-pair-edit .modal-body{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+  touch-action:pan-y!important;
+}
+#modal-pair-edit .section{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+}
