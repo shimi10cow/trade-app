@@ -1048,7 +1048,6 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-judgement-text').textContent = '--';
   document.getElementById('ne-judgement-text').style.color = '#f8fafc';
 
-  clearNewEntryImage(1);
 
   const _ra = document.getElementById('ne-recent-analysis-section');
   if (_ra) _ra.style.display = 'none';
@@ -5471,101 +5470,6 @@ document.addEventListener('drop',function(e){
   for(var i=0;i<files.length;i++)if(String(files[i].type||'').startsWith('image/')){e.preventDefault();acceptDesktopImage_(files[i]);return;}
 });
 
-let canvasParams = { isDrawing: false, ctx: null, color: '#ef4444' };
-
-function openCanvasEditor() {
-  const img = document.getElementById('ne-image-preview');
-  if (!img.src) return;
-
-  const canvas = document.getElementById('markup-canvas');
-  const ctx = canvas.getContext('2d');
-
-  // Set real dimensions preserving aspect ratio
-  canvas.width = img.naturalWidth || 800;
-  canvas.height = img.naturalHeight || 450;
-
-  // Draw base image
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-  canvasParams.ctx = ctx;
-  ctx.strokeStyle = canvasParams.color;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 4;
-
-  document.getElementById('modal-canvas-editor').classList.add('active');
-
-  // Events
-  canvas.onmousedown = startDrawing;
-  canvas.onmousemove = draw;
-  canvas.onmouseup = stopDrawing;
-  canvas.onmouseout = stopDrawing;
-
-  // Touch
-  canvas.ontouchstart = (e) => { e.preventDefault(); startDrawing(e.touches[0]); };
-  canvas.ontouchmove = (e) => { e.preventDefault(); draw(e.touches[0]); };
-  canvas.ontouchend = stopDrawing;
-}
-
-function closeCanvasEditor() {
-  document.getElementById('modal-canvas-editor').classList.remove('active');
-}
-
-function startDrawing(e) {
-  canvasParams.isDrawing = true;
-  draw(e);
-}
-
-function draw(e) {
-  if (!canvasParams.isDrawing) return;
-  const canvas = document.getElementById('markup-canvas');
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-
-  const x = (e.clientX - rect.left) * scaleX;
-  const y = (e.clientY - rect.top) * scaleY;
-
-  canvasParams.ctx.lineTo(x, y);
-  canvasParams.ctx.stroke();
-  canvasParams.ctx.beginPath();
-  canvasParams.ctx.moveTo(x, y);
-}
-
-function stopDrawing() {
-  canvasParams.isDrawing = false;
-  canvasParams.ctx.beginPath();
-}
-
-function setMarkupColor(color) {
-  canvasParams.color = color;
-  if (canvasParams.ctx) canvasParams.ctx.strokeStyle = color;
-
-  // Update UI borders
-  const btns = document.getElementById('modal-canvas-editor').querySelectorAll('button[onclick^="setMarkupColor"]');
-  btns.forEach(b => {
-    b.style.border = b.style.background.includes(color.replace('#', '')) ? '2px solid white' : 'none';
-  });
-}
-
-function clearCanvas() {
-  const img = document.getElementById('ne-image-preview');
-  const canvas = document.getElementById('markup-canvas');
-  if (canvasParams.ctx) {
-    canvasParams.ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvasParams.ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  }
-}
-
-function saveCanvasMarkup() {
-  const canvas = document.getElementById('markup-canvas');
-  const imgURL = canvas.toDataURL('image/jpeg', 0.8);
-
-  // Set preview to new marked-up image
-  document.getElementById('ne-image-preview').src = imgURL;
-  closeCanvasEditor();
-}
-
 // ==========================================
 // Trade Detail & Clossing
 // ==========================================
@@ -5601,36 +5505,6 @@ function playCloseSound(isWin) {
       osc.stop(ctx.currentTime + 0.3);
     }
   } catch (e) { }
-}
-
-// 新規エントリー画像をクリア
-function clearNewEntryImage(slot) {
-  slot = slot || 1;
-  if (slot === 1) {
-    const img = document.getElementById('ne-image-preview');
-    img.src = '';
-    img.style.display = 'none';
-    document.getElementById('image-preview-container').style.display = 'none';
-    document.getElementById('ne-image-upload').value = '';
-    const labelText = document.getElementById('ne-image-label-text');
-    if (labelText) labelText.textContent = '📷 エントリー画像1を追加';
-    const label = document.getElementById('ne-image-label');
-    if (label) label.style.borderColor = '#38bdf8';
-    // 2枚目も隠す
-    clearNewEntryImage(2);
-    const label2 = document.getElementById('ne-image2-label');
-    if (label2) label2.style.display = 'none';
-  } else {
-    const img = document.getElementById('ne-image2-preview');
-    img.src = '';
-    img.style.display = 'none';
-    document.getElementById('image2-preview-container').style.display = 'none';
-    document.getElementById('ne-image2-upload').value = '';
-    const labelText = document.getElementById('ne-image2-label-text');
-    if (labelText) labelText.textContent = '📷 エントリー画像2を追加';
-    const label2 = document.getElementById('ne-image2-label');
-    if (label2) label2.style.borderColor = '#38bdf8';
-  }
 }
 
 // カラム名（最初に値があるもの）を返す
