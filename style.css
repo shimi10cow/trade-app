@@ -947,3 +947,10 @@ textarea.form-input{line-height:1.55}
   font-size:10px!important;
   font-weight:650!important;
 }
+
+
+/* 2026-10-04 fixed-header offset correction
+   Keep content below the fixed header + glass tab bar. */
+.content{
+  padding-top:calc(50px + env(safe-area-inset-top) + 58px + 7px);
+}
