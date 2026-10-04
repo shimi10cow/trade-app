@@ -410,23 +410,28 @@
             <button class="toggle-btn" onclick="galleryFilterBtn(this,'rr','3up')" data-gf-rr="3up" style="padding:4px 8px; font-size:12px;">3以上</button>
           </div>
         </div>
-        <!-- 勝敗・振り返り・お気に入りフィルター -->
-        <div style="display:flex; gap:6px; margin-bottom:8px;">
-          <select id="gf-winloss" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
+        <!-- 勝敗・トレード評価 -->
+        <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
+          <select id="gf-winloss" class="form-input" style="flex:1;min-width:0;font-size:11px;padding:6px 8px;" onchange="renderGallery()">
             <option value="all">勝敗: 全て</option>
             <option value="win">勝ちのみ</option>
             <option value="loss">負けのみ</option>
           </select>
-          <select id="gf-entryref" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
+          <div style="display:flex;gap:5px;align-items:center;flex:1;min-width:0;">
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'GOOD')" data-gf-quality="GOOD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">○ Good Trade</button>
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'BAD')" data-gf-quality="BAD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">× Bad Trade</button>
+          </div>
+        </div>
+        <!-- エントリー・決済振り返り -->
+        <div style="display:flex; gap:6px; margin-bottom:10px;">
+          <select id="gf-entryref" class="form-input" style="flex:1;min-width:0;font-size:11px;padding:6px 8px;" onchange="renderGallery()">
             <option value="all">ｴﾝﾄﾘｰ振り返り: 全て</option>
             <option value="エントリータイミングOK">エントリータイミングOK</option>
             <option value="アーリー">アーリー</option>
             <option value="レイト">レイト</option>
             <option value="DowRule外">DowRule外</option>
           </select>
-        </div>
-        <div style="display:flex; gap:6px; margin-bottom:10px; align-items:center;">
-          <select id="gf-exitref" class="form-input" style="flex:1; font-size:11px; padding:6px 8px;" onchange="renderGallery()">
+          <select id="gf-exitref" class="form-input" style="flex:1;min-width:0;font-size:11px;padding:6px 8px;" onchange="renderGallery()">
             <option value="all">決済振り返り: 全て</option>
             <option value="決済タイミングOK">決済タイミングOK</option>
             <option value="ビビり決済">ビビり決済</option>
@@ -435,10 +440,6 @@
             <option value="SL設定ミス">SL設定ミス</option>
             <option value="ルール外気づき">ルール外気づき</option>
           </select>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;">
-            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'GOOD')" data-gf-quality="GOOD" style="padding:6px 10px;font-size:12px;white-space:nowrap;flex:0 0 auto;">○ よくできた</button>
-            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'BAD')" data-gf-quality="BAD" style="padding:6px 10px;font-size:12px;white-space:nowrap;flex:0 0 auto;">× ダメだった</button>
-          </div>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
           <!-- Images dynamically inserted here -->
