@@ -6047,8 +6047,6 @@ window.unlinkCurrentMT5Trade=unlinkCurrentMT5Trade;
 function closeTradeDetail() {
   const _tdi=parseInt(document.getElementById('td-index')?.value);if(!isNaN(_tdi)&&App.data.entries[_tdi]&&App.data.entries[_tdi]._mt5Draft)App.data.entries.splice(_tdi,1);
   document.getElementById('modal-trade-detail').classList.remove('active');
-  App.state.pendingEntryImgDelete = null;
-  App.state.pendingExitImgDelete = null;
   // レビューから開いた詳細 → 閉じたらレビューに戻る
   if (App.state.returnToRetroReview) {
     const key = App.state.returnToRetroReview;
