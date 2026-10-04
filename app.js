@@ -5860,7 +5860,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
   if(mt5Linked){
     ['td-pair','td-status','td-entry-price','td-exit-price','td-exit-date','td-exit-time','td-lot'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
-    const dirGroup=document.getElementById('td-dir');if(dirGroup)dirGroup.querySelectorAll('button').forEach(b=>b.disabled=true);
+    const dirGroup=document.getElementById('td-dir');if(dirGroup)dirGroup.querySelectorAll('button').forEach(b=>b.disabled=false);
   }
 
   // MT5 sync summary: keep the normal detail UI intact and add only a compact read-only block.
