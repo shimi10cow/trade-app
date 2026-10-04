@@ -351,7 +351,14 @@
         <div class="section-title collapse-toggle" onclick="toggleAnalysisSection('g-memo')" style="margin-bottom:10px;">💡 アイデアメモ<span class="collapse-arrow">▾</span></div>
         <div class="collapse-body">
           <div style="display:flex; gap:6px; margin-bottom:10px;">
-            <select id="idea-sort" class="form-input" style="flex:1; font-size:12px; padding:7px 10px;" onchange="renderIdeas()">
+            <select id="idea-category-filter" class="form-input" style="flex:1; min-width:0; font-size:12px; padding:7px 8px;" onchange="renderIdeas()">
+              <option value="all">全カテゴリ</option>
+              <option value="マインド">マインド</option>
+              <option value="トレードルール">トレードルール</option>
+              <option value="改善・検証">改善・検証</option>
+              <option value="その他">その他</option>
+            </select>
+            <select id="idea-sort" class="form-input" style="flex:1; min-width:0; font-size:12px; padding:7px 8px;" onchange="renderIdeas()">
               <option value="date">新しい順</option>
               <option value="fav">⭐ お気に入り優先</option>
             </select>
