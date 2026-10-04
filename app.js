@@ -3139,7 +3139,9 @@ function initAnalysisMultiSelects(){
       const head=document.createElement('div');head.className='analysis-multi-head';
       const title=document.createElement('div');title.className='analysis-multi-title';title.textContent=labels[id]||'選択';head.appendChild(title);
       const clear=document.createElement('button');clear.type='button';clear.className='analysis-multi-clear';clear.textContent='すべて';clear.onclick=()=>{opts().forEach(o=>o.selected=false);paint();btn.click();};head.appendChild(clear);sheet.appendChild(head);
-      opts().forEach(o=>{const row=document.createElement('button');row.type='button';row.className='analysis-multi-option'+(o.selected?' selected':'');row.innerHTML='<span class="analysis-multi-check">'+(o.selected?'✓':'')+'</span><span class="analysis-multi-text"></span>';row.querySelector('.analysis-multi-text').textContent=o.textContent;row.onclick=()=>{o.selected=!o.selected;row.classList.toggle('selected',o.selected);row.querySelector('.analysis-multi-check').textContent=o.selected?'✓':'';paint();};sheet.appendChild(row);});
+      const optionsBox=document.createElement('div');optionsBox.className='analysis-multi-options';
+      opts().forEach(o=>{const row=document.createElement('button');row.type='button';row.className='analysis-multi-option'+(o.selected?' selected':'');row.innerHTML='<span class="analysis-multi-check">'+(o.selected?'✓':'')+'</span><span class="analysis-multi-text"></span>';row.querySelector('.analysis-multi-text').textContent=o.textContent;row.onclick=()=>{o.selected=!o.selected;row.classList.toggle('selected',o.selected);row.querySelector('.analysis-multi-check').textContent=o.selected?'✓':'';paint();};optionsBox.appendChild(row);});
+      sheet.appendChild(optionsBox);
       const done=document.createElement('button');done.type='button';done.className='analysis-multi-done';done.textContent='完了';done.onclick=()=>ov.remove();sheet.appendChild(done);
       ov.onclick=e=>{if(e.target===ov)ov.remove();};ov.appendChild(sheet);document.body.appendChild(ov);
     };
