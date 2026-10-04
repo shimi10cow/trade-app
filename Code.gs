@@ -89,6 +89,8 @@ function doPost(e) {
     result = { success: true, key: key };
   } else if (action === 'updatePair') {
     result = updatePair(body.pairName, body.data);
+  } else if (action === 'resetPairFlags') {
+    result = resetPairFlags();
   } else if (action === 'saveIdea') {
     result = saveIdea(body.data);
   } else if (action === 'updateIdea') {
@@ -268,6 +270,27 @@ function updatePair(pairName, data) {
     }
   });
   return { success: true };
+}
+
+
+function resetPairFlags() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { success: true, updated: 0 };
+    const headers = data[0].map(h => String(h).trim());
+    const flagCol = headers.indexOf('フラグ') >= 0 ? headers.indexOf('フラグ') : headers.indexOf('Flag');
+    if (flagCol < 0) return { success: false, error: 'フラグ列が見つかりません' };
+    const values = data.slice(1).map(row => [row.some(v => String(v).trim() !== '') ? '様子見' : row[flagCol]]);
+    sheet.getRange(2, flagCol + 1, values.length, 1).setValues(values);
+    return { success: true, updated: values.filter(v => v[0] === '様子見').length };
+  } catch (e) {
+    return { success: false, error: e.message };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // =============================================
