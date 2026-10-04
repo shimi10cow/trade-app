@@ -2881,6 +2881,13 @@ function galleryFilterBtn(btn, group, val) {
   renderGallery();
 }
 
+function galleryQualityFilterBtn(btn, val) {
+  const wasActive = btn.classList.contains('active');
+  document.querySelectorAll('[data-gf-quality]').forEach(b => b.classList.remove('active'));
+  if (!wasActive) btn.classList.add('active');
+  renderGallery();
+}
+
 function renderGallery() {
   const container = document.getElementById('gallery-grid');
   const scoreVal = document.querySelector('[data-gf-score].active')?.dataset.gfScore || 'all';
