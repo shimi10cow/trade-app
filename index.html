@@ -435,7 +435,11 @@
             <option value="SL設定ミス">SL設定ミス</option>
             <option value="ルール外気づき">ルール外気づき</option>
           </select>
-          <button id="gf-fav" class="toggle-btn" onclick="this.classList.toggle('active'); renderGallery();" style="padding:6px 12px; font-size:12px;">✓ 要確認のみ</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="toggle-btn active" onclick="galleryFilterBtn(this,'quality','all')" data-gf-quality="all" style="padding:6px 10px;font-size:12px;">すべて</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'quality','GOOD')" data-gf-quality="GOOD" style="padding:6px 10px;font-size:12px;">○ よくできた</button>
+            <button class="toggle-btn" onclick="galleryFilterBtn(this,'quality','BAD')" data-gf-quality="BAD" style="padding:6px 10px;font-size:12px;">× ダメだった</button>
+          </div>
         </div>
         <div id="gallery-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
           <!-- Images dynamically inserted here -->
@@ -455,7 +459,6 @@
         <div style="display:flex; gap:8px; align-items:center;">
           <button type="button" onclick="pickMT5Screenshot('ne')" title="MT5画像から入力" style="width:32px;height:32px;border:1px solid #334155;border-radius:8px;background:#1e293b;color:#38bdf8;font-size:15px;cursor:pointer;padding:0;">📷</button>
           <input id="ne-mt5-ocr-file" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" style="display:none" onchange="importMT5Screenshot(this,'ne')">
-          <div id="ne-fav-btn" onclick="toggleEntryFavorite()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
           <div class="modal-close" onclick="closeEntryModal()">✕</div>
         </div>
       </div>
@@ -748,7 +751,8 @@
         <div style="display:flex; gap:8px; align-items:center;">
           <button type="button" onclick="pickMT5Screenshot('td')" title="MT5画像から入力" style="width:32px;height:32px;border:1px solid #334155;border-radius:8px;background:#1e293b;color:#38bdf8;font-size:15px;cursor:pointer;padding:0;">📷</button>
           <input id="td-mt5-ocr-file" type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp" style="display:none" onchange="importMT5Screenshot(this,'td')">
-          <div id="td-fav-btn" onclick="toggleFavoriteDetail()" style="width:32px; height:32px; background:#1e293b; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#475569; cursor:pointer;">✓</div>
+          <button type="button" id="td-quality-good" onclick="setTradeQualityDetail('GOOD')" title="よくできたトレード" style="width:32px;height:32px;border:1px solid #334155;border-radius:50%;background:#1e293b;color:#64748b;font-size:19px;font-weight:900;cursor:pointer;padding:0;">○</button>
+          <button type="button" id="td-quality-bad" onclick="setTradeQualityDetail('BAD')" title="ダメだったトレード" style="width:32px;height:32px;border:1px solid #334155;border-radius:50%;background:#1e293b;color:#64748b;font-size:19px;font-weight:900;cursor:pointer;padding:0;">×</button>
           <div class="modal-close" onclick="closeTradeDetail()">✕</div>
         </div>
       </div>
