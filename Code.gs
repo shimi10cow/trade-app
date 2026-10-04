@@ -731,7 +731,7 @@ function updateWinLossColumn() {
 // 列はヘッダー名で解決（ID, 日付, 本文, 画像URL, ステータス, 画像URL2, 画像URL3, お気に入り）
 // =============================================
 const IDEAS_SHEET = 'Ideas';
-const IDEA_FIELDS = ['日付','本文','画像URL','ステータス','画像URL2','画像URL3','お気に入り'];
+const IDEA_FIELDS = ['日付','本文','画像URL','ステータス','画像URL2','画像URL3','お気に入り','カテゴリ'];
 
 function getOrCreateIdeasSheet() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -1796,7 +1796,7 @@ function adoptMT5Trade(executionIds,options){
     obj.EntryDate=en.date||current.EntryDate||'';
     obj.EntryTime=en.time||current.EntryTime||'';
     obj.EntryPrice=Number(a.EntryPrice)||current.EntryPrice||'';
-    if(isForex)obj.Lot=a.Lot||current.Lot||'';
+    obj.Lot=a.Lot||'';
     obj.Profit=Number(a.Profit)||0;
     obj['損益']=(Number(a.Profit)||0)+(Number(a.Swap)||0);
     obj.Swap=Number(a.Swap)||0;
