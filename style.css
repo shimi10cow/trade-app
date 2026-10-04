@@ -1227,3 +1227,74 @@ button[data-gf-quality]{
   border-color:#ef4444!important;
   box-shadow:0 0 12px rgba(239,68,68,.18),inset 0 0 0 1px rgba(248,113,113,.06)!important;
 }
+
+
+/* 2026-10-04 mobile trade modal stability */
+#modal-entry,
+#modal-trade-detail{
+  overflow-x:hidden!important;
+}
+#modal-entry .modal-content,
+#modal-trade-detail .modal-content{
+  width:calc(100% - 20px)!important;
+  max-width:540px!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+  touch-action:pan-y!important;
+}
+#modal-entry .modal-body,
+#modal-trade-detail .modal-body{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+}
+#modal-entry .section,
+#modal-trade-detail .section{
+  max-width:100%!important;
+  box-sizing:border-box!important;
+}
+
+/* Restore strong semantic direction colors. */
+#modal-entry .toggle-btn.dir-buy,
+#modal-trade-detail .toggle-btn.dir-buy{
+  color:#fb7185!important;
+  border-color:rgba(244,63,94,.72)!important;
+}
+#modal-entry .toggle-btn.dir-buy.active,
+#modal-trade-detail .toggle-btn.dir-buy.active{
+  color:#fff1f2!important;
+  background:rgba(225,29,72,.28)!important;
+  border-color:#fb7185!important;
+  box-shadow:0 0 12px rgba(244,63,94,.42)!important;
+}
+#modal-entry .toggle-btn.dir-sell,
+#modal-trade-detail .toggle-btn.dir-sell{
+  color:#38bdf8!important;
+  border-color:rgba(56,189,248,.72)!important;
+}
+#modal-entry .toggle-btn.dir-sell.active,
+#modal-trade-detail .toggle-btn.dir-sell.active{
+  color:#f0f9ff!important;
+  background:rgba(2,132,199,.28)!important;
+  border-color:#38bdf8!important;
+  box-shadow:0 0 12px rgba(56,189,248,.42)!important;
+}
+
+/* Mobile date/time rows: date gets less width so native long date text cannot overlap time. */
+@media(max-width:600px){
+  #modal-entry input[type="date"],
+  #modal-trade-detail input[type="date"]{
+    min-width:0!important;
+    width:100%!important;
+    font-size:11px!important;
+    padding-left:5px!important;
+    padding-right:3px!important;
+  }
+  #modal-entry input[type="time"],
+  #modal-trade-detail input[type="time"]{
+    min-width:0!important;
+    width:100%!important;
+    font-size:12px!important;
+  }
+}
