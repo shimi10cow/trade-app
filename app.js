@@ -5677,51 +5677,6 @@ function clearNewEntryImage(slot) {
   }
 }
 
-// 詳細モーダルの画像削除（UIのみ変更・GAS保存は「変更内容を保存」ボタン時）
-function deleteTradeImage(slot) {
-  if (!confirm('この画像を削除しますか？\n※「変更内容を保存」で確定されます')) return;
-  const index = parseInt(document.getElementById('td-index').value);
-  const t = App.data.entries[index];
-  const fromHistory = App.state.detailFromHistory;
-
-  if (slot === 'top') {
-    const targetField = findEntryImageFieldName(t);
-    document.getElementById('td-image-preview').src = '';
-    document.getElementById('td-top-image-area').style.display = 'none';
-    {
-      App.state.pendingEntryImgDelete = targetField || 'ChartImage';
-      const ea = document.getElementById('td-entry-upload-area');
-      if (ea) {
-        ea.style.display = 'block';
-        const lt = document.getElementById('td-entry-upload-label-text');
-        if (lt) { lt.textContent = 'エントリー画像を添付'; lt.style.color = '#94a3b8'; }
-        const lbl = ea.querySelector('label');
-        if (lbl) lbl.style.borderColor = '#334155';
-        const inp = document.getElementById('td-entry-image-upload');
-        if (inp) inp.value = '';
-      }
-    }
-  } else {
-    const targetField = findExitImageFieldName(t);
-    document.getElementById('td-exit-image-preview').src = '';
-    document.getElementById('td-exit-image-container').style.display = 'none';
-    {
-      App.state.pendingExitImgDelete = targetField || '決済チャート';
-      const ea = document.getElementById('td-exit-upload-area');
-      if (ea) {
-        ea.style.display = 'block';
-        const lt = document.getElementById('td-exit-upload-label-text');
-        if (lt) { lt.textContent = '決済画像を添付'; lt.style.color = '#94a3b8'; }
-        const lbl = ea.querySelector('label');
-        if (lbl) lbl.style.borderColor = '#334155';
-        const inp = document.getElementById('td-exit-image-upload');
-        if (inp) inp.value = '';
-      }
-    }
-  }
-  showToast('🗑️ 保存ボタンで確定されます');
-}
-
 // カラム名（最初に値があるもの）を返す
 function findEntryImageFieldName(t) {
   const keys = ['ChartImage', 'EntryImage', 'エントリー画像', 'エントリーチャート', 'EntryChart', 'entry_image'];
@@ -5755,8 +5710,6 @@ function openTradeDetailFromHistory(index) {
 
 function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailFromHistory = fromHistory;
-  App.state.pendingEntryImgDelete = null;
-  App.state.pendingExitImgDelete = null;
   const t = App.data.entries[index];
   if (!t) return;
   App.state.activeTradeIndex = index;
