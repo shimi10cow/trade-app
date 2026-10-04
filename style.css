@@ -1308,3 +1308,81 @@ button[data-gf-quality]{
   font-size:11px!important;
   font-weight:400!important;
 }
+
+
+/* 2026-10-04 restore original trade-entry/detail control palette */
+#modal-entry .toggle-btn,
+#modal-trade-detail .toggle-btn{
+  background:#1e293b!important;
+  color:#94a3b8!important;
+  border:1px solid #334155!important;
+  font-size:12px!important;
+  font-weight:600!important;
+}
+#modal-entry .toggle-btn.active,
+#modal-trade-detail .toggle-btn.active{
+  background:rgba(34,211,238,.08)!important;
+  color:#22d3ee!important;
+  border-color:#22d3ee!important;
+  border-width:2px!important;
+  box-shadow:0 0 10px rgba(34,211,238,.25)!important;
+}
+#modal-entry .toggle-btn.cond-ok.active,
+#modal-trade-detail .toggle-btn.cond-ok.active{
+  background:rgba(74,222,128,.10)!important;color:#4ade80!important;
+  border-color:#4ade80!important;box-shadow:0 0 10px rgba(74,222,128,.30)!important;
+}
+#modal-entry .toggle-btn.cond-ng.active,
+#modal-trade-detail .toggle-btn.cond-ng.active{
+  background:rgba(248,113,113,.10)!important;color:#f87171!important;
+  border-color:#f87171!important;box-shadow:0 0 10px rgba(248,113,113,.30)!important;
+}
+#modal-entry .toggle-btn.cond-block.active,
+#modal-trade-detail .toggle-btn.cond-block.active{
+  background:rgba(251,146,60,.15)!important;color:#fb923c!important;
+  border-color:#fb923c!important;box-shadow:0 0 10px rgba(251,146,60,.40)!important;
+}
+#modal-entry .toggle-btn.dir-up.active,
+#modal-trade-detail .toggle-btn.dir-up.active{
+  background:rgba(74,222,128,.10)!important;color:#4ade80!important;
+  border-color:#4ade80!important;box-shadow:0 0 10px rgba(74,222,128,.30)!important;
+}
+#modal-entry .toggle-btn.dir-down.active,
+#modal-trade-detail .toggle-btn.dir-down.active{
+  background:rgba(248,113,113,.10)!important;color:#f87171!important;
+  border-color:#f87171!important;box-shadow:0 0 10px rgba(248,113,113,.30)!important;
+}
+#modal-entry .toggle-btn.dir-flat.active,
+#modal-trade-detail .toggle-btn.dir-flat.active{
+  background:rgba(167,139,250,.10)!important;color:#a78bfa!important;
+  border-color:#a78bfa!important;box-shadow:0 0 10px rgba(167,139,250,.30)!important;
+}
+#modal-entry .toggle-btn.dir-buy,
+#modal-trade-detail .toggle-btn.dir-buy{
+  color:#f43f5e!important;border-color:rgba(244,63,94,.50)!important;
+  font-size:14px!important;font-weight:700!important;padding:6px 4px!important;
+}
+#modal-entry .toggle-btn.dir-buy.active,
+#modal-trade-detail .toggle-btn.dir-buy.active{
+  background:rgba(244,63,94,.10)!important;color:#f43f5e!important;
+  border-color:#f43f5e!important;box-shadow:0 0 12px rgba(244,63,94,.40)!important;
+}
+#modal-entry .toggle-btn.dir-sell,
+#modal-trade-detail .toggle-btn.dir-sell{
+  color:#38bdf8!important;border-color:rgba(56,189,248,.50)!important;
+  font-size:14px!important;font-weight:700!important;padding:6px 4px!important;
+}
+#modal-entry .toggle-btn.dir-sell.active,
+#modal-trade-detail .toggle-btn.dir-sell.active{
+  background:rgba(56,189,248,.10)!important;color:#38bdf8!important;
+  border-color:#38bdf8!important;box-shadow:0 0 12px rgba(56,189,248,.40)!important;
+}
+
+/* DowRule must not resize when its value changes. */
+#modal-entry #ne-dow-rule,
+#modal-trade-detail #td-dow-rule,
+#modal-entry #ne-dow-rule option,
+#modal-trade-detail #td-dow-rule option{
+  font-size:12px!important;
+  font-weight:600!important;
+}
