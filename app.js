@@ -1464,6 +1464,27 @@ async function saveSignalDetail(){var s=window._signalEditTarget;if(!s)return;va
 async function deleteSignalDetail(){var s=window._signalEditTarget;if(!s||!s.SignalID)return;if(!confirm('このSignal履歴を削除しますか？'))return;try{var x=await gasPost({action:'deleteEASignal',signalId:s.SignalID});if(x&&x.success===false)throw new Error(x.error||'delete failed');window._eaSignals=(window._eaSignals||[]).filter(v=>v.SignalID!==s.SignalID);document.getElementById('signal-detail-modal')?.remove();if(window.renderHistoryList)renderHistoryList();if(window.renderEAHistory)renderEAHistory();if(window.showToast)showToast('Signal履歴を削除しました');}catch(e){if(window.showToast)showToast('削除に失敗しました');}}
 window.openSignalDetail=openSignalDetail;window.saveSignalDetail=saveSignalDetail;window.deleteSignalDetail=deleteSignalDetail;
 
+
+async function resetPairFlags() {
+  if (!confirm('監視ペアのフラグをすべて「様子見」に戻しますか？')) return;
+  showLoader();
+  try {
+    const res = await gasPost({ action: 'resetPairFlags' });
+    if (!res || res.success === false) throw new Error((res && res.error) || 'フラグをリセットできません');
+    App.data.pairs.forEach(p => {
+      p['フラグ'] = '様子見';
+      if (Object.prototype.hasOwnProperty.call(p, 'Flag')) p['Flag'] = '様子見';
+    });
+    renderPairs();
+    showToast('監視ペアのフラグをすべて「様子見」に戻しました');
+  } catch (e) {
+    showToast('⚠️ ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+window.resetPairFlags = resetPairFlags;
+
 function renderPairs() {
   const container = document.getElementById('pairs-list');
   if (App.data.pairs.length === 0) {
