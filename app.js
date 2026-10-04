@@ -514,10 +514,16 @@ function setupPullToRefresh() {
       if (label) label.textContent = '更新中...';
       ind.style.transition = '';
       ind.style.height = THRESHOLD + 'px';
-      // 現在のタブをsessionStorageに保存してからリロード
-      const activeTab = document.querySelector('.tab.active')?.dataset?.tab || '';
-      if (activeTab) sessionStorage.setItem('ptr-active-tab', activeTab);
-      setTimeout(() => window.location.reload(), 150);
+      // ページ自体は再読込せず、データ更新が完了するまでスピナーを回し続ける。
+      // これにより「更新中」が途中で止まらず、反映完了時にそのまま消える。
+      Promise.resolve(loadData()).finally(() => {
+        ind.style.transition = 'height 0.2s ease';
+        ind.style.height = '0';
+        setTimeout(() => {
+          const inner = document.getElementById('ptr-inner');
+          if (inner) inner.style.opacity = '0';
+        }, 200);
+      });
     } else {
       // 元に戻す
       ind.style.transition = 'height 0.25s ease';
@@ -2758,33 +2764,42 @@ async function resolvePathImages(container) {
   }
 }
 
-// お気に入り（✓）トグル: ローカル即時反映+バックグラウンド保存
-function toggleFavorite(index, el) {
+// トレード評価: ○ よくできた / × ダメだった。旧「ON」は未分類のまま保持。
+function setTradeQuality(index, quality) {
   const t = App.data.entries[index];
   if (!t || !t['EntryID']) return;
-  const newVal = t['お気に入り'] === 'ON' ? '' : 'ON';
+  const current = String(t['お気に入り'] || '');
+  const newVal = current === quality ? '' : quality;
   t['お気に入り'] = newVal;
-  if (el) el.style.color = newVal === 'ON' ? '#10b981' : '#475569';
-  gasPostQueued({ action: 'updateEntry', entryId: t['EntryID'], data: { 'お気に入り': newVal } }, 'お気に入り更新')
-    .then(res => { if (!res.success) showToast('⚠️ お気に入りの保存に失敗しました'); })
+  updateDetailQualityButtons(t);
+  renderGallery();
+  gasPostQueued({ action: 'updateEntry', entryId: t['EntryID'], data: { 'お気に入り': newVal } }, 'トレード評価更新')
+    .then(res => { if (!res.success) showToast('⚠️ トレード評価の保存に失敗しました'); })
     .catch(() => {});
 }
 
-// トレード詳細ヘッダーの✓トグル
-function toggleFavoriteDetail() {
+function setTradeQualityDetail(quality) {
   const index = parseInt(document.getElementById('td-index').value);
   if (isNaN(index)) return;
-  toggleFavorite(index, null);
-  updateDetailFavButton(App.data.entries[index]);
-  renderGallery();
+  setTradeQuality(index, quality);
 }
 
-function updateDetailFavButton(t) {
-  const btn = document.getElementById('td-fav-btn');
-  if (!btn) return;
-  const on = t && t['お気に入り'] === 'ON';
-  btn.style.color = on ? '#10b981' : '#475569';
-  btn.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+function updateDetailQualityButtons(t) {
+  const val = String(t?.['お気に入り'] || '');
+  const good = document.getElementById('td-quality-good');
+  const bad = document.getElementById('td-quality-bad');
+  if (good) {
+    const on = val === 'GOOD';
+    good.style.color = on ? '#10b981' : '#64748b';
+    good.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
+    good.style.borderColor = on ? '#10b981' : '#334155';
+  }
+  if (bad) {
+    const on = val === 'BAD';
+    bad.style.color = on ? '#ef4444' : '#64748b';
+    bad.style.background = on ? 'rgba(239,68,68,0.15)' : '#1e293b';
+    bad.style.borderColor = on ? '#ef4444' : '#334155';
+  }
 }
 
 // ==========================================
@@ -2873,7 +2888,7 @@ function renderGallery() {
   const winLoss  = document.getElementById('gf-winloss')?.value || 'all';
   const entryRef = document.getElementById('gf-entryref')?.value || 'all';
   const exitRef  = document.getElementById('gf-exitref')?.value || 'all';
-  const favOnly  = document.getElementById('gf-fav')?.classList.contains('active') || false;
+  const qualityVal = document.querySelector('[data-gf-quality].active')?.dataset.gfQuality || 'all';
 
   // 決済済みのみ・画像あり
   let galleryTrades = App.data.entries.filter(t => {
@@ -2902,7 +2917,7 @@ function renderGallery() {
     });
   }
 
-  // 勝敗・エントリー振り返り・決済振り返り・お気に入りフィルター
+  // 勝敗・エントリー振り返り・決済振り返り・トレード評価フィルター
   if (winLoss !== 'all') {
     galleryTrades = galleryTrades.filter(t => {
       const pips = parseFloat(t['実取得pips']) || 0;
@@ -2915,8 +2930,8 @@ function renderGallery() {
   if (exitRef !== 'all') {
     galleryTrades = galleryTrades.filter(t => (t['決済振り返り'] || '') === exitRef);
   }
-  if (favOnly) {
-    galleryTrades = galleryTrades.filter(t => t['お気に入り'] === 'ON');
+  if (qualityVal !== 'all') {
+    galleryTrades = galleryTrades.filter(t => String(t['お気に入り'] || '') === qualityVal);
   }
 
   // ソート: 日付降順（固定）
@@ -2944,18 +2959,20 @@ function renderGallery() {
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
     const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
-    const isFav = t['お気に入り'] === 'ON';
+    const quality = String(t['お気に入り'] || '');
+    const qualityMark = quality === 'GOOD' ? '○' : (quality === 'BAD' ? '×' : '');
+    const qualityColor = quality === 'GOOD' ? '#10b981' : (quality === 'BAD' ? '#ef4444' : '#475569');
 
     const imgTag = (imgUrl || isPath)
       ? `<img src="${imgUrl}" ${isPath ? `data-path="${rawUrl}"` : ''} style="width:100%;height:100%;object-fit:cover;${imgUrl ? '' : 'display:none;'}" referrerpolicy="no-referrer" onerror="this.style.display='none'; this.parentNode.querySelector('.no-img-cam').style.display='flex';">`
       : '';
 
     html += `
-      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${isFav ? '#10b981' : '#334155'}; cursor:pointer;">
+      <div onclick="openTradeDetail(${index})" style="background:#1e293b; border-radius:12px; overflow:hidden; border:1px solid ${quality === 'GOOD' ? '#10b981' : (quality === 'BAD' ? '#ef4444' : '#334155')}; cursor:pointer;">
         <div onclick="event.stopPropagation(); openGalleryFlip(${index})" style="width:100%; height:120px; background:#0f172a; display:flex; align-items:center; justify-content:center; position:relative;">
           ${imgTag}
           <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
-          <div onclick="event.stopPropagation(); toggleFavorite(${index}, this)" style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 8px; border-radius:4px; font-size:14px; font-weight:800; color:${isFav ? '#10b981' : '#475569'}; cursor:pointer;">✓</div>
+          <div style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 8px; border-radius:4px; font-size:16px; font-weight:900; color:${qualityColor};">${qualityMark}</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
             ${isWin ? '+' : ''}${pips.toFixed(1)}
           </div>
@@ -5394,9 +5411,6 @@ async function submitEntryData() {
     const indBtn = document.querySelector('#ne-indicator-entry button.active');
     if (indBtn) entryData['指標前エントリー'] = indBtn.textContent.trim();
 
-    // ✓（要確認マーク）
-    if (App.state.neFavorite) entryData['お気に入り'] = 'ON';
-
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const neImgs=(App.state.neImages||[]).slice(0,4);
     for(let i=0;i<neImgs.length;i++) entryData[i===0?'ChartImage':'ChartImage'+(i+1)] = await uploadImageSmart(neImgs[i], 'entry_'+(i+1)+'_'+Date.now()+'.jpg');
@@ -5579,7 +5593,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
   document.getElementById('td-index').value = index;
   document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
-  updateDetailFavButton(t);
+  updateDetailQualityButtons(t);
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
 
   // Basic info
