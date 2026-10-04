@@ -1583,7 +1583,7 @@ function renderPlans() {
     const dir = (p['プラン方向'] || '').trim();
     const memo = (p['環境認識メモ'] || p['メモ'] || '').split('\n')[0].slice(0, 40);
     return `
-      <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; flex-direction:column; align-items:stretch; gap:8px; border-left:4px solid ${dir === 'Buy' ? '#10b981' : '#ef4444'};">
+      <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; flex-direction:column; align-items:stretch; gap:8px; border-left:4px solid ${dir === 'Buy' ? '#f43f5e' : '#38bdf8'};">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px;">
             ${pairName}
