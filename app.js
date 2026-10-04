@@ -556,11 +556,11 @@ function updateNetworkStatus(isOnline) {
 // UI Helpers
 // ==========================================
 function showLoader() {
-  document.getElementById('app-loader').classList.add('active');
+  const el=document.getElementById('app-loader'); if(el) el.classList.add('active');
 }
 
 function hideLoader() {
-  document.getElementById('app-loader').classList.remove('active');
+  const el=document.getElementById('app-loader'); if(el) el.classList.remove('active');
 }
 
 // Sanitize Excel epoch dates (1899-12-30) that GAS emits for time-only values
