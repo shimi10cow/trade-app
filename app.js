@@ -4490,7 +4490,7 @@ function openPairEdit(pairName) {
 
   document.getElementById('pe-pair-name').value = pairName;
   document.getElementById('pe-title').textContent = pairName;
-  document.getElementById('pe-flag').value = p['フラグ'] || '様子見';
+  document.getElementById('pe-flag').value = p['フラグ'] || p['Flag'] || '様子見';
   document.getElementById('pe-memo').value = p['環境認識メモ'] || p['メモ'] || '';
 
   const setBtn = (groupId, val) => {
