@@ -3130,16 +3130,30 @@ function initAnalysisMultiSelects(){
     const sel=document.getElementById(id);if(!sel||sel.dataset.multiReady)return;sel.dataset.multiReady='1';
     const wrap=document.createElement('div');wrap.className='analysis-multi';wrap.style.cssText='position:relative;min-width:0';
     sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);sel.style.display='none';
-    const btn=document.createElement('button');btn.type='button';btn.className='analysis-multi-btn';btn.style.cssText='width:100%;text-align:left;padding:9px 10px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;font-size:12px';
-    const menu=document.createElement('div');menu.style.cssText='display:none;position:absolute;z-index:3000;left:0;right:0;top:calc(100% + 4px);max-height:260px;overflow:auto;background:#0f172a;border:1px solid #475569;border-radius:9px;padding:5px;box-shadow:0 12px 30px rgba(0,0,0,.35)';
-    wrap.appendChild(btn);wrap.appendChild(menu);
-    const opts=Array.from(sel.options).filter(o=>o.value!=='all');
-    const allLabel=(sel.options[0]&&sel.options[0].textContent)||'すべて';
-    function paint(){const chosen=opts.filter(o=>o.selected);btn.textContent=chosen.length?chosen.map(o=>o.textContent).join('、'):allLabel;menu.innerHTML=opts.map((o,i)=>'<label style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;cursor:pointer"><input type="checkbox" data-i="'+i+'" '+(o.selected?'checked':'')+'><span>'+o.textContent+'</span></label>').join('');menu.querySelectorAll('input').forEach(x=>x.onchange=()=>{opts[+x.dataset.i].selected=x.checked;paint();});}
-    btn.onclick=e=>{e.stopPropagation();document.querySelectorAll('.analysis-multi-menu-open').forEach(x=>{if(x!==menu)x.style.display='none';});menu.style.display=menu.style.display==='block'?'none':'block';menu.classList.toggle('analysis-multi-menu-open',menu.style.display==='block');};
-    menu.onclick=e=>e.stopPropagation();paint();
+    const btn=document.createElement('button');btn.type='button';btn.className='analysis-multi-btn';
+    wrap.appendChild(btn);
+    const opts=()=>Array.from(sel.options).filter(o=>o.value!=='all');
+    const allLabel=()=>sel.options[0]?.textContent||'すべて';
+    const paint=()=>{const chosen=opts().filter(o=>o.selected);btn.textContent=chosen.length?(chosen.length===1?chosen[0].textContent:chosen.length+'件選択'):allLabel();};
+    btn.onclick=e=>{e.stopPropagation();openAnalysisMultiPicker(sel,paint);};
+    sel._analysisPaint=paint;paint();
   });
-  if(!window._analysisMultiClose){window._analysisMultiClose=1;document.addEventListener('click',()=>document.querySelectorAll('.analysis-multi-menu-open').forEach(x=>{x.style.display='none';x.classList.remove('analysis-multi-menu-open');}));}
+  updateAnalysisFilterVisibility();
+}
+function openAnalysisMultiPicker(sel,onPaint){
+  let overlay=document.getElementById('analysis-multi-picker');
+  if(!overlay){overlay=document.createElement('div');overlay.id='analysis-multi-picker';overlay.className='analysis-picker-overlay';document.body.appendChild(overlay);}
+  const options=Array.from(sel.options).filter(o=>o.value!=='all');
+  const title=sel.options[0]?.textContent||'選択';
+  const draw=()=>{overlay.innerHTML='<div class="analysis-picker-sheet" onclick="event.stopPropagation()"><div class="analysis-picker-head"><b>'+title+'</b><button type="button" id="analysis-picker-clear">すべて解除</button></div><div class="analysis-picker-list">'+options.map((o,i)=>'<button type="button" class="analysis-picker-row '+(o.selected?'selected':'')+'" data-i="'+i+'"><span class="analysis-picker-check">'+(o.selected?'✓':'')+'</span><span class="analysis-picker-text">'+o.textContent+'</span></button>').join('')+'</div><button type="button" class="analysis-picker-done">完了</button></div>';
+    overlay.querySelectorAll('.analysis-picker-row').forEach(row=>row.onclick=()=>{const o=options[+row.dataset.i];o.selected=!o.selected;draw();onPaint();});
+    overlay.querySelector('#analysis-picker-clear').onclick=()=>{options.forEach(o=>o.selected=false);draw();onPaint();};
+    overlay.querySelector('.analysis-picker-done').onclick=()=>{overlay.classList.remove('active');onPaint();};
+  };
+  overlay.onclick=()=>{overlay.classList.remove('active');onPaint();};draw();overlay.classList.add('active');
+}
+function updateAnalysisFilterVisibility(){
+  const ma=document.getElementById('flt-manual-ma');if(ma)ma.style.display=(window._eaAnalysisType==='manual')?'block':'none';
 }
 
 
