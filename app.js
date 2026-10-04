@@ -1320,11 +1320,16 @@ async function loadData() {
 function populateFilterPairs() {
   const sel = document.getElementById('flt-pair');
   if (!sel) return;
+  const selectedPairs = new Set(Array.from(sel.selectedOptions || []).map(o => o.value).filter(v => v !== 'all'));
   const pairs = [...new Set(App.data.pairs.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
+  // Fast cache hydration and fresh GAS loading can both call this function.
+  // Rebuild the dynamic options so the same pair is never appended twice.
+  sel.innerHTML = '<option value="all">全ペア</option>';
   pairs.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p;
     opt.textContent = p;
+    opt.selected = selectedPairs.has(p);
     sel.appendChild(opt);
   });
 
