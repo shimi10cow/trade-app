@@ -1835,7 +1835,11 @@ function splitMT5Trade(entryId,executionIds){
     if(current.MT5ManualBackup){
       let restore={};try{restore=JSON.parse(String(current.MT5ManualBackup));}catch(e){}
       Object.assign(restore,{TradeGroupID:'',MT5SyncKey:'',MT5Account:'',MT5Ticket:'',Source:'',TradeType:'',MT5ExecutionIDs:'',MT5LastSyncAt:'',MT5OpenLot:'',MT5ClosedLot:'',MT5EntryCount:'',MT5ExitCount:'',MT5ManualBackup:''});
-      updateEntry(entryId,restore);
+      const ur=updateEntry(entryId,restore);if(!ur.success)return ur;
+    }else{
+      // No manual source exists: removing the last linked MT5 trade should
+      // behave like full unlink and remove the MT5-origin History row.
+      const dr=deleteEntry(entryId);if(!dr.success)return dr;
     }
   }
   try{CacheService.getScriptCache().remove('mt5_import_dashboard_v1');CacheService.getScriptCache().remove(CACHE_KEY);}catch(e){}
