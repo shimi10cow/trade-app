@@ -6062,8 +6062,7 @@ async function saveTradeDetail() {
     // Never overwrite MT5-authoritative execution facts from the normal Trade detail editor.
     const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
     if(mt5Linked){
-      ['EntryDate','EntryTime','ステータス','実取得pips','勝敗','損益','EntryPrice','ExitPrice','ExitDate','ExitTime','Lot',
-       'ルール準拠損益','M15決済損益','H1決済損益','実リスクリワード'].forEach(k=>delete updateData[k]);
+      ['EntryDate','EntryTime','ステータス','実取得pips','勝敗','損益','EntryPrice','ExitPrice','ExitDate','ExitTime','Lot'].forEach(k=>delete updateData[k]);
     }
 
     // 方向ボタン
