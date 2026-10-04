@@ -1477,3 +1477,22 @@ button[data-gf-quality]{
     font-size:14px!important;
   }
 }
+
+
+/* 2026-10-04 history datetime: equal compact cells with visible separation */
+@media(max-width:600px){
+  #modal-trade-detail .trade-datetime-row{
+    grid-template-columns:76px minmax(0,1fr) minmax(0,1fr)!important;
+    column-gap:8px!important;
+    padding-right:6px!important;
+    box-sizing:border-box!important;
+  }
+  #modal-trade-detail .trade-date-input,
+  #modal-trade-detail .trade-time-input{
+    width:calc(100% - 4px)!important;
+    max-width:calc(100% - 4px)!important;
+    min-width:0!important;
+    justify-self:start!important;
+    box-sizing:border-box!important;
+  }
+}
