@@ -876,25 +876,29 @@ function setupModalInteractions() {
 }
 
 function switchTab(tabId) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const targetScreen = document.getElementById(`screen-${tabId}`);
-  if (!targetScreen) {
-    console.warn('Screen not found:', tabId);
+  const targetTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+  if (!targetScreen || !targetTab) {
+    console.warn('Screen/tab not found:', tabId);
     return;
   }
-  targetScreen.classList.add('active');
 
-  App.state.currentTab = tabId;
-
-  // Update view based on tab
+  // Render first while the current screen is still visible. This avoids the
+  // brief empty/half-painted frame that makes a PWA feel like a web page.
   if (tabId === 'positions') renderPositions();
   if (tabId === 'pairs') renderPairs();
   if (tabId === 'analysis') renderAnalysis();
   if (tabId === 'gallery') renderGallery();
   if (tabId === 'mt5' && typeof renderMT5Import === 'function') renderMT5Import();
+
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === targetTab));
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s === targetScreen));
+  targetScreen.classList.remove('ui-screen-enter');
+  void targetScreen.offsetWidth;
+  targetScreen.classList.add('ui-screen-enter');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  App.state.currentTab = tabId;
 }
 
 function renderAnalysis() {
