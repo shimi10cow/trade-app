@@ -420,3 +420,5 @@ textarea.form-input { resize: vertical; }
 .analysis-multi-text{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:1.25}
 .analysis-multi-option.selected{background:rgba(56,189,248,.08)}
 .analysis-multi-done{position:sticky;bottom:0;width:100%;margin-top:10px;padding:11px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:800}
+
+.idea-category-badge{color:#cbd5e1;background:#334155;border-radius:999px;padding:2px 6px;font-size:10px;white-space:nowrap}
