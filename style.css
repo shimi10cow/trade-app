@@ -1038,3 +1038,25 @@ textarea.form-input{line-height:1.55}
 #trade-type-tabs .ea-btn{font-size:10px!important}
 #screen-analysis .toggle-btn{font-size:10px!important}
 #screen-ea .ea-btn{font-size:10px!important}
+
+
+/* 2026-10-04 unified fixed top chrome
+   Header and navigation read as one solid app bar, never as a floating strip. */
+.header{
+  background:#0b1220!important;
+  border-bottom:0!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.tabs{
+  background:#0b1220!important;
+  border-top:0!important;
+  border-bottom:1px solid rgba(148,163,184,.14)!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.tab{
+  background:transparent!important;
+}
