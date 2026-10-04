@@ -701,3 +701,51 @@ textarea.form-input{line-height:1.55}
 @media(prefers-reduced-motion:reduce){
   *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+/* 2026-10-04 interaction polish pass 2 */
+.screen.active{animation:none}
+.screen.ui-screen-enter{animation:uiScreenEnter .20s cubic-bezier(.2,.75,.3,1)}
+@keyframes uiScreenEnter{from{opacity:.62;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* Make the visible sheet handle a real touch target without adding controls. */
+.modal-header{padding-top:17px}
+.modal-header:before{width:42px;height:5px;top:6px;background:#64748b}
+.modal-header:active:before{background:#94a3b8}
+
+/* Softer scrolling and edge behavior in app-like scroll regions. */
+.modal-body,.analysis-multi-options,.trade-image-carousel,.chart-container{
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+.modal-body,.analysis-multi-options{scrollbar-width:none}
+.modal-body::-webkit-scrollbar,.analysis-multi-options::-webkit-scrollbar{display:none}
+
+/* Keep focused fields visible and visually anchored while editing. */
+.form-input:focus-visible,.filter-panel input:focus-visible,.filter-panel select:focus-visible,.ea-input:focus-visible{
+  outline:none;
+}
+
+/* Natural feedback for tappable cards and rows. */
+[onclick].list-card,[onclick].ea-card,.analysis-multi-option,.collapse-toggle{
+  cursor:pointer;
+  transition:transform .12s ease,background-color .16s ease,border-color .16s ease,opacity .16s ease;
+}
+[onclick].list-card:active,[onclick].ea-card:active,.analysis-multi-option:active,.collapse-toggle:active{
+  transform:scale(.985);
+}
+
+/* Sticky action areas visually merge into sheets instead of looking like a separate web footer. */
+.sticky-footer{
+  box-shadow:0 -10px 22px rgba(13,23,40,.72);
+}
+.sticky-footer button:last-child{margin-bottom:0}
+
+/* Better thumb ergonomics on narrow phones. */
+@media(max-width:600px){
+  .modal-close{min-width:38px;min-height:38px}
+  .toggle-btn,.ea-btn{min-height:40px}
+  .filter-btn,.action-btn,.ea-save,.btn-primary{min-height:48px}
+  .analysis-multi-done{min-height:48px}
+  .analysis-multi-option{min-height:50px}
+}
