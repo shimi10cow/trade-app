@@ -1064,15 +1064,18 @@ function openEntryModal(isMissed = false) {
     titleDiv.style.color = '#38bdf8';
   }
 
-  analyzeMentalMode();
-  showEntryRevengeAlert(); // ← エントリー前警告チェック
-  document.getElementById('ne-similar-summary').textContent = '類似トレードを計算中...';
-  document.getElementById('ne-similar-list').innerHTML = '';
-
-  calculateEntryScore();
+  // Supplemental analysis must never prevent the entry form itself from opening.
+  try { analyzeMentalMode(); } catch (e) { console.warn('entry mental analysis failed', e); }
+  try { showEntryRevengeAlert(); } catch (e) { console.warn('entry recent analysis failed', e); }
+  const _similarSummary = document.getElementById('ne-similar-summary');
+  const _similarList = document.getElementById('ne-similar-list');
+  if (_similarSummary) _similarSummary.textContent = '類似トレードを計算中...';
+  if (_similarList) _similarList.innerHTML = '';
+  try { calculateEntryScore(); } catch (e) { console.warn('entry score initialization failed', e); }
 
   App.state.modalOpenedAt = Date.now();
   const _em = document.getElementById('modal-entry');
+  if (!_em) { showToast('⚠️ エントリー画面を開けません'); return; }
   _em.classList.add('active');
   requestAnimationFrame(() => { _em.querySelector('.modal-body').scrollTop = 0; });
 }
