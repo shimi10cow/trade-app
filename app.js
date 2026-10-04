@@ -3126,19 +3126,26 @@ function analysisValues(id){
 function analysisHas(vals,v){return !vals.length||vals.includes(String(v));}
 
 function initAnalysisMultiSelects(){
+  const labels={ 'flt-pair':'全ペア','flt-timezone':'全時間帯','flt-rule':'全DowRule','flt-score':'スコア指定なし','flt-entry-ref':'エントリー振り返り：全て','flt-exit-ref':'決済振り返り：全て','flt-ma':'MAルール' };
   ['flt-pair','flt-timezone','flt-rule','flt-score','flt-entry-ref','flt-exit-ref','flt-ma'].forEach(id=>{
     const sel=document.getElementById(id);if(!sel||sel.dataset.multiReady)return;sel.dataset.multiReady='1';
-    const wrap=document.createElement('div');wrap.className='analysis-multi';wrap.style.cssText='position:relative;min-width:0';
-    sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);sel.style.display='none';
-    const btn=document.createElement('button');btn.type='button';btn.className='analysis-multi-btn';
-    wrap.appendChild(btn);
+    sel.style.display='none';
+    const wrap=document.createElement('div');wrap.className='analysis-multi-native';sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);
+    const btn=document.createElement('button');btn.type='button';btn.className='analysis-multi-trigger';wrap.appendChild(btn);
     const opts=()=>Array.from(sel.options).filter(o=>o.value!=='all');
-    const allLabel=()=>sel.options[0]?.textContent||'すべて';
-    const paint=()=>{const chosen=opts().filter(o=>o.selected);btn.textContent=chosen.length?(chosen.length===1?chosen[0].textContent:chosen.length+'件選択'):allLabel();};
-    btn.onclick=e=>{e.stopPropagation();openAnalysisMultiPicker(sel,paint);};
-    sel._analysisPaint=paint;paint();
+    const paint=()=>{const chosen=opts().filter(o=>o.selected);btn.textContent=chosen.length?(chosen.length===1?chosen[0].textContent:chosen.map(o=>o.textContent).join('、')):(labels[id]||sel.options[0]?.textContent||'すべて');};
+    btn.onclick=()=>{
+      let ov=document.getElementById('analysis-multi-overlay');
+      if(ov)ov.remove();
+      ov=document.createElement('div');ov.id='analysis-multi-overlay';ov.className='analysis-multi-overlay';
+      const sheet=document.createElement('div');sheet.className='analysis-multi-sheet';
+      const title=document.createElement('div');title.className='analysis-multi-title';title.textContent=labels[id]||'選択';sheet.appendChild(title);
+      opts().forEach(o=>{const row=document.createElement('button');row.type='button';row.className='analysis-multi-option'+(o.selected?' selected':'');row.innerHTML='<span class="analysis-multi-check">'+(o.selected?'✓':'')+'</span><span class="analysis-multi-text"></span>';row.querySelector('.analysis-multi-text').textContent=o.textContent;row.onclick=()=>{o.selected=!o.selected;row.classList.toggle('selected',o.selected);row.querySelector('.analysis-multi-check').textContent=o.selected?'✓':'';paint();};sheet.appendChild(row);});
+      const done=document.createElement('button');done.type='button';done.className='analysis-multi-done';done.textContent='完了';done.onclick=()=>ov.remove();sheet.appendChild(done);
+      ov.onclick=e=>{if(e.target===ov)ov.remove();};ov.appendChild(sheet);document.body.appendChild(ov);
+    };
+    paint();
   });
-  updateAnalysisFilterVisibility();
 }
 function openAnalysisMultiPicker(sel,onPaint){
   let overlay=document.getElementById('analysis-multi-picker');
