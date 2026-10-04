@@ -282,8 +282,9 @@ function resetPairFlags() {
     if (data.length < 2) return { success: true, updated: 0 };
     const headers = data[0].map(h => String(h).trim());
     const flagCol = headers.indexOf('フラグ') >= 0 ? headers.indexOf('フラグ') : headers.indexOf('Flag');
+    const pairCol = headers.indexOf('PairName（元）') >= 0 ? headers.indexOf('PairName（元）') : (headers.indexOf('PairName') >= 0 ? headers.indexOf('PairName') : 0);
     if (flagCol < 0) return { success: false, error: 'フラグ列が見つかりません' };
-    const values = data.slice(1).map(row => [row.some(v => String(v).trim() !== '') ? '様子見' : row[flagCol]]);
+    const values = data.slice(1).map(row => [String(row[pairCol] || '').trim() ? '様子見' : row[flagCol]]);
     sheet.getRange(2, flagCol + 1, values.length, 1).setValues(values);
     return { success: true, updated: values.filter(v => v[0] === '様子見').length };
   } catch (e) {
@@ -1786,7 +1787,7 @@ function adoptMT5Trade(executionIds,options){
   const mt5Pips=mt5Pips_(a.Pair,a.Direction,a.EntryPrice,a.ExitPrice);
   const obj={'TradeGroupID':group,'MT5SyncKey':group,'MT5Account':a.Account,'Source':'MT5-MANUAL','TradeType':'裁量',
     'PairName（元）':mt5AppPair_(a.Pair),'PairName':mt5AppPair_(a.Pair),'Direction':a.Direction==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
-    'EntryPrice':a.EntryPrice||'','Lot':isForex?(a.Lot||''):'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
+    'EntryPrice':a.EntryPrice||'','Lot':a.Lot||'','InitialSLPrice':a.SL||'','TakeProfitPrice':a.TP||'','ステータス':a.Status==='CLOSED'?'決済':'保有中',
     'ExitDate':ex.date,'ExitTime':ex.time,'ExitPrice':a.ExitPrice||'','Profit':a.Profit,'損益':(Number(a.Profit)||0)+(Number(a.Swap)||0),'実取得pips':mt5Pips===''?'':Math.round(mt5Pips*10)/10,'Swap':a.Swap,
     'MT5ExecutionIDs':executionIds.join(','),'MT5LastSyncAt':new Date().toISOString(),'MT5OpenLot':a.OpenLot,'MT5ClosedLot':a.ClosedLot,'MT5EntryCount':a.EntryCount,'MT5ExitCount':a.ExitCount};
   if(options.overlay&&typeof options.overlay==='object')Object.keys(options.overlay).forEach(k=>obj[k]=options.overlay[k]);
