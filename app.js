@@ -1587,11 +1587,16 @@ function activatePlan(pairName, mode) {
   // openEntryModalがフォームをクリアした後にプラン情報を流し込む
   App.state.planContext = { pairName, dir, image: p['プラン画像'] || '' };
 
-  document.getElementById('ne-pair').value = pairName;
-  autoLoadPairInfo('ne');
+  const pairEl = document.getElementById('ne-pair');
+  if (!pairEl) { showToast('⚠️ エントリー画面を初期化できません'); return; }
+  pairEl.value = pairName;
   document.querySelectorAll('#ne-dir button').forEach(b => {
     b.classList.toggle('active', b.textContent.includes(dir));
   });
+  // Planned entries already have a direction. Load pair-dependent fields only after
+  // both pair and direction are set so MA/environment auto-fill follows the normal path.
+  try { autoLoadPairInfo('ne', false); }
+  catch (e) { console.warn('planned entry pair auto-load failed', e); }
 
   const banner = document.getElementById('ne-plan-banner');
   if (banner) {
