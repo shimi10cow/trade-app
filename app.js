@@ -5808,13 +5808,19 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   calculateRuleMetrics(); // Update Rule pips/profit
   calculateExitMetrics(); // Update M15/H1 exit profit displays
 
+  // MT5 execution facts are source-of-truth once a trade is linked.
+  const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
+  if(mt5Linked){
+    ['td-date','td-time','td-status','td-pips','td-profit','td-entry-price','td-exit-price','td-exit-date','td-exit-time','td-lot'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+  }
+
   // MT5 sync summary: keep the normal detail UI intact and add only a compact read-only block.
   let mt5Box=document.getElementById('td-mt5-sync-summary');
   if(!mt5Box){
     mt5Box=document.createElement('div');mt5Box.id='td-mt5-sync-summary';
     const body=modal.querySelector('.modal-body'); if(body)body.insertBefore(mt5Box,body.firstChild);
   }
-  if(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL'){
+  if(mt5Linked){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
     mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5同期済み</span><span style="overflow:hidden;text-overflow:ellipsis">'+lot+' lot · '+cnt+'約定</span><button type="button" id="td-mt5-unlink-btn" style="margin-left:auto;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;white-space:nowrap">紐付け解除</button></div>';
     mt5Box.style.display='block';
@@ -6051,6 +6057,12 @@ async function saveTradeDetail() {
       'H1MA20.80_J': getActiveBtn('td-ma-h1-20'),
       'H4MA20.80_J': getActiveBtn('td-ma-h4-20'),
     };
+
+    // Never overwrite MT5-authoritative execution facts from the normal Trade detail editor.
+    const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
+    if(mt5Linked){
+      ['EntryDate','EntryTime','ステータス','実取得pips','勝敗','損益','EntryPrice','ExitPrice','ExitDate','ExitTime','Lot'].forEach(k=>delete updateData[k]);
+    }
 
     // 方向ボタン
     const dirBtn = document.querySelector('#td-dir button.active');
