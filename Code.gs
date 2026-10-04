@@ -1783,7 +1783,6 @@ function adoptMT5Trade(executionIds,options){
   const group=String(options.tradeGroupId||('MANUAL-'+Utilities.getUuid().substring(0,12)));
   const dt=x=>{if(!x)return {date:'',time:''};const d=new Date(x);return {date:Utilities.formatDate(d,'Asia/Tokyo','yyyy/MM/dd'),time:Utilities.formatDate(d,'Asia/Tokyo','HH:mm')}};
   const en=dt(a.EntryTime),ex=dt(a.ExitTime);
-  const isForex=mt5IsFxPair_(a.Pair);
   const mt5Pips=mt5Pips_(a.Pair,a.Direction,a.EntryPrice,a.ExitPrice);
   const obj={'TradeGroupID':group,'MT5SyncKey':group,'MT5Account':a.Account,'Source':'MT5-MANUAL','TradeType':'裁量',
     'PairName（元）':mt5AppPair_(a.Pair),'PairName':mt5AppPair_(a.Pair),'Direction':a.Direction==='BUY'?'Buy':'Sell','EntryDate':en.date,'EntryTime':en.time,
