@@ -6603,7 +6603,9 @@ async function runGeminiAnalysis() {
 // ==========================================
 
 function renderIdeas() {
-  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み');
+  const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み')
+    .filter(i => categoryFilter === 'all' || (i['カテゴリ'] || 'その他') === categoryFilter);
 
   const list = document.getElementById('idea-list');
   if (list) {
@@ -6638,6 +6640,7 @@ function toggleIdeaFavorite(id, ev) {
   gasPostQueued({ action: 'updateIdea', ideaId: id, data: {
     '日付': idea['日付'] || '',
     '本文': idea['本文'] || '',
+    'カテゴリ': idea['カテゴリ'] || 'その他',
     '画像URL': idea['画像URL'] || '',
     'ステータス': idea['ステータス'] || '未解決',
     '画像URL2': idea['画像URL2'] || '',
@@ -6653,6 +6656,7 @@ function ideaCard(idea) {
   const preview = text.slice(0, 100) + (text.length > 100 ? '…' : '');
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
   const isFav = idea['お気に入り'] === 'ON';
+  const category = idea['カテゴリ'] || 'その他';
   const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
   let imgHtml = '';
   if (urls.length === 1) {
@@ -6675,7 +6679,7 @@ function ideaCard(idea) {
   return `
     <div onclick="openIdeaDetail('${idea.id}')" style="background:#1e293b; border:1px solid ${isFav ? '#f59e0b' : '#334155'}; border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <span style="font-size:11px; color:#64748b;">${dateStr}</span>
+        <span style="font-size:11px; color:#64748b;">${dateStr} · <span class="idea-category-badge">${category}</span></span>
         <span onclick="toggleIdeaFavorite('${idea.id}', event)" style="font-size:16px; cursor:pointer; padding:0 4px; ${isFav ? '' : 'filter:grayscale(1); opacity:0.4;'}">⭐</span>
       </div>
       <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap;">${preview}</div>
@@ -6808,6 +6812,7 @@ function openNewIdeaModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
+  document.getElementById('idea-category').value = 'マインド';
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
   renderIdeaImageSlots('new');
@@ -6824,6 +6829,7 @@ async function saveNewIdea() {
   const data = {
     '日付': document.getElementById('idea-date').value,
     '本文': document.getElementById('idea-text').value,
+    'カテゴリ': document.getElementById('idea-category').value || 'その他',
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
@@ -6862,6 +6868,7 @@ function openIdeaDetail(id) {
   App.state.ideaDetailUploading = [false, false, false];
   document.getElementById('idea-detail-date').value = idea['日付'] || '';
   document.getElementById('idea-detail-text').value = idea['本文'] || '';
+  document.getElementById('idea-detail-category').value = idea['カテゴリ'] || 'その他';
   document.getElementById('idea-detail-status').value = idea['ステータス'] || '未解決';
   renderIdeaImageSlots('detail');
   document.getElementById('modal-idea-detail').style.display = 'flex';
@@ -6878,6 +6885,7 @@ async function saveIdeaDetail() {
   const data = {
     '日付': document.getElementById('idea-detail-date').value,
     '本文': document.getElementById('idea-detail-text').value,
+    'カテゴリ': document.getElementById('idea-detail-category').value || 'その他',
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
