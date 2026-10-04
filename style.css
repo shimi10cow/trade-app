@@ -1009,3 +1009,32 @@ textarea.form-input{line-height:1.55}
 .content{
   padding-top:calc(109px + env(safe-area-inset-top))!important;
 }
+
+
+/* 2026-10-04 original nav type scale + unified selected controls */
+.tab{
+  font-size:10px!important;
+}
+
+/* Use the existing asset-period selector language everywhere:
+   cyan text, subtle cyan surface, clear cyan boundary. */
+.toggle-btn.active,
+#trade-type-tabs .ea-btn.on,
+#screen-ea .ea-btn.on{
+  background:rgba(34,211,238,.08)!important;
+  color:#22d3ee!important;
+  border-color:#22d3ee!important;
+  border-width:1px!important;
+  box-shadow:0 0 8px rgba(34,211,238,.14)!important;
+}
+#screen-ea .ea-btn.buy.on,
+#screen-ea .ea-btn.sell.on{
+  color:#22d3ee!important;
+  background:rgba(34,211,238,.08)!important;
+  border-color:#22d3ee!important;
+}
+
+/* Preserve compact button sizing established in the previous correction. */
+#trade-type-tabs .ea-btn{font-size:10px!important}
+#screen-analysis .toggle-btn{font-size:10px!important}
+#screen-ea .ea-btn{font-size:10px!important}
