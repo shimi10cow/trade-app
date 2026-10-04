@@ -1547,3 +1547,10 @@ button[data-gf-quality]{
   box-sizing:border-box!important;
   overflow-x:hidden!important;
 }
+
+
+/* 2026-10-04 EA running state: restore clean fluorescent green (keep stopped red unchanged) */
+#screen-ea .ea-global-status.is-running{
+  border-color:#4ade80!important;
+  box-shadow:0 0 12px rgba(74,222,128,.30),inset 0 0 0 1px rgba(74,222,128,.08)!important;
+}
