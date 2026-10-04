@@ -1060,3 +1060,90 @@ textarea.form-input{line-height:1.55}
 .tab{
   background:transparent!important;
 }
+
+
+/* 2026-10-04 restore trade-entry/detail semantic controls.
+   These rules intentionally outrank generic theme selection styling. */
+#modal-new-entry .toggle-btn.cond-ok.active,
+#modal-trade-detail .toggle-btn.cond-ok.active,
+.toggle-btn.cond-ok.active{
+  background:rgba(74,222,128,.10)!important;color:#4ade80!important;
+  border-color:#4ade80!important;border-width:2px!important;
+  box-shadow:0 0 10px rgba(74,222,128,.30)!important;
+}
+#modal-new-entry .toggle-btn.cond-ng.active,
+#modal-trade-detail .toggle-btn.cond-ng.active,
+.toggle-btn.cond-ng.active{
+  background:rgba(248,113,113,.10)!important;color:#f87171!important;
+  border-color:#f87171!important;border-width:2px!important;
+  box-shadow:0 0 10px rgba(248,113,113,.30)!important;
+}
+.toggle-btn.cond-block.active{
+  background:rgba(251,146,60,.15)!important;color:#fb923c!important;
+  border-color:#fb923c!important;border-width:2px!important;
+  box-shadow:0 0 10px rgba(251,146,60,.40)!important;
+}
+.toggle-btn.dir-up.active{
+  background:rgba(74,222,128,.10)!important;color:#4ade80!important;
+  border-color:#4ade80!important;border-width:2px!important;
+}
+.toggle-btn.dir-down.active{
+  background:rgba(248,113,113,.10)!important;color:#f87171!important;
+  border-color:#f87171!important;border-width:2px!important;
+}
+.toggle-btn.dir-flat.active{
+  background:rgba(167,139,250,.10)!important;color:#a78bfa!important;
+  border-color:#a78bfa!important;border-width:2px!important;
+}
+.toggle-btn.dir-buy{
+  color:#f43f5e!important;border-color:rgba(244,63,94,.50)!important;
+  font-size:14px!important;font-weight:700!important;padding:6px 4px!important;
+}
+.toggle-btn.dir-buy.active{
+  background:rgba(244,63,94,.10)!important;color:#f43f5e!important;
+  border-color:#f43f5e!important;border-width:2px!important;
+  box-shadow:0 0 12px rgba(244,63,94,.40)!important;
+}
+.toggle-btn.dir-sell{
+  color:#38bdf8!important;border-color:rgba(56,189,248,.50)!important;
+  font-size:14px!important;font-weight:700!important;padding:6px 4px!important;
+}
+.toggle-btn.dir-sell.active{
+  background:rgba(56,189,248,.10)!important;color:#38bdf8!important;
+  border-color:#38bdf8!important;border-width:2px!important;
+  box-shadow:0 0 12px rgba(56,189,248,.40)!important;
+}
+.badge.buy{background:rgba(244,63,94,.15)!important;color:#f43f5e!important}
+.badge.sell{background:rgba(56,189,248,.15)!important;color:#38bdf8!important}
+
+/* Trade detail editable values must continue to look and behave like fields. */
+#modal-trade-detail input.form-input,
+#modal-trade-detail select.form-input,
+#modal-trade-detail textarea.form-input,
+#modal-new-entry input.form-input,
+#modal-new-entry select.form-input,
+#modal-new-entry textarea.form-input{
+  pointer-events:auto!important;
+  opacity:1!important;
+  color:#e2e8f0!important;
+  background:#0f172a!important;
+  border:1px solid #334155!important;
+  box-shadow:none;
+}
+#modal-trade-detail input.form-input:focus,
+#modal-trade-detail select.form-input:focus,
+#modal-trade-detail textarea.form-input:focus,
+#modal-new-entry input.form-input:focus,
+#modal-new-entry select.form-input:focus,
+#modal-new-entry textarea.form-input:focus{
+  border-color:#38bdf8!important;
+}
+
+/* Do not let secondary/destructive link actions become the brightest element. */
+#modal-trade-detail .btn-secondary,
+#modal-trade-detail .btn-danger{
+  color:#94a3b8!important;
+  background:#172033!important;
+  border-color:#334155!important;
+  box-shadow:none!important;
+}
