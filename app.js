@@ -466,8 +466,18 @@ function setupPullToRefresh() {
     return document.documentElement.scrollTop || document.body.scrollTop;
   }
 
+  function pullRefreshBlocked(target) {
+    if (document.querySelector('.modal-overlay.active, .analysis-multi-overlay')) return true;
+    if (!target || !target.closest) return false;
+    return !!target.closest('select, option, input, textarea, button, .analysis-multi-sheet, .analysis-multi-trigger, .modal-content');
+  }
+
   document.addEventListener('touchstart', e => {
-    if (document.querySelector('.modal-overlay.active')) return;
+    if (pullRefreshBlocked(e.target)) {
+      pulling = false;
+      triggered = false;
+      return;
+    }
     if (getScrollTop() > 0) return; // 一番上でないなら無効
     startY = e.touches[0].clientY;
     pulling = true;
@@ -476,7 +486,7 @@ function setupPullToRefresh() {
 
   document.addEventListener('touchmove', e => {
     if (!pulling) return;
-    if (document.querySelector('.modal-overlay.active')) { pulling = false; return; }
+    if (pullRefreshBlocked(e.target)) { pulling = false; triggered = false; ind.style.height = '0'; return; }
     if (getScrollTop() > 0) { pulling = false; ind.style.height = '0'; return; }
 
     const dy = Math.max(0, e.touches[0].clientY - startY);
