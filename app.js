@@ -3152,7 +3152,7 @@ function openAnalysisMultiPicker(sel,onPaint){
   };
   overlay.onclick=()=>{overlay.classList.remove('active');onPaint();};draw();overlay.classList.add('active');
 }
-function updateAnalysisFilterVisibility(){
+window.updateAnalysisFilterVisibility=function updateAnalysisFilterVisibility(){
   const ma=document.getElementById('flt-manual-ma');if(ma)ma.style.display=(window._eaAnalysisType==='manual')?'block':'none';
 }
 
