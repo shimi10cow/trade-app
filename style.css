@@ -335,8 +335,8 @@ textarea.form-input { resize: vertical; }
   /* Weekly review: keep it just below the top safe area. */
   #modal-review .modal-content { max-height: 87dvh; }
 
-  /* Entry footer: a touch lower. */
-  #modal-entry .sticky-footer { bottom: -20px; }
+  /* Entry footer: keep one mobile offset definition so later rules cannot unexpectedly override it. */
+  #modal-entry .sticky-footer { bottom: -28px; }
 
   /* Open/trade detail footer: lower and keep controls away from screen edges. */
   #modal-trade-detail .sticky-footer { bottom: -22px; padding: 0 20px calc(6px + env(safe-area-inset-bottom)); margin-top: 0; border-top: 0; }
@@ -348,7 +348,6 @@ textarea.form-input { resize: vertical; }
   #modal-pair-edit .sticky-footer > button { width: calc(100% - 12px) !important; margin-left: auto; margin-right: auto; display: block; }
 }
 
-@media (max-width:600px){#modal-entry .sticky-footer{bottom:-28px;}}
 
 /* Header record shortcuts: gentle context-preserving transition. */
 #screen-gallery.record-shortcut-transition { animation: recordShortcutFade .24s ease-out; }
