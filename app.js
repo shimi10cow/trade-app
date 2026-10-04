@@ -6069,6 +6069,7 @@ async function saveTradeDetail() {
     // 方向ボタン
     const dirBtn = document.querySelector('#td-dir button.active');
     if (dirBtn && !mt5Linked) updateData['Direction'] = dirBtn.textContent.replace('▲ ', '').replace('▼ ', '').trim();
+    if (mt5Linked) { delete updateData['PairName（元）']; delete updateData['PairName']; }
 
     // エントリー根拠スコアボタン (configベース)
     var calcScore = 0;
