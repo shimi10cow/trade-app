@@ -407,3 +407,297 @@ textarea.form-input { resize: vertical; }
 .analysis-multi-done{flex:0 0 auto;width:100%;margin-top:10px;padding:11px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:800}
 
 .idea-category-badge{color:#cbd5e1;background:#334155;border-radius:999px;padding:2px 6px;font-size:10px;white-space:nowrap}
+
+
+/* =========================================================
+   2026-10-04 Mobile UI polish
+   Visual/interaction layer only. No feature or data changes.
+   ========================================================= */
+:root{
+  --ui-bg:#0b1220;
+  --ui-surface:#111c2f;
+  --ui-surface-2:#172338;
+  --ui-border:rgba(148,163,184,.16);
+  --ui-border-strong:rgba(148,163,184,.26);
+  --ui-text:#f1f5f9;
+  --ui-muted:#94a3b8;
+  --ui-accent:#38bdf8;
+  --ui-radius:14px;
+  --ui-radius-lg:18px;
+  --ui-shadow:0 10px 30px rgba(0,0,0,.18);
+  --ui-press:scale(.975);
+}
+html{background:var(--ui-bg);scroll-behavior:smooth}
+body{
+  background:var(--ui-bg);
+  color:var(--ui-text);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overscroll-behavior-y:none;
+}
+button,input,select,textarea{font:inherit}
+button,.tab,.list-card,.modal-close,.analysis-multi-option{
+  touch-action:manipulation;
+}
+button,.action-btn,.btn-primary,.btn-secondary,.btn-danger,.toggle-btn,.filter-btn,.ea-btn,.ea-save,.modal-close{
+  -webkit-tap-highlight-color:transparent;
+}
+button:active,.action-btn:active,.btn-primary:active,.btn-secondary:active,.btn-danger:active,.toggle-btn:active,.filter-btn:active,.ea-btn:active,.ea-save:active,.modal-close:active{
+  transform:var(--ui-press);
+}
+button,.action-btn,.btn-primary,.btn-secondary,.btn-danger,.toggle-btn,.filter-btn,.ea-btn,.ea-save{
+  transition:transform .12s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,opacity .18s ease;
+}
+
+/* Header: quieter, tighter, native-toolbar feel */
+.header{
+  background:rgba(11,18,32,.88);
+  border-bottom:1px solid var(--ui-border);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  backdrop-filter:blur(18px) saturate(140%);
+  padding-left:16px;padding-right:12px;
+}
+.header h1{font-size:16px;font-weight:800;letter-spacing:-.25px}
+.header>div:last-child>span:not(.badge){
+  min-width:34px;min-height:34px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px;
+}
+.header>div:last-child>span:not(.badge):active{background:rgba(148,163,184,.12);transform:scale(.94)}
+
+/* Main navigation */
+.tabs{
+  background:rgba(11,18,32,.94);
+  border-bottom:1px solid var(--ui-border);
+  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:blur(18px);
+  scrollbar-width:none;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  min-width:64px;
+  color:#718096;
+  border-bottom:0;
+  position:relative;
+  font-weight:650;
+  transition:color .18s ease,transform .12s ease;
+}
+.tab:active{transform:scale(.96)}
+.tab.active{color:#7dd3fc;border-bottom-color:transparent}
+.tab.active:after{
+  content:'';
+  position:absolute;bottom:0;left:25%;right:25%;height:2px;
+  border-radius:999px 999px 0 0;background:var(--ui-accent);
+  box-shadow:0 -1px 8px rgba(56,189,248,.35);
+}
+.tab-icon{font-size:17px;line-height:1}
+
+/* Screen transitions remain visual only */
+.screen.active{animation:uiScreenIn .18s ease-out}
+@keyframes uiScreenIn{from{opacity:.72;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* Consistent page rhythm */
+.content{padding-left:12px;padding-right:12px}
+.section{margin-bottom:18px}
+.section-title{
+  font-size:11px;
+  font-weight:800;
+  color:#8796aa;
+  letter-spacing:.65px;
+  margin:0 2px 9px;
+}
+
+/* Cards */
+.list-card,.analysis-table-wrapper,.stat-grid,.chart-container,.checker-box{
+  border:1px solid var(--ui-border);
+  box-shadow:0 1px 0 rgba(255,255,255,.015);
+}
+.list-card{
+  background:var(--ui-surface);
+  border-radius:var(--ui-radius);
+  padding:13px 14px;
+  margin-bottom:8px;
+  transition:transform .12s ease,border-color .18s ease,background .18s ease;
+}
+.list-card:active{transform:scale(.987);background:#142139}
+.analysis-table-wrapper,.stat-grid,.chart-container{
+  background:var(--ui-surface);
+  border-radius:var(--ui-radius-lg);
+}
+.analysis-table-wrapper{padding:12px}
+.stat-grid{padding:10px;gap:8px}
+.stat-box{
+  background:rgba(8,15,28,.62);
+  border:1px solid rgba(148,163,184,.09);
+  border-radius:12px;
+  padding:11px 10px;
+}
+.stat-box .lbl{font-size:10px}
+.stat-box .val{font-size:21px;letter-spacing:-.35px}
+.metric-card{
+  background:rgba(8,15,28,.64);
+  border-color:var(--ui-border);
+  border-radius:12px;
+  padding:12px;
+}
+
+/* Buttons: less web-form, more app control */
+.action-btn,.btn-primary,.filter-btn,.ea-save{
+  min-height:46px;
+  border-radius:12px;
+  font-weight:800;
+  letter-spacing:-.1px;
+}
+.action-btn{box-shadow:0 6px 18px rgba(37,99,235,.18)}
+.btn-secondary,.btn-danger,.toggle-btn,.ea-btn{
+  min-height:38px;
+  border-radius:10px;
+}
+.toggle-btn{
+  background:#152137;
+  border-color:var(--ui-border-strong);
+}
+.toggle-btn.active{
+  box-shadow:0 0 0 1px rgba(34,211,238,.12),0 4px 14px rgba(34,211,238,.08);
+}
+.badge{
+  border-radius:999px;
+  padding:3px 8px;
+  font-size:10px;
+  line-height:1.35;
+}
+
+/* Form controls */
+.form-input,.filter-panel select,.filter-panel input,.ea-input{
+  min-height:42px;
+  background:#0c1627;
+  border:1px solid var(--ui-border-strong);
+  border-radius:11px;
+  color:var(--ui-text);
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.form-input:focus,.filter-panel select:focus,.filter-panel input:focus,.ea-input:focus{
+  outline:none;
+  border-color:rgba(56,189,248,.75);
+  box-shadow:0 0 0 3px rgba(56,189,248,.10);
+  background:#0e1a2d;
+}
+textarea.form-input{line-height:1.55}
+.filter-panel{
+  background:var(--ui-surface);
+  border:1px solid var(--ui-border);
+  border-radius:var(--ui-radius-lg);
+  padding:10px;
+  gap:7px;
+}
+
+/* Native-feeling bottom sheets */
+.modal-overlay{
+  background:rgba(2,6,23,.66);
+  -webkit-backdrop-filter:blur(3px);
+  backdrop-filter:blur(3px);
+}
+.modal-overlay.active{animation:uiOverlayIn .18s ease-out}
+@keyframes uiOverlayIn{from{background:rgba(2,6,23,0)}to{background:rgba(2,6,23,.66)}}
+.modal-content{
+  width:min(100%,540px);
+  background:#0d1728;
+  border:1px solid rgba(148,163,184,.14);
+  border-bottom:0;
+  border-radius:22px 22px 0 0;
+  box-shadow:0 -18px 55px rgba(0,0,0,.34);
+  animation:uiSheetUp .28s cubic-bezier(.22,.8,.25,1);
+}
+@keyframes uiSheetUp{from{transform:translateY(28px);opacity:.55}to{transform:none;opacity:1}}
+.modal-header{
+  min-height:58px;
+  padding:12px 16px;
+  border-bottom:1px solid var(--ui-border);
+  position:relative;
+}
+.modal-header:before{
+  content:'';
+  position:absolute;top:6px;left:50%;transform:translateX(-50%);
+  width:36px;height:4px;border-radius:999px;background:#475569;
+  opacity:.65;
+}
+.modal-title{font-size:16px;letter-spacing:-.2px}
+.modal-close{
+  width:36px;height:36px;
+  background:#172338;
+  border:1px solid var(--ui-border);
+  font-size:15px;
+}
+.modal-body{
+  padding:14px 16px 16px;
+  overscroll-behavior:contain;
+}
+.sticky-footer{
+  background:linear-gradient(to bottom,rgba(13,23,40,.94),#0d1728 18%);
+  border-top:1px solid var(--ui-border);
+}
+
+/* Analysis multi-select sheet aligned with every other modal */
+.analysis-multi-overlay{
+  background:rgba(2,6,23,.66);
+  -webkit-backdrop-filter:blur(3px);
+  backdrop-filter:blur(3px);
+}
+.analysis-multi-sheet{
+  background:#0d1728;
+  border:1px solid var(--ui-border);
+  border-bottom:0;
+  border-radius:22px 22px 0 0;
+  box-shadow:0 -18px 55px rgba(0,0,0,.34);
+  animation:uiSheetUp .28s cubic-bezier(.22,.8,.25,1);
+}
+.analysis-multi-trigger{
+  height:42px;
+  border-radius:11px;
+  border-color:var(--ui-border-strong);
+  background:#0c1627;
+}
+.analysis-multi-option{min-height:48px;border-bottom-color:rgba(148,163,184,.10)}
+.analysis-multi-option:active{background:rgba(56,189,248,.10)}
+.analysis-multi-done{min-height:46px;border-radius:12px}
+
+/* EA cards participate in same visual system without changing ea.js */
+.ea-card{
+  background:var(--ui-surface)!important;
+  border-color:var(--ui-border)!important;
+  border-radius:var(--ui-radius)!important;
+  padding:13px!important;
+  box-shadow:0 1px 0 rgba(255,255,255,.015);
+}
+.ea-row{gap:8px!important}
+.ea-input{padding:9px 10px!important}
+.ea-btn{background:#152137!important;border-color:var(--ui-border-strong)!important}
+.ea-btn.on{background:#0f766e!important;border-color:#14b8a6!important}
+.ea-save{box-shadow:0 5px 16px rgba(37,99,235,.16)}
+
+/* Better mobile density and touch targets */
+@media(max-width:600px){
+  .content{padding-left:10px;padding-right:10px}
+  .grid-2col{gap:7px}
+  .form-row{gap:7px;margin-bottom:11px}
+  .form-label{font-size:11px}
+  .modal-content{max-height:92dvh}
+  .modal-body{padding-left:14px;padding-right:14px}
+  .analysis-table th,.analysis-table td{padding:9px 5px}
+  .chart-container{padding:10px}
+  .action-btn{margin-bottom:8px}
+  .ea-row>label{min-width:86px!important}
+}
+
+/* Prevent iOS zoom on editable controls while preserving compact visual sizing */
+@media(max-width:600px){
+  input.form-input:focus,textarea.form-input:focus,select.form-input:focus,
+  .filter-panel input:focus,.filter-panel select:focus,.ea-input:focus{
+    font-size:16px;
+  }
+}
+
+/* Accessibility / motion preference */
+@media(prefers-reduced-motion:reduce){
+  *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
