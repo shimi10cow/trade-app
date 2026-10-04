@@ -1496,3 +1496,27 @@ button[data-gf-quality]{
     box-sizing:border-box!important;
   }
 }
+
+
+/* 2026-10-04 screenshot-confirmed fix: physically separate history date/time borders */
+@media(max-width:600px){
+  #modal-trade-detail .trade-datetime-row{
+    display:grid!important;
+    grid-template-columns:76px minmax(0,1fr) minmax(0,1fr)!important;
+    column-gap:12px!important;
+    width:100%!important;
+    max-width:100%!important;
+    padding-right:12px!important;
+    box-sizing:border-box!important;
+    overflow:visible!important;
+  }
+  #modal-trade-detail .trade-date-input,
+  #modal-trade-detail .trade-time-input{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    margin:0!important;
+    justify-self:stretch!important;
+    box-sizing:border-box!important;
+  }
+}
