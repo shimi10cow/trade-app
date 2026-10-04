@@ -954,3 +954,58 @@ textarea.form-input{line-height:1.55}
 .content{
   padding-top:calc(50px + env(safe-area-inset-top) + 58px + 7px);
 }
+
+
+/* 2026-10-04 navigation rollback + exact content offset
+   Restore the previous glowing active-tab navigation. */
+.tabs{
+  margin:0!important;
+  width:auto!important;
+  height:52px!important;
+  padding:0!important;
+  gap:0!important;
+  left:0!important;
+  right:0!important;
+  top:calc(50px + env(safe-area-inset-top))!important;
+  background:rgba(11,18,32,.94)!important;
+  border:0!important;
+  border-bottom:1px solid var(--ui-border)!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.tab{
+  min-width:64px!important;
+  height:auto!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  color:#718096!important;
+  font-size:inherit!important;
+  font-weight:650!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.tab.active{
+  color:#7dd3fc!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.tab.active:after{
+  display:block!important;
+  content:'';
+  position:absolute;
+  bottom:0;
+  left:25%;
+  right:25%;
+  height:2px;
+  border-radius:999px 999px 0 0;
+  background:var(--ui-accent);
+  box-shadow:0 -1px 8px rgba(56,189,248,.35);
+}
+.tab-icon{font-size:17px!important}
+
+/* Header 50px + tabs 52px + 7px breathing room.
+   This must stay later than all visual-theme overrides. */
+.content{
+  padding-top:calc(109px + env(safe-area-inset-top))!important;
+}
