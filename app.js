@@ -5859,7 +5859,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   // MT5 execution facts are source-of-truth once a trade is linked.
   const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
   if(mt5Linked){
-    ['td-date','td-time','td-pair','td-status','td-pips','td-profit','td-entry-price','td-exit-price','td-exit-date','td-exit-time','td-lot'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+    ['td-date','td-time','td-pair','td-status','td-entry-price','td-exit-price','td-exit-date','td-exit-time','td-lot'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
     const dirGroup=document.getElementById('td-dir');if(dirGroup)dirGroup.querySelectorAll('button').forEach(b=>b.disabled=true);
   }
 
@@ -6110,7 +6110,7 @@ async function saveTradeDetail() {
     // Never overwrite MT5-authoritative execution facts from the normal Trade detail editor.
     const mt5Linked=!!(t.MT5SyncKey||String(t.Source||'').toUpperCase()==='MT5-MANUAL');
     if(mt5Linked){
-      ['EntryDate','EntryTime','ステータス','実取得pips','勝敗','損益','EntryPrice','ExitPrice','ExitDate','ExitTime','Lot'].forEach(k=>delete updateData[k]);
+      ['EntryDate','EntryTime','ステータス','勝敗','EntryPrice','ExitPrice','ExitDate','ExitTime','Lot'].forEach(k=>delete updateData[k]);
     }
 
     // 方向ボタン
