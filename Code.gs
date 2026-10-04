@@ -357,12 +357,12 @@ function updateEntry(entryId, updateData) {
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][idCol]).trim() === String(entryId).trim()) {
+        const row = data[i].slice();
         Object.keys(updateData).forEach(key => {
           const col = headers.indexOf(key);
-          if (col >= 0) {
-            sheet.getRange(i + 1, col + 1).setValue(updateData[key]);
-          }
+          if (col >= 0) row[col] = updateData[key];
         });
+        sheet.getRange(i + 1, 1, 1, headers.length).setValues([row]);
         CacheService.getScriptCache().remove(CACHE_KEY);
         return { success: true };
       }
