@@ -1298,3 +1298,13 @@ button[data-gf-quality]{
     font-size:12px!important;
   }
 }
+
+
+/* 2026-10-04 keep review choice typography stable when selected */
+#modal-trade-detail #td-entry-ref,
+#modal-trade-detail #td-exit-ref,
+#modal-trade-detail #td-entry-ref option,
+#modal-trade-detail #td-exit-ref option{
+  font-size:11px!important;
+  font-weight:400!important;
+}
