@@ -792,10 +792,15 @@ function setupModalInteractions() {
 
   document.addEventListener('touchstart', (e) => {
     const header = e.target.closest('.modal-header');
-    if (!header) return;
-
-    targetModal = e.target.closest('.modal-content');
+    const sheet = e.target.closest('.analysis-multi-sheet');
+    targetModal = header ? e.target.closest('.modal-content') : sheet;
     if (!targetModal) return;
+    // For large bottom sheets, allow a downward dismissal only when their
+    // scrollable option area is already at the top. Normal list scrolling stays untouched.
+    if (sheet) {
+      const scroller = e.target.closest('.analysis-multi-options');
+      if (scroller && scroller.scrollTop > 0) { targetModal = null; return; }
+    }
 
     touchStartY = e.touches[0].clientY;
     touchCurrentY = touchStartY; // ← 初期化（前回の値を引き継がないよう）
@@ -827,9 +832,10 @@ function setupModalInteractions() {
 
     if (deltaY > 100) {
       closedModal.style.transform = `translateY(100%)`;
-      const overlay = closedModal.closest('.modal-overlay');
+      const overlay = closedModal.closest('.modal-overlay') || closedModal.closest('.analysis-multi-overlay');
       setTimeout(() => {
-        if (overlay) overlay.classList.remove('active');
+        if (overlay?.id === 'analysis-multi-overlay') overlay.remove();
+        else if (overlay) overlay.classList.remove('active');
         closedModal.style.transform = ''; // 次回open用にリセット
         // モーダルごとの状態クリーンアップ
         if (overlay?.id === 'modal-trade-detail') {
