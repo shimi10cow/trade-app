@@ -412,14 +412,14 @@
         </div>
         <!-- 勝敗・トレード評価 -->
         <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
-          <select id="gf-winloss" class="form-input" style="flex:1;min-width:0;font-size:11px;padding:6px 8px;" onchange="renderGallery()">
+          <select id="gf-winloss" class="form-input gallery-filter-full" style="min-width:0;font-size:11px;padding:6px 8px;" onchange="renderGallery()">
             <option value="all">勝敗: 全て</option>
             <option value="win">勝ちのみ</option>
             <option value="loss">負けのみ</option>
           </select>
           <div style="display:flex;gap:5px;align-items:center;flex:1;min-width:0;">
-            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'GOOD')" data-gf-quality="GOOD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">○ Good Trade</button>
-            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'BAD')" data-gf-quality="BAD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">× Bad Trade</button>
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'GOOD')" data-gf-quality="GOOD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">○</button>
+            <button class="toggle-btn" onclick="galleryQualityFilterBtn(this,'BAD')" data-gf-quality="BAD" style="flex:1;min-width:0;padding:6px 5px;font-size:11px;white-space:nowrap;">×</button>
           </div>
         </div>
         <!-- エントリー・決済振り返り -->
