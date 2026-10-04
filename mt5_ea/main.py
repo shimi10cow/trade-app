@@ -264,10 +264,19 @@ def lot_for(symbol,direction,entry,sl,pc):
         if base_loss<=0:raise RuntimeError(f"{symbol}: invalid SL risk")
         lot=base*target/base_loss
     step=float(info.volume_step or 0.01)
-    lot=max(float(info.volume_min),min(float(info.volume_max),int(lot/step)*step))
+    vmin=float(info.volume_min)
+    vmax=float(info.volume_max)
+    # Never increase a risk-sized order to the broker minimum if that would exceed
+    # the requested loss. This matters especially for metals, indices and crypto CFDs.
+    if method!="fixedLot" and lot < vmin-1e-12:
+        raise RuntimeError("RISK_BELOW_MIN_LOT")
+    lot=max(vmin,min(vmax,int(lot/step)*step))
+    actual_loss=loss_for(symbol,direction,lot,entry,sl)
+    if method=="fixedLoss" and actual_loss>target+1e-8:
+        raise RuntimeError("FIXED_LOSS_EXCEEDED")
     if pc.get("riskCapEnabled",True):
         cap=float(acct.balance)*float(pc.get("riskCap",1) or 1)/100.0
-        if loss_for(symbol,direction,lot,entry,sl)>cap+1e-8:raise RuntimeError("RISK_CAP")
+        if actual_loss>cap+1e-8:raise RuntimeError("RISK_CAP")
     return round(lot,8)
 
 def notify_signal(sig,cfg):
