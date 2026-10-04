@@ -6257,7 +6257,8 @@ async function saveTradeDetail() {
       'ExitDate': document.getElementById('td-exit-date')?.value.replace(/-/g, '/') || '',
       'ExitTime': document.getElementById('td-exit-time')?.value || '',
       'StopLossPips': document.getElementById('td-sl')?.value || '',
-      'Lot': document.getElementById('td-lot')?.value || '',
+      // Lot is hidden for non-FX instruments; never erase an existing/MT5-synced value just because the field is not editable.
+      'Lot': tdIsForex ? (document.getElementById('td-lot')?.value || '') : (t['Lot'] || ''),
       'DowRule': document.getElementById('td-dow-rule')?.value || '',
       'M1': getActiveBtn('td-tf-m1'),
       'W1': getActiveBtn('td-tf-w1'),
