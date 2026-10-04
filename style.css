@@ -1147,3 +1147,35 @@ textarea.form-input{line-height:1.55}
   border-color:#334155!important;
   box-shadow:none!important;
 }
+
+
+/* 2026-10-04 history/gallery visual alignment only */
+#modal-trade-detail .modal-content{
+  width:min(100%,540px)!important;
+  max-height:92dvh!important;
+  border-radius:22px 22px 0 0!important;
+  padding-top:0!important;
+}
+#modal-trade-detail .modal-header{min-height:58px!important;padding:12px 16px!important}
+#modal-trade-detail .modal-body{padding:14px 16px 16px!important}
+
+#modal-history .filter-panel{
+  background:#0d1728!important;
+  border:0!important;
+  border-bottom:1px solid rgba(148,163,184,.12)!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:10px 14px!important;
+}
+#modal-history #hist-period,#modal-history #hist-status{
+  background:#0f172a!important;
+  border:1px solid #334155!important;
+  box-shadow:none!important;
+}
+
+#gf-winloss.gallery-filter-full{width:100%!important;flex:0 0 100%!important}
+#gf-winloss.gallery-filter-full + div{flex:0 0 auto!important}
+button[data-gf-quality]{
+  width:34px!important;min-width:34px!important;flex:0 0 34px!important;
+  padding:5px!important;font-size:15px!important;line-height:1!important;
+}
