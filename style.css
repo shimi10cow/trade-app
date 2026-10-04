@@ -749,3 +749,142 @@ textarea.form-input{line-height:1.55}
   .analysis-multi-done{min-height:48px}
   .analysis-multi-option{min-height:50px}
 }
+
+
+/* =========================================================
+   2026-10-04 Glass Dark + Minimal Pro
+   Compact typography, restrained glass, dense trading UI.
+   ========================================================= */
+:root{
+  --ui-bg:#09111e;
+  --ui-surface:rgba(17,28,47,.76);
+  --ui-surface-2:rgba(23,35,56,.72);
+  --ui-border:rgba(148,163,184,.12);
+  --ui-border-strong:rgba(148,163,184,.20);
+}
+
+/* Compact control typography: keep touchability without oversized copy. */
+.action-btn,.btn-primary,.btn-secondary,.btn-danger,.filter-btn,.toggle-btn,
+.ea-btn,.ea-save,.analysis-multi-done{
+  font-size:12px!important;
+  letter-spacing:0!important;
+}
+.analysis-multi-trigger,.filter-panel select,.filter-panel input{font-size:12px}
+@media(max-width:600px){
+  .toggle-btn,.ea-btn{min-height:34px}
+  .filter-btn,.action-btn,.ea-save,.btn-primary{min-height:40px}
+  .analysis-multi-done{min-height:40px}
+  .analysis-multi-option{min-height:44px}
+}
+
+/* Glass + Minimal navigation: no glowing underline, selected item is a quiet glass tile. */
+.tabs{
+  margin:6px 10px 0;
+  width:calc(100% - 20px);
+  height:46px;
+  padding:4px;
+  gap:2px;
+  background:rgba(18,30,49,.68);
+  border:1px solid rgba(148,163,184,.10);
+  border-radius:13px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 5px 18px rgba(0,0,0,.10);
+  -webkit-backdrop-filter:blur(16px) saturate(125%);
+  backdrop-filter:blur(16px) saturate(125%);
+}
+.tab{
+  min-width:58px;
+  height:38px;
+  padding:4px 7px;
+  border:0!important;
+  border-radius:10px;
+  color:#7f8da2;
+  font-size:10px;
+  font-weight:650;
+  gap:2px;
+}
+.tab.active{
+  color:#e8f4ff;
+  background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(59,130,246,.10));
+  box-shadow:inset 0 0 0 1px rgba(125,211,252,.14),0 3px 10px rgba(0,0,0,.12);
+}
+.tab.active:after{display:none}
+.tab-icon{font-size:15px}
+
+/* Header and page chrome: quieter, thinner and more premium. */
+.header{
+  background:rgba(8,16,29,.78);
+  border-bottom:1px solid rgba(148,163,184,.08);
+  -webkit-backdrop-filter:blur(22px) saturate(125%);
+  backdrop-filter:blur(22px) saturate(125%);
+}
+.header h1{font-size:15px;font-weight:750}
+.content{padding-top:12px}
+.section-title{font-size:10px;color:#8290a4;letter-spacing:.7px}
+
+/* Cards float through subtle glass instead of heavy outlined boxes. */
+.list-card,.analysis-table-wrapper,.stat-grid,.chart-container,.checker-box{
+  background:linear-gradient(145deg,rgba(20,33,53,.74),rgba(13,24,41,.68));
+  border-color:rgba(148,163,184,.10);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.018),0 5px 18px rgba(0,0,0,.08);
+  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
+}
+.list-card{border-radius:12px}
+.analysis-table-wrapper,.stat-grid,.chart-container{border-radius:14px}
+.stat-box,.metric-card{
+  background:rgba(6,13,24,.38);
+  border-color:rgba(148,163,184,.07);
+  box-shadow:none;
+}
+
+/* Secondary controls stay flat; primary actions carry only a restrained accent. */
+.toggle-btn,.btn-secondary,.ea-btn{
+  background:rgba(23,35,56,.64)!important;
+  border-color:rgba(148,163,184,.14)!important;
+  box-shadow:none!important;
+}
+.toggle-btn.active,.ea-btn.on{
+  background:rgba(14,116,144,.34)!important;
+  border-color:rgba(34,211,238,.32)!important;
+  box-shadow:inset 0 0 0 1px rgba(34,211,238,.04)!important;
+}
+.action-btn,.btn-primary,.filter-btn,.ea-save{
+  border-radius:10px;
+  box-shadow:0 4px 13px rgba(37,99,235,.12);
+}
+
+/* Inputs use thin boundaries and compact type. */
+.form-input,.filter-panel select,.filter-panel input,.ea-input,.analysis-multi-trigger{
+  min-height:38px;
+  border-radius:9px;
+  background:rgba(7,16,29,.66);
+  border-color:rgba(148,163,184,.17);
+  font-size:12px;
+}
+.form-label{font-size:10px}
+
+/* Keep the successful blurred modal treatment, slightly more refined. */
+.modal-overlay,.analysis-multi-overlay{
+  background:rgba(1,5,13,.62);
+  -webkit-backdrop-filter:blur(5px) saturate(90%);
+  backdrop-filter:blur(5px) saturate(90%);
+}
+.modal-content,.analysis-multi-sheet{
+  background:linear-gradient(180deg,rgba(15,27,46,.97),rgba(9,18,32,.985));
+  border-color:rgba(148,163,184,.12);
+  box-shadow:0 -22px 65px rgba(0,0,0,.40);
+}
+.modal-header{border-bottom-color:rgba(148,163,184,.09)}
+.modal-header:before{height:4px;background:#536177;opacity:.7}
+.modal-title{font-size:15px}
+.modal-close{
+  background:rgba(30,43,65,.62);
+  border-color:rgba(148,163,184,.12);
+}
+
+/* EA state border remains meaningful; don't mask ea.js inline state colors. */
+.ea-card{
+  background:linear-gradient(145deg,rgba(20,33,53,.74),rgba(13,24,41,.68))!important;
+  border-radius:12px!important;
+  padding:12px!important;
+}
