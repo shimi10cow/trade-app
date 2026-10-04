@@ -1441,3 +1441,39 @@ button[data-gf-quality]{
   padding:7px 2px!important;
   overflow:hidden!important;
 }
+
+
+/* 2026-10-04 history detail: never enlarge text on focus/selection */
+@media(max-width:600px){
+  #modal-trade-detail input.form-input,
+  #modal-trade-detail textarea.form-input,
+  #modal-trade-detail select.form-input,
+  #modal-trade-detail input.form-input:focus,
+  #modal-trade-detail textarea.form-input:focus,
+  #modal-trade-detail select.form-input:focus,
+  #modal-trade-detail input.form-input:focus-visible,
+  #modal-trade-detail textarea.form-input:focus-visible,
+  #modal-trade-detail select.form-input:focus-visible{
+    font-size:12px!important;
+    font-weight:400!important;
+  }
+  #modal-trade-detail .trade-date-input,
+  #modal-trade-detail .trade-time-input,
+  #modal-trade-detail .trade-date-input:focus,
+  #modal-trade-detail .trade-time-input:focus{
+    font-size:11px!important;
+    font-weight:400!important;
+  }
+  #modal-trade-detail .toggle-btn,
+  #modal-trade-detail .toggle-btn.active,
+  #modal-trade-detail .toggle-btn:focus,
+  #modal-trade-detail .toggle-btn:active{
+    font-size:12px!important;
+  }
+  #modal-trade-detail .toggle-btn.dir-buy,
+  #modal-trade-detail .toggle-btn.dir-sell,
+  #modal-trade-detail .toggle-btn.dir-buy.active,
+  #modal-trade-detail .toggle-btn.dir-sell.active{
+    font-size:14px!important;
+  }
+}
