@@ -6563,29 +6563,30 @@ function renderIdeaImageSlots(prefix) {
   const containerId = prefix === 'new' ? 'idea-new-images' : 'idea-detail-images';
   const container = document.getElementById(containerId);
   if (!container) return;
-  const images = _ideaImagesState(prefix);
+  const images = _ideaImagesState(prefix).filter(Boolean);
   const uploading = _ideaUploadingState(prefix);
-  const labels = ['画像を選択', '画像2を追加', '画像3を追加'];
+  // Keep state compact so removing the middle image never leaves numbered holes.
+  if(prefix === 'new') App.state.ideaNewImages = images.concat(Array(Math.max(0,3-images.length)).fill('')).slice(0,3);
+  else App.state.ideaDetailImages = images.concat(Array(Math.max(0,3-images.length)).fill('')).slice(0,3);
+  const busy = uploading.some(Boolean);
   let html = '';
-  for (let i = 0; i < 3; i++) {
-    const url = images[i];
-    if (url) {
-      // プレビュー表示
-      html += `<div style="position:relative; margin-bottom:8px;">
-        <img src="${url}" style="width:100%; border-radius:8px; max-height:220px; object-fit:contain; background:#0f172a; cursor:pointer;" onclick="openLightbox('${url}')">
-        <button onclick="ideaRemoveImage('${prefix}',${i})" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:15px;cursor:pointer;">✕</button>
-      </div>`;
-    } else if (i === 0 || images[i - 1]) {
-      // 追加ボタン（直前のスロットが埋まっている or スロット0）
-      const spinner = uploading[i] ? ' ⏳' : '';
-      html += `<input type="file" id="idea-${prefix}-input-${i}" accept="image/*" style="display:none;" onchange="ideaOnImageSelected(event,'${prefix}',${i})">
-      <button class="btn-secondary" style="width:100%;margin-bottom:8px;padding:13px;font-size:15px;" onclick="document.getElementById('idea-${prefix}-input-${i}').click()">📷 ${labels[i]}${spinner}</button>`;
-      break; // 空スロット以降は表示しない
-    }
+  if (images.length) {
+    html += '<div class="trade-image-carousel idea-image-carousel">' + images.map((url,i) =>
+      '<div class="trade-image-slide"><img src="'+String(url).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="ideaRemoveImage(\''+prefix+'\','+i+')">🗑️</button></div>'
+    ).join('') + '</div><div class="trade-image-dots"></div>';
+  }
+  if (images.length < 3) {
+    const idx = images.length;
+    html += '<input type="file" id="idea-'+prefix+'-image-input" accept="image/*" style="display:none;" onchange="ideaOnImageSelected(event,\''+prefix+'\','+idx+')">'+
+      '<button type="button" class="btn-secondary" style="width:100%;margin-top:8px;padding:13px;font-size:15px;" '+(busy?'disabled':'')+' onclick="document.getElementById(\'idea-'+prefix+'-image-input\').click()">📷 画像追加'+(busy?' ⏳':'')+'</button>';
   }
   container.innerHTML = html;
+  const car=container.querySelector('.idea-image-carousel'),dots=container.querySelector('.trade-image-dots');
+  if(car){
+    car.querySelectorAll('img').forEach(function(im,i){makeTappable(im,function(){return Array.from(car.querySelectorAll('img')).map(x=>x.src).filter(Boolean);},i);});
+    if(dots){dots.innerHTML=imageDots_(images.length,0);bindCarouselDots_(car,dots);}
+  }
 }
-
 async function ideaOnImageSelected(event, prefix, idx) {
   const file = event.target.files[0];
   if (!file) return;
