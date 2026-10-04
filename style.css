@@ -1420,3 +1420,24 @@ button[data-gf-quality]{
     padding-right:3px!important;
   }
 }
+
+
+/* 2026-10-04 exact 1:1 history date/time fields */
+#modal-trade-detail .trade-datetime-row{
+  grid-template-columns:76px minmax(0,1fr) minmax(0,1fr)!important;
+  gap:6px!important;
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+#modal-trade-detail .trade-date-input,
+#modal-trade-detail .trade-time-input{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  font-size:11px!important;
+  padding:7px 2px!important;
+  overflow:hidden!important;
+}
