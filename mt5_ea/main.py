@@ -599,7 +599,13 @@ def process_calendar_reminders(cfg):
     for x in rows:
         if not isinstance(x,dict) or str(x.get("Enabled","")).upper()!="ON" or str(x.get("Sent","")).upper()=="YES":continue
         try:
-            jst=datetime.strptime(str(x.get("EventTimeJST","")),"%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Tokyo"))
+            raw_time=str(x.get("EventTimeJST","")).strip()
+            jst=None
+            for fmt in ("%Y-%m-%d %H:%M","%Y/%m/%d %H:%M:%S","%Y/%m/%d %H:%M","%Y-%m-%d %H:%M:%S"):
+                try:
+                    jst=datetime.strptime(raw_time,fmt).replace(tzinfo=ZoneInfo("Asia/Tokyo"));break
+                except ValueError:pass
+            if jst is None:raise ValueError(f"unsupported EventTimeJST format: {raw_time!r}")
             mins=float(x.get("NotifyMinutes") or 5);delta=(jst.astimezone(timezone.utc)-now).total_seconds()/60
             if 0<=delta<=mins:
                 tzname=str(x.get("ClientTimeZone") or "Asia/Tokyo")
