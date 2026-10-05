@@ -81,7 +81,19 @@ window.eaNotifyToggle=function(id){
  // Persist notification changes immediately so closing/reloading the app cannot revert them.
  gasPost({action:'saveAppSettings',data:{[key]:s[key]?'ON':'OFF'}}).then(function(r){if(r&&r.success===false)throw new Error(r.error||'save failed');_hydratedAt=0;}).catch(function(){if(window.showToast)showToast('通知設定の保存に失敗しました');});
 };
-window.eaGlobal=function(v){var s=load();s.globalEntry=!!v;store(s);renderEA();};
+window.eaGlobal=async function(v){
+ var s=load(),prev=!!s.globalEntry,next=!!v;
+ s.globalEntry=next;store(s);renderEA();
+ try{
+  var r=await gasPost({action:'saveAppSettings',data:{globalEntry:next?'ON':'OFF'}});
+  if(r&&r.success===false)throw new Error(r.error||'save failed');
+  _hydratedAt=0;
+ }catch(e){
+  // Fail closed: never leave the UI claiming LIVE entry is enabled when server persistence failed.
+  s=load();s.globalEntry=next?false:prev;store(s);renderEA();
+  if(window.showToast)showToast(next?'自動売買の稼働設定を保存できませんでした':'自動売買の停止設定を保存できませんでした');
+ }
+};
 window.eaAllSignals=function(v){var s=load();s.allSignals=!!v;store(s);renderEA();};
 window.eaAllEntryTF=function(tf){var s=load(),k=tf==='H1'?'allEntryH1':'allEntryM15';s[k]=!s[k];store(s);renderEA();};
 window.saveEAGlobal=async function(){
