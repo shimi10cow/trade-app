@@ -19,6 +19,22 @@ const MT5_IMPORT_REQUESTS_SHEET = 'MT5_Import_Requests';
 // =============================================
 // エントリーポイント
 // =============================================
+function cachedJson_(key,ttl,loader){
+  const cache=CacheService.getScriptCache(),hit=cache.get(key);
+  if(hit){try{return JSON.parse(hit);}catch(e){}}
+  const value=loader();
+  try{cache.put(key,JSON.stringify(value),ttl);}catch(e){}
+  return value;
+}
+function getAppSettingsFast_(){
+  return cachedJson_('app_settings_fast_v1',15,function(){
+    return Object.fromEntries(sheetObjects_(APP_SETTINGS_SHEET).map(r=>[String(r.Key),r.Value]));
+  });
+}
+function clearAppSettingsCaches_(){
+  try{const c=CacheService.getScriptCache();c.remove('app_settings_fast_v1');c.remove('hybrid_config_v2');}catch(e){}
+}
+
 const GAS_ACTIONS = {
   getEntries:       () => getEntries(),
   getPairs:         () => getPairs(),
@@ -30,7 +46,7 @@ const GAS_ACTIONS = {
   getEASignals:     () => getEASignals(),
   getMT5Executions: () => getMT5Executions(),
   getHybridConfig:  () => getHybridConfig(),
-  getAppSettings:   () => Object.fromEntries(sheetObjects_(APP_SETTINGS_SHEET).map(r=>[String(r.Key),r.Value])),
+  getAppSettings:   () => getAppSettingsFast_(),
   getEAReplayRequest: () => getEAReplayRequest(),
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
@@ -862,12 +878,14 @@ const CALENDAR_NEXT_CACHE_KEY = 'calendar_next_cache_v1';
 const CALENDAR_REMINDER_SHEET='EA_Calendar_Reminders';
 const CALENDAR_REMINDER_HEADERS=['ReminderID','EventKey','Title','Currency','EventTimeJST','ClientTimeZone','NotifyMinutes','Enabled','Sent','CreatedAt','UpdatedAt'];
 function ensureCalendarReminderSheet_(){ensureSheetWithHeaders_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS);}
-function getCalendarReminders(){ensureCalendarReminderSheet_();return sheetObjects_(CALENDAR_REMINDER_SHEET);}
+function getCalendarReminders(){
+  return cachedJson_('calendar_reminders_v1',30,function(){return sheetObjects_(CALENDAR_REMINDER_SHEET);});
+}
 function saveCalendarReminder(data){
   ensureCalendarReminderSheet_();data=data||{};if(!data.EventKey||!data.EventTimeJST)return {success:false,error:'EventKey/EventTimeJST required'};
   const rows=sheetObjects_(CALENDAR_REMINDER_SHEET),old=rows.find(function(x){return String(x.EventKey)===String(data.EventKey);});
   data.ReminderID=old&&old.ReminderID?old.ReminderID:Utilities.getUuid();data.NotifyMinutes=Number(data.NotifyMinutes||5);data.Enabled=data.Enabled===false||String(data.Enabled).toUpperCase()==='OFF'?'OFF':'ON';data.Sent=data.Enabled==='ON'?'NO':String(old&&old.Sent||'NO');data.CreatedAt=old&&old.CreatedAt?old.CreatedAt:new Date().toISOString();data.UpdatedAt=new Date().toISOString();
-  upsertByKey_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS,'ReminderID',data);return {success:true,reminderId:data.ReminderID};
+  upsertByKey_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS,'ReminderID',data);try{CacheService.getScriptCache().remove('calendar_reminders_v1');}catch(e){}return {success:true,reminderId:data.ReminderID};
 }
 
 function getCalendarEvents() {
@@ -1511,13 +1529,13 @@ function saveEAError(data){
 function saveAppSettings(data){
   ensureEASheets(); data=data||{};
   Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')}));
-  try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
+  clearAppSettingsCaches_();
   return {success:true};
 }
 function getHybridConfig(){
   const cache=CacheService.getScriptCache(),key='hybrid_config_v2',hit=cache.get(key);
   if(hit){try{return JSON.parse(hit);}catch(e){}}
-  ensureEASheets();
+  // Read-only hot path: never run schema/column migration here.
   const result={pairs:getPairs(),eaSettings:sheetObjects_(EA_SETTINGS_SHEET),appSettings:sheetObjects_(APP_SETTINGS_SHEET)};
   try{cache.put(key,JSON.stringify(result),60);}catch(e){}
   return result;
@@ -1530,12 +1548,14 @@ function requestEAReplay(data){
   if(!data.Pair||!data.Start||!data.End) return {success:false,error:'Pair / Start / End are required'};
   const row={RequestID:Utilities.getUuid(),Pair:String(data.Pair),Start:String(data.Start),End:String(data.End),M15:data.M15?'ON':'OFF',H1:data.H1?'ON':'OFF',Status:'PENDING',Message:'',CreatedAt:new Date().toISOString(),UpdatedAt:new Date().toISOString()};
   upsertByKey_(EA_REPLAY_SHEET,EA_REPLAY_HEADERS,'RequestID',row);
+  try{CacheService.getScriptCache().remove('ea_replay_pending_v1');}catch(e){}
   return {success:true,requestId:row.RequestID};
 }
 function getEAReplayRequest(){
-  ensureEAReplaySheet_();
-  const rows=sheetObjects_(EA_REPLAY_SHEET).filter(function(x){return String(x.Status||'').toUpperCase()==='PENDING';});
-  return rows.length?rows[0]:{};
+  return cachedJson_('ea_replay_pending_v1',15,function(){
+    const rows=sheetObjects_(EA_REPLAY_SHEET).filter(function(x){return String(x.Status||'').toUpperCase()==='PENDING';});
+    return rows.length?rows[0]:{};
+  });
 }
 function getEAReplayStatus(requestId){
   ensureEAReplaySheet_(); if(!requestId)return {success:false,error:'RequestID required'};
@@ -1547,6 +1567,7 @@ function updateEAReplayRequest(data){
   if(!data.RequestID) return {success:false,error:'RequestID required'};
   data.UpdatedAt=new Date().toISOString();
   upsertByKey_(EA_REPLAY_SHEET,EA_REPLAY_HEADERS,'RequestID',data);
+  try{CacheService.getScriptCache().remove('ea_replay_pending_v1');}catch(e){}
   return {success:true};
 }
 
