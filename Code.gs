@@ -34,6 +34,22 @@ function getAppSettingsFast_(){
 function clearAppSettingsCaches_(){
   try{const c=CacheService.getScriptCache();c.remove('app_settings_fast_v1');c.remove('hybrid_config_v2');}catch(e){}
 }
+function getEAControlFast_(){
+  const props=PropertiesService.getScriptProperties();
+  const raw=props.getProperty('EA_CONTROL_V1');
+  if(raw){try{return JSON.parse(raw);}catch(e){}}
+  const app=getAppSettingsFast_(),out={};
+  ['globalEntry','notifySignal','notifyEntry','notifyExit','notifyError','notifyCalendar'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(app,k))out[k]=app[k];});
+  try{props.setProperty('EA_CONTROL_V1',JSON.stringify(out));}catch(e){}
+  return out;
+}
+function syncEAControlProperty_(data){
+  const keys=['globalEntry','notifySignal','notifyEntry','notifyExit','notifyError','notifyCalendar'];
+  const props=PropertiesService.getScriptProperties();let out={};
+  try{out=JSON.parse(props.getProperty('EA_CONTROL_V1')||'{}')||{};}catch(e){out={};}
+  keys.forEach(k=>{if(Object.prototype.hasOwnProperty.call(data||{},k))out[k]=data[k];});
+  try{props.setProperty('EA_CONTROL_V1',JSON.stringify(out));}catch(e){}
+}
 
 const GAS_ACTIONS = {
   getEntries:       () => getEntries(),
@@ -47,6 +63,7 @@ const GAS_ACTIONS = {
   getMT5Executions: () => getMT5Executions(),
   getHybridConfig:  () => getHybridConfig(),
   getAppSettings:   () => getAppSettingsFast_(),
+  getEAControl:     () => getEAControlFast_(),
   getEAReplayRequest: () => getEAReplayRequest(),
   getCalendarReminders: () => getCalendarReminders(),
   getMT5ImportRequest: () => getMT5ImportRequest(),
@@ -1529,6 +1546,7 @@ function saveEAError(data){
 function saveAppSettings(data){
   ensureEASheets(); data=data||{};
   Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')}));
+  syncEAControlProperty_(data);
   clearAppSettingsCaches_();
   return {success:true};
 }
