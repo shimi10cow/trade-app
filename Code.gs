@@ -302,6 +302,7 @@ function updatePair(pairName, data) {
       sheet.getRange(sheetRow, colIdx + 1).setValue(data[key]);
     }
   });
+  try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
   return { success: true };
 }
 
@@ -1451,6 +1452,7 @@ function saveEASettings(data){
   data=data||{}; data['更新日時']=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
   if(!data.Pair) return {success:false,error:'Pair required'};
   upsertByKey_(EA_SETTINGS_SHEET,EA_SETTINGS_HEADERS,'Pair',data);
+  try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
   return {success:true};
 }
 function saveEASettingsBatch(rows){
@@ -1460,6 +1462,7 @@ function saveEASettingsBatch(rows){
   for(let i=1;i<vals.length;i++)map[String(vals[i][pc])]=i;
   rows.forEach(function(d){if(!d||!d.Pair)return;d['更新日時']=now;let i=map[String(d.Pair)];if(i===undefined){i=vals.length;vals.push(new Array(hs.length).fill(''));map[String(d.Pair)]=i;}hs.forEach(function(h,j){if(Object.prototype.hasOwnProperty.call(d,h))vals[i][j]=d[h];});});
   sh.getRange(1,1,vals.length,hs.length).setValues(vals);
+  try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
   return {success:true,count:rows.length};
 }
 function saveEASignal(data){
