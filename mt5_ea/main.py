@@ -140,7 +140,7 @@ def pair_settings():
         rows=hybrid.get("settings") or []
         app=hybrid.get("appSettings") or {}
         if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"settingsRefreshMin":float(app.get("settingsRefreshMin") or 5),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"pairs":{}}
+        cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"settingsRefreshMin":float(app.get("settingsRefreshMin") or 5),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"notifyCalendar":truth(app.get("notifyCalendar"),True),"pairs":{}}
         for r in rows if isinstance(rows,list) else []:
             p=pair_name(r)
             if not p: continue
@@ -400,6 +400,7 @@ def refresh_global_control():
             settings["notifyEntry"]=truth(app.get("notifyEntry"),settings.get("notifyEntry",True))
             settings["notifyExit"]=truth(app.get("notifyExit"),settings.get("notifyExit",True))
             settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
+            settings["notifyCalendar"]=truth(app.get("notifyCalendar"),settings.get("notifyCalendar",True))
         return True
     except Exception as e:
         logging.error("global EA control fetch failed: %s",e)
@@ -612,6 +613,17 @@ def process_replay_request():
     except Exception as e:
         logging.exception("historical signal replay failed")
 
+def auxiliary_poller():
+    """Keep optional GAS reads off the trading loop so a slow GAS endpoint cannot stall MT5 work."""
+    last_replay=0.0
+    while not _stop.is_set():
+        now=time.monotonic()
+        if now-last_replay>=30:
+            process_replay_request();last_replay=time.monotonic()
+        cfg,_,_=cached_runtime()
+        process_calendar_reminders(cfg)
+        _stop.wait(2)
+
 def run():
     connect()
     init_outbox()
@@ -624,18 +636,16 @@ def run():
         ps=startup_pairs[base];sym=resolve_symbol(base)
         if sym and int(ps.get("last_time",0))>0:last_bar[sym]=int(ps["last_time"])
     logging.info("EA monitoring started; %s strategy cursors restored",len(last_bar))
-    threading.Thread(target=runtime_refresher,daemon=True).start()
-    threading.Thread(target=outbox_worker,daemon=True).start()
+    logging.info("Telegram configured=%s",telegram.configured())
+    threading.Thread(target=runtime_refresher,daemon=True,name="runtime-refresher").start()
+    threading.Thread(target=outbox_worker,daemon=True,name="gas-outbox").start()
+    threading.Thread(target=auxiliary_poller,daemon=True,name="gas-aux-poller").start()
     while not _stop.is_set():
         cfg,envs,runtime_ok=cached_runtime()
         envmap={pair_name(x):x for x in envs if isinstance(x,dict) and pair_name(x)}
         configured=set((cfg.get("pairs") or {}).keys())
         targets=(set(PAIR_OVERRIDE)&configured) if PAIR_OVERRIDE else configured
         manage_ea_positions(cfg)
-        try:process_replay_request()
-        except Exception as e:logging.exception("replay request poll failed")
-        try:process_calendar_reminders(cfg)
-        except Exception as e:logging.exception("calendar reminder poll failed")
         try:sync_mt5_positions(MAGIC,enqueue_gas)
         except Exception as e:logging.exception("MT5 position sync failed")
         for base_symbol in sorted(targets):
