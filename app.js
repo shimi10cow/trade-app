@@ -844,15 +844,22 @@ function setupModalInteractions() {
     const closedModal = targetModal;
     targetModal = null; // 先にnullにして次のtouchと混在しないように
 
-    closedModal.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+    const overlay = closedModal.closest('.modal-overlay') || closedModal.closest('.analysis-multi-overlay');
+    const isHistoryDetail = overlay?.id === 'modal-trade-detail' && App.state.detailFromHistory;
 
     if (deltaY > 100) {
-      closedModal.style.transform = `translateY(100%)`;
-      const overlay = closedModal.closest('.modal-overlay') || closedModal.closest('.analysis-multi-overlay');
+      // History detail should continue naturally from the finger instead of
+      // pausing for a fixed 300ms before disappearing.
+      const closeMs = isHistoryDetail
+        ? Math.max(120, Math.min(220, Math.round(220 - Math.min(deltaY, 360) * 0.25)))
+        : 300;
+      closedModal.style.transition = `transform ${closeMs}ms cubic-bezier(0.22, 0.72, 0.28, 1)`;
+      closedModal.style.transform = `translateY(calc(100% + 12px))`;
       setTimeout(() => {
         if (overlay?.id === 'analysis-multi-overlay') overlay.remove();
         else if (overlay) overlay.classList.remove('active');
-        closedModal.style.transform = ''; // 次回open用にリセット
+        closedModal.style.transform = '';
+        closedModal.style.transition = '';
         // モーダルごとの状態クリーンアップ
         if (overlay?.id === 'modal-trade-detail') {
           App.state.detailFromHistory = false;
@@ -865,8 +872,9 @@ function setupModalInteractions() {
             openReviewModal();
           }
         }
-      }, 300);
+      }, closeMs);
     } else {
+      closedModal.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
       closedModal.style.transform = `translateY(0)`;
       setTimeout(() => {
         closedModal.style.transform = '';
