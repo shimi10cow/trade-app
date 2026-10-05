@@ -138,7 +138,7 @@ def pair_settings():
     """Normalize the existing Trade Tracker EA_Settings/App_Settings contract."""
     try:
         hybrid=gas_get("getHybridConfig") or {}
-        rows=hybrid.get("settings") or []
+        rows=hybrid.get("eaSettings") or hybrid.get("settings") or []
         app=hybrid.get("appSettings") or {}
         if isinstance(app,list): app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
         cfg={"globalEntry":truth(app.get("globalEntry"),False),"envRefreshMin":float(app.get("envRefreshMin") or 60),"settingsRefreshMin":float(app.get("settingsRefreshMin") or 5),"totalRiskCapEnabled":truth(app.get("totalRiskCapEnabled") or app.get("総同時Risk上限ON"),False),"totalRiskCap":float(app.get("totalRiskCap") or app.get("総同時Risk上限%") or 0),"notifySignal":truth(app.get("notifySignal"),True),"notifyEntry":truth(app.get("notifyEntry"),True),"notifyExit":truth(app.get("notifyExit"),True),"notifyError":truth(app.get("notifyError"),True),"notifyCalendar":truth(app.get("notifyCalendar"),True),"pairs":{}}
@@ -389,7 +389,7 @@ def manage_ea_positions(cfg=None):
 def refresh_global_control():
     """Refresh the app-level start/stop switch independently of full settings."""
     try:
-        app=gas_get("getAppSettings") or {}
+        app=gas_get("getEAControl") or {}
         if isinstance(app,list):
             app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
         if not isinstance(app,dict):return False
