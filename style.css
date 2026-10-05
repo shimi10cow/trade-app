@@ -1567,3 +1567,14 @@ button[data-gf-quality]{
   margin-right:0!important;
   transform:translateY(-6px)!important;
 }
+
+
+/* 2026-10-05 history detail: tighter top area without changing field layout */
+#modal-trade-detail .modal-header{
+  min-height:50px!important;
+  padding:8px 16px!important;
+  padding-top:12px!important;
+}
+#modal-trade-detail .modal-header:before{
+  top:4px!important;
+}
