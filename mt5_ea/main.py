@@ -35,6 +35,7 @@ ENV_MAX_STALE=7200
 ENV_FETCH_SEC=60
 RUNTIME_CACHE_FILE=os.path.join(os.path.dirname(__file__),"runtime_cache.json")
 OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
+CALENDAR_CACHE_FILE=os.path.join(os.path.dirname(__file__),"calendar_reminders_cache.json")
 
 def gas_get(action,**params):
     if not GAS_URL:return {}
@@ -564,36 +565,54 @@ def process_signal(base_symbol,symbol,raw,ts,cfg,envmap,runtime_ok,timeframe):
         notify_entry(sig,result,cfg)
     logging.info("%s %s %s %s",symbol,tf,sig["direction"],result)
 
+def _load_calendar_cache():
+    try:
+        x=json.load(open(CALENDAR_CACHE_FILE,"r",encoding="utf-8"))
+        return x if isinstance(x,list) else []
+    except Exception:return []
+
+def _save_calendar_cache(rows):
+    try:
+        tmp=CALENDAR_CACHE_FILE+".tmp"
+        with open(tmp,"w",encoding="utf-8") as fh:json.dump(rows,fh,ensure_ascii=False,default=str)
+        os.replace(tmp,CALENDAR_CACHE_FILE)
+    except Exception as e:logging.warning("calendar cache save failed: %s",e)
+
 def process_calendar_reminders(cfg):
-    """Send selected event reminders before the event, displayed in the phone-selected timezone."""
+    """Send event reminders without making the trading loop depend on GAS availability."""
     global _calendar_poll_at
     now_mono=time.monotonic()
     if now_mono-_calendar_poll_at<30:return
     _calendar_poll_at=now_mono
+    rows=[];live_rows=False
     try:
-        rows=gas_get("getCalendarReminders") or []
-        if not isinstance(rows,list):
-            logging.warning("calendar reminder response is not a list: %r",rows)
-            return
-        from datetime import datetime,timezone
-        from zoneinfo import ZoneInfo
-        now=datetime.now(timezone.utc)
-        for x in rows:
-            if str(x.get("Enabled","")).upper()!="ON" or str(x.get("Sent","")).upper()=="YES":continue
-            try:
-                jst=datetime.strptime(str(x.get("EventTimeJST","")),"%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Tokyo"))
-                mins=float(x.get("NotifyMinutes") or 5);delta=(jst.astimezone(timezone.utc)-now).total_seconds()/60
-                if 0<=delta<=mins:
-                    tzname=str(x.get("ClientTimeZone") or "Asia/Tokyo")
-                    try:local=jst.astimezone(ZoneInfo(tzname))
-                    except Exception:local=jst
-                    sent=telegram.send("calendar",f"ECONOMIC EVENT in {int(round(delta))} min\n{local.strftime('%H:%M')} {x.get('Currency','')} {x.get('Title','')}\nJapan time: {jst.strftime('%H:%M')}",cfg)
-                    if sent:
-                        logging.info("calendar reminder queued: %s %s",x.get("Currency",""),x.get("Title",""))
-                        enqueue_gas("saveCalendarReminder",{"data":{**x,"Sent":"YES"}})
-                    else:logging.warning("calendar reminder not queued; Telegram calendar notification disabled/unconfigured")
-            except Exception:continue
-    except Exception:logging.exception("calendar reminder poll failed")
+        fetched=gas_get("getCalendarReminders") or []
+        if isinstance(fetched,list):
+            rows=fetched;live_rows=True;_save_calendar_cache(rows)
+        else:logging.warning("calendar reminder response is not a list: %r",fetched)
+    except Exception as e:
+        rows=_load_calendar_cache()
+        logging.warning("calendar GAS unavailable; using %s cached reminders: %s",len(rows),e)
+    if not rows:return
+    from zoneinfo import ZoneInfo
+    now=datetime.now(timezone.utc);changed=False
+    for x in rows:
+        if not isinstance(x,dict) or str(x.get("Enabled","")).upper()!="ON" or str(x.get("Sent","")).upper()=="YES":continue
+        try:
+            jst=datetime.strptime(str(x.get("EventTimeJST","")),"%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Tokyo"))
+            mins=float(x.get("NotifyMinutes") or 5);delta=(jst.astimezone(timezone.utc)-now).total_seconds()/60
+            if 0<=delta<=mins:
+                tzname=str(x.get("ClientTimeZone") or "Asia/Tokyo")
+                try:local=jst.astimezone(ZoneInfo(tzname))
+                except Exception:local=jst
+                sent=telegram.send("calendar",f"ECONOMIC EVENT in {int(round(delta))} min\n{local.strftime('%H:%M')} {x.get('Currency','')} {x.get('Title','')}\nJapan time: {jst.strftime('%H:%M')}",cfg)
+                if sent:
+                    x["Sent"]="YES";changed=True
+                    logging.info("calendar reminder queued: %s %s%s",x.get("Currency",""),x.get("Title",""),"" if live_rows else " [cache]")
+                    enqueue_gas("saveCalendarReminder",{"data":{**x,"Sent":"YES"}})
+                else:logging.warning("calendar reminder not queued; Telegram calendar notification disabled/unconfigured")
+        except Exception as e:logging.warning("calendar reminder row skipped: %s",e)
+    if changed:_save_calendar_cache(rows)
 
 def process_replay_request():
     """Poll one app replay request. Runs isolated replay in a child process."""
