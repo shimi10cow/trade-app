@@ -2,24 +2,43 @@
 import os, queue, threading, time, logging
 import requests
 
-TOKEN=os.getenv("EA_TELEGRAM_BOT_TOKEN","").strip()
-CHAT_ID=os.getenv("EA_TELEGRAM_CHAT_ID","").strip()
+def _credentials():
+    # Read at use-time so tests/relaunchers can refresh credentials without module reload.
+    return os.getenv("EA_TELEGRAM_BOT_TOKEN","").strip(),os.getenv("EA_TELEGRAM_CHAT_ID","").strip()
 _q=queue.Queue(maxsize=500)
 _started=False
 _lock=threading.Lock()
 _last_error={}
 
-def configured(): return bool(TOKEN and CHAT_ID)
+def configured():
+    token,chat_id=_credentials()
+    return bool(token and chat_id)
+
+def connectivity_check(timeout=5):
+    """Validate both bot token and destination chat without sending a message."""
+    token,chat_id=_credentials()
+    if not token or not chat_id:return False,"credentials missing"
+    try:
+        r=requests.get(f"https://api.telegram.org/bot{token}/getMe",timeout=timeout);r.raise_for_status()
+        r=requests.get(f"https://api.telegram.org/bot{token}/getChat",params={"chat_id":chat_id},timeout=timeout);r.raise_for_status()
+        return True,"OK"
+    except Exception as e:return False,str(e)
 
 def _worker():
     while True:
         kind,text=_q.get()
         try:
-            if configured():
-                r=requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",data={"chat_id":CHAT_ID,"text":text},timeout=5)
-                r.raise_for_status()
-        except Exception as e:
-            logging.warning("Telegram notification failed: %s",e)
+            delivered=False
+            for attempt in range(3):
+                token,chat_id=_credentials()
+                if not token or not chat_id:break
+                try:
+                    r=requests.post(f"https://api.telegram.org/bot{token}/sendMessage",data={"chat_id":chat_id,"text":text},timeout=5)
+                    r.raise_for_status();delivered=True;break
+                except Exception as e:
+                    if attempt==2:logging.warning("Telegram notification failed after retries (%s): %s",kind,e)
+                    else:time.sleep(1.5*(attempt+1))
+            if not delivered and not configured():logging.warning("Telegram notification dropped (%s): credentials missing",kind)
         finally:
             _q.task_done()
 
