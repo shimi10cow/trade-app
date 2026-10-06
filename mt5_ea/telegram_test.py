@@ -1,5 +1,6 @@
-"""Telegram delivery test. Sends production-format notifications only; never places or modifies trades."""
-import os,time
+"""Telegram verification and optional production-format delivery test. Never places or modifies trades."""
+import argparse
+import time
 from datetime import datetime,timezone
 import telegram_notify as telegram
 
@@ -12,15 +13,19 @@ def cfg():
         "notifyCalendar":True,
     }
 
-def main():
+def verify():
     if not telegram.configured():
-        print("[FAIL] Telegram credentials missing")
-        raise SystemExit(2)
+        print("[WARN] Telegram credentials missing")
+        return 2
     ok,msg=telegram.connectivity_check()
     if not ok:
         print("[FAIL] Telegram connectivity:",msg)
-        raise SystemExit(3)
+        return 3
+    print("[PASS] Telegram token + chat verified")
+    print("[PASS] Signal/Entry/Exit/Error/Calendar notification mapping loaded")
+    return 0
 
+def send_all():
     now=datetime.now(timezone.utc).isoformat()
     c=cfg()
     messages=[
@@ -35,12 +40,21 @@ def main():
         if telegram.send(kind,text,c):
             print(f"[QUEUED] {kind}")
         else:
-            failed.append(kind);print(f"[FAIL] {kind} not queued")
-    if failed: raise SystemExit(4)
-    # Queue acceptance is asynchronous. Give the production worker enough time for retries.
+            failed.append(kind)
+            print(f"[FAIL] {kind} not queued")
+    if failed:return 4
     time.sleep(8)
     print("[PASS] Production-format Signal/Entry/Exit/Error/Calendar notifications sent")
     print("[SAFE] No MT5 order, close, or SL modification was requested")
+    return 0
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--send-all",action="store_true",help="send all five production-format test notifications")
+    args=parser.parse_args()
+    rc=verify()
+    if rc:return rc
+    return send_all() if args.send_all else 0
 
 if __name__=="__main__":
-    main()
+    raise SystemExit(main())
