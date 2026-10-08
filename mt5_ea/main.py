@@ -405,7 +405,9 @@ def refresh_global_control():
         app=gas_get("getEAControl") or {}
         if isinstance(app,list):
             app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        if not isinstance(app,dict) or "globalEntry" not in app:return False
+        if not isinstance(app,dict) or "globalEntry" not in app:
+            logging.warning("global EA control response missing globalEntry; entry remains blocked")
+            return False
         with _cache_lock:
             settings=_cache.get("settings")
             if not isinstance(settings,dict):return False
@@ -428,25 +430,43 @@ def refresh_runtime_once():
         if env is not None:_cache["env"],_cache["env_at"]=env,now
     save_runtime_disk_cache()
 
-def runtime_refresher():
-    last_control=0.0
+def control_refresher():
+    """Dedicated high-priority control poll; unrelated GAS reads cannot delay STOP."""
     while not _stop.is_set():
-        now=time.time()
+        started=time.monotonic()
+        refresh_global_control()
+        _stop.wait(max(0.5,CONTROL_FETCH_SEC-(time.monotonic()-started)))
+
+def settings_refresher():
+    """Settings fetch is independent of control and environment requests."""
+    while not _stop.is_set():
         with _cache_lock:
             current=_cache["settings"] or {}
-            settings_interval=max(30.0,float(current.get("settingsRefreshMin",5) or 5)*60.0)
-            need_s=_cache["settings"] is None or now-_cache["settings_at"]>=settings_interval
-            need_e=_cache["env"] is None or now-_cache["env_at"]>=ENV_FETCH_SEC
-        if now-last_control>=CONTROL_FETCH_SEC:
-            refresh_global_control();last_control=time.time()
-        if need_s:
+            interval=max(30.0,float(current.get("settingsRefreshMin",5) or 5)*60.0)
+            due=_cache["settings"] is None or time.time()-_cache["settings_at"]>=interval
+        if due:
             x=pair_settings()
             if x is not None:
-                with _cache_lock:_cache["settings"],_cache["settings_at"]=x,time.time()
-        if need_e:
+                with _cache_lock:
+                    # A slow settings response must not overwrite a newer STOP/control update.
+                    previous=_cache["settings"]
+                    if isinstance(previous,dict):
+                        for key in ("globalEntry","notifySignal","notifyEntry","notifyExit","notifyError","notifyCalendar"):
+                            if key in previous:x[key]=previous[key]
+                    _cache["settings"],_cache["settings_at"]=x,time.time()
+                save_runtime_disk_cache()
+        _stop.wait(2)
+
+def environment_refresher():
+    """Environment refresh is independent of control and settings requests."""
+    while not _stop.is_set():
+        with _cache_lock:
+            due=_cache["env"] is None or time.time()-_cache["env_at"]>=ENV_FETCH_SEC
+        if due:
             x=environment()
             if x is not None:
                 with _cache_lock:_cache["env"],_cache["env_at"]=x,time.time()
+                save_runtime_disk_cache()
         _stop.wait(2)
 
 def load_runtime_disk_cache():
@@ -676,7 +696,9 @@ def run():
         if sym and int(ps.get("last_time",0))>0:last_bar[sym]=int(ps["last_time"])
     logging.info("EA monitoring started; %s strategy cursors restored",len(last_bar))
     logging.info("Telegram configured=%s",telegram.configured())
-    threading.Thread(target=runtime_refresher,daemon=True,name="runtime-refresher").start()
+    threading.Thread(target=control_refresher,daemon=True,name="gas-control").start()
+    threading.Thread(target=settings_refresher,daemon=True,name="gas-settings").start()
+    threading.Thread(target=environment_refresher,daemon=True,name="gas-environment").start()
     threading.Thread(target=outbox_worker,daemon=True,name="gas-outbox").start()
     threading.Thread(target=auxiliary_poller,daemon=True,name="gas-aux-poller").start()
     while not _stop.is_set():
