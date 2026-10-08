@@ -427,6 +427,7 @@ def refresh_global_control():
             settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
             settings["notifyCalendar"]=truth(app.get("notifyCalendar"),settings.get("notifyCalendar",True))
         _control_ok_at=time.time()
+        logging.info("GAS_CONTROL_OK globalEntry=%s age=0s (fresh)",truth(app.get("globalEntry"),False))
         return True
     except Exception as e:
         logging.error("global EA control fetch failed: %s",e)
