@@ -12,7 +12,7 @@ if ($telegramChat) { $env:EA_TELEGRAM_CHAT_ID=$telegramChat }
 if (-not $telegramToken -or -not $telegramChat) { Write-Warning "Telegram is not configured; trading can continue but notifications are unavailable." }
 $env:EA_LIVE_ARMED="false"
 $env:EA_DRY_RUN="true"
-$env:EA_PAIRS="EURUSD,USDJPY,EURJPY,AUDJPY,XAUUSD"
+$env:EA_PAIRS=""  # Monitor every pair configured in the app/EA_Settings
 $env:EA_POLL_SEC="2"
 $env:EA_MAGIC="560001"
 $env:EA_LIVE_REQUIRE_REAL="true"
