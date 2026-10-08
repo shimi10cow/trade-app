@@ -55,9 +55,9 @@ def gas_get(action,**params):
 
 def gas_post(action,data):
     if not GAS_URL: raise RuntimeError("EA_GAS_URL is not configured")
-    r=requests.post(GAS_URL,json={"action":action,**data},timeout=10);r.raise_for_status()
+    r=requests.post(GAS_URL,params={"action":action},json={"action":action,**data},timeout=(5,20));r.raise_for_status()
     x=r.json()
-    if x.get("success") is False: raise RuntimeError("GAS rejected request: "+str(x))
+    if x.get("success") is False: raise RuntimeError("GAS rejected action "+action+": "+str(x))
     return x.get("data",x)
 
 def connect():
