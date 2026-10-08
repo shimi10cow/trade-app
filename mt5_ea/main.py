@@ -399,13 +399,13 @@ def manage_ea_positions(cfg=None):
                 enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base,"Direction":"BUY" if buy else "SELL","Ticket":p.ticket,"Event":"SL_UPDATE","SL":target,"EventTime":datetime.now(timezone.utc).isoformat()}})
 
 def refresh_global_control():
-    global _control_ok_at
     """Refresh the app-level start/stop switch independently of full settings."""
+    global _control_ok_at
     try:
         app=gas_get("getEAControl") or {}
         if isinstance(app,list):
             app={str(x.get("Key")):x.get("Value") for x in app if isinstance(x,dict) and x.get("Key")}
-        if not isinstance(app,dict):return False
+        if not isinstance(app,dict) or "globalEntry" not in app:return False
         with _cache_lock:
             settings=_cache.get("settings")
             if not isinstance(settings,dict):return False
