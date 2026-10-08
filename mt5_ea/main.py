@@ -33,13 +33,15 @@ _outbox=queue.Queue()
 SETTINGS_MAX_STALE=900
 ENV_MAX_STALE=7200
 ENV_FETCH_SEC=60
+CONTROL_MAX_STALE=90
+_control_ok_at=0.0
 RUNTIME_CACHE_FILE=os.path.join(os.path.dirname(__file__),"runtime_cache.json")
 OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 CALENDAR_CACHE_FILE=os.path.join(os.path.dirname(__file__),"calendar_reminders_cache.json")
 
 def gas_get(action,**params):
-    if not GAS_URL:return {}
-    r=requests.get(GAS_URL,params={"action":action,**params},timeout=8);r.raise_for_status()
+    if not GAS_URL:raise RuntimeError("EA_GAS_URL is not configured")
+    r=requests.get(GAS_URL,params={"action":action,**params},timeout=(5,15));r.raise_for_status()
     x=r.json();return x.get("data",x)
 
 def gas_post(action,data):
@@ -397,6 +399,7 @@ def manage_ea_positions(cfg=None):
                 enqueue_gas("saveMT5Execution",{"data":{**account_snapshot(),"Source":"EA","Pair":base,"Direction":"BUY" if buy else "SELL","Ticket":p.ticket,"Event":"SL_UPDATE","SL":target,"EventTime":datetime.now(timezone.utc).isoformat()}})
 
 def refresh_global_control():
+    global _control_ok_at
     """Refresh the app-level start/stop switch independently of full settings."""
     try:
         app=gas_get("getEAControl") or {}
@@ -412,6 +415,7 @@ def refresh_global_control():
             settings["notifyExit"]=truth(app.get("notifyExit"),settings.get("notifyExit",True))
             settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
             settings["notifyCalendar"]=truth(app.get("notifyCalendar"),settings.get("notifyCalendar",True))
+        _control_ok_at=time.time()
         return True
     except Exception as e:
         logging.error("global EA control fetch failed: %s",e)
@@ -466,7 +470,7 @@ def cached_runtime():
         cfg=_cache["settings"]; env=_cache["env"]
         sa=now-_cache["settings_at"] if _cache["settings_at"] else 10**9
         ea=now-_cache["env_at"] if _cache["env_at"] else 10**9
-    healthy=cfg is not None and env is not None and sa<=SETTINGS_MAX_STALE and ea<=ENV_MAX_STALE
+    healthy=cfg is not None and env is not None and sa<=SETTINGS_MAX_STALE and ea<=ENV_MAX_STALE and _control_ok_at>0 and now-_control_ok_at<=CONTROL_MAX_STALE
     return cfg or {"globalEntry":False,"pairs":{}},env or [],healthy
 
 def init_outbox():
