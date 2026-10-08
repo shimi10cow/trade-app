@@ -129,7 +129,7 @@ def resolve_symbol(base):
         "XAUUSD":"GOLD#","XAGUSD":"SILVER#",
         "JP225":"JP225Cash#","US500":"US500Cash#","US2000":"US2000Cash#",
         "US30":"US30Cash#","EU50":"EU50Cash#","UK100":"UK100Cash#",
-        "NATGAS":"NATGASCash#","OIL":"OILCash#","BRENT":"BRENTCash#",
+        "NATGAS":"NGASCash#","OIL":"OILCash#","BRENT":"BRENTCash#",
         "CHEJPY":"CHFJPY#",
     }
     target=special.get(b) or (b+"#" if len(b)==6 and b.isalpha() else None)
