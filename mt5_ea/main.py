@@ -127,6 +127,9 @@ def resolve_symbol(base):
     b="".join(c for c in str(base).upper() if c.isalnum())
     target="GOLD#" if b=="XAUUSD" else (b+"#" if len(b)==6 and b.isalpha() else None)
     found=target if target and mt5.symbol_info(target) else None
+    if not found:
+        logging.warning("EA symbol not mapped on XM KIWAMI: app pair=%s, expected MT5 symbol=%s; trading skipped",base,target or "(unknown)")
+        return None
     _symbol_cache[base]=found
     return found
 
