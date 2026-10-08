@@ -125,7 +125,14 @@ def resolve_symbol(base):
     """Map logical symbols to the exact XM KIWAMI instruments; never fall back to Standard."""
     if base in _symbol_cache:return _symbol_cache[base]
     b="".join(c for c in str(base).upper() if c.isalnum())
-    target="GOLD#" if b=="XAUUSD" else (b+"#" if len(b)==6 and b.isalpha() else None)
+    special={
+        "XAUUSD":"GOLD#","XAGUSD":"SILVER#",
+        "JP225":"JP225Cash#","US500":"US500Cash#","US2000":"US2000Cash#",
+        "US30":"US30Cash#","EU50":"EU50Cash#","UK100":"UK100Cash#",
+        "NATGAS":"NATGASCash#","OIL":"OILCash#","BRENT":"BRENTCash#",
+        "CHEJPY":"CHFJPY#",
+    }
+    target=special.get(b) or (b+"#" if len(b)==6 and b.isalpha() else None)
     found=target if target and mt5.symbol_info(target) else None
     if not found:
         logging.warning("EA symbol not mapped on XM KIWAMI: app pair=%s, expected MT5 symbol=%s; trading skipped",base,target or "(unknown)")
