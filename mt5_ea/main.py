@@ -41,8 +41,17 @@ CALENDAR_CACHE_FILE=os.path.join(os.path.dirname(__file__),"calendar_reminders_c
 
 def gas_get(action,**params):
     if not GAS_URL:raise RuntimeError("EA_GAS_URL is not configured")
-    r=requests.get(GAS_URL,params={"action":action,**params},timeout=(5,15));r.raise_for_status()
-    x=r.json();return x.get("data",x)
+    started=time.monotonic()
+    try:
+        r=requests.get(GAS_URL,params={"action":action,**params},timeout=(5,15));r.raise_for_status()
+        x=r.json()
+        if isinstance(x,dict) and x.get("success") is False:
+            raise RuntimeError("GAS rejected "+action+": "+str(x.get("error","unknown error")))
+        return x.get("data",x) if isinstance(x,dict) else x
+    finally:
+        elapsed=time.monotonic()-started
+        if elapsed>=5:
+            logging.warning("GAS slow request action=%s elapsed=%.1fs",action,elapsed)
 
 def gas_post(action,data):
     if not GAS_URL: raise RuntimeError("EA_GAS_URL is not configured")
@@ -670,7 +679,7 @@ def process_replay_request():
         msg=(p.stdout or p.stderr or "").strip()[-1500:]
         enqueue_gas("updateEAReplayRequest",{"data":{"RequestID":rid,"Status":"DONE" if p.returncode==0 else "ERROR","Message":msg}})
     except Exception as e:
-        logging.exception("historical signal replay failed")
+        logging.warning("historical signal replay fetch failed: %s",e)
 
 def auxiliary_poller():
     """Keep optional GAS reads off the trading loop so a slow GAS endpoint cannot stall MT5 work."""
