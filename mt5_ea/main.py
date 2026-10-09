@@ -46,13 +46,16 @@ _gas_failure_counts={}
 _gas_last_warning={}
 _GAS_SLOW_LOG_SEC=60.0
 
-def _gas_warning(key,message,*args):
+def _gas_log(key,level,message,*args):
     now=time.monotonic()
     with _gas_health_lock:
         previous=_gas_last_warning.get(key,0)
         if now-previous<_GAS_SLOW_LOG_SEC:return
         _gas_last_warning[key]=now
-    logging.warning(message,*args)
+    logging.log(level,message,*args)
+
+def _gas_warning(key,message,*args):
+    _gas_log(key,logging.WARNING,message,*args)
 
 def _gas_call(action,method="GET",payload=None,params=None):
     if not GAS_URL:raise RuntimeError("EA_GAS_URL is not configured")
@@ -391,6 +394,13 @@ def send_order(sig,pc,cfg=None):
     if req is None:raise RuntimeError(f"order_check rejected all filling modes: {check or mt5.last_error()}")
     if DRY_RUN:return {"dry_run":True,"request":req,"order_check":str(check),"spread":max(0.0,float(tick.ask)-float(tick.bid)),"sl":sl}
     before={int(p.ticket) for p in (mt5.positions_get(symbol=symbol) or []) if int(getattr(p,"magic",0))==MAGIC}
+    # Final fail-closed check immediately before a LIVE entry, not only at loop start.
+    _,_,runtime_healthy=cached_runtime()
+    with _cache_lock:
+        latest_settings=_cache.get("settings") or {}
+        global_entry_enabled=truth(latest_settings.get("globalEntry"),False)
+    if not runtime_healthy:raise RuntimeError("LIVE_RUNTIME_CACHE_STALE_BEFORE_ORDER")
+    if not global_entry_enabled:raise RuntimeError("LIVE_GLOBAL_STOP_BEFORE_ORDER")
     res=mt5.order_send(req)
     if res is None or res.retcode!=mt5.TRADE_RETCODE_DONE:raise RuntimeError(f"order_send failed: {res}")
     position_ticket=None
@@ -453,7 +463,7 @@ def refresh_global_control():
             settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
             settings["notifyCalendar"]=truth(app.get("notifyCalendar"),settings.get("notifyCalendar",True))
         _control_ok_at=time.time()
-        _gas_warning(("control-ok",truth(app.get("globalEntry"),False)), "GAS_CONTROL_OK globalEntry=%s age=0s (fresh)",truth(app.get("globalEntry"),False))
+        _gas_log(("control-ok",truth(app.get("globalEntry"),False)),logging.INFO, "GAS_CONTROL_OK globalEntry=%s age=0s (fresh)",truth(app.get("globalEntry"),False))
         return True
     except Exception as e:
         _gas_warning("control-failure","global EA control fetch failed; new entries blocked if control becomes stale: %s",str(e)[:300])
@@ -652,7 +662,7 @@ def process_calendar_reminders(cfg):
     """Send event reminders without making the trading loop depend on GAS availability."""
     global _calendar_poll_at
     now_mono=time.monotonic()
-    if now_mono-_calendar_poll_at<30:return
+    if now_mono-_calendar_poll_at<60:return
     _calendar_poll_at=now_mono
     rows=[];live_rows=False
     try:
