@@ -39,26 +39,52 @@ RUNTIME_CACHE_FILE=os.path.join(os.path.dirname(__file__),"runtime_cache.json")
 OUTBOX_DB=os.getenv("EA_OUTBOX_DB",os.path.join(os.path.dirname(__file__),"ea_outbox.sqlite3"))
 CALENDAR_CACHE_FILE=os.path.join(os.path.dirname(__file__),"calendar_reminders_cache.json")
 
-def gas_get(action,**params):
+# Network failures are shared by all GAS readers. Back off optional requests
+# independently, while keeping the high-priority STOP reader on its own schedule.
+_gas_health_lock=threading.Lock()
+_gas_failure_counts={}
+_gas_last_warning={}
+_GAS_SLOW_LOG_SEC=60.0
+
+def _gas_warning(key,message,*args):
+    now=time.monotonic()
+    with _gas_health_lock:
+        previous=_gas_last_warning.get(key,0)
+        if now-previous<_GAS_SLOW_LOG_SEC:return
+        _gas_last_warning[key]=now
+    logging.warning(message,*args)
+
+def _gas_call(action,method="GET",payload=None,params=None):
     if not GAS_URL:raise RuntimeError("EA_GAS_URL is not configured")
     started=time.monotonic()
     try:
-        r=requests.get(GAS_URL,params={"action":action,**params},timeout=(5,15));r.raise_for_status()
-        x=r.json()
-        if isinstance(x,dict) and x.get("success") is False:
-            raise RuntimeError("GAS rejected "+action+": "+str(x.get("error","unknown error")))
-        return x.get("data",x) if isinstance(x,dict) else x
+        if method=="GET":
+            response=requests.get(GAS_URL,params={"action":action,**(params or {})},timeout=(4,12))
+        else:
+            response=requests.post(GAS_URL,params={"action":action},json={"action":action,**(payload or {})},timeout=(4,15))
+        response.raise_for_status()
+        result=response.json()
+        if isinstance(result,dict) and result.get("success") is False:
+            raise RuntimeError("GAS rejected "+action+": "+str(result.get("error","unknown error")))
+        with _gas_health_lock:_gas_failure_counts.pop((method,action),None)
+        return result.get("data",result) if isinstance(result,dict) else result
+    except Exception as exc:
+        with _gas_health_lock:
+            key=(method,action)
+            failures=_gas_failure_counts.get(key,0)+1
+            _gas_failure_counts[key]=failures
+        _gas_warning(("failure",method,action), "GAS %s %s failed (consecutive=%s): %s",method,action,failures,str(exc)[:300])
+        raise
     finally:
         elapsed=time.monotonic()-started
-        if elapsed>=5:
-            logging.warning("GAS slow request action=%s elapsed=%.1fs",action,elapsed)
+        if elapsed>=8:
+            _gas_warning(("slow",method,action),"GAS slow request action=%s elapsed=%.1fs",action,elapsed)
+
+def gas_get(action,**params):
+    return _gas_call(action,params=params)
 
 def gas_post(action,data):
-    if not GAS_URL: raise RuntimeError("EA_GAS_URL is not configured")
-    r=requests.post(GAS_URL,params={"action":action},json={"action":action,**data},timeout=(5,20));r.raise_for_status()
-    x=r.json()
-    if x.get("success") is False: raise RuntimeError("GAS rejected action "+action+": "+str(x))
-    return x.get("data",x)
+    return _gas_call(action,method="POST",payload=data)
 
 def connect():
     if not mt5.initialize():raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
@@ -427,10 +453,10 @@ def refresh_global_control():
             settings["notifyError"]=truth(app.get("notifyError"),settings.get("notifyError",True))
             settings["notifyCalendar"]=truth(app.get("notifyCalendar"),settings.get("notifyCalendar",True))
         _control_ok_at=time.time()
-        logging.info("GAS_CONTROL_OK globalEntry=%s age=0s (fresh)",truth(app.get("globalEntry"),False))
+        _gas_warning(("control-ok",truth(app.get("globalEntry"),False)), "GAS_CONTROL_OK globalEntry=%s age=0s (fresh)",truth(app.get("globalEntry"),False))
         return True
     except Exception as e:
-        logging.error("global EA control fetch failed: %s",e)
+        _gas_warning("control-failure","global EA control fetch failed; new entries blocked if control becomes stale: %s",str(e)[:300])
         return False
 
 def refresh_runtime_once():
@@ -477,7 +503,7 @@ def environment_refresher():
             if x is not None:
                 with _cache_lock:_cache["env"],_cache["env_at"]=x,time.time()
                 save_runtime_disk_cache()
-        _stop.wait(2)
+        _stop.wait(15)
 
 def load_runtime_disk_cache():
     try:
@@ -528,7 +554,7 @@ def outbox_worker():
             with sqlite3.connect(OUTBOX_DB) as db:
                 db.execute("DELETE FROM outbox WHERE id=?",(oid,));db.commit()
         except Exception as e:
-            logging.error("GAS outbox failed: %s",e)
+            _gas_warning("outbox-failure","GAS outbox failed (retry queued): %s",str(e)[:300])
             try:
                 delay=min(300,2**min(int(attempts or 0),8))
                 with sqlite3.connect(OUTBOX_DB) as db:
@@ -687,7 +713,7 @@ def auxiliary_poller():
     last_replay=0.0
     while not _stop.is_set():
         now=time.monotonic()
-        if now-last_replay>=30:
+        if now-last_replay>=120:
             process_replay_request();last_replay=time.monotonic()
         cfg,_,_=cached_runtime()
         process_calendar_reminders(cfg)
