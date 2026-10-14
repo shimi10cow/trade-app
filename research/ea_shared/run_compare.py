@@ -11,13 +11,9 @@ def main():
     ap.add_argument("--cache",type=Path,default=Path("/mnt/data/ea_shared/EURUSD2003_M15.pkl"))
     ap.add_argument("--output",type=Path,default=Path("/mnt/data/ea_shared/results"))
     args=ap.parse_args()
-    if not args.cache.is_file():ap.error(f"Cache missing: {args.cache}; attach existing cache; do not regenerate without checking")
+    # Optional cache path; engine also searches /mnt/data for pre-existing caches.\n    if args.cache.is_file():\n        import os\n        os.environ["EA_M15_CACHE"]=str(args.cache)
     import engine_m15 as engine
-    engine.ROOT=args.cache.parent.parent if args.cache.parent.name=="ea_shared" else args.cache.parent
-    expected=engine.ROOT/"ea_shared"/"EURUSD2003_M15.pkl"
-    if args.cache.resolve()!=expected.resolve():
-        ap.error(f"Place or link cache at {expected} (given {args.cache})")
-    args.output.mkdir(parents=True,exist_ok=True)
+    engine.ROOT=Path("/mnt/data")\n    args.output.mkdir(parents=True,exist_ok=True)
     baseline=Config()
     assert not baseline.use_expansion_exception and baseline.use_delayed_zz
     assert not baseline.use_h4_levels and not baseline.use_h4_rsi and not baseline.use_inverse_trend
@@ -35,5 +31,5 @@ def main():
     summary=pd.DataFrame(allsum)
     summary.to_csv(args.output/f"{args.test}_summary.csv",index=False)
     print(summary.loc[summary.scope.isin(["ALL","2015+"])].to_string(index=False))
-    (args.output/f"{args.test}_settings.json").write_text(json.dumps({"test":args.test,"baseline":vars(baseline),"cache":str(args.cache),"note":"Reconstructed canonical engine; not independently verified against live EA"},indent=2),encoding="utf-8")
+    (args.output/f"{args.test}_settings.json").write_text(json.dumps({"test":args.test,"baseline":vars(baseline),"cache":str(args.cache) if args.cache.is_file() else "auto-discovered under /mnt/data","note":"Reconstructed canonical engine; not independently verified against live EA"},indent=2),encoding="utf-8")
 if __name__=="__main__":main()
