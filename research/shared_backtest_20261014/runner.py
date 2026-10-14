@@ -16,7 +16,7 @@ p.add_argument('--data-dir',type=Path,default=Path('/mnt/data'))
 p.add_argument('--tag',default='baseline')
 args=p.parse_args()
 root=args.data_dir; cache_dir=root/'ea_cache'; cache_dir.mkdir(parents=True,exist_ok=True)
-version='engine-v1-fastpivot-v1-20261014'
+version='engine-v2-switches-fastpivot-20261014'
 engine_file=Path(__file__).resolve().parent/'engine.py'
 spec=importlib.util.spec_from_file_location('ea_shared_engine',engine_file)
 e=importlib.util.module_from_spec(spec);sys.modules[spec.name]=e;spec.loader.exec_module(e)
@@ -31,7 +31,7 @@ else:
  zfile=root/f'{args.pair}2003.M1.zip'
  if not zfile.exists():raise SystemExit(f'Missing raw data: {zfile}')
  with zipfile.ZipFile(zfile) as z:
-  with z.open(z.namelist()[0]) as f:
+  with z.open(next(n for n in z.namelist() if not n.endswith('/'))) as f:
    d=pd.read_csv(f,usecols=[1,2,3,4,5,6],dtype={1:'int32',2:'int16',3:'float64',4:'float64',5:'float64',6:'float64'})
  d.columns=['date','clock','open','high','low','close']
  d['time']=pd.to_datetime(d.date.astype(str)+d.clock.astype(str).str.zfill(4),format='%Y%m%d%H%M')
@@ -68,10 +68,16 @@ if args.p!='all':
  tr=tr[tr.point.isin([1] if args.p=='p1' else [1,2])].copy()
 out=cache_dir/f'{args.pair}_{args.h4}_{args.p}_{args.disable}_{args.tag}_trades.pkl'
 tr.to_pickle(out)
+tr.to_csv(out.with_suffix('.csv'),index=False)
+summary=[]
 for year in (2003,2015):
  subset=tr[tr.time>=pd.Timestamp(f'{year}-01-01')]
- print('RESULT',year,e.metrics(subset),flush=True)
+ result=e.metrics(subset)
+ summary.append({'start_year':year,**result})
+ print('RESULT',year,result,flush=True)
 print('saved',out,'elapsed_seconds',round(time.perf_counter()-start,2),flush=True)
 
 annual=[{'year':int(y),**e.metrics(g.sort_values('time'))} for y,g in tr.groupby(tr.time.dt.year)]
 pd.DataFrame(annual).to_csv(cache_dir/f'{args.pair}_{args.h4}_{args.p}_{args.disable}_{args.tag}_annual.csv',index=False)
+
+pd.DataFrame(summary).to_csv(out.with_name(out.stem.replace('_trades','_summary')+'.csv'),index=False)
