@@ -11,18 +11,16 @@ p=argparse.ArgumentParser()
 p.add_argument('--pair',choices=['EURUSD','USDJPY'],required=True)
 p.add_argument('--h4',choices=['off','on'],default='off')
 p.add_argument('--p',choices=['p12','all','p1'],default='p12')
-p.add_argument('--disable',choices=['none','q75','h4_rsi','ma_abcd','inverse_h1','expansion','delayed_zz'],default='none')
+p.add_argument('--disable',choices=['none','q75','h4_rsi','ma_abcd','inverse_h1','expansion','delayed_zz','p3_mfe'],default='none')
 p.add_argument('--data-dir',type=Path,default=Path('/mnt/data'))
 p.add_argument('--tag',default='baseline')
 args=p.parse_args()
 root=args.data_dir; cache_dir=root/'ea_cache'; cache_dir.mkdir(parents=True,exist_ok=True)
 version='engine-v1-fastpivot-v1-20261014'
-engine_file=root/'engine_fast_quantile.py'
-if not engine_file.exists():engine_file=root/'files/full_backtest_engine_v1(1).py'
-if not engine_file.exists():raise SystemExit('Missing engine_fast_quantile.py or files/full_backtest_engine_v1(1).py; see README.')
+engine_file=Path(__file__).resolve().parent/'engine.py'
 spec=importlib.util.spec_from_file_location('ea_shared_engine',engine_file)
 e=importlib.util.module_from_spec(spec);sys.modules[spec.name]=e;spec.loader.exec_module(e)
-sys.path.insert(0,str(root))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from fastpivot_patch import fast
 e.causal_pivots_bootstrap=fast
 cache=cache_dir/f'{args.pair}_2003_2026_{version}.pkl'
@@ -60,12 +58,8 @@ else:
   return bool(mask.any())
  e.structural_level_reject=reject
 # Non-mutating experiment isolation: each process imports a fresh engine.
-if args.disable=='q75':
- # The original engine's q75 logic must be toggled at source, not by
- # monkeypatching np.quantile (which changes numerical behavior).
- raise SystemExit('q75 source-level toggle not yet implemented; do not claim tested.')
-if args.disable not in ('none','q75'):
- raise SystemExit(f'{args.disable} source-level toggle not yet implemented; do not claim tested.')
+switches={'q75':'use_q75','h4_rsi':'use_h4_rsi','ma_abcd':'use_ma_abcd','inverse_h1':'use_inverse_h1','expansion':'use_expansion_exception','delayed_zz':'use_delayed_zz','p3_mfe':'use_p3_mfe'}
+if args.disable!='none':setattr(e.CFG,switches[args.disable],False)
 # P1/P2 filtering after execution is diagnostic only; it is NOT a
 # re-simulation because omitted P3 positions can affect position limits.
 tr=e.run_pair(args.pair).sort_values('time').reset_index(drop=True)
@@ -78,3 +72,6 @@ for year in (2003,2015):
  subset=tr[tr.time>=pd.Timestamp(f'{year}-01-01')]
  print('RESULT',year,e.metrics(subset),flush=True)
 print('saved',out,'elapsed_seconds',round(time.perf_counter()-start,2),flush=True)
+
+annual=[{'year':int(y),**e.metrics(g.sort_values('time'))} for y,g in tr.groupby(tr.time.dt.year)]
+pd.DataFrame(annual).to_csv(cache_dir/f'{args.pair}_{args.h4}_{args.p}_{args.disable}_{args.tag}_annual.csv',index=False)
