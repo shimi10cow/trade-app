@@ -14,7 +14,15 @@ p.add_argument('--p',choices=['p12','all','p1'],default='p12')
 p.add_argument('--disable',choices=['none','q75','h4_rsi','ma_abcd','inverse_h1','expansion','delayed_zz','p3_mfe'],default='none')
 p.add_argument('--data-dir',type=Path,default=Path('/mnt/data'))
 p.add_argument('--tag',default='baseline')
+p.add_argument('--compare',action='store_true',help='Run baseline and selected ablation in separate subprocesses')
 args=p.parse_args()
+if args.compare:
+ import subprocess
+ for disabled in ('none',args.disable):
+  if disabled=='none' and args.disable=='none':continue
+  cmd=[sys.executable,str(Path(__file__).resolve()),'--pair',args.pair,'--h4',args.h4,'--p',args.p,'--disable',disabled,'--data-dir',str(args.data_dir),'--tag',args.tag]
+  subprocess.run(cmd,check=True)
+ raise SystemExit(0)
 root=args.data_dir; cache_dir=root/'ea_cache'; cache_dir.mkdir(parents=True,exist_ok=True)
 version='engine-v2-switches-fastpivot-20261014'
 engine_file=Path(__file__).resolve().parent/'engine.py'
