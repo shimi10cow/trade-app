@@ -36,8 +36,8 @@ class Config:
     stoch_n:int=14; stoch_k:int=3; stoch_d:int=5
     atr_n:int=14; zz_atr:float=1.5
     max_positions:int=2
-    s200_min:float=0.00002
-    ma200_480_tol_atr:float=0.25
+    s200_min:float=0.0
+    ma200_480_tol_atr:float=0.0
     q75_warmup:int=100
     p3_mfe_atr:float=1.5
     h4_level_tol_atr:float=0.60
