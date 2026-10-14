@@ -54,15 +54,38 @@ class Config:
 CFG=Config()
 
 def load_m15(pair):
-    cached=ROOT/'ea_shared'/f'{pair}2003_M15.pkl'
-    if cached.exists():
-        d=pd.read_pickle(cached)
-        assert {'time','open','high','low','close'}<=set(d.columns)
-        return d[['time','open','high','low','close']].sort_values('time').reset_index(drop=True)
-    d=pd.read_csv(ROOT/f'{pair}2020.M15.csv')
-    d['time']=pd.to_datetime(d['<DTYYYYMMDD>'].astype(str)+d['<TIME>'].astype(str).str.zfill(4),format='%Y%m%d%H%M')
-    d=d.rename(columns={'<OPEN>':'open','<HIGH>':'high','<LOW>':'low','<CLOSE>':'close'})
-    return d[['time','open','high','low','close']].sort_values('time').reset_index(drop=True)
+    """Load a pre-existing M15 pickle or CSV. Never regenerate M1 here."""
+    import os
+    requested=os.environ.get("EA_M15_CACHE")
+    candidates=([Path(requested)] if requested else [])+[
+        ROOT/"ea_shared"/f"{pair}2003_M15.pkl",
+        ROOT/f"{pair}2003_M15_exp08.pkl",
+        ROOT/f"{pair}2003_M15_exp06.pkl",
+        ROOT/f"{pair}2003_M15.pkl",
+        ROOT/f"{pair}_M15_MT5.csv",
+        ROOT/f"{pair}2020.M15.csv",
+    ]
+    candidates+=sorted(ROOT.glob(f"**/{pair}*M15*.pkl"))
+    candidates+=sorted(ROOT.glob(f"**/{pair}*M15*.csv"))
+    for path in dict.fromkeys(candidates):
+        if not path.is_file():continue
+        if path.suffix.lower()==".pkl":d=pd.read_pickle(path)
+        else:d=pd.read_csv(path)
+        if not {"time","open","high","low","close"}<=set(d.columns):
+            if {"<DTYYYYMMDD>","<TIME>","<OPEN>","<HIGH>","<LOW>","<CLOSE>"}<=set(d.columns):
+                d["time"]=pd.to_datetime(d["<DTYYYYMMDD>"].astype(str)+d["<TIME>"].astype(str).str.zfill(4),format="%Y%m%d%H%M")
+                d=d.rename(columns={"<OPEN>":"open","<HIGH>":"high","<LOW>":"low","<CLOSE>":"close"})
+            elif {"<DATE>","<TIME>","<OPEN>","<HIGH>","<LOW>","<CLOSE>"}<=set(d.columns):
+                d["time"]=pd.to_datetime(d["<DATE>"].astype(str)+" "+d["<TIME>"].astype(str))
+                d=d.rename(columns={"<OPEN>":"open","<HIGH>":"high","<LOW>":"low","<CLOSE>":"close"})
+            else:continue
+        d=d[["time","open","high","low","close"]].copy()
+        d["time"]=pd.to_datetime(d["time"])
+        d=d.sort_values("time").drop_duplicates("time").reset_index(drop=True)
+        if len(d)<1000:continue
+        print(f"M15 cache: {path} ({len(d):,} bars)",flush=True)
+        return d
+    raise FileNotFoundError(f"No M15 cache for {pair}. Attach an existing pickle to /mnt/data or set EA_M15_CACHE. M1 rebuilding is intentionally disabled.")
 
 def ATR(d,n=14):
     pc=d.close.shift(1)
