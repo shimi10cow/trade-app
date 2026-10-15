@@ -34,3 +34,6 @@ The script also emits full subset trade CSVs locally. Reproducibility requires t
 Post-hoc threshold exploration; data-snooping risk. P1/P2 can overlap and share risk. Pivot algorithm differs from EA production ZigZag. Validate with a fixed-rule chronological out-of-sample test, then an actual shared-engine ON/OFF backtest, and examine simultaneous open risk and floating DD before deployment.
 
 **Source note**: Existing research note at `research/notes/2026-10-15_EURUSD_DD_wave_maturity_reference.md` quotes PF 1.544 for 359 trades; **this folder's recalculated PF 1.451775 supersedes it**.
+
+## Complete local research bundle (2026-10-15)
+A ZIP archive of 95 existing local research artifacts (about 33 MB uncompressed; 14 MB ZIP), including `DD_wave_trades_284.csv`, `DD_wave_trades_359.csv`, `DD_causal_wave_maturity_trades.csv`, original Python research scripts and `EURUSD2003_M15.pkl`, was prepared in the ChatGPT working environment as `EA_research_2026-10-15_full_archive.zip`. **It has NOT been committed to GitHub.** This repository currently holds only the summarized CSVs, the retrospective subset calculation script and research notes. For exact reconstruction, obtain the ZIP from the originating ChatGPT conversation and extract into `ea_shared/`. Do not confuse the local archive with repository contents.
