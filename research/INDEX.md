@@ -9,6 +9,9 @@ Updated 2026-10-15. **START HERE for AI sessions.**
 These are research engines, NOT automatically live EA production files.
 
 ## Reusable datasets
+- `research/datasets/derived/eurusd_m15/2026-10-15/MANIFEST.md` — verified 583,458-row local M15 cache, SHA256 and reproducibility contract; **23 MB binary NOT uploaded to GitHub**. Do not repeat M1 resampling when local cache exists.
+- P1/P2 trade-level ledger is **not yet committed**; prior 1,117-trade retrospective note is not a substitute for the ledger.
+
 - `research/datasets/derived/eurusd_h4_structure/2026-10-15/h4_annual_structure_summary.csv` — H4 annual summary, uploaded.
 - `h4_structure_bars.csv` and `h4_confirmed_pivots.csv` — NOT YET uploaded; previous local paths `/mnt/data/ea_research/`.
 - Original EURUSD M1 ZIP is external/session-local, not present in this repository.
