@@ -1,3 +1,6 @@
+## CRITICAL AUDIT WARNING (2026-10-15)
+The original feature generator `research/ea_shared/dd_causal_wave_maturity_20261015_original.py` was archived. Its `build()` routine replaces the most recent same-direction pivot in the final historical event list when a later more-extreme pivot is confirmed. That **can retroactively erase an earlier pivot from the event history**, affecting feature values for entries before the replacement was known. The two-right-bars pivot confirmation by itself is insufficient to guarantee point-in-time causality. **All 359/284 subset metrics are provisional and must be recomputed with a time-causal event replay before any strategy decision.** Do not use these numbers to claim an out-of-sample or future-leakage-free edge. The full original per-trade feature CSV, 284/359 trade detail CSVs, and raw OHLC cache are NOT yet in this GitHub folder.
+
 # EURUSD wave-maturity research results — 2026-10-15
 
 **Research only. No live EA rule change.** The source study uses 1,117 EURUSD P1/P2 trades from 2003–2026, and retrospectively tags the entry context. This is **not** an ON/OFF rerun of the EA, and closed-equity maxDD is **not** intratrade floating DD.
