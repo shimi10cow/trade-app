@@ -12,13 +12,13 @@ Updated: 2026-10-15. **Canonical navigation entry for future AI sessions.**
 - Do not assume research fractal pivots are identical to live ZigZag.
 
 ## 2026-10-15 aggregated data
-Local session generated (not yet committed to GitHub):
-- `/mnt/data/ea_research/h4_structure_bars.csv`: 37,805 H4 OHLC/ATR/structure rows, ~4.9 MB.
-- `/mnt/data/ea_research/h4_confirmed_pivots.csv`: 10,590 confirmed H4 fractals, ~542 KB; `available_at` prevents future use.
-- `/mnt/data/ea_research/h4_annual_structure_summary.csv`: 24 annual rows.
-- `/mnt/data/ea_research/structure_study_20261015.py`: reproducible source script. Input: `/mnt/data/EURUSD2003.M1.zip`.
+Local session generated (GitHub status per file):
+- NOT COMMITTED `/mnt/data/ea_research/h4_structure_bars.csv`: 37,805 H4 OHLC/ATR/structure rows, ~4.9 MB.
+- NOT COMMITTED `/mnt/data/ea_research/h4_confirmed_pivots.csv`: 10,590 confirmed H4 fractals, ~542 KB; `available_at` prevents future use.
+- COMMITTED `research/data/eurusd_h4_structure/2026-10-15/h4_annual_structure_summary.csv` (local `/mnt/data/ea_research/h4_annual_structure_summary.csv`): 24 annual rows.
+- COMMITTED `research/scripts/structure_study_20261015.py` (local `/mnt/data/ea_research/structure_study_20261015.py`): reproducible source script. Input: `/mnt/data/EURUSD2003.M1.zip`.
 
-**Availability warning:** /mnt/data paths are session-local, not GitHub-backed or persistent across chats. The large CSV files have NOT been uploaded; do not report otherwise. Restore from source ZIP with script if absent, or upload through a Git-capable local runtime. The GitHub connector cannot access the local filesystem directly. Do not infer data presence from this map.
+**Availability warning:** /mnt/data paths are session-local, not GitHub-backed or persistent across chats. The two large CSV files have NOT been uploaded; do not report otherwise. Restore from source ZIP with script if absent, or upload through a Git-capable local runtime. The GitHub connector cannot access the local filesystem directly. Do not infer data presence from this map.
 
 ## Data checksums (SHA256)
 - h4_structure_bars.csv: `eb0dfd033f6b7113e768c67ce65209483541eb3d375403b3eb75c18c30177e3e`
@@ -27,4 +27,4 @@ Local session generated (not yet committed to GitHub):
 - structure_study_20261015.py: `4bd8ab7a9142328d8c361b8b6bba89559c4a20d5c8bd11a67c071fecdc2d3750`
 
 ## Next
-Persist the four generated files to `research/data/eurusd_h4_structure/2026-10-15/` and update this map to mark them committed; verify file hashes. Then link 1117 trade ledger by entry timestamps for year-by-year, wave-cluster and structural analyses. No new PF/DD claims until joined.
+Persist the two remaining large CSV files to `research/data/eurusd_h4_structure/2026-10-15/` and update this map to mark them committed; verify file hashes. Then link 1117 trade ledger by entry timestamps for year-by-year, wave-cluster and structural analyses. No new PF/DD claims until joined.
