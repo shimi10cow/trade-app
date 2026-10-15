@@ -5,7 +5,7 @@ Status: **Exploratory, retrospective classification only. NOT a validated live f
 Scope: EURUSD 2003–2026, 1,117 existing P1/P2 trades; +132.065R overall, PF ~1.185, maxDD ~-53.6R. These statistics are not ON/OFF EA reruns. The wave indicators use confirmed H1/H4 swing pivots (two right-side completed bars); this differs from the live EA ZigZag. No future pivots are allowed in feature construction.
 
 ## Key finding
-- H4 impulse maintained/expanded (latest prior confirmed impulse >=70% of preceding impulse) AND H1 impulse contracted (<75%): **359 trades, +100.531R, PF 1.544**.
+- H4 impulse maintained/expanded (latest prior confirmed impulse >=70% of preceding impulse) AND H1 impulse contracted (<75%): **359 trades, +100.531R, PF 1.452 (recalculated from trade-level detail; previous 1.544 was incorrect)**.
 - Add H1 SMA480 distance <12 H1 ATR: **284 trades, +105.664R, mean +0.372R, PF 1.614, win rate 39.1%**.
 - Same wave state with SMA480 distance >=12 ATR: **75 trades, -5.133R, PF 0.898**.
 - 284 trades over approximately 24 calendar years = about 11.8/year, not a guaranteed annual rate or independent EA trading frequency.
