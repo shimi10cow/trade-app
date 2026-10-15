@@ -8,6 +8,12 @@ Updated 2026-10-15. **START HERE for AI sessions.**
 - `research/core/README.md`, `ENGINE_README.md`, `NEW_EA_RULES_2026-10-15.md` — read rules before changing engine.
 These are research engines, NOT automatically live EA production files.
 
+
+## H4 reversal / M15 P1-P2 stochastic (2026-10-15)
+- `research/studies/scripts/h4_reversal_m15_p12_signals.py` — causal 3-stage M15 Stochastic signal extractor; P1/P2 counted per supplied H4 reversal regime.
+- `research/studies/notes/2026-10-15_H4_reversal_M15_P1P2.md` — signal definition, H4 breakout-level gate, Fib diagnostic-only policy, timing, and limitations.
+- Signal implementation saved; integrated H4 backtest **not yet run**. Original core uses raw14 → SMA3(K) → SMA5(D); check MT5 naming before claiming 14-5-3 parity.
+
 ## Reusable datasets
 - `research/datasets/derived/eurusd_m15/2026-10-15/MANIFEST.md` — verified 583,458-row local M15 cache, SHA256 and reproducibility contract; **23 MB binary NOT uploaded to GitHub**. Do not repeat M1 resampling when local cache exists.
 - P1/P2 trade-level ledger is **not yet committed**; prior 1,117-trade retrospective note is not a substitute for the ledger.
