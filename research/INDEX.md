@@ -1,40 +1,37 @@
-# EA Repository Navigation — canonical index
+# EA Research — Canonical Index
+Updated 2026-10-15. **START HERE for AI sessions.**
 
-Updated 2026-10-15. Read this file FIRST. This is a navigation specification; not all proposed folders have been migrated.
+## Active research execution
+- `research/core/engine_m15.py` — shared M15 backtest engine.
+- `research/core/run_compare.py` — ON/OFF runner.
+- `research/core/cache_m15.py` — cache helper.
+- `research/core/README.md`, `ENGINE_README.md`, `NEW_EA_RULES_2026-10-15.md` — read rules before changing engine.
+These are research engines, NOT automatically live EA production files.
 
-## Status categories
-- **ACTIVE**: currently intended for use; validate latest commit and config before execution.
-- **REUSABLE DATA**: immutable source or derived datasets with generation metadata.
-- **RESEARCH**: exploratory hypotheses, reports, scripts, not production logic.
-- **LEGACY**: retained for reproducibility, never silently substituted for ACTIVE.
+## Reusable datasets
+- `research/datasets/derived/eurusd_h4_structure/2026-10-15/h4_annual_structure_summary.csv` — H4 annual summary, uploaded.
+- `h4_structure_bars.csv` and `h4_confirmed_pivots.csv` — NOT YET uploaded; previous local paths `/mnt/data/ea_research/`.
+- Original EURUSD M1 ZIP is external/session-local, not present in this repository.
+- Dataset generator: `research/studies/scripts/structure_study_20261015.py`.
+No data should be treated as live-safe without timestamp/pivot availability checks.
 
-## Existing paths (verified)
-| Status | Path | Purpose |
-|---|---|---|
-| ACTIVE research | `research/ea_shared/engine_m15.py` | shared backtest engine (verify code/config) |
-| ACTIVE research | `research/ea_shared/run_compare.py` | comparison runner |
-| RESEARCH | `research/notes/2026-10-15_EURUSD_DD_wave_maturity_reference.md` | retrospective 1117 trade analysis, 284-trade subset |
-| RESEARCH | `research/notes/2026-10-15_EURUSD_price_structure_research_plan.md` | H4/H1 structure hypotheses |
-| REUSABLE DATA | `research/data/eurusd_h4_structure/2026-10-15/h4_annual_structure_summary.csv` | uploaded annual H4 aggregates |
-| REUSABLE CODE | `research/scripts/structure_study_20261015.py` | H4 dataset generation |
-| LEGACY | `research/full_backtest_engine_v1_20261014.py` | old engine; do not use by default |
-| NAVIGATION | `research/RESEARCH_MAP.md` | earlier research index, including upload status |
+## Studies
+- `research/studies/notes/2026-10-15_EURUSD_DD_wave_maturity_reference.md` — 1117 trade retrospective analysis; corrected 359-trade PF=1.452, 284-trade PF=1.614; NOT an EA ON/OFF rerun.
+- `research/studies/notes/2026-10-15_EURUSD_price_structure_research_plan.md` — H4/H1 structural hypotheses.
+- `research/studies/experiments/` — prior exploratory comparisons.
 
-## Not uploaded yet
-`h4_structure_bars.csv` and `h4_confirmed_pivots.csv` are local-only and should be uploaded to `research/data/eurusd_h4_structure/2026-10-15/`. Do not assume GitHub contains them.
+## Archive
+- `research/archive/backtest_recovery/` — recovered historical backtest and audits.
+- `research/archive/forextester/` — older ForexTester experiments.
+- `research/archive/shared_backtest_20261014/` — previous engine.
+- `research/archive/legacy_scripts/` — superseded standalone scripts and historical reports.
+- `research/archive/RESEARCH_MAP_20261015.md` — superseded navigation map.
 
-## Target layout (proposed, NOT migrated)
-```
-research/
-  INDEX.md                # this navigation map
-  core/                   # stable reusable research engine and configs
-  datasets/
-    source/               # raw immutable market data (large datasets may live outside Git)
-    derived/              # reusable H1/H4 features with lineage and hashes
-  studies/
-    YYYY-MM-DD_topic/     # hypotheses, notebooks/scripts, results, trade lists
-  archive/                # superseded prototypes and historical scripts
-```
+## Migration note
+Reorganized 36 paths in commit `86f7278`. Existing file contents preserved. Any external scripts importing old paths must be updated; **runtime/import regression testing has NOT been performed**. Do not assume production deployment unaffected without checking imports. Do not use archived engine as current source.
 
-## Safety for migration
-Do not bulk-move production files or modify EA logic. First map references/imports, then move with compatibility shims or adjust imports, verify tests, and archive rather than delete. Record source date, timezone, bar-close convention, pivot confirmation lag, input hashes, script version and completeness for every dataset. The 284-trade subset is retrospective, not independently EA-tested.
+## Rules for future work
+1. Check this index, then current engine and study.
+2. Prefer `core/` for reusable research engine, `datasets/` for reusable data, `studies/` for experiments, `archive/` for superseded work.
+3. Record reproducibility: source data, timestamps, timezone, bar-close convention, confirmation lag, parameters, commit SHA, costs and exposure.
+4. Update this index when adding/moving files.
