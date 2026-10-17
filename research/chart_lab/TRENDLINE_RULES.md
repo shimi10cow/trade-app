@@ -31,14 +31,14 @@ Threshold = base × ATR7 × (1 + boost if ER20 >= cutoff, else 1). Pivot extreme
 - More than 10% of intervening closes intruding >0.35 ATR rejects; maximum intrusion >1.7 ATR rejects.
 - Normalized slope magnitude (first→third price change / median ATR across segment) between 0.25 and 7.
 - Historical review suppressed near-duplicates by proximity of end index: 65 D1, 85 H4, 110 H1, 130 M15, 45 W1; replace old if score improves by >0.12, where score = 2×intrusion fraction + 0.4×middle deviation + 0.1×max(0, normalized slope -3).
-- **Important:** The new Python engine emits eligible three-point *candidate events* and does **not yet implement** the historical suppression step; therefore its three-point outputs are not guaranteed identical to the saved approved D1/H4 line sets. Do not overwrite those archived sets until parity is verified.
+- The Python engine now implements the documented near-duplicate suppression on each pivot event. Previously suppressed candidates can be reinstated when an active candidate is invalidated. Historical archived D1/H4 line-set parity has not been independently established.
 
 ## Causality and time indexing
 - `pivot_events()` emits `confirm` and `relocate` with `available_idx` equal to the index of the candle whose **close** makes the event observable.
-- `generate_lines()` uses only pivots and candle prices available at each event, and emits immutable `create`/`revise` events. The `anchor_idx` and `end_idx` describe **geometry**, not when the line became usable.
+- `generate_lines()` uses only pivots and candle prices available at each event, and emits immutable `create`/`revise`/`retire` events. The `anchor_idx` and `end_idx` describe **geometry**, not when the line became usable.
 - `available_idx` is the bar-close observation index. For entry decisions made at the **open** of candle k, use only events with `available_idx < k`; at the close of candle k, `available_idx <= k` is permissible only if execution timing allows it.
 - For resampled H1/H4/D1/W1, never expose a partial candle as a completed candle. Convert indexes to timestamps only after resampling and defining broker timezone/session.
-- A relocated pivot revises a line at the **relocation bar**; never rewrite earlier entry features.
+- A relocated pivot revises a line at the **relocation bar**; never rewrite earlier entry features. If the changed pivot makes a candidate ineligible, emit a **retire** event at that bar close. `asof_lines()` removes retired lines from the active registry. A newly eligible representative emits **create**, and an existing line with changed geometry emits **revise**.
 
 ## Current implementation gaps before live EA/backtest
 1. A revision that makes a previously valid line ineligible (e.g., a pivot relocation reverses its slope or violates min_gap) does **not yet emit an invalidation/retirement event**. `asof_lines()` is consequently not a complete active-line registry; do not use it for production entry filtering.
