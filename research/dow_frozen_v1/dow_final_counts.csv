@@ -1,0 +1,6 @@
+tf,candles,range_start,range_end,points,highs,lows,same_type_adjacent
+W1,,,,30,15,15,0
+D1,,,,89,44,45,0
+H4,,,,160,80,80,0
+H1,,,,204,102,102,0
+M15,,,,259,129,130,0
