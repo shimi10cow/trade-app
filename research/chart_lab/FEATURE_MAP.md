@@ -37,3 +37,11 @@ These filenames refer to local research artifacts; **the full HTML files are not
 
 ## Status
 Feature map recorded. Full merged HTML and source artifacts still need to be committed and tested before this can be considered a completed canonical version.
+
+
+## 2026-10-17 — causal trendline engine (new)
+- [TRENDLINE_RULES.md](TRENDLINE_RULES.md): approved 2-point and 3-point generation rules, all timeframe parameters, timing/no-lookahead, and outstanding parity gaps.
+- [trendline_causal_engine.py](trendline_causal_engine.py): Python Dow pivot confirmation/relocation events; 2-point C→B wick-based reanchoring; 3-point eligible candidate events; each line event carries `available_idx`.
+- [eurusd_chart_lab_complete.html](eurusd_chart_lab_complete.html): browser drawing/review chart uploaded separately; **still uses retrospective chart data**, not the causal event stream.
+- Integration rule: EA at bar k open may only read events available at bar indices < k; never infer availability from plotted anchor or pivot dates.
+- **Not production-ready:** line invalidation on pivot relocation, causal 3-point dedup, original-Dow parity, HTML re-export, and regression validation are outstanding; see rules document.
