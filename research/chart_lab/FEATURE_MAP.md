@@ -44,4 +44,4 @@ Feature map recorded. Full merged HTML and source artifacts still need to be com
 - [trendline_causal_engine.py](trendline_causal_engine.py): Python Dow pivot confirmation/relocation events; 2-point C→B wick-based reanchoring; 3-point eligible candidate events; each line event carries `available_idx`.
 - [eurusd_chart_lab_complete.html](eurusd_chart_lab_complete.html): browser drawing/review chart uploaded separately; **still uses retrospective chart data**, not the causal event stream.
 - Integration rule: EA at bar k open may only read events available at bar indices < k; never infer availability from plotted anchor or pivot dates.
-- **Not production-ready:** line invalidation on pivot relocation, causal 3-point dedup, original-Dow parity, HTML re-export, and regression validation are outstanding; see rules document.
+- **Not production-ready:** original-Dow parity, HTML re-export, and regression validation are outstanding; pivot-relocation retirement and causal 3-point dedup are implemented; see rules document.
