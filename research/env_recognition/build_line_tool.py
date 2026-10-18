@@ -13,7 +13,16 @@ TFSEC = {'W1': 604800, 'D1': 86400, 'H4': 14400, 'H1': 3600, 'M15': 900}
 SHOW = {'W1': 615, 'D1': 800, 'H4': 1500, 'H1': 2000, 'M15': 3000}
 
 
-def payload(tf):
+def h4_trend_fn():
+    import bisect
+    h4 = load('H4'); r4 = dow_trend.run(h4, 'H4'); c4 = [x + TFSEC['H4'] for x in epoch_s(h4.t)]
+    def f(T):
+        k = bisect.bisect_right(c4, T) - 1
+        return r4['bars'][k][0] if k >= 0 else None
+    return f
+
+
+def payload(tf, h4trend=None):
     df = load(tf)
     n = len(df); s0 = max(0, n - SHOW[tf])
     t = epoch_s(df.t)
@@ -30,7 +39,9 @@ def payload(tf):
     sec = TFSEC[tf]
     # engine lines: geometry at bar-open times, created/retired as bar CLOSE times (replay gating)
     eng = [[t[x['anchor_idx']], r5(x['anchor_price']), t[x['end_idx']], r5(x['end_price']), x['kind'], x['tier'],
-            t[x['created']] + sec, (t[x['retired']] + sec) if x['retired'] is not None else None, x['reason'] or '']
+            t[x['created']] + sec, (t[x['retired']] + sec) if x['retired'] is not None else None, x['reason'] or '',
+            # correction vs the H4 major trend known when the line appeared (lower timeframes only)
+            bool(h4trend and h4trend(t[x['created']] + sec) not in (None, x['direction']))]
            for x in lr['lines'] if x['end_idx'] >= s0 and (x['retired'] is None or x['retired'] > x['created'])]
     return dict(eng=eng, c=[[t[i], r5(df.o[i]), r5(df.h[i]), r5(df.l[i]), r5(df.c[i])] for i in range(s0, n)],
                 s20=[[t[i], r5(sma[20][i])] for i in range(s0, n) if pd.notna(sma[20][i])],
@@ -50,7 +61,8 @@ def trend_changes(tf):
 
 
 if __name__ == '__main__':
-    data = {tf: payload(tf) for tf in ('W1', 'D1', 'H4', 'H1', 'M15')}
+    f = h4_trend_fn()
+    data = {tf: payload(tf, f if tf in ('H1', 'M15') else None) for tf in ('W1', 'D1', 'H4', 'H1', 'M15')}
     data['ctx'] = {tf: trend_changes(tf) for tf in ('D1', 'H4')}
     html = TEMPLATE.read_text(encoding='utf-8').replace('/*DATA*/null', json.dumps(data, separators=(',', ':')))
     Path(sys.argv[1]).write_text(html, encoding='utf-8')

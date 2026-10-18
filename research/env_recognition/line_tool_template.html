@@ -78,6 +78,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <span class="grp"><span class="lbl">エンジンの線：</span>
     <button id="engOff" class="mono" aria-pressed="true">なし</button><button id="engAll" class="mono" aria-pressed="false">表示</button></span>
   <label><input type="checkbox" id="optOnlyEng"> 紫（エンジンだけの線）だけ表示</label>
+  <label><input type="checkbox" id="optEngCorr" checked> H1・M15はH4に対する調整の線だけ</label>
   <span class="grp"><span class="lbl">他の時間足の線：</span><span class="grp" id="ovl"></span></span>
 </div>
 <div class="warn" id="warn" hidden></div>
@@ -159,7 +160,8 @@ function lineCls(l){if(TFRANK[l.tf]>=TFRANK.H4)return null;const tr=ctxAt('H4',l
 let engMode='off';
 const near=(t1,t2)=>Math.abs(idxF(t1)-idxF(t2))<=3;
 const ENG_TIERS={all:['main','near','skip']};
-function engList(){if(engMode==='off')return[];return DATA[tf].eng.filter(e=>ENG_TIERS[engMode].includes(e[5]))}
+function engList(){if(engMode==='off')return[];const corrOnly=$('optEngCorr').checked&&TFRANK[tf]<TFRANK.H4;
+  return DATA[tf].eng.filter(e=>ENG_TIERS[engMode].includes(e[5])&&(!corrOnly||e[9]))}
 const engAlive=e=>e[6]<=nowT()&&(e[7]==null||e[7]>nowT());
 const engMatch=(e,u)=>u.tf===tf&&u.removedAt==null&&(u.dir==='up')===(e[4]==='lo')&&near(u.t1,e[0])&&near(u.t2,e[2]);
 
@@ -373,7 +375,7 @@ for(const x of TFS){
   const o=document.createElement('button');o.className='mono';o.dataset.tf=x;o.textContent=x;o.setAttribute('aria-pressed','false');
   o.onclick=()=>{overlay.has(x)?overlay.delete(x):overlay.add(x);refresh()};$('ovl').appendChild(o)}
 for(const[id,m]of[['engOff','off'],['engAll','all']])$(id).onclick=()=>{engMode=m;refresh()};
-$('optCtx').onchange=$('optDim').onchange=$('optOnlyEng').onchange=refresh;
+$('optCtx').onchange=$('optDim').onchange=$('optOnlyEng').onchange=$('optEngCorr').onchange=refresh;
 for(const id of ['optPiv','optSma'])$(id).addEventListener('change',()=>build(true));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>build(true));
 new MutationObserver(()=>build(true)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
