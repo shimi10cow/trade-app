@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 from .data import load
 from .pivots import final_pivots
-from . import dow_trend, zones
+from . import dow_trend, zones, lines
 
 TEMPLATE = Path(__file__).with_name('chart_template.html')
 SHOW = {'W1': 400, 'D1': 500, 'H4': 600, 'H1': 800, 'M15': 1000}
@@ -60,7 +60,12 @@ def tf_payload(tf):
     zout = [[t[z['anchor']], t[z['activation']], t[z['expiry']] if z['expiry'] is not None else None,
              r5(z['bottom']), r5(z['top']), '・'.join(z['sources'])]
             for z in zs if z['expiry'] is None or z['expiry'] >= s0]
-    return dict(candles=candles, sma20=sma[20], sma75=sma[75], prot=prot, pprot=pprot, piv=piv,
+    lr = lines.run(df, tf, res)
+    rel = lambda i: None if i is None else i - s0
+    lout = [[rel(x['anchor_idx']), r5(x['anchor_price']), rel(x['end_idx']), r5(x['end_price']),
+             rel(x['created']), rel(x['retired']), x['kind'], x['reason'] or '', x['type']]
+            for x in lr['lines'] if x['retired'] is None or x['retired'] >= s0]
+    return dict(lines=lout, candles=candles, sma20=sma[20], sma75=sma[75], prot=prot, pprot=pprot, piv=piv,
                 ev=ev, pev=pev, wev=wev, zones=zout)
 
 

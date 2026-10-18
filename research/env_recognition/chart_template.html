@@ -45,6 +45,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
   <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
   <label><input type="checkbox" id="optZone" checked> 水平帯</label>
+  <label><input type="checkbox" id="optLine" checked> トレンドライン</label>
   <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <span class="state" id="state"></span>
@@ -57,6 +58,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <span><i style="background:var(--down);width:8px;height:8px;border-radius:50%"></i>ダウの高値 <i style="background:var(--up);width:8px;height:8px;border-radius:50%"></i>ダウの安値（ヒゲ先の価格。確定するのは後の足）</span>
   <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
   <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
+  <span><i style="background:var(--up)"></i><i style="background:var(--down)"></i>トレンドライン（上昇/下降、点線＝認識前、×＝消えた足）</span>
   <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span>
   <span><i style="background:var(--zone-edge);height:8px"></i>水平帯（ヒゲ先〜実体、点線部分は有効化前）</span>
   <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
@@ -140,9 +142,10 @@ function setupZones(el,d){
   zc.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:3';el.appendChild(zc);
   const zs=d.zones.map(z=>({a:idxOf(d,z[0]),v:idxOf(d,z[1]),e:idxOf(d,z[2]),lo:z[3],hi:z[4],lab:z[5]}));
   const draw=()=>{zraf=requestAnimationFrame(draw);
-    const on=document.getElementById('optZone').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
+    const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
     if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
-    const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);if(!on)return;
+    const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
+    if(lon)drawLines(g,r);if(!on)return;
     const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
     g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
     for(const z of zs){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
@@ -154,6 +157,17 @@ function setupZones(el,d){
     g.restore()};
   draw();
 }
+function drawLines(g,r){
+  const d=DATA[tf],ts=chart.timeScale(),W=ts.width(),last=d.candles.length-1;
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.4;
+  for(const L of d.lines){const[a,ap,b,bp,cr,rt,kind]=L;const end=rt==null?last+3:rt;
+    const y=i=>cs.priceToCoordinate(ap+(bp-ap)*(i-a)/(b-a)),x=i=>ts.logicalToCoordinate(i);
+    const col=kind==='lo'?css('--up'):css('--down');g.strokeStyle=col;
+    const seg=(i0,i1,dash)=>{const X0=x(i0),X1=x(i1),Y0=y(i0),Y1=y(i1);if([X0,X1,Y0,Y1].some(v=>v==null))return;
+      g.setLineDash(dash);g.beginPath();g.moveTo(X0,Y0);g.lineTo(X1,Y1);g.stroke()};
+    seg(a,cr,[4,4]);seg(cr,end,[]);
+    if(rt!=null){const X=x(rt),Y=y(rt);if(X!=null&&Y!=null){g.setLineDash([]);g.beginPath();g.moveTo(X-4,Y-4);g.lineTo(X+4,Y+4);g.moveTo(X-4,Y+4);g.lineTo(X+4,Y-4);g.stroke()}}}
+  g.restore()}
 function jump(t){const d=DATA[tf].candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.length-1;
   chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});

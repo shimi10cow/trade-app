@@ -145,9 +145,9 @@ def generate_lines(df,tf,start=60,min_gap=15):
             return
         seq+=1
         action='create' if old is None else 'revise'
-        out.append(dict(event_id=seq,action=action,key=str(key),
+        out.append(dict(candidate,event_id=seq,action=action,key=str(key),
                         type=key[0],tf=tf,kind=kind,
-                        available_idx=now,**candidate))
+                        available_idx=now))
         active[key]=state
 
     for ev in pivot_events(df,tf,start):
