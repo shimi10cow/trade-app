@@ -83,7 +83,12 @@ def run(df, tf, res, gen_events=None, generator='v2'):
                 active[k]['versions'].append((i, geo))
                 out.append(dict(idx=i, action='revise', key=k))
             else:
-                active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i,
+                # redraw: a newer line from the same anchor replaces the older live one
+                aid = e.get('anchor_id')
+                if aid is not None:
+                    for k2 in [x for x, v in active.items() if v.get('anchor_id') == aid and v['kind'] == e['kind']]:
+                        retire(i, k2, 'redrawn')
+                active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i, anchor_id=aid,
                                  tier=e.get('tier', 'main'), skip=e.get('skip', 0), a_ext=e.get('a_ext'),
                                  broken=None, count=set(), impulse_seen=False, versions=[(i, geo)], **geo)
                 out.append(dict(idx=i, action='create', key=k))

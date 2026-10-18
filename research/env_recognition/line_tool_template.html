@@ -76,7 +76,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <span class="rptime" id="rpTime"></span>
   </span>
   <span class="grp"><span class="lbl">エンジンの線：</span>
-    <button id="engOff" class="mono" aria-pressed="true">なし</button><button id="engMain" class="mono" aria-pressed="false">主要</button><button id="engAll" class="mono" aria-pressed="false">全部</button></span>
+    <button id="engOff" class="mono" aria-pressed="true">なし</button><button id="engMain" class="mono" aria-pressed="false">主要</button><button id="engNear" class="mono" aria-pressed="false">＋隣接</button><button id="engAll" class="mono" aria-pressed="false">全部</button></span>
   <span class="grp"><span class="lbl">他の時間足の線：</span><span class="grp" id="ovl"></span></span>
 </div>
 <div class="warn" id="warn" hidden></div>
@@ -90,7 +90,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <b>引き直し</b>：線をクリックして「選択した線を無効にする」→ その時点で無効になったと記録され、履歴は残ります（リプレイを戻すと再び表示）。
   間違えて引いた線だけ「完全に削除」（Deleteキー）してください。<br>
   <b>上位足のトレンド</b>：H1・M15 ではチャート上部に D1・H4 の主要トレンド（緑＝上昇、赤＝下降）を帯で表示。H4 と同じ向きの線（推進）は灰色で「推進」と表示します。<br>
-  <b>エンジンの線</b>：「主要」＝1点目がその波の一番外側＋高安を飛ばさない線、「全部」＝候補すべて。表示中は色が3種類だけになります：青＝あなたの線とエンジンが一致、オレンジ＝あなたの線だけ（エンジンが出せていない）、紫の点線＝エンジンの線だけ。線の右端の途切れはエンジンが線を消した足。<br>
+  <b>エンジンの線</b>：「主要」＝1点目がその波の一番外側＋隣の高安同士、「＋隣接」＝隣の高安同士の線を追加、「全部」＝高安を飛ばした線も追加。同じ起点から新しい線ができると古い線は引き直しとして消えます。表示中は色が3種類だけになります：青＝あなたの線とエンジンが一致、オレンジ＝あなたの線だけ（エンジンが出せていない）、紫の点線＝エンジンの線だけ。線の右端の途切れはエンジンが線を消した足。<br>
   <b>他の時間足の線</b>：W1〜M15 のボタンで、その時間足で引いた線を重ねて表示（細い線＋時間足ラベル）。
 </div>
 <h2 id="listTitle">この時間足の線</h2>
@@ -157,7 +157,8 @@ function lineCls(l){if(TFRANK[l.tf]>=TFRANK.H4)return null;const tr=ctxAt('H4',l
 // ---------- engine lines vs your lines ----------
 let engMode='off';
 const near=(t1,t2)=>Math.abs(idxF(t1)-idxF(t2))<=3;
-function engList(){if(engMode==='off')return[];return DATA[tf].eng.filter(e=>engMode==='all'||e[5]==='main')}
+const ENG_TIERS={main:['main'],near:['main','near'],all:['main','near','skip']};
+function engList(){if(engMode==='off')return[];return DATA[tf].eng.filter(e=>ENG_TIERS[engMode].includes(e[5]))}
 const engAlive=e=>e[6]<=nowT()&&(e[7]==null||e[7]>nowT());
 const engMatch=(e,u)=>u.tf===tf&&u.removedAt==null&&(u.dir==='up')===(e[4]==='lo')&&near(u.t1,e[0])&&near(u.t2,e[2]);
 
@@ -277,7 +278,7 @@ function loop(){raf=requestAnimationFrame(loop);
   for(const e of E){if(!engAlive(e)&&replayT!=null)continue;
     if(mine.some(u=>engMatch(e,u)))continue;   // matched pairs are shown once, as your blue line
     const until=e[7]!=null?chart.timeScale().logicalToCoordinate(idxF(e[7])):null;
-    seg({t:e[0],p:e[1]},{t:e[2],p:e[3]},css('--engx'),1.3,true,e[5]==='main'?'エンジン':'エンジン(sub)',true,until??W)}
+    seg({t:e[0],p:e[1]},{t:e[2],p:e[3]},css('--engx'),1.3,true,{main:'エンジン',near:'エンジン(隣接)',skip:'エンジン(飛ばし)'}[e[5]],true,until??W)}
   if(engMode!=='off')for(const u of mine){if(!visible(u))continue;const ok=E.some(e=>engMatch(e,u));
     const col=u.id===selId?css('--sel'):ok?css('--eng'):css('--miss');
     drawL(u,col,u.id===selId?3:2.2);
@@ -307,7 +308,7 @@ function refresh(){
   if(engMode!=='off'){const E=engList(),mine=lines.filter(x=>x.tf===tf&&x.removedAt==null);
     const hitU=mine.filter(u=>E.some(e=>engMatch(e,u))).length,hitE=E.filter(e=>mine.some(u=>engMatch(e,u))).length;
     $('status').textContent=`${tf}：あなたの線 ${mine.length}本のうちエンジンと一致 ${hitU}本 ／ エンジンの線 ${E.length}本のうち一致 ${hitE}本`}
-  for(const[id,m]of[['engOff','off'],['engMain','main'],['engAll','all']])$(id).setAttribute('aria-pressed',engMode===m);
+  for(const[id,m]of[['engOff','off'],['engMain','main'],['engNear','near'],['engAll','all']])$(id).setAttribute('aria-pressed',engMode===m);
   $('rpTime').textContent=replayT!=null?'現在 '+fmtAny(replayT):'';
   const rows=lines.filter(x=>x.tf===tf).sort((a,b)=>(b.drawnAt??b.t2)-(a.drawnAt??a.t2));
   $('listTitle').textContent=`${tf} の線（有効 ${rows.filter(x=>x.removedAt==null).length}本・履歴 ${rows.length}本）`;
@@ -369,7 +370,7 @@ for(const x of TFS){
   b.onclick=()=>{tf=x;select(null);pA=pB=null;try{localStorage.setItem('ltool_tf',x)}catch(e){};build(false)};$('tfs').appendChild(b);
   const o=document.createElement('button');o.className='mono';o.dataset.tf=x;o.textContent=x;o.setAttribute('aria-pressed','false');
   o.onclick=()=>{overlay.has(x)?overlay.delete(x):overlay.add(x);refresh()};$('ovl').appendChild(o)}
-for(const[id,m]of[['engOff','off'],['engMain','main'],['engAll','all']])$(id).onclick=()=>{engMode=m;refresh()};
+for(const[id,m]of[['engOff','off'],['engMain','main'],['engNear','near'],['engAll','all']])$(id).onclick=()=>{engMode=m;refresh()};
 $('optCtx').onchange=$('optDim').onchange=refresh;
 for(const id of ['optPiv','optSma'])$(id).addEventListener('change',()=>build(true));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>build(true));

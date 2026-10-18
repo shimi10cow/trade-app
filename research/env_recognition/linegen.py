@@ -1,12 +1,15 @@
 """Causal 2-point trendline candidates, v2 (fitted to the user's hand-drawn lines, 2026-10-18).
 
-Rules (labels/TRENDLINE_EVAL_20261018.md):
+Rules (labels/TRENDLINE_EVAL_20261018.md, user review 2026-10-18):
   - Both points are confirmed Dow pivots of the same kind (lows -> rising line, highs -> falling line).
   - B is the newest pivot; A is one of the previous same-kind pivots, skipping at most MAX_SKIP pivots.
   - At least MIN_GAP bars between A and B.
+  - A is the outermost wick between A and B ("covers the outside").
   - No CLOSE beyond the line between A and B (wicks may pierce), tolerance CLOSE_TOL x ATR.
-  - Tier 'main' = A is the outermost high/low of the leg (over [A - gap, B]) and no pivot skipped;
-    otherwise 'sub'. The user's lines are mostly 'main' on W1/D1/H4.
+  - Per B at most two lines: the one through the adjacent pivot (skip 0) and the longest one.
+  - tier 'main' = skip 0 and A outermost over [A - gap, B] (strict); 'near' = skip 0; 'skip' = longest with skips.
+  - Redraw: when a new line starts from the same A as an older live line, the older one is retired
+    ('redrawn') by the lifecycle module (lines.py).
 Output: append-only create / revise / retire events (same shape as chart_lab generator) with
 available_idx = bar whose close made the line known (B's confirmation or relocation bar).
 """
@@ -14,7 +17,7 @@ import numpy as np
 from .pivots import pivot_events, atr
 
 MIN_GAP = 6
-MAX_SKIP = 2
+MAX_SKIP = 3
 CLOSE_TOL = 0.05
 
 
@@ -36,13 +39,22 @@ def candidates_for_b(b, same, c, h, l, a):
             if v.max() > CLOSE_TOL:
                 continue
         g = i2 - i1
+        outer = bool(h[i1:i2 + 1].max() <= p1 + 1e-12) if k == 'hi' else bool(l[i1:i2 + 1].min() >= p1 - 1e-12)
+        if not outer:
+            continue
         w0 = max(0, i1 - g)
         a_ext = bool(h[w0:i2 + 1].max() <= p1 + 1e-12) if k == 'hi' else bool(l[w0:i2 + 1].min() >= p1 - 1e-12)
-        tier = 'main' if (a_ext and skip == 0) else 'sub'
+        tier = 'main' if (a_ext and skip == 0) else 'near' if skip == 0 else 'skip'
         key = f"v2:{k}:{A['id']}:{b['id']}"
         out[key] = dict(anchor_idx=int(i1), end_idx=int(i2), anchor_price=float(p1), end_price=float(p2),
-                        kind=k, skip=skip, a_ext=a_ext, tier=tier, move_atr=float(abs(p2 - p1) / a[i2]))
-    return out
+                        kind=k, skip=skip, a_ext=a_ext, tier=tier, move_atr=float(abs(p2 - p1) / a[i2]),
+                        anchor_id=A['id'])
+    # keep the adjacent-pivot line and the longest line only
+    keep = {kk for kk, v in out.items() if v['skip'] == 0}
+    sk = [kk for kk, v in out.items() if v['skip'] > 0]
+    if sk:
+        keep.add(max(sk, key=lambda kk: out[kk]['end_idx'] - out[kk]['anchor_idx']))
+    return {kk: out[kk] for kk in keep}
 
 
 def generate(df, tf=None, pivot_stream=None):
