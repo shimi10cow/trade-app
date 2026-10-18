@@ -26,20 +26,30 @@ def threshold(df, tf=None, k=None):
     return indicators(df, k=K if k is None else k)[1]
 
 
-def score(lab, piv, tol):
+def match(lab, piv, tol=2):
+    """Greedy nearest same-kind matching. Returns (user_flags, engine_list, engine_flags)."""
     if not lab:
-        return dict(recall=np.nan, precision=np.nan, f1=np.nan)
+        return [], [], []
     lo, hi = lab[0][0] - tol, lab[-1][0] + tol
     eng = [(p['idx'], p['kind']) for p in piv if lo <= p['idx'] <= hi]
-    used = set(); hit = 0
+    used = {}
+    uflag = []
     for i, k in lab:
         best = None
         for j, (e, ek) in enumerate(eng):
             if ek == k and j not in used and abs(e - i) <= tol and (best is None or abs(e - i) < abs(eng[best][0] - i)):
                 best = j
         if best is not None:
-            used.add(best); hit += 1
-    r = hit / len(lab); p = hit / max(len(eng), 1)
+            used[best] = i
+        uflag.append(best is not None)
+    return uflag, eng, [j in used for j in range(len(eng))]
+
+
+def score(lab, piv, tol=2):
+    if not lab:
+        return dict(recall=np.nan, precision=np.nan, f1=np.nan)
+    uf, eng, ef = match(lab, piv, tol)
+    r = sum(uf) / len(lab); p = sum(ef) / max(len(eng), 1)
     return dict(recall=r, precision=p, f1=2 * r * p / max(r + p, 1e-12), n_user=len(lab), n_engine=len(eng))
 
 

@@ -4,16 +4,16 @@
 /* Layout: toolbar on top, full-width chart, event log below. Chart-desk look, quiet chrome. */
 :root{
   --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
-  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;--sma20:#0284c7;--sma75:#b45309;--zone:rgba(110,90,200,.13);--zone-edge:rgba(110,90,200,.55);
+  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;--ok:#16a34a;--miss:#ea580c;--extra:#c026d3;--sma20:#0284c7;--sma75:#b45309;--zone:rgba(110,90,200,.13);--zone-edge:rgba(110,90,200,.55);
   --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
 .bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
@@ -26,6 +26,8 @@ label{font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center;
 .state b.up{color:var(--up)} .state b.down{color:var(--down)}
 #chart{position:relative;height:min(68vh,640px);min-height:360px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .hover{font:12px var(--mono);color:var(--muted);min-height:18px;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted);margin:0 0 6px}
+#labPanel{margin-bottom:14px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:8px 0 14px}
 .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
 h2{font-size:14px;margin:0 0 6px}
@@ -45,6 +47,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
   <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
   <label><input type="checkbox" id="optZone" checked> 水平帯</label>
+  <label><input type="checkbox" id="optLab"> 手打ちの点と照合</label>
   <label><input type="checkbox" id="optLine" checked> トレンドライン</label>
   <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
@@ -62,6 +65,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span>
   <span><i style="background:var(--zone-edge);height:8px"></i>水平帯（ヒゲ先〜実体、点線部分は有効化前）</span>
   <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
+</div>
+<div id="labPanel" hidden>
+<h2>照合：合っていない点（クリックで移動）</h2>
+<p class="note">◯ 緑＝あなたの点とエンジンが一致　◯ 橙＝あなたの点だがエンジンが取れていない　✕ 赤紫＝エンジンだけが取った点</p>
+<div class="log"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th>価格</th></tr></thead><tbody id="labLog"></tbody></table></div>
 </div>
 <h2>イベント一覧（クリックでその日付へ移動）</h2>
 <div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
@@ -133,6 +141,7 @@ function build(){
     const txt=e[1]==='prov'?`仮トレンド → ${e[2]==='up'?'上昇':'下降'}`:e[1]==='W_TOP'?'Wトップ（ネック割れ）':e[1]==='W_BOTTOM'?'Wボトム（ネック抜け）':e[1]==='rev'?`${NAMES.rev} → ${e[2]==='up'?'上昇':'下降'}（${e[3]} を終値で抜け）`:NAMES[e[1]]||e[1];
     return `<tr data-t="${e[0]}"><td>${fmt(e[0])}</td><td class="${cls}">${txt}</td><td>${e[3]}</td><td>${fmt(e[4])}</td></tr>`}).join('');
   document.getElementById('log').innerHTML=rows;
+  labTable();
 }
 let zc=null,zraf=0;
 function idxOf(d,t){if(t==null)return d.candles.length+3;let lo=0,hi=d.candles.length-1;
@@ -145,7 +154,7 @@ function setupZones(el,d){
     const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
     if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
     const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
-    if(lon)drawLines(g,r);if(!on)return;
+    if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
     const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
     g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
     for(const z of zs){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
@@ -157,6 +166,24 @@ function setupZones(el,d){
     g.restore()};
   draw();
 }
+function drawLabels(g,r){
+  const d=DATA[tf],ts=chart.timeScale(),W=ts.width();
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=2;g.setLineDash([]);
+  const X=t=>ts.timeToCoordinate(t),Y=p=>cs.priceToCoordinate(p);
+  for(const[t,k,p,ok]of d.ulab){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=ok?css('--ok'):css('--miss');g.beginPath();g.arc(x,yy,ok?5:7,0,7);g.stroke()}
+  for(const[t,k,p]of d.extra){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=css('--extra');g.beginPath();g.moveTo(x-5,yy-5);g.lineTo(x+5,yy+5);g.moveTo(x-5,yy+5);g.lineTo(x+5,yy-5);g.stroke()}
+  g.restore()}
+function labTable(){const d=DATA[tf];const rows=[];
+  for(const[t,k,p,ok]of d.ulab)if(!ok)rows.push([t,k,'あなたの点（エンジン取れず）',p,'miss']);
+  for(const[t,k,p]of d.extra)rows.push([t,k,'エンジンだけ',p,'extra']);
+  rows.sort((a,b)=>b[0]-a[0]);
+  const ok=d.ulab.filter(x=>x[3]).length;
+  document.getElementById('labLog').innerHTML=`<tr><td colspan="4">一致 ${ok} / あなたの点 ${d.ulab.length}　・取れず ${d.ulab.length-ok}　・エンジンだけ ${d.extra.length}</td></tr>`+
+    rows.map(r=>`<tr data-t="${r[0]}"><td>${fmt(r[0])}</td><td>${r[1]==='hi'?'高値':'安値'}</td><td style="color:var(--${r[4]})">${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+  document.getElementById('labPanel').hidden=!document.getElementById('optLab').checked}
+document.getElementById('labLog').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 function drawLines(g,r){
   const d=DATA[tf],ts=chart.timeScale(),W=ts.width(),last=d.candles.length-1;
   g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.4;
@@ -174,7 +201,7 @@ document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.c
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
   b.onclick=()=>{tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);build()};tfs.appendChild(b)}
-for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
+for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo','optLab'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',build);
 new MutationObserver(build).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 build();
