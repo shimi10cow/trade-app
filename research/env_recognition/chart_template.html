@@ -40,7 +40,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="bar">
   <h1>EURUSD ダウ環境認識</h1>
   <div class="tfs" id="tfs"></div>
-  <label><input type="checkbox" id="optPiv" checked> 高値安値</label>
+  <label><input type="checkbox" id="optPiv" checked> 高値安値の点</label>
   <label><input type="checkbox" id="optProt" checked> 押し安値/戻り高値</label>
   <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
   <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
@@ -54,7 +54,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="legend">
   <span><i style="background:var(--prot-up)"></i>押し安値（上昇中）</span>
   <span><i style="background:var(--prot-down)"></i>戻り高値（下降中）</span>
-  <span>▼▲ HH/HL/LH/LL＝ダウの高値安値（ヒゲ位置、確定は後の足）</span>
+  <span><i style="background:var(--down);width:8px;height:8px;border-radius:50%"></i>ダウの高値 <i style="background:var(--up);width:8px;height:8px;border-radius:50%"></i>ダウの安値（ヒゲ先の価格。確定するのは後の足）</span>
   <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
   <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
   <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span>
@@ -110,8 +110,10 @@ function build(){
   const m=[];
   if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
   if(document.getElementById('optW').checked) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
-  if(document.getElementById('optPiv').checked) for(const p of d.piv)
-    m.push({time:p[0],position:p[1]==='hi'?'aboveBar':'belowBar',shape:p[1]==='hi'?'arrowDown':'arrowUp',color:css('--piv'),text:p[3]});
+  if(document.getElementById('optPiv').checked) for(const k of ['hi','lo']){
+    const s=chart.addLineSeries({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:k==='hi'?css('--down'):css('--up'),
+      priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    s.setData(d.piv.filter(p=>p[1]===k).map(p=>({time:p[0],value:p[2]})));}
   for(const e of d.ev){
     if(e[1]==='rev')m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
     if(e[1]==='bo'&&document.getElementById('optBo').checked)m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
