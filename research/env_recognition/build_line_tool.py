@@ -17,7 +17,12 @@ def payload(tf):
     t = epoch_s(df.t)
     r5 = lambda x: round(float(x), 5)
     sma = {p: df.c.rolling(p).mean() for p in (20, 75)}
-    piv = [[t[p['idx']], p['kind'], r5(p['price'])] for p in final_pivots(pivot_events(df)) if p['idx'] >= s0]
+    ev = pivot_events(df)
+    known = {}
+    for e in ev:
+        known.setdefault(e['id'], e['available_idx'])
+    # final position + time it first became known (replay shows a pivot only after it is known)
+    piv = [[t[p['idx']], p['kind'], r5(p['price']), t[known[p['id']]]] for p in final_pivots(ev) if p['idx'] >= s0]
     return dict(c=[[t[i], r5(df.o[i]), r5(df.h[i]), r5(df.l[i]), r5(df.c[i])] for i in range(s0, n)],
                 s20=[[t[i], r5(sma[20][i])] for i in range(s0, n) if pd.notna(sma[20][i])],
                 s75=[[t[i], r5(sma[75][i])] for i in range(s0, n) if pd.notna(sma[75][i])],
