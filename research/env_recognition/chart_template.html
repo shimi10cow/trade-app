@@ -4,16 +4,16 @@
 /* Layout: toolbar on top, full-width chart, event log below. Chart-desk look, quiet chrome. */
 :root{
   --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
-  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;
+  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;
   --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;color-scheme:dark}}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;color-scheme:dark}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
 .bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
@@ -41,6 +41,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="tfs" id="tfs"></div>
   <label><input type="checkbox" id="optPiv" checked> 高値安値</label>
   <label><input type="checkbox" id="optProt" checked> 押し安値/戻り高値</label>
+  <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
+  <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <span class="state" id="state"></span>
 </div>
@@ -49,7 +51,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <span><i style="background:var(--prot-up)"></i>押し安値（上昇中）</span>
   <span><i style="background:var(--prot-down)"></i>戻り高値（下降中）</span>
   <span>▼▲ HH/HL/LH/LL＝ダウの高値安値（ヒゲ位置、確定は後の足）</span>
-  <span>◆ 転換＝終値が押し安値/戻り高値を抜けた足</span>
+  <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
+  <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
+  <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
 </div>
 <h2>イベント一覧（クリックでその日付へ移動）</h2>
 <div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
@@ -79,7 +83,12 @@ function build(){
   ps=chart.addLineSeries({lineType:1,lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   if(document.getElementById('optProt').checked)
     ps.setData(d.prot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1],color:p[2]==='up'?css('--prot-up'):css('--prot-down')}));
+  const pv=chart.addLineSeries({lineType:1,lineWidth:2,lineStyle:2,color:css('--prov'),priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  const showProv=document.getElementById('optProv').checked;
+  if(showProv) pv.setData(d.pprot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1]}));
   const m=[];
+  if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
+  if(document.getElementById('optW').checked) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
   if(document.getElementById('optPiv').checked) for(const p of d.piv)
     m.push({time:p[0],position:p[1]==='hi'?'aboveBar':'belowBar',shape:p[1]==='hi'?'arrowDown':'arrowUp',color:css('--piv'),text:p[3]});
   for(const e of d.ev){
@@ -89,10 +98,14 @@ function build(){
   m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
   const n=d.candles.length;chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
   const last=d.prot[n-1];
-  document.getElementById('state').innerHTML=last[2]?`最新足 <b class="${last[2]}">${last[2]==='up'?'上昇':'下降'}</b> ${last[2]==='up'?'押し安値':'戻り高値'} ${last[1]}`:'判定前';
-  const rows=d.ev.filter(e=>e[1]!=='bo').slice().reverse().map(e=>{
+  const pl=d.pprot[n-1],jp=x=>x==='up'?'上昇':'下降';
+  document.getElementById('state').innerHTML=(last[2]?`最新足 主要 <b class="${last[2]}">${jp(last[2])}</b> ${last[2]==='up'?'押し安値':'戻り高値'} ${last[1]}`:'判定前')+(pl[2]?` ／ 仮 <b class="${pl[2]}">${jp(pl[2])}</b> ${pl[1]}`:'');
+  const all=d.ev.filter(e=>e[1]!=='bo').concat(
+    d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
+    d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
+  const rows=all.slice().reverse().map(e=>{
     const cls=e[2]==='up'?'up':e[2]==='down'?'down':'';
-    const txt=e[1]==='rev'?`${NAMES.rev} → ${e[2]==='up'?'上昇':'下降'}（${e[3]} を終値で抜け）`:NAMES[e[1]]||e[1];
+    const txt=e[1]==='prov'?`仮トレンド → ${e[2]==='up'?'上昇':'下降'}`:e[1]==='W_TOP'?'Wトップ（ネック割れ）':e[1]==='W_BOTTOM'?'Wボトム（ネック抜け）':e[1]==='rev'?`${NAMES.rev} → ${e[2]==='up'?'上昇':'下降'}（${e[3]} を終値で抜け）`:NAMES[e[1]]||e[1];
     return `<tr data-t="${e[0]}"><td>${fmt(e[0])}</td><td class="${cls}">${txt}</td><td>${e[3]}</td><td>${fmt(e[4])}</td></tr>`}).join('');
   document.getElementById('log').innerHTML=rows;
 }
@@ -102,7 +115,7 @@ document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.c
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
   b.onclick=()=>{tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);build()};tfs.appendChild(b)}
-for(const id of ['optPiv','optProt','optBo'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
+for(const id of ['optPiv','optProt','optProv','optW','optBo'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',build);
 new MutationObserver(build).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 build();

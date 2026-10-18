@@ -102,3 +102,30 @@ def test_reversal_protect_is_latest_lower_high_not_top():
     df, r = _run_synth([1.00, 1.05, 1.03, 1.08, 1.06, 1.10, 1.07, 1.09, 1.05])
     rp = acts(r, 'reversal_protect')[0]
     assert round(rp['price'], 2) == 1.09
+
+
+def test_provisional_up_inside_major_down():
+    # major down with 戻り高値 far above; inner higher lows/highs -> provisional up, major unchanged
+    df, r = _run_synth([1.20, 1.10, 1.15, 1.00, 1.04, 1.02, 1.06, 1.03, 1.08, 1.05, 1.10])
+    ps = [e for e in r['prov_events'] if e['action'] == 'PROV_START']
+    assert ps and ps[0]['to'] == 'up'
+    assert round(ps[0]['l2'], 2) == 1.03
+    assert r['bars'][-1][0] == 'down'          # major still down
+    assert r['prov_bars'][-1][0] == 'up'
+
+
+def test_w_top_in_major_up():
+    # up trend, A=1.10, B=1.07, C=1.095 (no close above A), then close below B
+    df, r = _run_synth([1.00, 1.05, 1.03, 1.10, 1.07, 1.095, 1.06])
+    w = r['w_events']
+    assert len(w) == 1 and w[0]['action'] == 'W_TOP'
+    assert round(w[0]['b'], 2) == 1.07
+
+
+def test_prov_and_w_no_lookahead():
+    df = load('H4')
+    full = dow_trend.run(df, 'H4')
+    cut = len(df) // 2
+    part = dow_trend.run(df.iloc[:cut].reset_index(drop=True), 'H4')
+    assert part['prov_bars'] == full['prov_bars'][:cut]
+    assert part['w_events'] == [e for e in full['w_events'] if e['idx'] < cut]
