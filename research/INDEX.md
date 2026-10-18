@@ -48,3 +48,5 @@ Reorganized 36 paths in commit `86f7278`. Existing file contents preserved. Any 
 ## 2026-10-18 Claude Code migration handoff
 - `research/studies/notes/2026-10-18_CLAUDE_CODE_MIGRATION_HANDOFF.md` — experiment rules, numerical ledger, caveats and migration steps.
 - Local `EA_Claude_Code_handoff_2026-10-18.zip` contains standalone Python scripts, CSV results and derived data; **not uploaded to GitHub**. Import and commit lightweight files separately. See handoff note.
+
+- `research/studies/notes/2026-10-18_EXPERIMENT_ENGINE_CONDITIONS.md` — **exact experiment-to-engine mapping**: data, causal event definitions, stochastic, SL, spread, +1.5R/+2R trailing, cap1/cap2, level gate, results, and local script filenames. Read before reproducing.
