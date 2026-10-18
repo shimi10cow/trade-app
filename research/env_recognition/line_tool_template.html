@@ -55,6 +55,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <h1>トレンドライン手書き</h1>
   <div class="grp" id="tfs"></div>
   <button class="draw" id="btnDraw" aria-pressed="false">線を引く (L)</button>
+  <button class="draw" id="btnChan" aria-pressed="false">チャンネル (C)</button>
   <button id="btnRetire" disabled>選択した線を無効にする</button>
   <button id="btnDel" disabled>完全に削除</button>
   <label><input type="checkbox" id="optSnap" checked> ヒゲ先に吸着</label>
@@ -79,14 +80,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div id="chart"></div>
 <div class="help">
   <b>線を引く</b>：「線を引く」→ 1点目 → 2点目をクリック（Escで取り消し）。吸着ONなら近い方のヒゲ先に合わせます。<br>
-  <b>リプレイ</b>：「リプレイ」→ 日付を選んで「この日から」。▶（→キー）で1本ずつ進みます。その時点までの足とエンジンの高値安値だけが見えます。
+  <b>チャンネル</b>：「チャンネル」→ 1点目 → 2点目で基準のトレンドライン、3点目をクリックした位置に平行線を引きます（利確の目安など）。<br>
+  <b>リプレイ</b>：「リプレイ」→ 日付を選んで「この日から」。▶（→キー）で1本ずつ進みます。ボタン長押し（またはキー押しっぱなし）で連続早送り。その時点までの足とエンジンの高値安値だけが見えます。
   リプレイ中に引いた線は「その時点で引いた」と記録されます。<br>
   <b>引き直し</b>：線をクリックして「選択した線を無効にする」→ その時点で無効になったと記録され、履歴は残ります（リプレイを戻すと再び表示）。
   間違えて引いた線だけ「完全に削除」（Deleteキー）してください。<br>
   <b>他の時間足の線</b>：W1〜M15 のボタンで、その時間足で引いた線を重ねて表示（細い線＋時間足ラベル）。
 </div>
 <h2 id="listTitle">この時間足の線</h2>
-<div class="log"><table><thead><tr><th>1点目</th><th>価格</th><th>2点目</th><th>価格</th><th>向き</th><th>引いた時点</th><th>無効にした時点</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
+<div class="log"><table><thead><tr><th>1点目</th><th>価格</th><th>2点目</th><th>価格</th><th>向き</th><th>種類</th><th>引いた時点</th><th>無効にした時点</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
 <div id="exportBox" hidden>
   <h2 style="margin-top:14px">バックアップ（保存先に接続できないときは、この内容をチャットに貼ってください）</h2>
   <textarea id="exportText" readonly></textarea>
@@ -99,7 +101,7 @@ const TFS=['W1','D1','H4','H1','M15'];
 const TFSEC={W1:604800,D1:86400,H4:14400,H1:3600,M15:900};
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const $=id=>document.getElementById(id);
-let tf='H4',chart,cs,canvas,raf=0,drawing=false,pA=null,hover=null,selId=null;
+let tf='H4',chart,cs,ser={},canvas,raf=0,drawing=false,chanMode=false,pA=null,pB=null,hover=null,selId=null;
 let lines=[];          // {id,tf,t1,p1,t2,p2,dir,savedAt,drawnAt,removedAt}
 let col=null;
 let replayT=null;      // epoch sec: last bar CLOSE time visible; null = full view
@@ -153,7 +155,7 @@ const goneNow=l=>l.removedAt!=null&&l.removedAt<=nowT()&&(l.drawnAt??0)<=nowT();
 function build(keepRange){
   const el=$('chart');const prev=keepRange&&chart?chart.timeScale().getVisibleLogicalRange():null;
   cancelAnimationFrame(raf);el.innerHTML='';
-  const d=DATA[tf],k=lastIdx(),cut=d.c.slice(0,k+1),lastT=cut.length?cut[cut.length-1][0]:0;
+  const d=DATA[tf],n0=lastIdx()+1;
   chart=LightweightCharts.createChart(el,{autoSize:true,
     layout:{background:{color:css('--panel')},textColor:css('--muted'),fontFamily:css('--mono')},
     grid:{vertLines:{color:css('--line')},horzLines:{color:css('--line')}},
@@ -165,24 +167,32 @@ function build(keepRange){
           type===2?`${p(x.getUTCMonth()+1)}/${p(x.getUTCDate())}`:`${p(x.getUTCHours())}:${p(x.getUTCMinutes())}`}}});
   cs=chart.addCandlestickSeries({upColor:'#ffffff00',borderUpColor:css('--fg'),wickUpColor:css('--fg'),
     downColor:css('--fg'),borderDownColor:css('--fg'),wickDownColor:css('--fg'),priceLineVisible:false});
-  cs.setData(cut.map(c=>({time:c[0],open:c[1],high:c[2],low:c[3],close:c[4]})));
+  ser={};
   if($('optSma').checked){
-    chart.addLineSeries({color:css('--sma20'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.s20.filter(x=>x[0]<=lastT).map(x=>({time:x[0],value:x[1]})));
-    chart.addLineSeries({color:css('--sma75'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.s75.filter(x=>x[0]<=lastT).map(x=>({time:x[0],value:x[1]})));}
-  if($('optPiv').checked) for(const kk of ['hi','lo']){
-    const s=chart.addLineSeries({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:3,color:kk==='hi'?css('--piv-hi'):css('--piv-lo'),
+    ser.s20=chart.addLineSeries({color:css('--sma20'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    ser.s75=chart.addLineSeries({color:css('--sma75'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});}
+  if($('optPiv').checked) for(const kk of ['hi','lo'])
+    ser[kk]=chart.addLineSeries({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:3,color:kk==='hi'?css('--piv-hi'):css('--piv-lo'),
       priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
-    // in replay a pivot appears only once its confirming bar has closed
-    s.setData(d.piv.filter(p=>p[1]===kk&&p[0]<=lastT&&(replayT==null||p[3]+TFSEC[tf]<=replayT)).map(p=>({time:p[0],value:p[2]})));}
+  setSeries();
   if(prev)chart.timeScale().setVisibleLogicalRange(prev);
-  else{const n=cut.length;chart.timeScale().setVisibleLogicalRange({from:n-200,to:n+12})}
+  else chart.timeScale().setVisibleLogicalRange({from:n0-200,to:n0+12});
   canvas=document.createElement('canvas');canvas.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:3';el.appendChild(canvas);
   chart.subscribeClick(onClick);
   chart.subscribeCrosshairMove(q=>{hover=q.point&&q.logical!=null?pick(q.logical,q.point.y):null;
     if(q.point&&q.logical!=null){const i=Math.max(0,Math.min(lastIdx(),Math.round(q.logical)));const b=ALL()[i];
-      if(b)$('status').textContent=`${fmt(b[0])}  始${b[1]} 高${b[2]} 安${b[3]} 終${b[4]}`+(drawing?(pA?'　→ 2点目をクリック':'　→ 1点目をクリック'):'')}});
+      if(b)$('status').textContent=`${fmt(b[0])}  始${b[1]} 高${b[2]} 安${b[3]} 終${b[4]}`+(drawing?(pB?'　→ 平行線を通す3点目をクリック':pA?'　→ 2点目をクリック':'　→ 1点目をクリック'):'')}});
   el.classList.toggle('drawing',drawing);el.classList.toggle('replaying',replayT!=null);
   loop();refresh();
+}
+// replace series data for the current replay cut (no chart rebuild: fast enough for held-down fast-forward)
+function setSeries(){
+  const d=DATA[tf],k=lastIdx(),cut=d.c.slice(0,k+1),lastT=cut.length?cut[cut.length-1][0]:0;
+  cs.setData(cut.map(c=>({time:c[0],open:c[1],high:c[2],low:c[3],close:c[4]})));
+  if(ser.s20){ser.s20.setData(d.s20.filter(x=>x[0]<=lastT).map(x=>({time:x[0],value:x[1]})));
+    ser.s75.setData(d.s75.filter(x=>x[0]<=lastT).map(x=>({time:x[0],value:x[1]})));}
+  // in replay a pivot appears only once its confirming bar has closed
+  for(const kk of ['hi','lo'])if(ser[kk])ser[kk].setData(d.piv.filter(p=>p[1]===kk&&p[0]<=lastT&&(replayT==null||p[3]+TFSEC[tf]<=replayT)).map(p=>({time:p[0],value:p[2]})));
 }
 function pick(logical,y){
   const i=Math.max(0,Math.min(lastIdx(),Math.round(logical)));const b=ALL()[i];if(!b)return null;
@@ -190,20 +200,29 @@ function pick(logical,y){
   if($('optSnap').checked)p=Math.abs(p-b[2])<Math.abs(p-b[3])?b[2]:b[3];
   return {t:b[0],p:+(+p).toFixed(5)};
 }
+// price of line a-b at time t, linear in bar index (same geometry as drawn)
+function baseAt(a,b,t){const ia=idxF(a.t),ib=idxF(b.t);return a.p+(b.p-a.p)*(idxF(t)-ia)/((ib-ia)||1)}
+const par=(l)=>l.off!=null?[{t:l.t1,p:l.p1+l.off},{t:l.t2,p:l.p2+l.off}]:null;
 const xy=(t,p)=>[chart.timeScale().logicalToCoordinate(idxF(t)),cs.priceToCoordinate(p)];
 function onClick(q){
   if(!q.point||q.logical==null)return;
   if(drawing){const pt=pick(q.logical,q.point.y);if(!pt)return;
     if(!pA){pA=pt;return}
-    if(pt.t===pA.t)return;
-    const [a,b]=pt.t<pA.t?[pt,pA]:[pA,pt];pA=null;
-    addLine({tf,t1:a.t,p1:a.p,t2:b.t,p2:b.p,dir:b.p>=a.p?'up':'down',savedAt:new Date().toISOString(),
+    if(!pB){if(pt.t===pA.t)return;
+      const [a,b]=pt.t<pA.t?[pt,pA]:[pA,pt];
+      if(chanMode){pA=a;pB=b;return}
+      pA=pB=null;
+      addLine({kind:'line',tf,t1:a.t,p1:a.p,t2:b.t,p2:b.p,dir:b.p>=a.p?'up':'down',savedAt:new Date().toISOString(),
+        drawnAt:replayT,removedAt:null,inReplay:replayT!=null});return}
+    const off=+(pt.p-baseAt(pA,pB,pt.t)).toFixed(5);const a=pA,b=pB;pA=pB=null;
+    addLine({kind:'channel',tf,t1:a.t,p1:a.p,t2:b.t,p2:b.p,t3:pt.t,p3:pt.p,off,dir:b.p>=a.p?'up':'down',savedAt:new Date().toISOString(),
       drawnAt:replayT,removedAt:null,inReplay:replayT!=null});return}
   let best=null,bd=8;const W=chart.timeScale().width();
   for(const l of lines.filter(x=>x.tf===tf&&(visible(x)||($('optGone').checked&&goneNow(x))))){
-    const[x1,y1]=xy(l.t1,l.p1),[x2,y2]=xy(l.t2,l.p2);if([x1,y1,x2,y2].some(v=>v==null))continue;
-    const s=(y2-y1)/((x2-x1)||1),xe=Math.max(W,x2),ye=y2+s*(xe-x2);
-    const dist=segDist(q.point.x,q.point.y,x1,y1,xe,ye);if(dist<bd){bd=dist;best=l.id}}
+    for(const[A,B]of[[{t:l.t1,p:l.p1},{t:l.t2,p:l.p2}],par(l)].filter(Boolean)){
+      const[x1,y1]=xy(A.t,A.p),[x2,y2]=xy(B.t,B.p);if([x1,y1,x2,y2].some(v=>v==null))continue;
+      const s=(y2-y1)/((x2-x1)||1),xe=Math.max(W,x2),ye=y2+s*(xe-x2);
+      const dist=segDist(q.point.x,q.point.y,x1,y1,xe,ye);if(dist<bd){bd=dist;best=l.id}}}
   select(best);
 }
 function select(id){selId=id;const l=lines.find(x=>x.id===id);
@@ -215,23 +234,26 @@ function loop(){raf=requestAnimationFrame(loop);
   if(canvas.width!==Math.round(r.width*dpr)||canvas.height!==Math.round(r.height*dpr)){canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);canvas.style.width=r.width+'px';canvas.style.height=r.height+'px'}
   const g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
   const W=chart.timeScale().width();g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='10px '+css('--mono');
-  const xEnd=replayT!=null?chart.timeScale().logicalToCoordinate(lastIdx()+0.5):W;
   const seg=(a,b,col,w,extend,label,dashMain,until)=>{const[x1,y1]=xy(a.t,a.p),[x2,y2]=xy(b.t,b.p);if([x1,y1,x2,y2].some(v=>v==null))return;
     g.strokeStyle=col;g.lineWidth=w;g.setLineDash(dashMain?[2,3]:[]);g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();
-    const xe=Math.min(until??W,xEnd??W);
+    const xe=Math.min(until??W,W);
     if(extend&&x2>x1&&xe>x2){const s=(y2-y1)/(x2-x1);g.setLineDash([5,4]);g.beginPath();g.moveTo(x2,y2);g.lineTo(xe,y2+s*(xe-x2));g.stroke()}
     g.setLineDash([]);g.fillStyle=col;for(const[x,y]of[[x1,y1],[x2,y2]]){g.beginPath();g.arc(x,y,w>1.5?3:2,0,7);g.fill()}
     if(label){g.fillText(label,x2+4,y2-4)}};
+  const drawL=(l,col,w,label,dash,until)=>{seg({t:l.t1,p:l.p1},{t:l.t2,p:l.p2},col,w,true,label,dash,until);
+    const pp=par(l);if(pp){g.globalAlpha=.8;seg(pp[0],pp[1],col,Math.max(1,w-0.5),true,label?label+' ch':null,dash,until);g.globalAlpha=1}};
   // other timeframes (thin, labelled)
   for(const k of overlay){if(k===tf)continue;
     for(const l of lines.filter(x=>x.tf===k&&visible(x)))
-      seg({t:l.t1,p:l.p1},{t:l.t2,p:l.p2},l.dir==='up'?css('--up'):css('--down'),1,true,k,true)}
+      drawL(l,l.dir==='up'?css('--up'):css('--down'),1,k,true)}
   // this timeframe
   for(const l of lines.filter(x=>x.tf===tf)){const sel=l.id===selId;
-    if(visible(l))seg({t:l.t1,p:l.p1},{t:l.t2,p:l.p2},sel?css('--sel'):(l.dir==='up'?css('--up'):css('--down')),sel?3:2,true);
+    if(visible(l))drawL(l,sel?css('--sel'):(l.dir==='up'?css('--up'):css('--down')),sel?3:2);
     else if($('optGone').checked&&goneNow(l)){const xr=chart.timeScale().logicalToCoordinate(idxF(l.removedAt));
-      seg({t:l.t1,p:l.p1},{t:l.t2,p:l.p2},sel?css('--sel'):css('--gone'),sel?2.5:1.5,true,'無効',false,xr??W)}}
-  if(drawing&&pA&&hover)seg(pA,hover,css('--sel'),1.5,false);
+      drawL(l,sel?css('--sel'):css('--gone'),sel?2.5:1.5,'無効',false,xr??W)}}
+  if(drawing&&pA&&pB){seg(pA,pB,css('--sel'),1.5,true);
+    if(hover){const off=hover.p-baseAt(pA,pB,hover.t);seg({t:pA.t,p:pA.p+off},{t:pB.t,p:pB.p+off},css('--sel'),1.2,true,null,true)}}
+  else if(drawing&&pA&&hover&&hover.t!==pA.t){const[a,b]=hover.t<pA.t?[hover,pA]:[pA,hover];seg(a,b,css('--sel'),1.5,true)}
   if(drawing&&pA){const[x,y]=xy(pA.t,pA.p);if(x!=null&&y!=null){g.strokeStyle=css('--sel');g.lineWidth=2;g.beginPath();g.arc(x,y,6,0,7);g.stroke()}}
   g.restore()}
 function refresh(){
@@ -243,18 +265,20 @@ function refresh(){
   const rows=lines.filter(x=>x.tf===tf).sort((a,b)=>(b.drawnAt??b.t2)-(a.drawnAt??a.t2));
   $('listTitle').textContent=`${tf} の線（有効 ${rows.filter(x=>x.removedAt==null).length}本・履歴 ${rows.length}本）`;
   $('list').innerHTML=rows.length?rows.map(l=>`<tr data-id="${l.id}" class="${l.id===selId?'selrow':''} ${l.removedAt!=null?'gone':''}">
-    <td>${fmt(l.t1)}</td><td>${l.p1}</td><td>${fmt(l.t2)}</td><td>${l.p2}</td><td class="${l.dir}">${l.dir==='up'?'上昇':'下降'}</td>
+    <td>${fmt(l.t1)}</td><td>${l.p1}</td><td>${fmt(l.t2)}</td><td>${l.p2}</td><td class="${l.dir}">${l.dir==='up'?'上昇':'下降'}</td><td>${l.kind==='channel'?'チャンネル':'ライン'}</td>
     <td>${l.drawnAt!=null?fmtAny(l.drawnAt):'全体表示'}</td><td>${l.removedAt!=null?fmtAny(l.removedAt):'—'}</td>
     <td>${l.removedAt!=null?`<button data-undo="${l.id}">有効に戻す</button>`:''} <button data-del="${l.id}">削除</button></td></tr>`).join('')
-    :'<tr><td colspan="8">まだ線がありません。「線を引く」を押して2点をクリックしてください。</td></tr>';
+    :'<tr><td colspan="9">まだ線がありません。「線を引く」を押して2点をクリックしてください。</td></tr>';
 }
 $('list').addEventListener('click',ev=>{
   const del=ev.target.closest('button[data-del]');if(del){delLine(del.dataset.del);return}
   const un=ev.target.closest('button[data-undo]');if(un){patchLine(un.dataset.undo,{removedAt:null});return}
   const r=ev.target.closest('tr[data-id]');if(!r)return;const l=lines.find(x=>x.id===r.dataset.id);if(!l)return;
   select(l.id);const a=idxF(l.t1),b=idxF(l.t2);chart.timeScale().setVisibleLogicalRange({from:a-30,to:Math.min(b+60,lastIdx()+12)})});
-function setDraw(v){drawing=v;pA=null;$('btnDraw').setAttribute('aria-pressed',v);$('chart').classList.toggle('drawing',v)}
-$('btnDraw').onclick=()=>setDraw(!drawing);
+function setDraw(v,ch=false){drawing=v;chanMode=v&&ch;pA=pB=null;
+  $('btnDraw').setAttribute('aria-pressed',v&&!ch);$('btnChan').setAttribute('aria-pressed',v&&ch);$('chart').classList.toggle('drawing',v)}
+$('btnDraw').onclick=()=>setDraw(!(drawing&&!chanMode));
+$('btnChan').onclick=()=>setDraw(!(drawing&&chanMode),true);
 $('btnDel').onclick=()=>{if(selId)delLine(selId)};
 $('btnRetire').onclick=()=>{if(!selId)return;
   // retire at the current replay time; in full view at the last bar's close
@@ -267,25 +291,35 @@ function setReplay(on){
     const i=Math.max(60,Math.min(d.length-1,Math.round(r?r.from+(r.to-r.from)*0.4:d.length-200)));
     replayT=d[i][0]+TFSEC[tf];$('rpDate').value=new Date(d[i][0]*1000).toISOString().slice(0,10)}
   else replayT=null;
-  $('btnReplay').setAttribute('aria-pressed',on);$('rpCtl').hidden=!on;pA=null;build(false)}
+  $('btnReplay').setAttribute('aria-pressed',on);$('rpCtl').hidden=!on;pA=pB=null;build(false)}
 function step(n){if(replayT==null)return;const d=ALL();let k=lastIdx()+n;k=Math.max(0,Math.min(d.length-1,k));
-  replayT=d[k][0]+TFSEC[tf];pA=null;
-  const r=chart.timeScale().getVisibleLogicalRange();build(true);
-  if(r&&n>0&&r.to<k+3){chart.timeScale().setVisibleLogicalRange({from:r.from+n,to:r.to+n})}}
+  if(d[k][0]+TFSEC[tf]===replayT)return;
+  replayT=d[k][0]+TFSEC[tf];pA=pB=null;
+  const r=chart.timeScale().getVisibleLogicalRange();setSeries();
+  if(r)chart.timeScale().setVisibleLogicalRange(r);
+  if(r&&n>0&&r.to<k+3){chart.timeScale().setVisibleLogicalRange({from:r.from+n,to:r.to+n})}
+  refresh()}
 $('btnReplay').onclick=()=>setReplay(replayT==null);
 $('rpGo').onclick=()=>{const v=$('rpDate').value;if(!v)return;const t=Date.parse(v+'T00:00:00Z')/1000;const d=ALL();
   let k=0;while(k<d.length-1&&d[k+1][0]<=t)k++;replayT=d[k][0]+TFSEC[tf];build(false)};
-$('rpBack').onclick=()=>step(-1);$('rpFwd').onclick=()=>step(1);$('rpFwd10').onclick=()=>step(10);
+// press = one step; hold = keep stepping until released
+function holdable(btn,n){let t1=0,t2=0;
+  const stop=()=>{clearTimeout(t1);clearInterval(t2);t1=t2=0};
+  btn.addEventListener('pointerdown',e=>{e.preventDefault();stop();step(n);t1=setTimeout(()=>{t2=setInterval(()=>step(n),70)},350)});
+  for(const ev of ['pointerup','pointerleave','pointercancel','blur'])btn.addEventListener(ev,stop);
+  btn.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();step(n)}})}
+holdable($('rpBack'),-1);holdable($('rpFwd'),1);holdable($('rpFwd10'),10);
 
 document.addEventListener('keydown',e=>{if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT')return;
-  if(e.key==='Escape'){if(pA)pA=null;else setDraw(false)}
-  if(e.key==='l'||e.key==='L')setDraw(!drawing);
+  if(e.key==='Escape'){if(pA||pB)pA=pB=null;else setDraw(false)}
+  if(e.key==='l'||e.key==='L')setDraw(!(drawing&&!chanMode));
+  if(e.key==='c'||e.key==='C')setDraw(!(drawing&&chanMode),true);
   if(e.key==='ArrowRight'&&replayT!=null){e.preventDefault();step(e.shiftKey?10:1)}
   if(e.key==='ArrowLeft'&&replayT!=null){e.preventDefault();step(e.shiftKey?-10:-1)}
   if((e.key==='Delete'||e.key==='Backspace')&&selId){e.preventDefault();delLine(selId)}});
 for(const x of TFS){
   const b=document.createElement('button');b.className='mono';b.dataset.tf=x;b.textContent=x;
-  b.onclick=()=>{tf=x;select(null);pA=null;try{localStorage.setItem('ltool_tf',x)}catch(e){};build(false)};$('tfs').appendChild(b);
+  b.onclick=()=>{tf=x;select(null);pA=pB=null;try{localStorage.setItem('ltool_tf',x)}catch(e){};build(false)};$('tfs').appendChild(b);
   const o=document.createElement('button');o.className='mono';o.dataset.tf=x;o.textContent=x;o.setAttribute('aria-pressed','false');
   o.onclick=()=>{overlay.has(x)?overlay.delete(x):overlay.add(x);refresh()};$('ovl').appendChild(o)}
 for(const id of ['optPiv','optSma'])$(id).addEventListener('change',()=>build(true));
