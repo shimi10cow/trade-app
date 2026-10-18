@@ -4,6 +4,7 @@ on:
     paths:
       - 'research/chart_lab/apply_auto_objects_20261018.py'
       - '.github/workflows/patch-complete-trendline.yml'
+      - 'research/chart_lab/refine_auto_objects_20261018.py'
 permissions:
   contents: write
 jobs:
@@ -15,6 +16,8 @@ jobs:
           persist-credentials: true
       - name: Patch original Complete HTML
         run: python research/chart_lab/apply_auto_objects_20261018.py
+      - name: Refine editable trendline behavior
+        run: python research/chart_lab/refine_auto_objects_20261018.py
       - name: Commit original Complete HTML
         run: |
           git config user.name "github-actions[bot]"
