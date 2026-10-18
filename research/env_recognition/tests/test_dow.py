@@ -39,7 +39,7 @@ def test_parity_with_frozen_detector(tf):
     assert [(int(a), 'hi' if k == 1 else 'lo') for a, k, _ in ref] == [(p['idx'], p['kind']) for p in mine]
 
 
-@pytest.mark.parametrize('tf', ['D1', 'H4'])
+@pytest.mark.parametrize('tf', ['W1', 'D1', 'H4', 'H1'])
 def test_no_lookahead(tf):
     df = load(tf)
     full = dow_trend.run(df, tf)
@@ -47,6 +47,9 @@ def test_no_lookahead(tf):
         part = dow_trend.run(df.iloc[:cut].reset_index(drop=True), tf)
         assert part['bars'] == full['bars'][:cut]
         assert part['events'] == [e for e in full['events'] if e['idx'] < cut]
+        assert part['prov_bars'] == full['prov_bars'][:cut]
+        assert part['prov_events'] == [e for e in full['prov_events'] if e['idx'] < cut]
+        assert part['w_events'] == [e for e in full['w_events'] if e['idx'] < cut]
 
 
 def _run_synth(points, step=10):
