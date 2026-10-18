@@ -1,0 +1,23 @@
+name: Patch Complete trendline objects
+on:
+  push:
+    paths:
+      - 'research/chart_lab/apply_auto_objects_20261018.py'
+      - '.github/workflows/patch-complete-trendline.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Patch original Complete HTML
+        run: python research/chart_lab/apply_auto_objects_20261018.py
+      - name: Commit original Complete HTML
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add research/chart_lab/eurusd_chart_lab_complete.html
+          git diff --cached --quiet || (git commit -m "Integrate editable auto trendlines into Complete chart" && git push)
