@@ -34,7 +34,7 @@ function xTime(time){let a=timestamps[tf],first=a[0],last=a[a.length-1],step=TF_
 function timeX(x){let i=clamp(Math.round((x-geom.left)/geom.dx+geom.start-.5),0,D.length-1);return ms(tf,i)}
 function nearestPoint(e){let r=cvs.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,i=clamp(Math.round((x-geom.left)/geom.dx+geom.start-.5),geom.start,geom.stop);return {x,y,i,t:ms(tf,i),p:geom.p(y)}}
 function color(o){return TF_COL[o.tf]||'#fff'}
-function visibleObject(o){if(o.auto){if(!autoTF[o.tf]||(o.autoType==='two'&&!autoShowTwo)||(o.autoType==='three'&&!autoShowThree))return false;let cutoff=ms(tf,replayEnd===null?D.length-1:replayEnd);return o.autoCreated<=cutoff&&(o.autoRetired===null||cutoff<o.autoRetired)&&o.pts.every(q=>q.t<=cutoff)}return replayEnd===null||o.pts.every(q=>q.t<=ms(tf,replayEnd))}
+function visibleObject(o){if(o.auto){if(!autoTF[o.tf]||(o.autoType==='two'&&!autoShowTwo)||(o.autoType==='three'&&!autoShowThree))return false;let cutoff=ms(tf,geom.stop);return o.autoCreated<=cutoff&&(o.autoRetired===null||cutoff<o.autoRetired)&&o.pts.every(q=>q.t<=cutoff)}return replayEnd===null||o.pts.every(q=>q.t<=ms(tf,replayEnd))}
 
 function draw(){if(!D.length)return;let g=view();geom=g,edge=g.w-g.right;ctx.clearRect(0,0,g.w,g.h);ctx.fillStyle='#101927';ctx.fillRect(0,0,g.w,g.h);ctx.font='11px system-ui';for(let j=0;j<=6;j++){let p=g.lo+(g.hi-g.lo)*j/6,y=g.y(p);ctx.strokeStyle='#273549';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(g.left,y);ctx.lineTo(edge,y);ctx.stroke();ctx.fillStyle='#b1c4df';ctx.fillText(fmt(p),edge+9,y+4)}let step=Math.max(1,Math.round(g.count/7));for(let i=g.start;i<=g.stop;i+=step){let x=g.x(i);ctx.strokeStyle='#202d3f';ctx.beginPath();ctx.moveTo(x,g.top);ctx.lineTo(x,g.h-g.bottom);ctx.stroke();ctx.fillStyle='#829bb9';ctx.fillText(D[i][0].slice(5,16),Math.min(x,edge-90),g.h-13)}
 ctx.save();ctx.beginPath();ctx.rect(g.left,g.top,edge-g.left,g.ph);ctx.clip();for(let i=g.start;i<=g.stop;i++){let b=D[i],x=g.x(i),up=b[4]>=b[1],c=up?'#42cda6':'#ef6b82',bw=Math.max(1.2,Math.min(13,g.dx*.67));ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,g.y(b[2]));ctx.lineTo(x,g.y(b[3]));ctx.stroke();let y1=g.y(Math.max(b[1],b[4])),y2=g.y(Math.min(b[1],b[4]));ctx.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
@@ -146,7 +146,7 @@ function evaluateAutoRetire(){
     }
     // Current protected swing violation retires the old line without waiting for a retest.
     const sw=o.autoSide==='lo'?lo:hi;
-    if(sw.length&&i>sw.at(-1)&&((o.autoSide==='lo'&&v[3]<b[sw.at(-1)][3])||(o.autoSide==='hi'&&v[2]>b[sw.at(-1)][2])))o.autoRetired=btime(srcTF,i);
+    if(sw.length&&btime(srcTF,sw.at(-1))>=o.autoCreated&&i>sw.at(-1)&&((o.autoSide==='lo'&&v[3]<b[sw.at(-1)][3])||(o.autoSide==='hi'&&v[2]>b[sw.at(-1)][2])))o.autoRetired=btime(srcTF,i);
    }
   }
  }
@@ -174,6 +174,7 @@ function drawAutoLines(){
  ctx.restore();ctx.globalAlpha=1;
 }
 refreshAutoPanel();
+// AUTO_OBJECTS_REFINEMENT_20261018
 installAutoTrendObjects();evaluateAutoRetire();
 renderMA();resize();update();
 </script></body></html>
