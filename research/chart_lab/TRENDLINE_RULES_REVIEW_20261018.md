@@ -17,15 +17,15 @@
 - Draw first–third; middle deviation <=0.85 ATR; >0.35 ATR close intrusion on <=10% of intervening bars; max intrusion <=1.7 ATR; normalized slope 0.25–7.
 - Suppress near duplicates using the thresholds and score recorded in TRENDLINE_RULES.md.
 
-## Retirement rules clarified in user discussions 2026-10-18 (separate from generation)
-- Each line must be tracked bar by bar, from its actual known-at creation/revision event. Do not use future-confirmed pivots retroactively.
-- Downward-sloping resistance line: on upside close break, count two subsequently confirmed Dow LOW events; retire when second is confirmed, regardless of relative low prices.
-- Upward-sloping support line: on downside close break, count two subsequently confirmed Dow HIGH events; retire when second is confirmed, regardless of relative high prices.
-- User also specified that when a break fails and price returns inside, a subsequent fresh break can restart the count. Avoid an eternal line due to reset behavior.
-- Independently retire when the Dow trend epoch to which a line belongs actually ends, including corrective trendlines that run counter to the major Dow trend. Retire at whichever condition occurs first.
-- A line may be valid during the most recent unfinished trend. Historical retired line segments remain visible but stop exactly at their retirement bar, not the viewport right edge. Never extend indefinitely due to unknown/missing trend association.
-- Use the SAME frozen causal Dow pivot events and their known-at timestamps for both trendline construction and retirement; do not introduce a separate ATR-based swing detector.
-- For audit, record line ID, generation time, revisions, break/rebreak events, counted pivot confirmations, Dow trend changes, retirement reason/time, and inspect all H4 lines. No claim of zero stale lines without actual replay verification.
+## Retirement rules — latest agreement 2026-10-18 (supersedes prior epoch-based deletion)
+- Line classification is **dynamic**, based on current confirmed Dow major-trend direction versus line slope: same direction = impulsive (推進); opposite direction = corrective (調整). Do NOT freeze the line's classification at its initial creation. On Dow reversal, a surviving corrective line can become impulsive and usable by a future EA.
+- **Impulsive line**: when the corresponding confirmed Dow trend reverses, retire the line immediately at the reversal's known-at bar. Track whether the line has been impulsive during the current trend epoch; a line that switches from impulsive to opposite-direction corrective must be retired, not silently reclassified and retained. A corrective line that becomes impulsive on a reversal survives that reversal, and retires when its new impulsive trend subsequently reverses.
+- **Break-based retirement applies to lines of either class**: descending line -> completed candle CLOSE above projected line -> count 2 unique subsequent confirmed Dow LOW pivots -> retire on second confirmation; ascending line -> CLOSE below projected line -> count 2 unique subsequent confirmed Dow HIGH pivots -> retire on second confirmation.
+- When a subsequent completed close returns to the inside of the line, reset the break-pivot counter to zero. Relocate of the same pivot is not a new pivot. Use causal known-at timestamps, no future data.
+- Distinguish pivot-relocation-induced line construction invalidation (handled by generation engine) from breakout/Dow-trend retirement (separate lifecycle layer).
+- The breakout + 2-pivot retirement is the **first implementation milestone**. Full impulsive-line retirement is gated on verified protected-high/low Dow reversal tracking; the latter is specified in DOW_RULES_20261018.md but NOT yet verified end-to-end.
+- Preserve immutable history of creation, revision, classification, break/reset, pivot counts, trend changes and retirement reason/time. EA reads only active lines as-of the current completed bar.
+- No arbitrary time-to-live or forced expiration. Long-lived W1 lines are acceptable.
 
 ## Important distinctions / open verification
 - The 2026-10-17 TRENDLINE_RULES.md describes construction, not a completed causal retirement engine. Its 'current implementation gaps' section contains historical notes and may be stale; inspect the code, not only that section.
