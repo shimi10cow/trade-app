@@ -63,5 +63,9 @@
 ## チャート
 表示は直近のみ（W1 400本/D1 500/H4 600/H1 800/M15 1000）。計算は全期間。SMA20/75表示。
 
+## トレンドライン手書きツール
+- `review/trendline_drawer.html`（`python -m env_recognition.build_line_tool ...` で再生成）。ユーザーが引いた線は artifact のDB `lines` コレクションに保存（tf, t1,p1,t2,p2 秒/価格, dir）
+- 目的：手書きの線を正解データにしてトレンドライン生成ロジックを採点・改良
+
 ## 未着手
 重なり合う別ピボットの帯の統合、トレンドライン寿命管理、リプレイ表示、EA用 state_asof。
