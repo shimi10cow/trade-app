@@ -5,6 +5,7 @@ on:
       - 'research/chart_lab/apply_auto_objects_20261018.py'
       - '.github/workflows/patch-complete-trendline.yml'
       - 'research/chart_lab/refine_auto_objects_20261018.py'
+      - 'research/chart_lab/stop_auto_lines_at_retirement_20261018.py'
 permissions:
   contents: write
 jobs:
@@ -18,6 +19,8 @@ jobs:
         run: python research/chart_lab/apply_auto_objects_20261018.py
       - name: Refine editable trendline behavior
         run: python research/chart_lab/refine_auto_objects_20261018.py
+      - name: Stop lines at retirement
+        run: python research/chart_lab/stop_auto_lines_at_retirement_20261018.py
       - name: Commit original Complete HTML
         run: |
           git config user.name "github-actions[bot]"
