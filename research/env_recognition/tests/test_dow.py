@@ -6,7 +6,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from env_recognition.pivots import pivot_events, final_pivots, indicators  # noqa
+from env_recognition.pivots import pivot_events, final_pivots, atr  # noqa
 from env_recognition import dow_trend  # noqa
 from env_recognition.data import load  # noqa
 
@@ -27,16 +27,21 @@ def zigzag(points, step=10):
 
 
 @pytest.mark.parametrize('tf', ['W1', 'D1', 'H4', 'H1', 'M15'])
-def test_parity_with_frozen_detector(tf):
+def test_algorithm_parity_with_frozen_v1(tf):
+    """Same state machine as frozen v1 when fed v1 thresholds and the outside-bar split is off."""
     pytest.importorskip('numba')
     sys.path.insert(0, str(ROOT / 'dow_frozen_v1'))
     import dow_final_engine as fz
     df = load(tf)
-    _, th = indicators(df, tf)
+    ap, k, boost, cut = fz.PARAMS[tf]
     h, l, c = (df[z].to_numpy(float) for z in 'hlc')
+    a = atr(df)
+    noise = pd.Series(abs(np.diff(c, prepend=c[0]))).rolling(20).sum().to_numpy()
+    er = np.zeros(len(c)); er[20:] = abs(c[20:] - c[:-20]) / np.maximum(noise[20:], 1e-12)
+    th = k * a * np.where(er >= cut, 1 + boost, 1)
     ref = fz.detect(h, l, c, th, 60, len(df) - 1)
-    mine = final_pivots(pivot_events(df, tf))
-    assert [(int(a), 'hi' if k == 1 else 'lo') for a, k, _ in ref] == [(p['idx'], p['kind']) for p in mine]
+    mine = final_pivots(pivot_events(df, tf, th=th, outside_bar=False))
+    assert [(int(x), 'hi' if kk == 1 else 'lo') for x, kk, _ in ref] == [(p['idx'], p['kind']) for p in mine]
 
 
 @pytest.mark.parametrize('tf', ['W1', 'D1', 'H4', 'H1'])

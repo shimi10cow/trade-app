@@ -5,7 +5,7 @@
 | ファイル | 役割 | 状態 |
 |---|---|---|
 | `data.py` | OHLC読込（chart lab HTMLの全5TF / H4 2003-2026 CSV→D1,W1） | OK |
-| `pivots.py` | ダウ高値安値の確定・移動イベント（known_at付き） | 凍結版 `dow_frozen_v1` と全5TFで完全一致（テスト済） |
+| `pivots.py` | ダウ高値安値の確定・移動イベント（known_at付き） | **v2**：全TF共通 1.9×ATR7、ER補正なし、包み足分解あり（`labels/EVAL_20261018.md`）。旧版の凍結エンジンとはアルゴリズム一致をテスト |
 | `dow_trend.py` | 主要トレンド・押し安値/戻り高値ステートマシン、HH/HL/LH/LLカウント | D1で目視レビュー中 |
 | `plot.py`, `run_review.py` | 確認用チャートPNG・イベントCSV | 開発用 |
 | `tests/` | パリティ・未来参照なし・手作りシナリオ | `python -m pytest env_recognition/tests` |
@@ -25,7 +25,7 @@
 - D5 転換直後の「次に抜くべき安値」は、割った押し安値より下にあるものだけ
 
 ## 方針（ユーザー合意）
-高値安値の検出（pivots.py, ATRルール）は後で差し替え・最適化できる部品。先に「どこを押し安値と見るか」のロジック（dow_trend.py）を固める。
+高値安値の検出（pivots.py）は差し替え可能な部品。正解データ `labels/` で採点して改良する。先に「どこを押し安値と見るか」のロジック（dow_trend.py）を固める。
 
 ## 確認用
 - `review/dow_env_chart.html`：全時間足のインタラクティブチャート（`python -m env_recognition.build_html env_recognition/review/dow_env_chart.html`で再生成）

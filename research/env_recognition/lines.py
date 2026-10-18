@@ -36,7 +36,7 @@ def line_value(ln, i):
 def run(df, tf, res, gen_events=None):
     c = df.c.to_numpy(float)
     if gen_events is None:
-        gen_events = generate_lines(df, tf)
+        gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
     gby = {}
     for e in gen_events:
         gby.setdefault(e['available_idx'], []).append(e)

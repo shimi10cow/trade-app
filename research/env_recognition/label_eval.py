@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from .data import load
-from .pivots import pivot_events, final_pivots, PARAMS
+from .pivots import pivot_events, final_pivots, indicators, K
 
 LABELS = Path(__file__).with_name('labels') / 'eurusd_dow_annotations_v14.json'
 
@@ -22,16 +22,8 @@ def labels(tf, df):
     return out, missing
 
 
-def threshold(df, tf, k=None, boost=None, cut=None):
-    ap, k0, b0, c0 = PARAMS[tf]
-    k = k0 if k is None else k; boost = b0 if boost is None else boost; cut = c0 if cut is None else cut
-    h, l, c = (df[z].to_numpy(float) for z in 'hlc')
-    pc = np.roll(c, 1)
-    tr = np.maximum(h - l, np.maximum(abs(h - pc), abs(l - pc))); tr[0] = h[0] - l[0]
-    atr = pd.Series(tr).ewm(alpha=1 / ap, adjust=False).mean().to_numpy()
-    noise = pd.Series(abs(np.diff(c, prepend=c[0]))).rolling(20).sum().to_numpy()
-    er = np.zeros(len(c)); er[20:] = abs(c[20:] - c[:-20]) / np.maximum(noise[20:], 1e-12)
-    return k * atr * np.where(er >= cut, 1 + boost, 1)
+def threshold(df, tf=None, k=None):
+    return indicators(df, k=K if k is None else k)[1]
 
 
 def score(lab, piv, tol):
@@ -51,8 +43,8 @@ def score(lab, piv, tol):
     return dict(recall=r, precision=p, f1=2 * r * p / max(r + p, 1e-12), n_user=len(lab), n_engine=len(eng))
 
 
-def evaluate(tf, tol=2, **kw):
+def evaluate(tf, tol=2, k=None, outside_bar=True):
     df = load(tf)
     lab, _ = labels(tf, df)
-    piv = final_pivots(pivot_events(df, tf, th=threshold(df, tf, **kw)))
+    piv = final_pivots(pivot_events(df, tf, th=threshold(df, k=k), outside_bar=outside_bar))
     return score(lab, piv, tol)
