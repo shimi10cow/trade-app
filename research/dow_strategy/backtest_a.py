@@ -30,7 +30,7 @@ PIP = 0.0001
 COST = 1.0 * PIP
 
 
-def run(start='2025-03-01', tp='zone_or_high'):
+def run(start='2025-03-01', tp='zone_or_high', trigger='major'):
     frames = {tf: load(tf) for tf in ('D1', 'H4', 'H1', 'M15')}
     env = EnvRecognizer(frames)
     m15 = env.tf['M15']
@@ -44,9 +44,15 @@ def run(start='2025-03-01', tp='zone_or_high'):
     m15_dir = {ln['key']: ln['direction'] for ln in m15['lines']['lines']}
     h4res = env.tf['H4']['res']
     trades = []
-    for e in m15['res']['events']:
-        if e['action'] != 'REVERSAL':
-            continue
+    if trigger == 'prov':
+        # provisional-trend changes (pattern start or provisional reversal); stop = provisional protected
+        evs = [dict(x, broken_anchor=x.get('broken_anchor', x['idx'])) for x in m15['res']['prov_events']
+               if x['action'] in ('REVERSAL', 'PROV_START')]
+        stop_bars = m15['res']['prov_bars']
+    else:
+        evs = [x for x in m15['res']['events'] if x['action'] == 'REVERSAL']
+        stop_bars = m15['res']['bars']
+    for e in evs:
         k = e['idx']
         if t[k] < pd.Timestamp(start) or k + 1 >= len(df):
             continue
@@ -57,7 +63,7 @@ def run(start='2025-03-01', tp='zone_or_high'):
         h4, d1 = st['H4'], st['D1']
         if h4 is None or h4['trend'] != d:
             continue
-        stop_lvl = m15['res']['bars'][k][1]       # new M15 protected swing after the reversal
+        stop_lvl = stop_bars[k][1]                # new M15 (provisional) protected swing
         entry = o[k + 1]
         stop = stop_lvl - sgn * PIP
         risk = sgn * (entry - stop)
@@ -132,10 +138,10 @@ def summary(T):
 
 
 if __name__ == '__main__':
-    T = run(tp=sys.argv[1] if len(sys.argv) > 1 else 'zone_or_high')
+    T = run(tp=sys.argv[1] if len(sys.argv) > 1 else 'zone_or_high', trigger=sys.argv[2] if len(sys.argv) > 2 else 'major')
     out = Path(__file__).with_name('results')
     out.mkdir(exist_ok=True)
-    T.to_csv(out / 'pattern_a_trades.csv', index=False)
+    T.to_csv(out / f'pattern_a_trades_{sys.argv[1:] and "_".join(sys.argv[1:]) or "default"}.csv', index=False)
     S = summary(T)
     S.to_csv(out / 'pattern_a_summary.csv')
     print(S.to_string())
