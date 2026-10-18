@@ -1,4 +1,6 @@
 # Claude Code migration handoff — FX EA / Dow / trendline / horizontal zones
+
+> **START HERE:** [RESEARCH_INDEX_20261018.md](RESEARCH_INDEX_20261018.md) lists confirmed file locations, missing engine paths, each experiment's conditions, reported metrics, and provenance. Read the index BEFORE attempting to run an old backtest.
 Date: 2026-10-18. Status: specification + research handoff, NOT a verified working EA.
 Repo: shimi10cow/trade-app. Work in a feature branch; preserve existing trading-app functionality and frozen reference detectors.
 
@@ -13,7 +15,7 @@ Reproduce discretionary Dow market structure in an entirely causal, testable, mu
 - research/chart_lab/TRENDLINE_RULES_REVIEW_20261018.md — **latest** retirement rules; supersedes its earlier version and any contradictory legacy notes.
 - research/chart_lab/FEATURE_MAP.md — chart/EA UI integration.
 - research/chart_lab/eurusd_chart_lab_complete.html — manual chart baseline; historical overlay is NOT evidence of real-time signal availability.
-- research/ea_shared/engine_m15.py and research/ea_shared/run_compare.py — earlier EA shared backtest engine, a distinct research track.
+- research/ea_shared/engine_m15.py and research/ea_shared/run_compare.py — **NOT FOUND at these GitHub paths (404 on 2026-10-18)**. Historical references only; recover original files before claiming reproducibility. See research/RESEARCH_INDEX_20261018.md.
 Some older source documents contain stale 'implementation gaps' sections; inspect actual code and run tests rather than assuming they reflect current status.
 
 ## Frozen causal Dow pivot detector
@@ -59,7 +61,7 @@ Outer edge = pivot wick; inner edge = nearest body edge in full relevant structu
 5. No independent, full-history all-line zero-stale audit or production-quality causal line lifecycle has been demonstrated. Do not assert completion.
 
 ## Separate earlier EA strategy/backtest track — do not conflate
-Strategy researched: H1 trend SMA200/480, SMA480 24h slope; M15 Stoch 14,3,3; M15 entry/exit, P1/P2 favored, P3 excluded in some comparisons, P5 forbidden; initial SL around M15 SMA200+10p with min 10p, spread cap, ZigZag ATR14*1.5 trail starting +2R. Research includes q75, MA ABCD, H1 countertrend, 240h delayed ZigZag and H4 filters. Historical reported figures (NOT re-run in this handoff): 2015–2026 simple 1974 trades +359.6R PF1.308 DD -42.3R; H4 96h+25pt 1681 trades +327.41R PF1.332 DD -34.84R. EURUSD 2003–2026 M15 cache reportedly 583458 candles. Existing research code in research/ea_shared. Check provenance and reproducibility before trusting results; this is a different system from the Dow-line EA.
+Strategy researched: H1 trend SMA200/480, SMA480 24h slope; M15 Stoch 14,3,3; M15 entry/exit, P1/P2 favored, P3 excluded in some comparisons, P5 forbidden; initial SL around M15 SMA200+10p with min 10p, spread cap, ZigZag ATR14*1.5 trail starting +2R. Research includes q75, MA ABCD, H1 countertrend, 240h delayed ZigZag and H4 filters. Historical reported figures (NOT re-run in this handoff): 2015–2026 simple 1974 trades +359.6R PF1.308 DD -42.3R; H4 96h+25pt 1681 trades +327.41R PF1.332 DD -34.84R. EURUSD 2003–2026 M15 cache reportedly 583458 candles. Earlier engine/runner were described as research/ea_shared but **were not found at those GitHub paths on 2026-10-18**. Recover and verify provenance; see RESEARCH_INDEX_20261018.md. Check provenance and reproducibility before trusting results; this is a different system from the Dow-line EA.
 Potential input files in ChatGPT environment (not asserted uploaded to GitHub): EURUSD2003.M1.zip, USDJPY2003.M1.zip, EURUSD_M5_MT5.csv, USDJPY_M5_MT5.csv, JP225_M15_MT5.csv, UK100_M15_MT5.csv, US500_M15_MT5.csv. Large datasets must be separately transferred/located, not assumed present in Claude Code.
 
 ## Claude Code recommended execution order / acceptance gates
