@@ -109,7 +109,7 @@ def _select_three(candidates,tf):
     return chosen
 
 
-def generate_lines(df,tf,start=60,min_gap=15):
+def generate_lines(df,tf,start=60,min_gap=15,pivot_stream=None):
     """Return append-only create/revise/retire events with causal availability.
 
     Every pivot confirm/relocate recomputes affected line candidates, including
@@ -145,12 +145,12 @@ def generate_lines(df,tf,start=60,min_gap=15):
             return
         seq+=1
         action='create' if old is None else 'revise'
-        out.append(dict(event_id=seq,action=action,key=str(key),
+        out.append(dict(candidate,event_id=seq,action=action,key=str(key),
                         type=key[0],tf=tf,kind=kind,
-                        available_idx=now,**candidate))
+                        available_idx=now))
         active[key]=state
 
-    for ev in pivot_events(df,tf,start):
+    for ev in (pivot_stream if pivot_stream is not None else pivot_events(df,tf,start)):
         now=ev['available_idx']
         pid=ev['id']
         pivots[pid]=dict(kind=ev['kind'],idx=ev['idx'])
