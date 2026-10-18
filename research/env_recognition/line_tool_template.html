@@ -46,7 +46,7 @@ td,th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-
 tr[data-id]{cursor:pointer} tr.selrow{background:color-mix(in srgb,var(--sel) 18%,transparent)}
 tr.gone td{color:var(--gone)}
 td button{padding:2px 8px;font-size:12px}
-.up{color:var(--up)} .down{color:var(--down)}
+.up{color:var(--up)} .down{color:var(--down)} .imp{color:var(--gone)}
 textarea{width:100%;box-sizing:border-box;height:90px;font:11px var(--mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
@@ -62,6 +62,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optPiv" checked> エンジンの高値安値</label>
   <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
   <label><input type="checkbox" id="optGone"> 無効にした線も表示</label>
+  <label><input type="checkbox" id="optCtx" checked> 上位足のトレンド（H4・D1）</label>
+  <label><input type="checkbox" id="optDim" checked> H4に対する推進ラインを薄く</label>
 </div>
 <div class="bar rpbar">
   <button class="rp" id="btnReplay" aria-pressed="false">リプレイ</button>
@@ -85,10 +87,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   リプレイ中に引いた線は「その時点で引いた」と記録されます。<br>
   <b>引き直し</b>：線をクリックして「選択した線を無効にする」→ その時点で無効になったと記録され、履歴は残ります（リプレイを戻すと再び表示）。
   間違えて引いた線だけ「完全に削除」（Deleteキー）してください。<br>
+  <b>上位足のトレンド</b>：H1・M15 ではチャート上部に D1・H4 の主要トレンド（緑＝上昇、赤＝下降）を帯で表示。H4 と同じ向きの線（推進）は灰色で「推進」と表示します。<br>
   <b>他の時間足の線</b>：W1〜M15 のボタンで、その時間足で引いた線を重ねて表示（細い線＋時間足ラベル）。
 </div>
 <h2 id="listTitle">この時間足の線</h2>
-<div class="log"><table><thead><tr><th>1点目</th><th>価格</th><th>2点目</th><th>価格</th><th>向き</th><th>種類</th><th>引いた時点</th><th>無効にした時点</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
+<div class="log"><table><thead><tr><th>1点目</th><th>価格</th><th>2点目</th><th>価格</th><th>向き</th><th>種類</th><th>H4に対して</th><th>引いた時点</th><th>無効にした時点</th><th></th></tr></thead><tbody id="list"></tbody></table></div>
 <div id="exportBox" hidden>
   <h2 style="margin-top:14px">バックアップ（保存先に接続できないときは、この内容をチャットに貼ってください）</h2>
   <textarea id="exportText" readonly></textarea>
@@ -138,6 +141,15 @@ async function delLine(id){
   else{lines=lines.filter(x=>x.id!==id);localSave();refresh();showExport()}
   if(selId===id)select(null);
 }
+
+// ---------- higher-timeframe context ----------
+// major trend of H4 / D1 known at time T (state after the last bar that CLOSED at or before T)
+function ctxAt(k,T){const a=DATA.ctx[k];let lo=0,hi=a.length-1,ans=null;
+  while(lo<=hi){const m=(lo+hi)>>1;if(a[m][0]<=T){ans=a[m][1];lo=m+1}else hi=m-1}return ans}
+const TFRANK={W1:5,D1:4,H4:3,H1:2,M15:1};
+// a line on a timeframe below H4 is "impulse" when it points the same way as the H4 trend when its 2nd point formed
+function lineCls(l){if(TFRANK[l.tf]>=TFRANK.H4)return null;const tr=ctxAt('H4',l.t2+TFSEC[l.tf]);
+  if(!tr)return null;return tr===l.dir?'impulse':'correction'}
 
 // ---------- time helpers ----------
 const ALL=()=>DATA[tf].c;
@@ -242,13 +254,22 @@ function loop(){raf=requestAnimationFrame(loop);
     if(label){g.fillText(label,x2+4,y2-4)}};
   const drawL=(l,col,w,label,dash,until)=>{seg({t:l.t1,p:l.p1},{t:l.t2,p:l.p2},col,w,true,label,dash,until);
     const pp=par(l);if(pp){g.globalAlpha=.8;seg(pp[0],pp[1],col,Math.max(1,w-0.5),true,label?label+' ch':null,dash,until);g.globalAlpha=1}};
+  if($('optCtx').checked&&TFRANK[tf]<TFRANK.D1){const ts=chart.timeScale(),r0=ts.getVisibleLogicalRange();
+    if(r0){const d=ALL(),i0=Math.max(0,Math.floor(r0.from)),i1=Math.min(lastIdx(),Math.ceil(r0.to));
+      const rowsC=TFRANK[tf]<TFRANK.H4?['D1','H4']:['D1'];
+      rowsC.forEach((k,ri)=>{const y=4+ri*9;
+        for(let i=i0;i<=i1;i++){const tr=ctxAt(k,d[i][0]+TFSEC[tf]);if(!tr)continue;
+          const x0=ts.logicalToCoordinate(i-0.5),x1=ts.logicalToCoordinate(i+0.5);if(x0==null||x1==null)continue;
+          g.fillStyle=tr==='up'?css('--up'):css('--down');g.globalAlpha=.55;g.fillRect(x0,y,x1-x0+0.5,6)}
+        g.globalAlpha=1;g.fillStyle=css('--muted');g.fillText(k,4,y+6)});}}
   // other timeframes (thin, labelled)
   for(const k of overlay){if(k===tf)continue;
     for(const l of lines.filter(x=>x.tf===k&&visible(x)))
       drawL(l,l.dir==='up'?css('--up'):css('--down'),1,k,true)}
   // this timeframe
   for(const l of lines.filter(x=>x.tf===tf)){const sel=l.id===selId;
-    if(visible(l))drawL(l,sel?css('--sel'):(l.dir==='up'?css('--up'):css('--down')),sel?3:2);
+    const dim=$('optDim').checked&&lineCls(l)==='impulse';
+    if(visible(l))drawL(l,sel?css('--sel'):dim?css('--gone'):(l.dir==='up'?css('--up'):css('--down')),sel?3:dim?1.5:2,dim?'推進':null);
     else if($('optGone').checked&&goneNow(l)){const xr=chart.timeScale().logicalToCoordinate(idxF(l.removedAt));
       drawL(l,sel?css('--sel'):css('--gone'),sel?2.5:1.5,'無効',false,xr??W)}}
   if(drawing&&pA&&pB){seg(pA,pB,css('--sel'),1.5,true);
@@ -265,10 +286,10 @@ function refresh(){
   const rows=lines.filter(x=>x.tf===tf).sort((a,b)=>(b.drawnAt??b.t2)-(a.drawnAt??a.t2));
   $('listTitle').textContent=`${tf} の線（有効 ${rows.filter(x=>x.removedAt==null).length}本・履歴 ${rows.length}本）`;
   $('list').innerHTML=rows.length?rows.map(l=>`<tr data-id="${l.id}" class="${l.id===selId?'selrow':''} ${l.removedAt!=null?'gone':''}">
-    <td>${fmt(l.t1)}</td><td>${l.p1}</td><td>${fmt(l.t2)}</td><td>${l.p2}</td><td class="${l.dir}">${l.dir==='up'?'上昇':'下降'}</td><td>${l.kind==='channel'?'チャンネル':'ライン'}</td>
+    <td>${fmt(l.t1)}</td><td>${l.p1}</td><td>${fmt(l.t2)}</td><td>${l.p2}</td><td class="${l.dir}">${l.dir==='up'?'上昇':'下降'}</td><td>${l.kind==='channel'?'チャンネル':'ライン'}</td><td class="${lineCls(l)==='impulse'?'imp':''}">${{impulse:'推進',correction:'調整'}[lineCls(l)]||'—'}</td>
     <td>${l.drawnAt!=null?fmtAny(l.drawnAt):'全体表示'}</td><td>${l.removedAt!=null?fmtAny(l.removedAt):'—'}</td>
     <td>${l.removedAt!=null?`<button data-undo="${l.id}">有効に戻す</button>`:''} <button data-del="${l.id}">削除</button></td></tr>`).join('')
-    :'<tr><td colspan="9">まだ線がありません。「線を引く」を押して2点をクリックしてください。</td></tr>';
+    :'<tr><td colspan="10">まだ線がありません。「線を引く」を押して2点をクリックしてください。</td></tr>';
 }
 $('list').addEventListener('click',ev=>{
   const del=ev.target.closest('button[data-del]');if(del){delLine(del.dataset.del);return}
@@ -322,6 +343,7 @@ for(const x of TFS){
   b.onclick=()=>{tf=x;select(null);pA=pB=null;try{localStorage.setItem('ltool_tf',x)}catch(e){};build(false)};$('tfs').appendChild(b);
   const o=document.createElement('button');o.className='mono';o.dataset.tf=x;o.textContent=x;o.setAttribute('aria-pressed','false');
   o.onclick=()=>{overlay.has(x)?overlay.delete(x):overlay.add(x);refresh()};$('ovl').appendChild(o)}
+$('optCtx').onchange=$('optDim').onchange=refresh;
 for(const id of ['optPiv','optSma'])$(id).addEventListener('change',()=>build(true));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>build(true));
 new MutationObserver(()=>build(true)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
