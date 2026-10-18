@@ -1,7 +1,7 @@
 """Causal trendline lifecycle (spec: chart_lab/TRENDLINE_RULES_REVIEW_20261018.md).
 
-Generation (2-point / 3-point, create / revise / construction-retire) comes unchanged from
-chart_lab/trendline_causal_engine.generate_lines. This module adds, bar by bar:
+Generation: default v2 = env_recognition/linegen.py (2-point, fitted to the user's lines);
+legacy chart_lab/trendline_causal_engine.generate_lines via generator='legacy'. This module adds, bar by bar:
 
   Stage 1  break + 2 pivots (both classes)
     ascending line (built from lows):  CLOSE below line -> count Dow HIGH pivots formed after the
@@ -33,10 +33,14 @@ def line_value(ln, i):
     return ln['anchor_price'] + (ln['end_price'] - ln['anchor_price']) * (i - a) / (b - a)
 
 
-def run(df, tf, res, gen_events=None):
+def run(df, tf, res, gen_events=None, generator='v2'):
     c = df.c.to_numpy(float)
     if gen_events is None:
-        gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
+        if generator == 'v2':
+            from .linegen import generate
+            gen_events = generate(df, tf, pivot_stream=res['pivot_events'])
+        else:
+            gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
     gby = {}
     for e in gen_events:
         gby.setdefault(e['available_idx'], []).append(e)
@@ -80,6 +84,7 @@ def run(df, tf, res, gen_events=None):
                 out.append(dict(idx=i, action='revise', key=k))
             else:
                 active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i,
+                                 tier=e.get('tier', 'main'), skip=e.get('skip', 0), a_ext=e.get('a_ext'),
                                  broken=None, count=set(), impulse_seen=False, versions=[(i, geo)], **geo)
                 out.append(dict(idx=i, action='create', key=k))
         # stage 2: major trend reversal on this bar
