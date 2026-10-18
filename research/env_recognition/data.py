@@ -1,0 +1,60 @@
+"""OHLC loaders for environment-recognition research.
+
+Sources inside the repo (no external download needed):
+- chart_lab/eurusd_chart_lab_complete.html: SERIES for W1(2014-)/D1(2015-)/H4/H1/M15(2025-).
+- datasets/derived/eurusd_h4_structure/2026-10-15/h4_structure_bars.csv: H4 2003-05..2026-10.
+Timestamps are source-clock naive (broker timezone not verified).
+"""
+import json
+from functools import lru_cache
+from pathlib import Path
+import pandas as pd
+
+RESEARCH = Path(__file__).resolve().parents[1]
+HTML = RESEARCH / 'chart_lab' / 'eurusd_chart_lab_complete.html'
+H4_CSV = RESEARCH / 'datasets/derived/eurusd_h4_structure/2026-10-15/h4_structure_bars.csv'
+
+
+@lru_cache(maxsize=1)
+def _series():
+    s = HTML.read_text(encoding='utf-8')
+    return json.JSONDecoder().raw_decode(s.split('const SERIES=', 1)[1])[0]
+
+
+def load_chart_series(tf):
+    """OHLC exactly as embedded in the chart lab HTML (same candles the user reviewed)."""
+    rows = [r[:5] for r in _series()[tf]]
+    df = pd.DataFrame(rows, columns=['t', 'o', 'h', 'l', 'c'])
+    df['t'] = pd.to_datetime(df.t)
+    return df.reset_index(drop=True)
+
+
+def load_h4_full():
+    df = pd.read_csv(H4_CSV, index_col=0, parse_dates=True)
+    df = df[['open', 'high', 'low', 'close']].rename(columns=dict(open='o', high='h', low='l', close='c'))
+    df.index.name = 't'
+    return df.reset_index()
+
+
+def resample(df, rule):
+    """Resample completed bars. rule: '1D' or 'W-SUN'-style. Only bars with data are kept."""
+    x = df.set_index('t')
+    label = 'left'
+    out = x.resample(rule, label=label, closed='left').agg(dict(o='first', h='max', l='min', c='last')).dropna()
+    return out.reset_index()
+
+
+def load(tf, source='chart'):
+    if source == 'chart':
+        return load_chart_series(tf)
+    if source == 'full':
+        h4 = load_h4_full()
+        if tf == 'H4':
+            return h4
+        if tf == 'D1':
+            return resample(h4, '1D')
+        if tf == 'W1':
+            w = h4.set_index('t').resample('W-MON', label='left', closed='left').agg(
+                dict(o='first', h='max', l='min', c='last')).dropna()
+            return w.reset_index()
+    raise ValueError(f'unsupported tf/source {tf}/{source}')
