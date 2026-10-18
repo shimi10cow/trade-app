@@ -12,7 +12,8 @@ Decisions (documented, change only with user approval):
   D1. Protected level price is frozen when adopted (a later relocation of that pivot does not move it).
   D2. Reference for "new high" = highest confirmed high pivot anchored after the last consumed reference.
   D3. Eligible protected low on breakout = the LATEST such low (origin of the breakout leg).
-  D4. On reversal, new protected = raw wick extreme of the finished trend epoch (spec exception).
+  D4. On reversal, new protected = latest confirmed opposite swing after the broken protected
+      (user-confirmed 2026-10-18); raw wick extreme only as fallback.
   D5. Initialisation: first close beyond the last confirmed high (low) with a confirmed opposite pivot.
 """
 import math
@@ -105,18 +106,28 @@ def run(df, tf, start=60, events=None):
             log(i, 'REVERSAL', frm=trend, to='down' if up else 'up',
                 broken_price=old['price'], broken_anchor=old['anchor'])
             out[-1]['zone_source'] = '押し安値' if up else '戻り高値'
-            seg = range(epoch_start, i + 1)
-            if up:
-                j = max(seg, key=lambda k: (h[k], -k)); price = h[j]
+            # new protected = the LATEST confirmed opposite swing between the broken protected
+            # anchor and now (= origin of the move that broke it; user rule 2026-10-18).
+            # Fallback when none is confirmed yet: raw wick extreme of that span.
+            nk = 'hi' if up else 'lo'
+            cands = [p for p in piv.values() if p['kind'] == nk and old['anchor'] < p['idx'] < i]
+            if cands:
+                p = max(cands, key=lambda q: q['idx'])
+                j, price, pid, why = p['idx'], p['price'], p['id'], 'reversal_protect'
             else:
-                j = min(seg, key=lambda k: (l[k], k)); price = l[j]
+                seg = range(old['anchor'] + 1, i + 1)
+                if up:
+                    j = max(seg, key=lambda k: (h[k], -k)); price = h[j]
+                else:
+                    j = min(seg, key=lambda k: (l[k], k)); price = l[j]
+                pid, why = f'raw{j}', 'reversal_protect_raw'
             trend = 'down' if up else 'up'
             epoch_start = j
             # next trend-direction reference must lie beyond the broken protected level (no reuse of
             # pivots already undercut/overshot by the reversal itself)
             consumed = dict(anchor=j, price=old['price'])
             last_bo = None
-            set_prot(i, f'raw{j}', price, j, 'reversal_protect')
+            set_prot(i, pid, price, j, why)
             bars.append((trend, prot['price']))
             continue
         # 4. breakout of reference extreme

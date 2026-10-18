@@ -69,9 +69,9 @@ def test_uptrend_protected_low_trails_and_reverses():
     rev = acts(r, 'REVERSAL')
     assert len(rev) == 1 and rev[0]['frm'] == 'up'
     assert round(rev[0]['broken_price'], 2) == 1.06
-    # new protected high = raw top of the up epoch
+    # new protected high = latest swing high before the break (here the top 1.10)
     rp = acts(r, 'reversal_protect')[0]
-    assert abs(rp['price'] - df.h.max()) < 1e-9
+    assert round(rp['price'], 2) == 1.10
 
 
 def test_lower_high_does_not_move_protected_low():
@@ -95,3 +95,10 @@ def test_reversal_does_not_immediately_breakout_on_stale_pivot():
     rev = acts(r, 'REVERSAL')[0]
     nxt = [e for e in r['events'] if e['idx'] in (rev['idx'], rev['idx'] + 1) and e['action'] == 'BREAKOUT']
     assert not nxt
+
+
+def test_reversal_protect_is_latest_lower_high_not_top():
+    # user case 2026-03: top 1.10, lower high 1.09, then break of protected 1.06 -> 戻り高値 = 1.09
+    df, r = _run_synth([1.00, 1.05, 1.03, 1.08, 1.06, 1.10, 1.07, 1.09, 1.05])
+    rp = acts(r, 'reversal_protect')[0]
+    assert round(rp['price'], 2) == 1.09
