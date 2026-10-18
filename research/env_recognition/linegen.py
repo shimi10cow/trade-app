@@ -21,11 +21,11 @@ MAX_SKIP = 3
 CLOSE_TOL = 0.05
 
 
-def candidates_for_b(b, same, c, h, l, a):
+def candidates_for_b(b, same, c, h, l, a, max_skip=MAX_SKIP):
     """All lines ending at pivot b (dict id, kind, idx, price), given earlier same-kind pivots."""
     out = {}
     k = b['kind']
-    prev = same[-(MAX_SKIP + 1):]
+    prev = same[-(max_skip + 1):]
     for skip, A in enumerate(reversed(prev)):
         i1, p1, i2, p2 = A['idx'], A['price'], b['idx'], b['price']
         if i2 - i1 < MIN_GAP:
@@ -57,7 +57,7 @@ def candidates_for_b(b, same, c, h, l, a):
     return {kk: out[kk] for kk in keep}
 
 
-def generate(df, tf=None, pivot_stream=None):
+def generate(df, tf=None, pivot_stream=None, max_skip=None):
     c, h, l = (df[z].to_numpy(float) for z in ('c', 'h', 'l'))
     a = atr(df)
     if pivot_stream is None:
@@ -82,7 +82,7 @@ def generate(df, tf=None, pivot_stream=None):
         piv[ev['id']] = dict(id=ev['id'], kind=ev['kind'], idx=ev['idx'], price=ev['price'])
         b = piv[ev['id']]
         same = [piv[i] for i in order if piv[i]['kind'] == b['kind'] and i != b['id']]
-        new = candidates_for_b(b, same, c, h, l, a)
+        new = candidates_for_b(b, same, c, h, l, a, MAX_SKIP if max_skip is None else max_skip)
         old = {k for k in active if k.endswith(f":{b['id']}") and k.startswith(f"v2:{b['kind']}:")}
         for k in sorted(old - set(new)):
             emit(now, 'retire', k)
@@ -128,7 +128,7 @@ def _line_ok(A, B, now, k, c, h, l, a, tol, skip_broken=True):
     return True
 
 
-def generate_v3(df, tf=None, pivot_stream=None, steep=False):
+def generate_v3(df, tf=None, pivot_stream=None, steep=False, allow_skip=False):
     """steep=True (entry timeframes, M15): keep steep lines even if broken before confirmation."""
     c, h, l = (df[z].to_numpy(float) for z in ('c', 'h', 'l'))
     a = atr(df)
@@ -175,7 +175,7 @@ def generate_v3(df, tf=None, pivot_stream=None, steep=False):
                 continue
         same = [piv[i] for i in order if piv[i]['kind'] == k and i != B['id']]
         new = None
-        for skip, tol in ((0, CLOSE_TOL), (1, MID_TOL_ATR)):
+        for skip, tol in ((0, CLOSE_TOL), (1, MID_TOL_ATR))[:2 if allow_skip else 1]:
             if len(same) > skip:
                 A = same[-1 - skip]
                 if _line_ok(A, B, now, k, c, h, l, a, tol, skip_broken=not steep):

@@ -38,7 +38,10 @@ def line_value(ln, i):
 
 
 # chosen per timeframe against the user's hand-drawn lines (labels/TRENDLINE_EVAL_20261018.md)
-AUTO = {'W1': ('v3', 'anchor'), 'D1': ('v3', 'anchor'), 'H4': ('v2', 'kind'), 'H1': ('v2', 'kind'), 'M15': ('v2', 'kind')}
+# user review #3: no skipped pivots anywhere; W1/D1/H4(/H1) = big-picture v3, M15 = entry lines (adjacent pivots,
+# steep allowed, newest line per direction)
+AUTO = {'W1': ('v3', 'anchor'), 'D1': ('v3', 'anchor'), 'H4': ('v3', 'anchor'), 'H1': ('v3', 'anchor'),
+        'M15': ('v2noskip', 'kind')}
 
 
 def run(df, tf, res, gen_events=None, generator='auto', redraw=None):
@@ -48,9 +51,11 @@ def run(df, tf, res, gen_events=None, generator='auto', redraw=None):
     redraw = redraw or 'anchor'
     c = df.c.to_numpy(float)
     if gen_events is None:
-        if generator in ('v2', 'v3'):
+        if generator in ('v2', 'v3', 'v2noskip'):
             from .linegen import generate, generate_v3
-            if generator == 'v3':
+            if generator == 'v2noskip':
+                gen_events = generate(df, tf, pivot_stream=res['pivot_events'], max_skip=0)
+            elif generator == 'v3':
                 gen_events = generate_v3(df, tf, pivot_stream=res['pivot_events'], steep=tf in STEEP_TFS)
             else:
                 gen_events = generate(df, tf, pivot_stream=res['pivot_events'])
