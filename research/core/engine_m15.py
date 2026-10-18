@@ -51,6 +51,7 @@ class Config:
     use_h4_rsi:bool=False
     use_inverse_trend:bool=False
     max_entry_point:int=2
+    extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
 CFG=Config()
 
 def load_m15(pair):
@@ -404,6 +405,7 @@ def run_pair(pair,cfg=CFG):
                     return mfe/ea if np.isfinite(ea) and ea>0 else -np.inf
                 if mfe_atr(p1)<cfg.p3_mfe_atr or mfe_atr(p2)<cfg.p3_mfe_atr: continue
 
+            if cfg.extra_filter is not None and not cfg.extra_filter(t,side): continue
             if len(positions)>=cfg.max_positions: continue
             entry=float(r.close); base=float(r.sma200)+( -minrisk if side==1 else minrisk)
             if side==1: sl=min(base,entry-minrisk)
