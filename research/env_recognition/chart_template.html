@@ -4,16 +4,16 @@
 /* Layout: toolbar on top, full-width chart, event log below. Chart-desk look, quiet chrome. */
 :root{
   --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
-  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;
+  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;--sma20:#0284c7;--sma75:#b45309;--zone:rgba(110,90,200,.13);--zone-edge:rgba(110,90,200,.55);
   --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;color-scheme:dark}}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
-  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;color-scheme:dark}
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--sma20:#38bdf8;--sma75:#f59e0b;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
 .bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
@@ -24,7 +24,7 @@ h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.02em}
 label{font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center;cursor:pointer}
 .state{font:13px var(--mono);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel)}
 .state b.up{color:var(--up)} .state b.down{color:var(--down)}
-#chart{height:min(68vh,640px);min-height:360px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+#chart{position:relative;height:min(68vh,640px);min-height:360px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .hover{font:12px var(--mono);color:var(--muted);min-height:18px;margin-bottom:4px;font-variant-numeric:tabular-nums}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:8px 0 14px}
 .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
@@ -44,6 +44,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optProt" checked> 押し安値/戻り高値</label>
   <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
   <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
+  <label><input type="checkbox" id="optZone" checked> 水平帯</label>
+  <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <span class="state" id="state"></span>
 </div>
@@ -55,6 +57,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <span>▼▲ HH/HL/LH/LL＝ダウの高値安値（ヒゲ位置、確定は後の足）</span>
   <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
   <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
+  <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span>
+  <span><i style="background:var(--zone-edge);height:8px"></i>水平帯（ヒゲ先〜実体、点線部分は有効化前）</span>
   <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
 </div>
 <h2>イベント一覧（クリックでその日付へ移動）</h2>
@@ -65,7 +69,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 const DATA=/*DATA*/null;
 const TFS=['W1','D1','H4','H1','M15'];
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const fmt=t=>{const s=new Date(t*1000).toISOString();return s.slice(0,10).replaceAll('-','/')+' '+s.slice(11,16)};
+const intraday=()=>tf!=='D1'&&tf!=='W1';
+const fmt=t=>{const s=new Date(t*1000).toISOString();return s.slice(0,10).replaceAll('-','/')+(intraday()?' '+s.slice(11,16):'')};
 const NAMES={rev:'トレンド転換',bo:'高値/安値更新',breakout_protect:'押し安値/戻り高値 移動',late_protect:'遅れ確定で移動',
   reversal_protect:'転換後の起点を設定',reversal_protect_raw:'転換後の起点(仮:ヒゲ)',init_up:'初期化 上昇',init_down:'初期化 下降'};
 let tf='D1',chart,cs,ps;
@@ -80,10 +85,11 @@ function build(){
     rightPriceScale:{borderColor:css('--line')},
     crosshair:{mode:0},
     localization:{locale:'ja-JP',timeFormatter:t=>fmt(t)},
-    timeScale:{borderColor:css('--line'),timeVisible:true,secondsVisible:false,
+    timeScale:{borderColor:css('--line'),timeVisible:intraday(),secondsVisible:false,
       tickMarkFormatter:(t,type)=>{const d=new Date(t*1000),p=x=>String(x).padStart(2,'0');
         return type===0?`${d.getUTCFullYear()}`:type===1?`${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}`:
           type===2?`${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`:`${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`}}});
+  chart.applyOptions({localization:{locale:'ja-JP',timeFormatter:t=>fmt(t)}});
   chart.subscribeCrosshairMove(q=>{const el=document.getElementById('hover');
     if(!q.time){el.textContent='';return}const b=q.seriesData.get(cs);
     el.textContent=b?`${fmt(q.time)}  始${b.open} 高${b.high} 安${b.low} 終${b.close}`:fmt(q.time)});
@@ -96,6 +102,11 @@ function build(){
   const pv=chart.addLineSeries({lineType:1,lineWidth:2,lineStyle:2,color:css('--prov'),priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   const showProv=document.getElementById('optProv').checked;
   if(showProv) pv.setData(d.pprot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1]}));
+  if(document.getElementById('optSma').checked){
+    chart.addLineSeries({color:css('--sma20'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.sma20.map(x=>({time:x[0],value:x[1]})));
+    chart.addLineSeries({color:css('--sma75'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.sma75.map(x=>({time:x[0],value:x[1]})));
+  }
+  setupZones(el,d);
   const m=[];
   if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
   if(document.getElementById('optW').checked) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
@@ -119,13 +130,35 @@ function build(){
     return `<tr data-t="${e[0]}"><td>${fmt(e[0])}</td><td class="${cls}">${txt}</td><td>${e[3]}</td><td>${fmt(e[4])}</td></tr>`}).join('');
   document.getElementById('log').innerHTML=rows;
 }
+let zc=null,zraf=0;
+function idxOf(d,t){if(t==null)return d.candles.length+3;let lo=0,hi=d.candles.length-1;
+  if(t<=d.candles[0][0])return -0.5;while(lo<hi){const m=(lo+hi)>>1;if(d.candles[m][0]<t)lo=m+1;else hi=m}return lo}
+function setupZones(el,d){
+  cancelAnimationFrame(zraf);zc=document.createElement('canvas');
+  zc.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:3';el.appendChild(zc);
+  const zs=d.zones.map(z=>({a:idxOf(d,z[0]),v:idxOf(d,z[1]),e:idxOf(d,z[2]),lo:z[3],hi:z[4],lab:z[5]}));
+  const draw=()=>{zraf=requestAnimationFrame(draw);
+    const on=document.getElementById('optZone').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
+    if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
+    const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);if(!on)return;
+    const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
+    g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
+    for(const z of zs){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
+      const y0=cs.priceToCoordinate(z.hi),y1=cs.priceToCoordinate(z.lo);if([x0,xv,x1,y0,y1].some(v=>v==null))continue;
+      const h=Math.max(2,y1-y0);
+      g.setLineDash([3,3]);g.strokeStyle=edge;g.strokeRect(x0,y0,xv-x0,h);g.setLineDash([]);
+      g.fillStyle=fill;g.fillRect(xv,y0,x1-xv,h);g.strokeStyle=edge;g.strokeRect(xv,y0,x1-xv,h);
+      if(x1-xv>60){g.fillStyle=fg;g.fillText(z.lab,xv+4,y0-3)}}
+    g.restore()};
+  draw();
+}
 function jump(t){const d=DATA[tf].candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.length-1;
   chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
   b.onclick=()=>{tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);build()};tfs.appendChild(b)}
-for(const id of ['optPiv','optProt','optProv','optW','optBo'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
+for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build();if(r)chart.timeScale().setVisibleLogicalRange(r)});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',build);
 new MutationObserver(build).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 build();

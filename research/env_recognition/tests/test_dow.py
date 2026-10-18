@@ -132,3 +132,30 @@ def test_prov_and_w_no_lookahead():
     part = dow_trend.run(df.iloc[:cut].reset_index(drop=True), 'H4')
     assert part['prov_bars'] == full['prov_bars'][:cut]
     assert part['w_events'] == [e for e in full['w_events'] if e['idx'] < cut]
+
+
+def test_zone_geometry_and_expiry():
+    from env_recognition import zones
+    df, r = _run_synth([1.00, 1.05, 1.03, 1.08, 1.06, 1.10, 1.04, 1.07, 1.12])
+    zs = zones.build(df, r)
+    z = [z for z in zs if '押し安値' in z['sources']][0]
+    assert z['kind'] == 'lo' and z['bottom'] <= z['top']
+    assert abs(z['bottom'] - r['pivots'][[k for k, p in r['pivots'].items()
+               if p['idx'] == z['anchor']][0]]['price']) < 1e-9      # outer edge = wick
+    assert z['expiry'] is not None and z['expiry'] > z['activation']
+    j = z['expiry']
+    assert min(df.o[j], df.c[j]) > z['top']                          # whole body above
+
+
+def test_zones_no_lookahead():
+    from env_recognition import zones
+    df = load('H4')
+    full = zones.build(df, dow_trend.run(df, 'H4'))
+    cut = len(df) // 2
+    part_df = df.iloc[:cut].reset_index(drop=True)
+    part = zones.build(part_df, dow_trend.run(part_df, 'H4'))
+    strip = lambda z: {k: v for k, v in z.items() if k != 'expiry'}
+    want = [z for z in full if z['activation'] < cut]
+    assert [strip(z) for z in part] == [strip(z) for z in want]
+    for a, b in zip(part, want):
+        assert a['expiry'] == (b['expiry'] if b['expiry'] is not None and b['expiry'] < cut else None)
