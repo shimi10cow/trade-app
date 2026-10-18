@@ -93,3 +93,102 @@ def generate(df, tf=None, pivot_stream=None):
             elif active[k] != cand:
                 emit(now, 'revise', k, cand); active[k] = cand
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# v3 (user review 2026-10-18 #2): "wrap the big picture" - one live line per direction.
+#   - New same-kind pivot B:
+#       * if B sits on the current line (within TOUCH_ATR) -> keep it (3rd point confirms the line)
+#       * else build A->B with A = previous same-kind pivot (skip 0); if that fails, A = the one
+#         before (skip 1) allowing the middle pivot / closes to poke through by MID_TOL_ATR
+#       * A must be the outermost wick between A and B
+#       * the line must NOT already be broken by a close between B and the confirmation bar
+#         (a steep line from a low followed by sideways drift is skipped -> next low is used)
+#   - A new line replaces the previous live line of the same direction (reason 'redrawn').
+# ---------------------------------------------------------------------------------------------
+TOUCH_ATR = 0.3
+MID_TOL_ATR = 0.3
+
+
+def _line_ok(A, B, now, k, c, h, l, a, tol, skip_broken=True):
+    i1, p1, i2, p2 = A['idx'], A['price'], B['idx'], B['price']
+    if i2 - i1 < MIN_GAP or (k == 'lo' and p2 <= p1) or (k == 'hi' and p2 >= p1):
+        return False
+    outer = (h[i1:i2 + 1].max() <= p1 + 1e-12) if k == 'hi' else (l[i1:i2 + 1].min() >= p1 - 1e-12)
+    if not outer:
+        return False
+    xs = np.arange(i1 + 1, now + 1)          # between the points AND up to the confirmation bar
+    line = p1 + (p2 - p1) * (xs - i1) / (i2 - i1)
+    v = (line - c[xs]) / a[xs] if k == 'lo' else (c[xs] - line) / a[xs]
+    inside = xs < i2
+    if inside.any() and v[inside].max() > tol:
+        return False
+    if skip_broken and (~inside).any() and v[~inside].max() > 0:   # already broken after B -> skip this pivot
+        return False
+    return True
+
+
+def generate_v3(df, tf=None, pivot_stream=None, steep=False):
+    """steep=True (entry timeframes, M15): keep steep lines even if broken before confirmation."""
+    c, h, l = (df[z].to_numpy(float) for z in ('c', 'h', 'l'))
+    a = atr(df)
+    if pivot_stream is None:
+        pivot_stream = pivot_events(df)
+    piv, order, out = {}, [], []
+    cur = {'lo': None, 'hi': None}     # live line per kind: dict(key, A, B, geometry)
+    seq = 0
+
+    def emit(now, action, key, cand=None, kind=None, reason=None):
+        nonlocal seq
+        seq += 1
+        e = dict(event_id=seq, action=action, key=key, type='two', tf=tf, available_idx=now)
+        if cand:
+            e.update(cand)
+        else:
+            e['kind'] = kind
+        if reason:
+            e['reason'] = reason
+        out.append(e)
+
+    def value(ln, i):
+        return ln['anchor_price'] + (ln['end_price'] - ln['anchor_price']) * (i - ln['anchor_idx']) / (ln['end_idx'] - ln['anchor_idx'])
+
+    for ev in pivot_stream:
+        now = ev['available_idx']
+        if ev['id'] not in piv:
+            order.append(ev['id'])
+        piv[ev['id']] = dict(id=ev['id'], kind=ev['kind'], idx=ev['idx'], price=ev['price'])
+        B = piv[ev['id']]
+        k = B['kind']
+        ln = cur[k]
+        if ln is not None:
+            # live line already broken by a close since it was drawn? forget it (lifecycle retires it)
+            xs = np.arange(ln['end_idx'] + 1, now + 1)
+            if len(xs):
+                vv = np.array([value(ln, i) for i in xs])
+                br = (vv - c[xs]) if k == 'lo' else (c[xs] - vv)
+                if (br > 0).any():
+                    cur[k] = ln = None
+        if ln is not None and ln['b_id'] != B['id']:
+            if abs(B['price'] - value(ln, B['idx'])) / a[B['idx']] <= TOUCH_ATR:
+                ln['touches'] += 1          # 3rd point on the line: keep it
+                continue
+        same = [piv[i] for i in order if piv[i]['kind'] == k and i != B['id']]
+        new = None
+        for skip, tol in ((0, CLOSE_TOL), (1, MID_TOL_ATR)):
+            if len(same) > skip:
+                A = same[-1 - skip]
+                if _line_ok(A, B, now, k, c, h, l, a, tol, skip_broken=not steep):
+                    new = (A, skip)
+                    break
+        if new is None:
+            continue
+        A, skip = new
+        key = f"v3:{k}:{A['id']}:{B['id']}"
+        cand = dict(anchor_idx=int(A['idx']), end_idx=int(B['idx']), anchor_price=float(A['price']),
+                    end_price=float(B['price']), kind=k, skip=skip, tier='main', anchor_id=A['id'])
+        if ln is not None and ln['key'] != key:
+            emit(now, 'retire', ln['key'], kind=k, reason='redrawn')
+        emit(now, 'create' if (ln is None or ln['key'] != key) else 'revise', key, cand)
+        cur[k] = dict(cand, key=key, b_id=B['id'], touches=2)
+    return out

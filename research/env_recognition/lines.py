@@ -28,17 +28,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'chart_lab'))
 from trendline_causal_engine import generate_lines  # noqa: E402
 
 
+# entry timeframes keep steep lines (user 2026-10-18)
+STEEP_TFS = ('M15',)
+
+
 def line_value(ln, i):
     a, b = ln['anchor_idx'], ln['end_idx']
     return ln['anchor_price'] + (ln['end_price'] - ln['anchor_price']) * (i - a) / (b - a)
 
 
-def run(df, tf, res, gen_events=None, generator='v2'):
+# chosen per timeframe against the user's hand-drawn lines (labels/TRENDLINE_EVAL_20261018.md)
+AUTO = {'W1': ('v3', 'anchor'), 'D1': ('v3', 'anchor'), 'H4': ('v2', 'kind'), 'H1': ('v2', 'kind'), 'M15': ('v2', 'kind')}
+
+
+def run(df, tf, res, gen_events=None, generator='auto', redraw=None):
+    if generator == 'auto':
+        generator, auto_redraw = AUTO.get(tf, ('v2', 'kind'))
+        redraw = redraw or auto_redraw
+    redraw = redraw or 'anchor'
     c = df.c.to_numpy(float)
     if gen_events is None:
-        if generator == 'v2':
-            from .linegen import generate
-            gen_events = generate(df, tf, pivot_stream=res['pivot_events'])
+        if generator in ('v2', 'v3'):
+            from .linegen import generate, generate_v3
+            if generator == 'v3':
+                gen_events = generate_v3(df, tf, pivot_stream=res['pivot_events'], steep=tf in STEEP_TFS)
+            else:
+                gen_events = generate(df, tf, pivot_stream=res['pivot_events'])
         else:
             gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
     gby = {}
@@ -74,7 +89,7 @@ def run(df, tf, res, gen_events=None, generator='v2'):
                 continue
             if e['action'] == 'retire':
                 if k in active:
-                    retire(i, k, 'construction')
+                    retire(i, k, e.get('reason', 'construction'))
                 continue
             geo = {x: e[x] for x in ('anchor_idx', 'end_idx', 'anchor_price', 'end_price')}
             direction = 'up' if e['kind'] == 'lo' else 'down'
@@ -86,7 +101,8 @@ def run(df, tf, res, gen_events=None, generator='v2'):
                 # redraw: a newer line from the same anchor replaces the older live one
                 aid = e.get('anchor_id')
                 if aid is not None:
-                    for k2 in [x for x, v in active.items() if v.get('anchor_id') == aid and v['kind'] == e['kind']]:
+                    for k2 in [x for x, v in active.items() if v['kind'] == e['kind'] and
+                               (redraw == 'kind' or v.get('anchor_id') == aid)]:
                         retire(i, k2, 'redrawn')
                 active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i, anchor_id=aid,
                                  tier=e.get('tier', 'main'), skip=e.get('skip', 0), a_ext=e.get('a_ext'),

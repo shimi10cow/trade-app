@@ -31,7 +31,7 @@ def payload(tf):
     # engine lines: geometry at bar-open times, created/retired as bar CLOSE times (replay gating)
     eng = [[t[x['anchor_idx']], r5(x['anchor_price']), t[x['end_idx']], r5(x['end_price']), x['kind'], x['tier'],
             t[x['created']] + sec, (t[x['retired']] + sec) if x['retired'] is not None else None, x['reason'] or '']
-           for x in lr['lines'] if x['end_idx'] >= s0]
+           for x in lr['lines'] if x['end_idx'] >= s0 and (x['retired'] is None or x['retired'] > x['created'])]
     return dict(eng=eng, c=[[t[i], r5(df.o[i]), r5(df.h[i]), r5(df.l[i]), r5(df.c[i])] for i in range(s0, n)],
                 s20=[[t[i], r5(sma[20][i])] for i in range(s0, n) if pd.notna(sma[20][i])],
                 s75=[[t[i], r5(sma[75][i])] for i in range(s0, n) if pd.notna(sma[75][i])],
