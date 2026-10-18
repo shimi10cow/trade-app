@@ -44,3 +44,7 @@ Reorganized 36 paths in commit `86f7278`. Existing file contents preserved. Any 
 2. Prefer `core/` for reusable research engine, `datasets/` for reusable data, `studies/` for experiments, `archive/` for superseded work.
 3. Record reproducibility: source data, timestamps, timezone, bar-close convention, confirmation lag, parameters, commit SHA, costs and exposure.
 4. Update this index when adding/moving files.
+
+## 2026-10-18 Claude Code migration handoff
+- `research/studies/notes/2026-10-18_CLAUDE_CODE_MIGRATION_HANDOFF.md` — experiment rules, numerical ledger, caveats and migration steps.
+- Local `EA_Claude_Code_handoff_2026-10-18.zip` contains standalone Python scripts, CSV results and derived data; **not uploaded to GitHub**. Import and commit lightweight files separately. See handoff note.
