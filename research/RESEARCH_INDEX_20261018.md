@@ -2,6 +2,33 @@
 
 **START HERE for Claude Code.** Repository: `shimi10cow/trade-app`. This index distinguishes verified GitHub paths, previously reported results, and missing/unverified assets. Do not equate a recorded metric with a reproducible backtest.
 
+
+## UPDATE 2026-10-18: engines located after repository reorganization — READ THIS FIRST
+The prior inventory looked only at obsolete paths. **The original common engine was NOT missing: it was MOVED in the 2026-10-15 repository reorganization (see research/INDEX.md, commit 86f7278).** Do not confuse a 404 at the old path with missing source code.
+
+| Role | VERIFIED CURRENT GitHub path | Notes |
+|---|---|---|
+| Canonical EA backtest engine | [research/core/engine_m15.py](core/engine_m15.py) | Fetched successfully; current shared engine, not proof of historical-result parity |
+| ON/OFF comparison runner | [research/core/run_compare.py](core/run_compare.py) | Fetched successfully |
+| M15 cache helper | [research/core/cache_m15.py](core/cache_m15.py) | Fetched successfully |
+| Legacy full engine | [research/archive/legacy_scripts/full_backtest_engine_v1_20261014.py](archive/legacy_scripts/full_backtest_engine_v1_20261014.py) | Fetched successfully; archived |
+| Recovered backtest engine | [research/archive/backtest_recovery/full_backtest_engine_v1_recovered.py](archive/backtest_recovery/full_backtest_engine_v1_recovered.py) | Fetched successfully; archived |
+| MA/wave experiment engine | [research/studies/ma_wave_filter_research.py](studies/ma_wave_filter_research.py) | Fetched successfully; research engine |
+| Canonical research navigation | [research/INDEX.md](INDEX.md) | Existing official research directory map |
+| Experiment × engine × results matrix | [research/handoffs/EXPERIMENT_ENGINE_MATRIX_20261018.md](handoffs/EXPERIMENT_ENGINE_MATRIX_20261018.md) | Detailed conditions, results, engine provenance |
+| Backtest code reading / CSV filenames | [research/handoffs/BACKTEST_ENGINE_AND_CONDITIONS_20261018.md](handoffs/BACKTEST_ENGINE_AND_CONDITIONS_20261018.md) | Actual source-read conditions for trail_variant_engine.py; source in external ZIP |
+| H4/W/SMA experiments | [research/studies/notes/2026-10-18_EXPERIMENT_ENGINE_CONDITIONS.md](studies/notes/2026-10-18_EXPERIMENT_ENGINE_CONDITIONS.md) | Exact research rules, historical figures, external ZIP dependencies |
+| Wave subset result manifest | [research/results/2026-10-15_wave_maturity/README.md](results/2026-10-15_wave_maturity/README.md) | Exists; subset has lookahead concerns |
+
+**Correction to section 2 below:** `research/ea_shared/engine_m15.py` and `research/ea_shared/run_compare.py` are OLD PATHS. Their canonical current counterparts are in `research/core/`. The old full engine is under `research/archive/legacy_scripts/`. Likewise some earlier paths in handoffs are stale. Consult `research/INDEX.md` first.
+
+### Additional experiment provenance, not to conflate
+- `EXPERIMENT_ENGINE_MATRIX_20261018.md` records LEGACY-SIMPLE/H4, FOREX-H4OFF, EUR436, WAVE-359/284, FILTER-A/B, P4-CAP, RECENT-272 with separate engines and caveats. Not all are fully reproducible.
+- `2026-10-18_EXPERIMENT_ENGINE_CONDITIONS.md` documents H4 reversal/P1-P2 (751 trades, −39.224R, PF .926 gate ON; 1044, −94.670R, PF .874 OFF), W neckline, SMA200/SMA75 initial SL, +1.5R vs +2R trailing, cap1/cap2, spread assumptions. These are **different studies**, not the old shared EA and not the new trendline EA.
+- `BACKTEST_ENGINE_AND_CONDITIONS_20261018.md` documents a standalone `trail_variant_engine.py` from an **external ZIP**, not confirmed committed. It uses H1 slope shift(12), raw Stoch14 SMA3/SMA5, +240h delayed trail and fixed-spread settings that may differ from original strategy. Do not silently treat it as identical to `core/engine_m15.py`.
+- Historical reported 1974-trade and 1681-trade multi-symbol results should **not** be labeled EURUSD-only; see experiment matrix.
+- Some scripts and results exist only in `EA_Claude_Code_handoff_2026-10-18.zip` or `EA_Claude_handoff_research_20261018.zip` as described by older handoffs. Those ZIPs are not verified as GitHub repository files. Check whether the actual attachment is available before attempting reproduction.
+
 ## 1. Confirmed repository files (checked via GitHub fetch_file on 2026-10-18)
 
 | Category | Path (relative to repo root) | Purpose | Status |
@@ -18,22 +45,22 @@
 
 **Important:** `fetch_file` confirms the path exists, not that its logic passes tests. The HTML's visual alignment/complete behavior has not been verified here.
 
-## 2. Paths mentioned in older discussions but NOT FOUND at those paths in GitHub (2026-10-18)
+## 2. Obsolete or unverified paths (NOT necessarily missing source — see correction above)
 
 | Claimed path | Intended role | Action |
 |---|---|---|
-| `research/ea_shared/engine_m15.py` | Old M15 EA common backtest engine | **404**; locate original source/history or restore from verified backup before reproduction |
-| `research/ea_shared/run_compare.py` | Old ON/OFF comparison runner | **404**; same |
-| `research/full_backtest_engine_v1_20261014.py` | Earlier full backtest engine | **404**; historical name, not authoritative |
+| `research/ea_shared/engine_m15.py` | Old M15 EA common backtest engine | **OLD PATH**; current code in research/core/ (verified), see update above |
+| `research/ea_shared/run_compare.py` | Old ON/OFF comparison runner | **OLD PATH**; current runner in research/core/ (verified) |
+| `research/full_backtest_engine_v1_20261014.py` | Earlier full backtest engine | **OLD PATH**; archived source in research/archive/legacy_scripts/ (verified) |
 | `research/dow_frozen_v1/dow_frozen_causal_v1.py` | Causal frozen Dow adapter | **404** at this path; locate/restore |
 | `research/dow_frozen_v1/build_causal_horizontal_zones_v9.py` | Historical horizontal-zone v9 | **404** at this path; v9 was also reported flawed |
 
-Do not claim these engines have been committed. Other paths, branches or commits may exist; investigate git history, but don't silently substitute a new implementation and call it identical.
+The first three are confirmed MOVED and committed at new paths; do not claim the remaining historical adapters are committed unless independently located. Check canonical research/INDEX.md.
 
 ## 3. Strategy research / previously reported backtests (not re-executed or independently verified here)
 
 ### Common research baseline, subject to experiment-specific overrides
-- Market: EURUSD, historical MT5/Forex Tester minute-derived M15 data; research period 2003–2026 (2015–2026 subperiod frequently reported).
+- Market: EURUSD for many individual tests; **LEGACY-SIMPLE and LEGACY-H4 aggregate multiple symbols** (2015–2026). Historical Forex Tester minute-derived M15 data for EURUSD-specific 2003–2026 experiments.
 - M15 cache reportedly **583,458 candles**, 2003-05-06 to 2026-10-12. Cache itself NOT confirmed committed to GitHub.
 - H1 trend: SMA200 / SMA480; SMA480 24h slope. M15 Stoch 14,3,3 (slowing=5 / D=3 as historically described; **verify code**). P1/P2 trade group; some tests trade P3 but exclude it only at aggregation; P5 disallowed; H1 W1 only.
 - Risk/exits historically described: M15 SMA200 +10p (spread inclusive, min 10p), ZigZag ATR14×1.5 trail activated at +2R; initial spread/risk controls. Some later alternative experiments used +1.5R trail or HH75 stops; do not mix with baseline.
