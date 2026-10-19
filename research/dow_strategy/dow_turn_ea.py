@@ -28,7 +28,8 @@ from env_recognition.pivots import atr  # noqa: E402
 
 PIP, COST = 1e-4, 1.2e-4
 HERE = Path(__file__).resolve().parent
-START = pd.Timestamp('2019-06-01')
+import os
+START = pd.Timestamp(os.environ.get('DT_START', '2019-06-01'))
 
 print('prep...', flush=True)
 def cut(df):
