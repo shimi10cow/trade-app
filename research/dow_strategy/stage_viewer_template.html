@@ -90,10 +90,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">トレンドライン＝2点クリック（右へ延長）、水平線＝1点クリック、消す＝線の近くをクリック</span></div>
 </section>
 <section class="fb" aria-label="入りたかった所">
-  <div class="fbrow"><b>EAが入っていない「入りたかった所」</b></div>
-  <div class="fbrow"><label for="msSide" class="lbl">方向</label><select id="msSide"><option value="1">買い</option><option value="-1">売り</option></select>
-    <input id="msNote" placeholder="メモ（任意）" style="flex:1 1 160px"><button id="msAdd">チャートをクリックして追加</button></div>
-  <div class="log" style="max-height:160px"><table><thead><tr><th>日時</th><th>方向</th><th>価格</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
+  <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
+  <div class="fbrow"><input id="msNote" placeholder="根拠メモ（例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
+  <div class="fbrow"><span class="note" id="msTxt" style="margin:0">「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定。行を選ぶと、その間に引いた線がこのお手本に紐づきます</span></div>
+  <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
 </section>
 </div>
 <p class="note" id="dbNote"></p>
@@ -313,7 +313,7 @@ const OPTS={entry:[['good','良い'],['early','早い'],['late','遅い'],['skip
   sl:[['ok','適切'],['tighter','もっと浅くできた'],['wider','もっと深く必要']],
   exit:[['ok','適切'],['hold','もっと保有すべき'],['earlier','もっと早く逃げるべき']]};
 const IDEAL=[['entry','理想エントリー'],['sl','理想損切り'],['exit','理想決済']];
-let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null;
+let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null,msDraft=null,msSel=null;
 const fid=x=>`t${x.t}_${x.side}`;const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
 const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 for(const el of document.querySelectorAll('.seg[data-k]')){const k=el.dataset.k;
@@ -323,7 +323,7 @@ const ib=document.getElementById('idealBtns');
 for(const[k,lab]of IDEAL){const b=document.createElement('button');b.textContent=lab;b.dataset.a=k;b.onclick=()=>setArmed(armed===k?null:k);ib.appendChild(b)}
 {const b=document.createElement('button');b.textContent='置いた点を消す';b.onclick=()=>{const x=curTrade();if(!x)return;const f=draft(x);f.ideal={};save(x,f)};ib.appendChild(b)}
 function setArmed(a){armed=a;for(const b of document.querySelectorAll('[data-a]'))b.classList.toggle('armed',b.dataset.a===a);
-  document.getElementById('msAdd').classList.toggle('armed',a==='missed');
+  document.getElementById('msAdd').classList.toggle('armed',a==='missed');if(a!=='missed')msDraft=null;msHint();
   for(const b of document.querySelectorAll('[data-d]'))b.classList.toggle('armed',b.dataset.d===a);if(a!=='tl')tlFirst=null;
   document.getElementById('chart').style.cursor=a?'crosshair':''}
 function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
@@ -347,14 +347,24 @@ document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'mis
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='tl'||armed==='hl'||armed==='del')return drawClick(p,price);
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
-    const m={year,t:p.time,p:price,side:+document.getElementById('msSide').value,note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
-    setArmed(null);try{await db.collection('missed').add(m);document.getElementById('msNote').value=''}catch(e){status('保存できませんでした')}return}
+    if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
+    if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
+    const D=msDraft,side=D.sl.p<D.p?1:-1;
+    const m={year,t:D.t,p:D.p,side,sl:D.sl,exit:{t:p.time,p:price},note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
+    setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;document.getElementById('msNote').value='';renderMissed()}catch(e){status('保存できませんでした')}return}
   const x=curTrade();if(!x)return;const f=draft(x);f.ideal=f.ideal||{};f.ideal[armed]={t:p.time,p:price,tf};setArmed(null);save(x,f)}
+function msHint(){const el=document.getElementById('msTxt');if(!el)return;
+  el.textContent=armed!=='missed'?(msSel?'選択中のお手本に線が紐づきます（行をもう一度クリックで解除）':'「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定'):
+    !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
+const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
-  document.getElementById('msList').innerHTML=L.map(m=>`<tr data-t="${m.d.t}"><td>${fmt(m.d.t)}</td><td class="${m.d.side===1?'up':'down'}">${m.d.side===1?'買い':'売り'}</td><td>${m.d.p}</td><td>${esc(m.d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`).join('')||'<tr><td colspan="5">まだありません</td></tr>'}
+  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
+    <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="8">まだありません</td></tr>'}
 document.getElementById('msList').addEventListener('click',async ev=>{const b=ev.target.closest('[data-del]');
   if(b){ev.stopPropagation();try{await db.collection('missed').doc(b.dataset.del).delete()}catch(e){status('消せませんでした')}return}
-  const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
+  const r=ev.target.closest('tr[data-t]');if(!r)return;msSel=msSel===r.dataset.id?null:r.dataset.id;renderMissed();msHint();
+  const m=MS.find(z=>z.id===msSel);if(m&&m.d.exit){const c=DATA[tf].candles,i0=fIdx(DATA[tf],m.d.t)??0,i1=fIdx(DATA[tf],m.d.exit.t)??i0,sp=Math.max(40,i1-i0);
+    chart.timeScale().setVisibleLogicalRange({from:i0-sp*1.2,to:i1+sp*0.5})}else jump(+r.dataset.t)});
 /* ---------- user drawings ---------- */
 {const box=document.getElementById('drawBtns');
   for(const[k,lab]of[['tl','トレンドライン'],['hl','水平線'],['del','線を消す']]){const b=document.createElement('button');b.textContent=lab;b.dataset.d=k;b.onclick=()=>setArmed(armed===k?null:k);box.appendChild(b)}}
@@ -373,7 +383,7 @@ async function drawClick(p,price){if(!db){status('この表示では保存でき
       const[x1,y1,x2,y2]=L,dx=x2-x1,dy=y2-y1,u=Math.max(0,Math.min(1,((p.point.x-x1)*dx+(p.point.y-y1)*dy)/((dx*dx+dy*dy)||1))),dist=Math.hypot(x1+u*dx-p.point.x,y1+u*dy-p.point.y);
       if(dist<bd){bd=dist;best=it}}
     if(best){try{await db.collection('drawings').doc(best.id).delete()}catch(e){status('消せませんでした')}}return}
-  const x=curTrade(),base={year,tf,trade:x?fid(x):null,created:new Date().toISOString()};
+  const x=curTrade(),base={year,tf,trade:msSel?'m:'+msSel:x?fid(x):null,created:new Date().toISOString()};
   if(armed==='hl'){try{await db.collection('drawings').add({...base,kind:'hl',t1:p.time,p1:price})}catch(e){status('保存できませんでした')}return}
   if(!tlFirst){tlFirst={t:p.time,p:price};return}
   const a=tlFirst;tlFirst=null;if(a.t===p.time)return;
@@ -387,9 +397,15 @@ function drawFeedback(g,r){if(!DATA)return;const d=DATA[tf],ts=chart.timeScale()
     for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
     if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
   drawUser(g,P,W);
-  for(const m of MS){if(m.d.year!==year)continue;const q=P(m.d.t,m.d.p);if(!q)continue;const up=m.d.side===1,col=up?css('--buy'):css('--sell');
-    g.fillStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
-    g.fillText('入りたい',q[0]+9,q[1]+4)}
+  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=css('--hl');
+    g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
+    g.fillText('お手本'+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
+    const xe=d.exit?P(d.exit.t,d.exit.p):null;
+    if(d.sl){const a=P(d.t,d.sl.p),b=P(d.exit?d.exit.t:d.sl.t,d.sl.p);if(a&&b){g.setLineDash([5,4]);g.lineWidth=sel?2:1.2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(Math.max(b[0],a[0]+20),b[1]);g.stroke();g.setLineDash([]);g.fillText('SL',a[0]-18,a[1]+4)}}
+    if(xe){g.beginPath();g.arc(xe[0],xe[1],5,0,7);g.fill();const r=msR(d);if(r!=null)g.fillText((r>0?'+':'')+r.toFixed(2)+'R',xe[0]+8,xe[1]-6);
+      if(sel){g.globalAlpha=.10;g.fillRect(q[0],Math.min(q[1],xe[1]),xe[0]-q[0],Math.abs(xe[1]-q[1]));g.globalAlpha=1}}};
+  for(const m of MS)if(m.d.year===year)drawM(m.d,m.id===msSel);
+  if(msDraft)drawM({...msDraft,side:msDraft.sl?(msDraft.sl.p<msDraft.p?1:-1):1},true);
   g.restore()}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}

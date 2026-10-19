@@ -56,6 +56,7 @@ class Config:
     extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
     tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
     tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
+    sl_fn:object=None          # optional callable(time, side, entry, default_sl) -> stop price, or None to skip the trade
 CFG=Config()
 
 def load_m15(pair):
@@ -424,6 +425,10 @@ def run_pair(pair,cfg=CFG):
             entry=float(r.close); base=float(r.sma200)+( -minrisk if side==1 else minrisk)
             if side==1: sl=min(base,entry-minrisk)
             else: sl=max(base,entry+minrisk)
+            if cfg.sl_fn is not None:
+                sl=cfg.sl_fn(t,side,entry,sl)
+                if sl is None: continue
+                sl=min(sl,entry-minrisk) if side==1 else max(sl,entry+minrisk)
             risk=abs(entry-sl)
             p={'pair':pair,'side':side,'point':point,'regime_id':regime_id,'entry_i':i,'time':t,'entry':entry,
                'initial_sl':sl,'sl':sl,'risk':risk,'trail_on':False,'trail_reason':'','entry_atr':float(r.atr),'B_exception':bool(exc and not rel)}
