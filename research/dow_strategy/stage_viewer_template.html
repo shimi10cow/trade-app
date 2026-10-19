@@ -97,8 +97,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <section class="fb" aria-label="入りたかった所">
   <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
   <div class="fbrow"><label for="msKind" class="lbl" style="min-width:0">種類</label><select id="msKind"><option value="real">裁量で取れる</option><option value="ideal">理想（裁量では難しい）</option></select>
-    <input id="msNote" placeholder="根拠メモ（例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
+    <input id="msNote" placeholder="根拠メモ（音声入力OK・例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
   <div class="fbrow"><span class="note" id="msTxt" style="margin:0">「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定。行を選ぶと、その間に引いた線がこのお手本に紐づきます</span></div>
+  <div class="fbrow" id="msEditRow" hidden><label for="msEdit" class="lbl">選択中のメモ</label><textarea id="msEdit" rows="3" placeholder="なぜここで入ったか（音声入力：Windowsは Win＋H、Macは Fnキー2回、スマホはキーボードのマイク）"></textarea></div>
   <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>種類</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
 </section>
 </div>
@@ -375,7 +376,11 @@ async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const pr
     const m={year,t:D.t,p:D.p,side,sl:D.sl,exit:{t:p.time,p:price},kind:document.getElementById('msKind').value,note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
     setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;document.getElementById('msNote').value='';renderMissed()}catch(e){status('保存できませんでした')}return}
   const x=curTrade();if(!x)return;const f=draft(x);f.ideal=f.ideal||{};f.ideal[armed]={t:p.time,p:price,tf};setArmed(null);save(x,f)}
-function msHint(){const el=document.getElementById('msTxt');if(!el)return;
+function msEditSync(){const row=document.getElementById('msEditRow'),ta=document.getElementById('msEdit');const m=MS.find(z=>z.id===msSel);
+  row.hidden=!m;if(m&&document.activeElement!==ta)ta.value=m.d.note||''}
+let msTimer=0;document.getElementById('msEdit').addEventListener('input',()=>{clearTimeout(msTimer);const id=msSel,v=document.getElementById('msEdit').value;
+  msTimer=setTimeout(async()=>{if(!db||!id)return;try{await db.collection('missed').doc(id).update({note:v});status('メモを保存しました')}catch(e){status('メモを保存できませんでした')}},800)});
+function msHint(){msEditSync();const el=document.getElementById('msTxt');if(!el)return;
   el.textContent=armed!=='missed'?(msSel?'選択中のお手本に線が紐づきます（行をもう一度クリックで解除）':'「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定'):
     !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
 const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
@@ -489,6 +494,6 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
-  db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed()},e=>status('入りたかった所を読み込めませんでした'))})();
+  db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
 </script>
