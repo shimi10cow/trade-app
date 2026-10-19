@@ -129,7 +129,13 @@ def recall(tr):
         t = pd.Timestamp(m['t'], unit='s')
         if ((tr.side == m['side']) & ((tr.t - t).abs() <= pd.Timedelta(hours=24))).any():
             hit[k][0] += 1
-    return f"お手本再現 裁量{hit['real'][0]}/{hit['real'][1]} 理想{hit['ideal'][0]}/{hit['ideal'][1]}"
+    byset = {}
+    for m in MODEL:
+        st = m.get('setup') or '-'; t = pd.Timestamp(m['t'], unit='s')
+        h = ((tr.side == m['side']) & ((tr.t - t).abs() <= pd.Timedelta(hours=24))).any()
+        byset.setdefault(st, [0, 0]); byset[st][0] += int(h); byset[st][1] += 1
+    sets = ' '.join(f"{k}:{v[0]}/{v[1]}" for k, v in sorted(byset.items()))
+    return f"お手本再現 裁量{hit['real'][0]}/{hit['real'][1]} 理想{hit['ideal'][0]}/{hit['ideal'][1]}（分類別 {sets}）"
 
 
 CFGS = [  # name, trigger, H1 correcting, stop buffer x ATR(H1), trail activation R
