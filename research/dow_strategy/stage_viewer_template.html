@@ -277,7 +277,14 @@ function jump(t){const d=DATA[tf].candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
-  b.onclick=()=>{tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);build()};tfs.appendChild(b)}
+  b.onclick=()=>{const keep=visTimes();tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
+    build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
+/* keep the same dates on screen when the timeframe changes */
+function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVisibleLogicalRange();if(!r)return null;
+  const c=DATA[tf].candles,cl=i=>c[Math.max(0,Math.min(c.length-1,Math.round(i)))][0];return [cl(r.from),cl(r.to)]}
+function showTimes([a,b]){const c=DATA[tf].candles;const ix=t=>{const i=fIdx(DATA[tf],t);return i==null?0:i};
+  let i0=ix(a),i1=ix(b);const mid=(i0+i1)/2;if(i1-i0<60){i0=mid-30;i1=mid+30}
+  chart.timeScale().setVisibleLogicalRange({from:i0,to:i1})}
 for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo','optLab'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
 const rebuild=()=>{if(DATA)build()};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rebuild);
