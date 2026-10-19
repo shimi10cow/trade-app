@@ -52,6 +52,8 @@ class Config:
     use_inverse_trend:bool=False
     max_entry_point:int=2
     extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
+    tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
+    tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
 CFG=Config()
 
 def load_m15(pair):
@@ -304,7 +306,15 @@ def run_pair(pair,cfg=CFG):
                 hit=(r.low<=p['sl']) if p['side']==1 else (r.high>=p['sl'])
                 if hit:
                     ex=p['sl']; R=(ex-p['entry'])*p['side']/p['risk']
+                    if p.get('half_R') is not None: R=0.5*p['half_R']+0.5*R
                     p.update(exit=ex,ExitTime=t,R=R,exit_i=i);closed.append(p);continue
+                # optional take-profit (checked after SL: same-bar SL wins)
+                tp=p.get('tp')
+                if tp is not None and p.get('half_R') is None and ((r.high>=tp) if p['side']==1 else (r.low<=tp)):
+                    Rtp=(tp-p['entry'])*p['side']/p['risk']
+                    if cfg.tp_half: p['half_R']=Rtp
+                    else:
+                        p.update(exit=tp,ExitTime=t,R=Rtp,exit_i=i,tp_hit=True);closed.append(p);continue
             survivors.append(p)
         positions=survivors
 
@@ -413,12 +423,15 @@ def run_pair(pair,cfg=CFG):
             risk=abs(entry-sl)
             p={'pair':pair,'side':side,'point':point,'regime_id':regime_id,'entry_i':i,'time':t,'entry':entry,
                'initial_sl':sl,'sl':sl,'risk':risk,'trail_on':False,'trail_reason':'','entry_atr':float(r.atr),'B_exception':bool(exc and not rel)}
+            if cfg.tp_fn is not None: p['tp']=cfg.tp_fn(t,side,entry,risk)
             positions.append(p);regime_trades[point].append(p)
 
     # mark open at end using last close
     last=m.iloc[-1]
     for p in positions:
-        ex=float(last.close);R=(ex-p['entry'])*p['side']/p['risk'];p.update(exit=ex,ExitTime=last.time,R=R,exit_i=len(m)-1,open_end=True);closed.append(p)
+        ex=float(last.close);R=(ex-p['entry'])*p['side']/p['risk']
+        if p.get('half_R') is not None: R=0.5*p['half_R']+0.5*R
+        p.update(exit=ex,ExitTime=last.time,R=R,exit_i=len(m)-1,open_end=True);closed.append(p)
     return pd.DataFrame(closed)
 
 def run_all(cfg=CFG):
