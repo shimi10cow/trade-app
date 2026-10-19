@@ -1,7 +1,7 @@
 """Year-by-year entry viewer for the existing EA (long data), tagged with the H4 Dow trend stage.
 
 python dow_strategy/build_stage_viewer.py <out_dir> [years...]   (needs results/long_features_1.csv)
-Writes <out_dir>/index.html (summary by year x stage) and <out_dir>/<year>.html (chart pages).
+Writes <out_dir>/index.html (single viewer page with per-trade review saved to the artifact db)\nand <out_dir>/data/<year>.json (loaded when a year is picked).
 W1/D1/H4 overlays are computed once on the full 2003-2026 history; M15 and H1 are computed per year
 from a few months before the year (speed). Only the year's window is embedded.
 """
@@ -164,14 +164,17 @@ if __name__ == '__main__':
         k = bisect.bisect_right(close, t + pd.Timedelta(minutes=15)) - 1
         nrev.append(bisect.bisect_right(rev, k) - bisect.bisect_right(rev, k - 90))
     F['nrev'] = nrev
-    (out / 'index.html').write_text(index_html(F, years), encoding='utf-8')
-    tpl = TEMPLATE.read_text(encoding='utf-8')
+    (out / 'data').mkdir(exist_ok=True)
     for y in years:
         for tf in PER_YEAR:
             C[tf] = compute(tf, y)
         data = {tf: payload(C[tf], *window(C[tf], tf, y)) for tf in TFS}
         data['trades'] = trades_of(F, y)
-        html = (tpl.replace('/*TITLE*/', f'段階ビューア {y}').replace('/*H1*/', f'既存EAのエントリー {y}年（色＝H4ダウの段階）')
-                .replace('/*NAV*/', nav(years, y)).replace('/*DATA*/null', json.dumps(data, separators=(',', ':'))))
-        (out / f'{y}.html').write_text(DOC + html, encoding='utf-8')
-        print(y, round(len(html) / 1e6, 2), 'MB', len(data['trades']), 'trades', flush=True)
+        js = json.dumps(data, separators=(',', ':'))
+        (out / 'data' / f'{y}.json').write_text(js, encoding='utf-8')
+        print(y, round(len(js) / 1e6, 2), 'MB', len(data['trades']), 'trades', flush=True)
+    G = F[(F.time.dt.year >= years[0]) & (F.time.dt.year <= years[-1])]
+    alltr = [[int(t.year), int(s), round(float(r), 2)] for t, s, r in zip(G.time, G.h4_stage, G.Rc)]
+    html = (TEMPLATE.read_text(encoding='utf-8').replace('/*ALLTR*/null', json.dumps(alltr, separators=(',', ':')))
+            .replace('/*YEARS*/null', json.dumps(years)))
+    (out / 'index.html').write_text(html, encoding='utf-8')
