@@ -50,7 +50,8 @@ class Config:
     use_h4_levels:bool=False
     use_h4_rsi:bool=False
     use_inverse_trend:bool=False
-    use_long_ma:bool=True      # False: skip SMA200 slope, SMA200/480 relation, q75 and MA-ABCD (long-MA filters)
+    use_long_ma:bool=True
+    trail_pivots:object=None   # optional DataFrame(kind 'L'/'H', price, confirm_time) replacing the M15 ATR14x1.5 ZigZag      # False: skip SMA200 slope, SMA200/480 relation, q75 and MA-ABCD (long-MA filters)
     max_entry_point:int=2
     extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
     tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
@@ -282,7 +283,9 @@ def metrics(tr):
     return dict(Trades=len(r),TotalR=r.sum(),AvgR=r.mean(),PF=gp/gl if gl else np.inf,MaxDD=dd.min(),WinRate=(r>0).mean()*100)
 
 def run_pair(pair,cfg=CFG):
-    m,h1,h4,h1p,m15p=build_features(pair,cfg); levels=load_levels(pair) if cfg.use_h4_levels else None
+    m,h1,h4,h1p,m15p=build_features(pair,cfg)
+    if cfg.trail_pivots is not None: m15p=cfg.trail_pivots
+    levels=load_levels(pair) if cfg.use_h4_levels else None
     pip=.01 if pair.endswith('JPY') else .0001; minrisk=10*pip
     # pivot confirmations indexed by M15 bar time; effective next bar handled via confirm_time < current time
     piv_by_t={}

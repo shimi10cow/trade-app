@@ -47,3 +47,13 @@ def m15_line_broken_recent(bars=16):
         d = 'up' if side == 1 else 'down'
         return i is not None and any(i - bars <= x['idx'] <= i and ldir.get(x['key']) != d for x in brk)
     return f
+
+
+def dow_trail_pivots():
+    """M15 Dow pivots (env_recognition v2: 1.9xATR7, outside-bar split) in the engine's ZigZag format.
+    Every confirm/relocate is a row; confirm_time = open time of the bar whose close made it known."""
+    m15 = M.env.tf['M15']
+    t = pd.to_datetime(m15['df'].t)
+    rows = [dict(kind='H' if e['kind'] == 'hi' else 'L', price=e['price'], confirm_time=t[e['available_idx']])
+            for e in m15['res']['pivot_events']]
+    return pd.DataFrame(rows)
