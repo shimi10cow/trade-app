@@ -91,7 +91,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
   <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○、違えば×、微妙なら△</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○。違う時は理由で選ぶ：×レンジ＝トレンドの終わりではない（レンジ内）、×形＝山が2つに見えない・ネックが認識できない、×他＝それ以外。微妙なら△</span></div>
   <div class="log" style="max-height:220px"><table><thead><tr><th>確定した足</th><th>種類</th><th>A</th><th>B（ネック）</th><th>C</th><th>判定</th></tr></thead><tbody id="wList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="線を引く">
@@ -495,7 +495,7 @@ const wid=w=>`${tf}_${w[0]}`;
 function renderW(){const L=wRows();const done=L.filter(w=>WJ[wid(w)]).length;
   document.getElementById('wCount').textContent=`${tf} ${year}年：${L.length}件中 ${done}件判定済み（全体で${Object.keys(WJ).length}件）`;
   document.getElementById('wList').innerHTML=L.map(w=>{const v=(WJ[wid(w)]||{}).v;const b=(k,l)=>`<button data-wv="${k}" data-wt="${w[0]}" aria-pressed="${v===k}">${l}</button>`;
-    return `<tr data-wt="${w[0]}" class="${w[0]===wSel?'sel':''}"><td>${fmt(w[0])}</td><td class="${w[1]==='W_TOP'?'down':'up'}">${w[1]==='W_TOP'?'Wトップ':'Wボトム'}</td><td>${w[2]}</td><td>${w[3]}</td><td>${w[4]}</td><td><span class="seg">${b('ok','○')}${b('ng','×')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
+    return `<tr data-wt="${w[0]}" class="${w[0]===wSel?'sel':''}"><td>${fmt(w[0])}</td><td class="${w[1]==='W_TOP'?'down':'up'}">${w[1]==='W_TOP'?'Wトップ':'Wボトム'}</td><td>${w[2]}</td><td>${w[3]}</td><td>${w[4]}</td><td><span class="seg">${b('ok','○')}${b('ng_range','×レンジ')}${b('ng_shape','×形')}${b('ng','×他')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
 document.getElementById('wList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-wv]');
   if(bt){ev.stopPropagation();const t=+bt.dataset.wt,w=wRows().find(x=>x[0]===t);if(!w||!db){status('この表示では保存できません');return}
     const id=wid(w),cur=(WJ[id]||{}).v,v=cur===bt.dataset.wv?null:bt.dataset.wv;

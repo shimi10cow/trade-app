@@ -172,6 +172,8 @@ CFGS = [
     dict(BASE, name='K6 K4・1.5R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=1.5),
     dict(BASE, name='K7 K4・1.0R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=1.0),
     dict(BASE, name='K8 K4・2.0R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=2.0),
+    dict(BASE, name='K9 H4主要＋仮転換（Wなし）＋MA', tfs=('H4',), kinds=('major', 'prov'), ma=True),
+    dict(BASE, name='K10 K9・1.5R後M15トレール', tfs=('H4',), kinds=('major', 'prov'), ma=True, exit='m15', act=1.5),
 ]
 
 
