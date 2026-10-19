@@ -50,6 +50,7 @@ class Config:
     use_h4_levels:bool=False
     use_h4_rsi:bool=False
     use_inverse_trend:bool=False
+    use_long_ma:bool=True      # False: skip SMA200 slope, SMA200/480 relation, q75 and MA-ABCD (long-MA filters)
     max_entry_point:int=2
     extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
     tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
@@ -374,10 +375,10 @@ def run_pair(pair,cfg=CFG):
             vals=[r.h1_atr,r.sma20,r.sma75,r.sma200,r.sma480,r.s200,r.s480]
             if not all(np.isfinite(x) for x in vals): continue
             # Trend: mandatory SMA200 slope + 200/480 relation (B may waive relation)
-            if side==1 and r.s200<cfg.s200_min: continue
-            if side==-1 and r.s200>-cfg.s200_min: continue
+            if cfg.use_long_ma and side==1 and r.s200<cfg.s200_min: continue
+            if cfg.use_long_ma and side==-1 and r.s200>-cfg.s200_min: continue
             rel=ma_relation_pass(r,side,cfg); exc=expansion_exception(r,side,cfg)
-            if not (rel or exc): continue
+            if cfg.use_long_ma and not (rel or exc): continue
 
             # q75 qualifying point: trend + stoch has now passed. Past only, then append current.
             strength=min(r.s200,r.s480) if side==1 else min(-r.s200,-r.s480)
@@ -385,10 +386,10 @@ def run_pair(pair,cfg=CFG):
             if len(hist)>=cfg.q75_warmup:
                 q=np.quantile(hist,.75); qrej=strength>q
             hist.append(float(strength))
-            if qrej: continue
+            if qrej and cfg.use_long_ma: continue
 
             # P-independent downstream filters
-            if ma_abcd_reject(r,side): continue
+            if cfg.use_long_ma and ma_abcd_reject(r,side): continue
             if cfg.use_h4_rsi and not h4_rsi_allowed(side,r.rsi,rsi_state): continue
             if cfg.use_h4_levels and structural_level_reject(levels,t,r.close,side,r.h4_atr,cfg): continue
 
