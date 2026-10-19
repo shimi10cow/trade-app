@@ -42,14 +42,14 @@ def compute(tf, y=None):
         df = df[(tt >= pd.Timestamp(f'{y}-01-01') - PER_YEAR[tf] - LEAD[tf]) & (tt < pd.Timestamp(f'{y + 1}-01-01'))].reset_index(drop=True)
     res = dow_trend.run(df, tf)
     return dict(df=df, res=res, zones=zones.build(df, res), lines=lines.run(df, tf, res), t=epoch_s(df.t),
-                tt=pd.to_datetime(df.t), sma20=df.c.rolling(20).mean(), sma75=df.c.rolling(75).mean())
+                tt=pd.to_datetime(df.t), sma20=df.c.rolling(20).mean(), sma75=df.c.rolling(75).mean(), sma200=df.c.rolling(200).mean())
 
 
 def payload(C, s0, s1):
     df, res, t = C['df'], C['res'], C['t']
     inw = lambda i: s0 <= i < s1
     candles = [[t[i], r5(df.o[i]), r5(df.h[i]), r5(df.l[i]), r5(df.c[i])] for i in range(s0, s1)]
-    sma = {p: [[t[i], r5(C[f'sma{p}'][i])] for i in range(s0, s1) if pd.notna(C[f'sma{p}'][i])] for p in (20, 75)}
+    sma = {p: [[t[i], r5(C[f'sma{p}'][i])] for i in range(s0, s1) if pd.notna(C[f'sma{p}'][i])] for p in (20, 75, 200)}
     prot = [[t[i], None if tr is None else r5(p), tr] for i, (tr, p) in enumerate(res['bars'][s0:s1], s0)]
     pprot = [[t[i], None if tr is None else r5(p), tr] for i, (tr, p) in enumerate(res['prov_bars'][s0:s1], s0)]
     known = {}
@@ -80,7 +80,7 @@ def payload(C, s0, s1):
     lout = [[x['anchor_idx'] - s0, r5(x['anchor_price']), x['end_idx'] - s0, r5(x['end_price']),
              x['created'] - s0, rel(x['retired']), x['kind'], x['reason'] or '', x['type']]
             for x in C['lines']['lines'] if x['created'] < s1 and (x['retired'] is None or x['retired'] >= s0)]
-    return dict(ulab=[], extra=[], lines=lout, candles=candles, sma20=sma[20], sma75=sma[75], prot=prot, pprot=pprot,
+    return dict(ulab=[], extra=[], lines=lout, candles=candles, sma20=sma[20], sma75=sma[75], sma200=sma[200], prot=prot, pprot=pprot,
                 piv=piv, ev=ev, pev=pev, wev=wev, zones=zout)
 
 
