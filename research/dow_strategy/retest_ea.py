@@ -50,6 +50,25 @@ def events(tf, kinds):
             spd = abs(e['b'] - e['a']) / at / max(1, b_ - a_)
             if spd >= 0.45 and abs(e['a'] - e['c']) / at <= 2 and run >= 6:
                 out.append((C[e['idx']], 'up' if bot else 'down', e['b']))
+    for qk in ('mq', 'pq'):                             # Dow turn filtered by the speed of the breaking leg
+        if qk not in kinds:
+            continue
+        H, Lo, Cl = df.h.to_numpy(float), df.l.to_numpy(float), df.c.to_numpy(float)
+        evs = ([e for e in R['events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL'] if qk == 'mq'
+               else [e for e in R['prov_events'] if e['action'] == 'REVERSAL'])
+        th = QSPD.get(tf, 0.45)
+        for e in evs:
+            k = e['idx']; L = e.get('broken_price')
+            if L is None:
+                continue
+            up = e['to'] == 'up'; w0 = max(0, k - 40)
+            x = (w0 + int(np.argmin(Lo[w0:k + 1]))) if up else (w0 + int(np.argmax(H[w0:k + 1])))
+            at = A[x]; leg = (Cl[k] - Lo[x]) / at if up else (H[x] - Cl[k]) / at
+            spd = leg / max(1, k - x)
+            p0 = max(0, x - 90)
+            run = (H[p0:x].max() - Lo[x]) / at if up else (H[x] - Lo[p0:x].min()) / at
+            if spd >= th and run >= QRUN:
+                out.append((C[k], e['to'], L))
     if 'w' in kinds:
         out += [(C[e['idx']], 'up' if e['action'] == 'W_BOTTOM' else 'down', e['b']) for e in R['w_events']]
     return [(t, d, L, tf) for t, d, L in out if L is not None]
@@ -216,6 +235,9 @@ def tl_entry(touch, i1, d, i0):
     return None
 
 
+import os
+QSPD = {'H4': float(os.environ.get('QSPD', '0.45'))}
+QRUN = float(os.environ.get('QRUN', '6'))
 S20 = B.h1.c.rolling(20).mean().to_numpy(); S75 = B.h1.c.rolling(75).mean().to_numpy()
 BASE = dict(tfs=('H4', 'H1'), kinds=('major', 'prov', 'w'), win=72, tol=0.3, buf=1.0)
 CFGS = [
@@ -258,6 +280,11 @@ CFGS = [
     dict(BASE, name='L2 L1・固定3R', tfs=('H4',), kinds=('wq',), trig='tl', tp=3.0),
     dict(BASE, name='L3 H4全転換・調整ライン抜け・MA', tfs=('H4',), kinds=('major', 'prov', 'wq'), trig='tl', ma=True),
     dict(BASE, name='L4 L1・余裕0.5', tfs=('H4',), kinds=('wq',), trig='tl', buf=0.5),
+    dict(BASE, name='M1 勢いのある主要転換・3R', tfs=('H4',), kinds=('mq',), tp=3.0),
+    dict(BASE, name='M2 勢いのある仮転換・3R', tfs=('H4',), kinds=('pq',), tp=3.0),
+    dict(BASE, name='M3 良いW＋勢いのある主要転換・3R', tfs=('H4',), kinds=('wq', 'mq'), tp=3.0),
+    dict(BASE, name='M4 良いW＋勢いのある主要/仮転換・3R', tfs=('H4',), kinds=('wq', 'mq', 'pq'), tp=3.0),
+    dict(BASE, name='M5 主要転換（絞りなし）・3R', tfs=('H4',), kinds=('major',), tp=3.0),
 ]
 
 
