@@ -99,7 +99,18 @@ def run(cfg):
                 p['exit'] = p['sl']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if cfg.get('tp') and ((B.h[i] >= p['tp']) if s == 1 else (B.l[i] <= p['tp'])):
                 p['exit'] = p['tp']; p['exit_t'] = M15T[i]; trades.append(p); continue
-            if not cfg.get('tp'):
+            if cfg.get('exit') == 'm15':
+                if not p['trail'] and s * ((B.h[i] if s == 1 else B.l[i]) - p['entry']) >= cfg.get('act', 1.5) * p['risk']:
+                    p['trail'] = True
+                if p['trail']:
+                    j = bisect.bisect_right(P15T, M15T[i] + TF_LEN['M15']) - 1
+                    while j >= 0 and P15[j][1] != ('lo' if s == 1 else 'hi'):
+                        j -= 1
+                    if j >= 0:
+                        v = P15[j][2] - s * B.PIP
+                        if (v < B.c[i]) if s == 1 else (v > B.c[i]):
+                            p['sl'] = max(p['sl'], v) if s == 1 else min(p['sl'], v)
+            elif not cfg.get('tp'):
                 if not p['trail'] and s * ((B.h[i] if s == 1 else B.l[i]) - p['entry']) >= p['risk']:
                     p['trail'] = True
                 if p['trail']:
@@ -140,6 +151,8 @@ def run(cfg):
     return name, tr
 
 
+P15 = sorted(((M15T[e['available_idx']] + TF_LEN['M15'], e['kind'], e['price']) for e in B.R15['pivot_events']), key=lambda x: x[0])
+P15T = [x[0] for x in P15]
 S20 = B.h1.c.rolling(20).mean().to_numpy(); S75 = B.h1.c.rolling(75).mean().to_numpy()
 BASE = dict(tfs=('H4', 'H1'), kinds=('major', 'prov', 'w'), win=72, tol=0.3, buf=1.0)
 CFGS = [
@@ -156,6 +169,9 @@ CFGS = [
     dict(BASE, name='K3 H4のWのみ', tfs=('H4',), kinds=('w',)),
     dict(BASE, name='K4 H4全転換＋H1 MA', tfs=('H4',), ma=True),
     dict(BASE, name='K5 H4全転換・余裕0.5', tfs=('H4',), buf=0.5),
+    dict(BASE, name='K6 K4・1.5R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=1.5),
+    dict(BASE, name='K7 K4・1.0R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=1.0),
+    dict(BASE, name='K8 K4・2.0R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=2.0),
 ]
 
 
