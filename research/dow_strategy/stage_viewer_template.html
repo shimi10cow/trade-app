@@ -87,7 +87,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <section class="fb" aria-label="線を引く">
   <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
   <div class="fbrow"><span class="seg" id="drawBtns"></span></div>
-  <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">トレンドライン＝2点クリック（右へ延長）、水平線＝1点クリック、消す＝線の近くをクリック</span></div>
+  <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">トレンドライン＝2点クリック（右へ延長）、水平線＝クリックした所から右へ、消す＝線の近くをクリック。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
 <section class="fb" aria-label="入りたかった所">
   <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
@@ -368,13 +368,15 @@ document.getElementById('msList').addEventListener('click',async ev=>{const b=ev
 /* ---------- user drawings ---------- */
 {const box=document.getElementById('drawBtns');
   for(const[k,lab]of[['tl','トレンドライン'],['hl','水平線'],['del','線を消す']]){const b=document.createElement('button');b.textContent=lab;b.dataset.d=k;b.onclick=()=>setArmed(armed===k?null:k);box.appendChild(b)}}
-function lineXY(dr,P,W){const a=P(dr.t1,dr.p1);if(!a)return null;if(dr.kind==='hl')return [0,a[1],W,a[1]];
+const DCOL={W1:'#9333ea',D1:'#dc2626',H4:'#16a34a',H1:'#0ea5e9',M15:'#ec4899'};
+function lineXY(dr,P,W){const a=P(dr.t1,dr.p1);if(!a)return null;if(dr.kind==='hl')return [a[0],a[1],W,a[1]];
   const b=P(dr.t2,dr.p2);if(!b)return null;if(b[0]===a[0])return [a[0],a[1],b[0],b[1]];
   const k=(b[1]-a[1])/(b[0]-a[0]);return [a[0],a[1],W,a[1]+k*(W-a[0])]}
-function drawUser(g,P,W){g.save();g.lineWidth=1.6;g.strokeStyle=g.fillStyle=css('--draw');g.setLineDash([]);
-  for(const{d:dr}of DR){if(dr.year!==year)continue;const L=lineXY(dr,P,W);if(!L)continue;g.beginPath();g.moveTo(L[0],L[1]);g.lineTo(L[2],L[3]);g.stroke();
-    if(dr.kind==='hl')g.fillText(dr.p1,4,L[1]-4)}
-  if(tlFirst){const a=P(tlFirst.t,tlFirst.p);if(a){g.beginPath();g.arc(a[0],a[1],4,0,7);g.fill()}}
+function drawUser(g,P,W){g.save();g.lineWidth=1.6;g.setLineDash([]);
+  for(const{d:dr}of DR){if(dr.year!==year)continue;const L=lineXY(dr,P,W);if(!L)continue;g.strokeStyle=g.fillStyle=DCOL[dr.tf]||css('--draw');
+    g.beginPath();g.moveTo(L[0],L[1]);g.lineTo(L[2],L[3]);g.stroke();
+    if(dr.kind==='hl')g.fillText(dr.tf+' '+dr.p1,L[0]+4,L[1]-4)}
+  if(tlFirst){const a=P(tlFirst.t,tlFirst.p);if(a){g.fillStyle=DCOL[tf]||css('--draw');g.beginPath();g.arc(a[0],a[1],4,0,7);g.fill()}}
   g.restore()}
 async function drawClick(p,price){if(!db){status('この表示では保存できません');return}
   if(armed==='del'){const d=DATA[tf],ts=chart.timeScale(),W=ts.width();
