@@ -89,6 +89,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
 </section>
+<section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
+  <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○、違えば×、微妙なら△</span></div>
+  <div class="log" style="max-height:220px"><table><thead><tr><th>確定した足</th><th>種類</th><th>A</th><th>B（ネック）</th><th>C</th><th>判定</th></tr></thead><tbody id="wList"></tbody></table></div>
+</section>
 <section class="fb" aria-label="線を引く">
   <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
   <div class="fbrow"><span class="seg" id="drawBtns"></span></div>
@@ -306,7 +311,7 @@ function jump(t){const d=DV().candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.l
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
-  b.onclick=()=>{const keep=visTimes();tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
+  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(renderW);try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
     build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
 /* keep the same dates on screen when the timeframe changes */
 function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVisibleLogicalRange();if(!r)return null;
@@ -325,7 +330,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   for(const b of yrsEl.children)b.setAttribute('aria-pressed',+b.textContent===y);
   document.getElementById('state').textContent=y+'年を読み込み中…';
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;setArmed(null);build();trTable();renderFb();renderMissed()}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;setArmed(null);build();renderW();trTable();renderFb();renderMissed()}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -483,6 +488,26 @@ document.getElementById('rpBack').onclick=()=>rpStep(-1);
 {const ff=document.getElementById('rpFF');
   ff.addEventListener('pointerdown',e=>{e.preventDefault();rpStop();rpStep(1);rpTimer=setInterval(()=>rpStep(1),70)});
   for(const ev of ['pointerup','pointerleave','pointercancel'])ff.addEventListener(ev,rpStop)}
+/* ---------- W judgement ---------- */
+let WJ={},wSel=null;
+function wRows(){if(!DATA)return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return DATA[tf].wev.filter(w=>w[0]>=y0&&w[0]<y1)}
+const wid=w=>`${tf}_${w[0]}`;
+function renderW(){const L=wRows();const done=L.filter(w=>WJ[wid(w)]).length;
+  document.getElementById('wCount').textContent=`${tf} ${year}年：${L.length}件中 ${done}件判定済み（全体で${Object.keys(WJ).length}件）`;
+  document.getElementById('wList').innerHTML=L.map(w=>{const v=(WJ[wid(w)]||{}).v;const b=(k,l)=>`<button data-wv="${k}" data-wt="${w[0]}" aria-pressed="${v===k}">${l}</button>`;
+    return `<tr data-wt="${w[0]}" class="${w[0]===wSel?'sel':''}"><td>${fmt(w[0])}</td><td class="${w[1]==='W_TOP'?'down':'up'}">${w[1]==='W_TOP'?'Wトップ':'Wボトム'}</td><td>${w[2]}</td><td>${w[3]}</td><td>${w[4]}</td><td><span class="seg">${b('ok','○')}${b('ng','×')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
+document.getElementById('wList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-wv]');
+  if(bt){ev.stopPropagation();const t=+bt.dataset.wt,w=wRows().find(x=>x[0]===t);if(!w||!db){status('この表示では保存できません');return}
+    const id=wid(w),cur=(WJ[id]||{}).v,v=cur===bt.dataset.wv?null:bt.dataset.wv;
+    if(v){WJ[id]={tf,t,action:w[1],a:w[2],b:w[3],c:w[4],b_anchor:w[5],v,year};renderW();try{await db.collection('wjudge').doc(id).set(WJ[id])}catch(e){status('保存できませんでした')}}
+    else{delete WJ[id];renderW();try{await db.collection('wjudge').doc(id).delete()}catch(e){}}return}
+  const r=ev.target.closest('tr[data-wt]');if(!r)return;wSel=+r.dataset.wt;renderW();const w=wRows().find(x=>x[0]===wSel);
+  const d=DV(),i1=fIdx(d,w[0])??0,i0=fIdx(d,w[5])??i1;const sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*1.5,to:i1+sp*0.8})});
+function drawW(g,P,W){if(wSel==null||!DATA)return;const w=DATA[tf].wev.find(x=>x[0]===wSel);if(!w)return;
+  const col=w[1]==='W_TOP'?css('--down'):css('--up');g.save();g.strokeStyle=g.fillStyle=col;g.lineWidth=2;g.setLineDash([6,4]);
+  const a=P(w[5],w[3]),e=P(w[0],w[3]);if(a&&e){g.beginPath();g.moveTo(a[0]-40,a[1]);g.lineTo(e[0]+60,e[1]);g.stroke();g.fillText('B ネック '+w[3],a[0]-40,a[1]-6)}
+  g.setLineDash([]);const lv=(p,lab)=>{const q=P(w[5],p),r=P(w[0],p);if(q&&r){g.globalAlpha=.5;g.beginPath();g.moveTo(q[0]-80,q[1]);g.lineTo(r[0],r[1]);g.stroke();g.globalAlpha=1;g.fillText(lab+' '+p,q[0]-80,q[1]-4)}};
+  lv(w[2],'A');lv(w[4],'C');if(e){g.beginPath();g.arc(e[0],e[1],6,0,7);g.stroke()}g.restore()}
 function fIdx(d,t){const c=d.candles;if(!c.length||t<c[0][0])return null;const n=c.length-1;if(t>c[n][0])return n+(t-c[n][0])/TFLEN[tf];let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
 function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=ts.width();
   g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='bold 11px '+css('--mono');g.lineWidth=2;g.setLineDash([]);
@@ -491,7 +516,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   if(f&&f.ideal){const I=f.ideal;g.strokeStyle=g.fillStyle=css('--hl');
     for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
     if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
-  drawUser(g,P,W);
+  drawUser(g,P,W);drawW(g,P,W);
   const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):css('--hl');
     g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
     g.fillText((d.kind==='ideal'?'理想':'お手本')+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
@@ -505,6 +530,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
+  db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
