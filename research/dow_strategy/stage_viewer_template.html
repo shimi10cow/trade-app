@@ -67,6 +67,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optLine" checked> トレンドライン</label>
   <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
+  <label><input type="checkbox" id="optTr" checked> EAのトレード</label>
   <span class="state" id="state"></span>
 </div>
 <div class="hover" id="hover"></div>
@@ -157,7 +158,6 @@ function build(){
   cs=chart.addCandlestickSeries({upColor:'#ffffff00',borderUpColor:css('--fg'),wickUpColor:css('--fg'),
     downColor:css('--fg'),borderDownColor:css('--fg'),wickDownColor:css('--fg'),priceLineVisible:false});
   cs.setData(d.candles.map(c=>({time:c[0],open:c[1],high:c[2],low:c[3],close:c[4]})));
-  chart.subscribeClick(onChartClick);
   ps=chart.addLineSeries({lineType:1,lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
   if(document.getElementById('optProt').checked)
     ps.setData(d.prot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1],color:p[2]==='up'?css('--prot-up'):css('--prot-down')}));
@@ -181,7 +181,7 @@ function build(){
     if(e[1]==='bo'&&document.getElementById('optBo').checked)m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
   }
   const barT=t=>{let lo=0,hi=d.candles.length-1;if(t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
-  for(const x of trView()){const bt=barT(x.t),xt=barT(x.xt);const col=stgCol(x.stg);
+  for(const x of document.getElementById('optTr').checked?trView():[]){const bt=barT(x.t),xt=barT(x.xt);const col=stgCol(x.stg);
     if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+stgTxt(x.stg),size:x.n===trSel?2:1});
     if(xt!=null)m.push({time:xt,position:x.side===1?'aboveBar':'belowBar',shape:'circle',color:col,text:(x.R>0?'+':'')+x.R+'R'})}
   m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
@@ -254,7 +254,7 @@ function drawLines(g,r){
 const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0]];
 const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
 function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
-function drawTrade(g,r){const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
+function drawTrade(g,r){if(!document.getElementById('optTr').checked)return;const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
   const d=DATA[tf],ts=chart.timeScale(),W=ts.width();const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
   const x0=ts.logicalToCoordinate(ix(x.t)),x1=ts.logicalToCoordinate(ix(x.xt));if(x0==null||x1==null)return;
   const ye=cs.priceToCoordinate(x.entry),ys=cs.priceToCoordinate(x.sl),yx=cs.priceToCoordinate(x.xp);if([ye,ys,yx].some(v=>v==null))return;
@@ -264,7 +264,7 @@ function drawTrade(g,r){const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
   g.strokeStyle=css('--down');g.setLineDash([5,4]);g.beginPath();g.moveTo(x0,ys);g.lineTo(x1,ys);g.stroke();g.setLineDash([]);
   g.fillStyle=css('--accent');g.fillText(`#${x.n} エントリー ${x.entry}`,x0+4,ye-5);g.fillStyle=css('--down');g.fillText(`損切り ${x.sl}`,x0+4,ys+(x.side===1?13:-5));
   g.fillStyle=x.R>0?css('--up'):css('--down');g.beginPath();g.arc(x1,yx,4,0,7);g.fill();g.fillText(`決済 ${x.xp} (${x.R>0?'+':''}${x.R}R)`,x1+6,yx-4);g.restore()}
-function trTable(){const T=DATA.trades,V=trView();const jp=v=>v==='up'?'↑':v==='down'?'↓':'-';
+function trTable(){if(!DATA)return;const T=DATA.trades,V=trView();const jp=v=>v==='up'?'↑':v==='down'?'↓':'-';
   const sum=a=>{const s=a.reduce((p,x)=>p+x.R,0),w=a.filter(x=>x.R>0),l=a.filter(x=>x.R<=0);const pf=w.reduce((p,x)=>p+x.R,0)/Math.max(1e-9,-l.reduce((p,x)=>p+x.R,0));return `${a.length}回・勝率${Math.round(w.length/Math.max(1,a.length)*100)}%・合計${s>=0?'+':''}${s.toFixed(1)}R・PF${pf.toFixed(2)}`};
   document.getElementById('trSum').textContent='表示中：'+sum(V)+'（スプレッド1.2pips控除後）';
   for(const b of document.getElementById('trBtns').children)b.setAttribute('aria-pressed',b.dataset.m===trMode);
@@ -290,7 +290,7 @@ function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVi
 function showTimes([a,b]){const c=DATA[tf].candles;const ix=t=>{const i=fIdx(DATA[tf],t);return i==null?0:i};
   let i0=ix(a),i1=ix(b);const mid=(i0+i1)/2;if(i1-i0<60){i0=mid-30;i1=mid+30}
   chart.timeScale().setVisibleLogicalRange({from:i0,to:i1})}
-for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo','optLab'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
+for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo','optLab','optTr'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
 const rebuild=()=>{if(DATA)build()};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rebuild);
 new MutationObserver(rebuild).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -393,7 +393,7 @@ async function drawClick(p,price){if(!db){status('この表示では保存でき
 /* ---------- drag user lines (hover = grab hand; trendline ends move separately, body moves whole line) ---------- */
 let drag=null;
 function dP(t,p){const d=DATA[tf],ts=chart.timeScale(),i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i),Y=cs.priceToCoordinate(p);return X==null||Y==null?null:[X,Y]}
-function hitLine(x,y){if(!DATA||!chart)return null;const W=chart.timeScale().width();let best=null,bd=7;
+function hitLine(x,y){if(!DATA||!chart)return null;const W=chart.timeScale().width();let best=null,bd=9;
   for(const it of DR){const dr=it.d;if(dr.year!==year)continue;
     if(dr.kind==='tl')for(const k of ['1','2']){const q=dP(dr['t'+k],dr['p'+k]);if(q){const dd=Math.hypot(q[0]-x,q[1]-y);if(dd<9&&dd<bd+2){bd=dd;best={it,part:k}}}}
     const L=lineXY(dr,dP,W);if(!L)continue;const[x1,y1,x2,y2]=L,dx=x2-x1,dy=y2-y1,u=Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/((dx*dx+dy*dy)||1))),dd=Math.hypot(x1+u*dx-x,y1+u*dy-y);
@@ -421,7 +421,9 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
     if(dr.kind==='tl'&&dr.t1===dr.t2){Object.assign(dr,g.before);return}
     try{await db.collection('drawings').doc(g.it.id).update(upd)}catch(err){Object.assign(dr,g.before);status('線を動かせませんでした')}};
   el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
-  el.addEventListener('click',e=>{if(drag)e.stopPropagation()},true)}
+  el.addEventListener('click',e=>{if(drag){e.stopPropagation();return}
+    if(!armed||!DATA||!chart)return;const[x,y]=xy(e),li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+    e.stopPropagation();onChartClick({point:{x,y},time:tAt(li)})},true)}
 function fIdx(d,t){const c=d.candles;if(t<c[0][0])return null;let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
 function drawFeedback(g,r){if(!DATA)return;const d=DATA[tf],ts=chart.timeScale(),W=ts.width();
   g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='bold 11px '+css('--mono');g.lineWidth=2;g.setLineDash([]);
@@ -443,8 +445,8 @@ function drawFeedback(g,r){if(!DATA)return;const d=DATA[tf],ts=chart.timeScale()
   g.restore()}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
-  db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=d.data();renderFb();trTable()},e=>status('評価を読み込めませんでした'));
-  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:d.data()}))},e=>status('線を読み込めませんでした'));
-  db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:d.data()}));renderMissed()},e=>status('入りたかった所を読み込めませんでした'))})();
+  db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
+  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
+  db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
 </script>
