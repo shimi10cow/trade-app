@@ -87,7 +87,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <section class="fb" aria-label="線を引く">
   <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
   <div class="fbrow"><span class="seg" id="drawBtns"></span></div>
-  <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">トレンドライン＝2点クリック（右へ延長）、水平線＝クリックした所から右へ、消す＝線の近くをクリック。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
+  <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">トレンドライン＝2点クリック（右へ延長）、水平線＝クリックした所から右へ、消す＝線の近くをクリック。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
 <section class="fb" aria-label="入りたかった所">
   <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
@@ -390,6 +390,38 @@ async function drawClick(p,price){if(!db){status('この表示では保存でき
   if(!tlFirst){tlFirst={t:p.time,p:price};return}
   const a=tlFirst;tlFirst=null;if(a.t===p.time)return;
   try{await db.collection('drawings').add({...base,kind:'tl',t1:a.t,p1:a.p,t2:p.time,p2:price})}catch(e){status('保存できませんでした')}}
+/* ---------- drag user lines (hover = grab hand; trendline ends move separately, body moves whole line) ---------- */
+let drag=null;
+function dP(t,p){const d=DATA[tf],ts=chart.timeScale(),i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i),Y=cs.priceToCoordinate(p);return X==null||Y==null?null:[X,Y]}
+function hitLine(x,y){if(!DATA||!chart)return null;const W=chart.timeScale().width();let best=null,bd=7;
+  for(const it of DR){const dr=it.d;if(dr.year!==year)continue;
+    if(dr.kind==='tl')for(const k of ['1','2']){const q=dP(dr['t'+k],dr['p'+k]);if(q){const dd=Math.hypot(q[0]-x,q[1]-y);if(dd<9&&dd<bd+2){bd=dd;best={it,part:k}}}}
+    const L=lineXY(dr,dP,W);if(!L)continue;const[x1,y1,x2,y2]=L,dx=x2-x1,dy=y2-y1,u=Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/((dx*dx+dy*dy)||1))),dd=Math.hypot(x1+u*dx-x,y1+u*dy-y);
+    if(dd<bd&&!(best&&best.part!=='body'&&best.it===it)){bd=dd;best={it,part:'body'}}}
+  return best}
+function tAt(i){const c=DATA[tf].candles;return c[Math.max(0,Math.min(c.length-1,Math.round(i)))][0]}
+function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;for(const cv of el.querySelectorAll('canvas'))cv.style.cursor=c}
+{const el=document.getElementById('chart');
+  const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  el.addEventListener('pointermove',e=>{if(drag){e.stopPropagation();e.preventDefault();
+      const[x,y]=xy(e),ts=chart.timeScale(),li=ts.coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+      const dr=drag.it.d,o=drag.orig,r5=v=>+(+v).toFixed(5);
+      if(drag.part==='body'){const di=li-drag.li0,dp=pr-drag.p0;
+        dr.t1=tAt(o.i1+di);dr.p1=r5(o.p1+dp);if(dr.kind==='tl'){dr.t2=tAt(o.i2+di);dr.p2=r5(o.p2+dp)}}
+      else{dr['t'+drag.part]=tAt(li);dr['p'+drag.part]=r5(pr)}
+      drag.moved=true;return}
+    if(armed)return;const h=hitLine(...xy(e));setCur(h?'grab':'')},true);
+  el.addEventListener('pointerdown',e=>{if(armed||!db||e.button!==0)return;const[x,y]=xy(e),h=hitLine(x,y);if(!h)return;
+    e.stopPropagation();e.preventDefault();const d=DATA[tf],dr=h.it.d,ts=chart.timeScale();
+    drag={it:h.it,part:h.part,li0:ts.coordinateToLogical(x),p0:cs.coordinateToPrice(y),moved:false,
+      orig:{i1:fIdx(d,dr.t1),p1:dr.p1,i2:dr.kind==='tl'?fIdx(d,dr.t2):null,p2:dr.p2},before:{...dr}};
+    chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur('grabbing')},true);
+  const end=async e=>{if(!drag)return;e.stopPropagation();const g=drag;drag=null;chart.applyOptions({handleScroll:true,handleScale:true});setCur('grab');
+    if(!g.moved)return;const dr=g.it.d,upd={t1:dr.t1,p1:dr.p1,moved_tf:tf};if(dr.kind==='tl'){upd.t2=dr.t2;upd.p2=dr.p2}
+    if(dr.kind==='tl'&&dr.t1===dr.t2){Object.assign(dr,g.before);return}
+    try{await db.collection('drawings').doc(g.it.id).update(upd)}catch(err){Object.assign(dr,g.before);status('線を動かせませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',e=>{if(drag)e.stopPropagation()},true)}
 function fIdx(d,t){const c=d.candles;if(t<c[0][0])return null;let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
 function drawFeedback(g,r){if(!DATA)return;const d=DATA[tf],ts=chart.timeScale(),W=ts.width();
   g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='bold 11px '+css('--mono');g.lineWidth=2;g.setLineDash([]);
