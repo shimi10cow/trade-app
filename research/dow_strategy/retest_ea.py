@@ -30,13 +30,22 @@ FR = {'H4': (B.h4, B.R4, B.C4, A4), 'H1': (B.h1, B.R1, B.C1, B.A1)}
 
 
 def events(tf, kinds):
-    df, R, C, _ = FR[tf]
+    df, R, C, A = FR[tf]
     out = []
     if 'major' in kinds:
         out += [(C[e['idx']], e['to'], e['broken_price']) for e in R['events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL']
     if 'prov' in kinds:
         out += [(C[e['idx']], e['to'], e.get('broken_price') or (e.get('h2') if e['to'] == 'up' else e.get('l2')))
                 for e in R['prov_events'] if e['action'] in ('REVERSAL', 'PROV_START')]
+    if 'wq' in kinds:                                   # W filtered to the user's eye (51 labelled H4 Ws, 2026-10-19)
+        H, Lo = df.h.to_numpy(float), df.l.to_numpy(float)
+        for e in R['w_events']:
+            a_, b_ = e['a_anchor'], e['b_anchor']; at = A[a_]; bot = e['action'] == 'W_BOTTOM'
+            w0 = max(0, a_ - 90)
+            run = (H[w0:a_].max() - e['a']) / at if bot else (e['a'] - Lo[w0:a_].min()) / at
+            spd = abs(e['b'] - e['a']) / at / max(1, b_ - a_)
+            if spd >= 0.45 and abs(e['a'] - e['c']) / at <= 2 and run >= 6:
+                out.append((C[e['idx']], 'up' if bot else 'down', e['b']))
     if 'w' in kinds:
         out += [(C[e['idx']], 'up' if e['action'] == 'W_BOTTOM' else 'down', e['b']) for e in R['w_events']]
     return [(t, d, L, tf) for t, d, L in out if L is not None]
@@ -174,6 +183,10 @@ CFGS = [
     dict(BASE, name='K8 K4・2.0R後M15トレール', tfs=('H4',), ma=True, exit='m15', act=2.0),
     dict(BASE, name='K9 H4主要＋仮転換（Wなし）＋MA', tfs=('H4',), kinds=('major', 'prov'), ma=True),
     dict(BASE, name='K10 K9・1.5R後M15トレール', tfs=('H4',), kinds=('major', 'prov'), ma=True, exit='m15', act=1.5),
+    dict(BASE, name='Q1 H4主要＋仮＋良いW＋MA', tfs=('H4',), kinds=('major', 'prov', 'wq'), ma=True),
+    dict(BASE, name='Q2 Q1・1.5R後M15トレール', tfs=('H4',), kinds=('major', 'prov', 'wq'), ma=True, exit='m15', act=1.5),
+    dict(BASE, name='Q3 良いWのみ＋MA', tfs=('H4',), kinds=('wq',), ma=True),
+    dict(BASE, name='Q4 良いWのみ（MAなし）', tfs=('H4',), kinds=('wq',)),
 ]
 
 
