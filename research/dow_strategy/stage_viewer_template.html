@@ -96,9 +96,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="入りたかった所">
   <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
-  <div class="fbrow"><input id="msNote" placeholder="根拠メモ（例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
+  <div class="fbrow"><label for="msKind" class="lbl" style="min-width:0">種類</label><select id="msKind"><option value="real">裁量で取れる</option><option value="ideal">理想（裁量では難しい）</option></select>
+    <input id="msNote" placeholder="根拠メモ（例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
   <div class="fbrow"><span class="note" id="msTxt" style="margin:0">「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定。行を選ぶと、その間に引いた線がこのお手本に紐づきます</span></div>
-  <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
+  <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>種類</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
 </section>
 </div>
 <p class="note" id="dbNote"></p>
@@ -371,7 +372,7 @@ async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const pr
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
     if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
     const D=msDraft,side=D.sl.p<D.p?1:-1;
-    const m={year,t:D.t,p:D.p,side,sl:D.sl,exit:{t:p.time,p:price},note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
+    const m={year,t:D.t,p:D.p,side,sl:D.sl,exit:{t:p.time,p:price},kind:document.getElementById('msKind').value,note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
     setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;document.getElementById('msNote').value='';renderMissed()}catch(e){status('保存できませんでした')}return}
   const x=curTrade();if(!x)return;const f=draft(x);f.ideal=f.ideal||{};f.ideal[armed]={t:p.time,p:price,tf};setArmed(null);save(x,f)}
 function msHint(){const el=document.getElementById('msTxt');if(!el)return;
@@ -379,8 +380,8 @@ function msHint(){const el=document.getElementById('msTxt');if(!el)return;
     !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
 const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
-  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
-    <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="8">まだありません</td></tr>'}
+  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.kind==='ideal'?'理想':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
+    <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="9">まだありません</td></tr>'}
 document.getElementById('msList').addEventListener('click',async ev=>{const b=ev.target.closest('[data-del]');
   if(b){ev.stopPropagation();try{await db.collection('missed').doc(b.dataset.del).delete()}catch(e){status('消せませんでした')}return}
   const r=ev.target.closest('tr[data-t]');if(!r)return;msSel=msSel===r.dataset.id?null:r.dataset.id;renderMissed();msHint();
@@ -474,9 +475,9 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
     for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
     if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
   drawUser(g,P,W);
-  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=css('--hl');
+  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):css('--hl');
     g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
-    g.fillText('お手本'+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
+    g.fillText((d.kind==='ideal'?'理想':'お手本')+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
     const xe=d.exit?P(d.exit.t,d.exit.p):null;
     if(d.sl){const a=P(d.t,d.sl.p),b=P(d.exit?d.exit.t:d.sl.t,d.sl.p);if(a&&b){g.setLineDash([5,4]);g.lineWidth=sel?2:1.2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(Math.max(b[0],a[0]+20),b[1]);g.stroke();g.setLineDash([]);g.fillText('SL',a[0]-18,a[1]+4)}}
     if(xe){g.beginPath();g.arc(xe[0],xe[1],5,0,7);g.fill();const r=msR(d);if(r!=null)g.fillText((r>0?'+':'')+r.toFixed(2)+'R',xe[0]+8,xe[1]-6);
