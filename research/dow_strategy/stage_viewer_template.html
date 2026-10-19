@@ -1,0 +1,249 @@
+<title>/*TITLE*/</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: toolbar on top, full-width chart, event log below. Chart-desk look, quiet chrome. */
+:root{
+  --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
+  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;--ok:#16a34a;--buy:#2563eb;--sell:#db2777;--hl:#ea580c;--miss:#ea580c;--extra:#c026d3;--sma20:#0284c7;--sma75:#b45309;--s0:#0f766e;--s1:#ca8a04;--s2:#2563eb;--s3:#9333ea;--zone:rgba(110,90,200,.13);--zone-edge:rgba(110,90,200,.55);
+  --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--buy:#60a5fa;--sell:#f472b6;--hl:#fb923c;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--s0:#2dd4bf;--s1:#facc15;--s2:#60a5fa;--s3:#c084fc;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--buy:#60a5fa;--sell:#f472b6;--hl:#fb923c;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--s0:#2dd4bf;--s1:#facc15;--s2:#60a5fa;--s3:#c084fc;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
+h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.02em}
+.tfs{display:flex;gap:4px}
+.yrs{display:flex;flex-wrap:wrap;gap:4px;font:600 12px var(--mono)}.yrs a{padding:4px 8px;border:1px solid var(--line);border-radius:6px;color:var(--fg);text-decoration:none;background:var(--panel)}.yrs a[aria-current="page"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.trb button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.trb button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.stg{display:inline-block;min-width:3.2em;text-align:center;padding:1px 6px;border-radius:999px;font-weight:600;color:#fff}
+.tfs button{font:600 13px var(--mono);padding:5px 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.tfs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+label{font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center;cursor:pointer}
+.state{font:13px var(--mono);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel)}
+.state b.up{color:var(--up)} .state b.down{color:var(--down)}
+#chart{position:relative;height:min(68vh,640px);min-height:360px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.hover{font:12px var(--mono);color:var(--muted);min-height:18px;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted);margin:0 0 6px}
+#labPanel{margin-bottom:14px}
+.lbl{font-size:12px;color:var(--muted)}
+tr.sel{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:8px 0 14px}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+h2{font-size:14px;margin:0 0 6px}
+.log{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font:12px var(--mono);font-variant-numeric:tabular-nums}
+td,th{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.up{color:var(--up)} .down{color:var(--down)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="bar">
+  <h1>/*H1*/</h1><nav class="yrs">/*NAV*/</nav>
+  <div class="tfs" id="tfs"></div>
+  <label><input type="checkbox" id="optPiv" checked> 高値安値の点</label>
+  <label><input type="checkbox" id="optProt" checked> 押し安値/戻り高値</label>
+  <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
+  <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
+  <label><input type="checkbox" id="optZone" checked> 水平帯</label>
+  <label><input type="checkbox" id="optLab"> 手打ちの点と照合</label>
+  <label><input type="checkbox" id="optLine" checked> トレンドライン</label>
+  <label><input type="checkbox" id="optSma" checked> SMA20/75</label>
+  <label><input type="checkbox" id="optBo"> ブレイク</label>
+  <span class="state" id="state"></span>
+</div>
+<div class="hover" id="hover"></div>
+<div id="chart"></div>
+<div class="legend">
+  <span><i style="background:var(--prot-up)"></i>押し安値（上昇中）</span>
+  <span><i style="background:var(--prot-down)"></i>戻り高値（下降中）</span>
+  <span><i style="background:var(--down);width:8px;height:8px;border-radius:50%"></i>ダウの高値 <i style="background:var(--up);width:8px;height:8px;border-radius:50%"></i>ダウの安値（ヒゲ先の価格。確定するのは後の足）</span>
+  <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
+  <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
+  <span><i style="background:var(--up)"></i><i style="background:var(--down)"></i>トレンドライン（上昇/下降、点線＝認識前、×＝消えた足）</span>
+  <span>▲▼ エントリー（色＝H4段階：<b style="color:var(--s0)">段階0 転換直後</b>・<b style="color:var(--s1)">段階1</b>・<b style="color:var(--s2)">段階2</b>・<b style="color:var(--s3)">段階3以上</b>・<b style="color:var(--muted)">H4と逆</b>、文字＝番号/段階）・● 決済</span>
+  <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span>
+  <span><i style="background:var(--zone-edge);height:8px"></i>水平帯（ヒゲ先〜実体、点線部分は有効化前）</span>
+  <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
+</div>
+<div id="labPanel" hidden>
+<h2>照合：合っていない点（クリックで移動）</h2>
+<p class="note">◯ 緑＝あなたの点とエンジンが一致　◯ 橙＝あなたの点だがエンジンが取れていない　✕ 赤紫＝エンジンだけが取った点</p>
+<div class="log"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th>価格</th></tr></thead><tbody id="labLog"></tbody></table></div>
+</div>
+<h2 id="trTitle">エントリー一覧（クリックでそのトレードへ移動）</h2>
+<div class="bar" style="margin-bottom:6px"><span class="lbl">表示：</span>
+  <span class="trb" id="trBtns"></span>
+  <span class="note" id="trSum" style="margin:0"></span></div>
+<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>P</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div>
+<h2>イベント一覧（クリックでその日付へ移動）</h2>
+<div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+const DATA=/*DATA*/null;
+const TFS=['W1','D1','H4','H1','M15'];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const intraday=()=>tf!=='D1'&&tf!=='W1';
+const fmt=t=>{const s=new Date(t*1000).toISOString();return s.slice(0,10).replaceAll('-','/')+(intraday()?' '+s.slice(11,16):'')};
+const NAMES={rev:'トレンド転換',bo:'高値/安値更新',breakout_protect:'押し安値/戻り高値 移動',late_protect:'遅れ確定で移動',
+  reversal_protect:'転換後の起点を設定',reversal_protect_raw:'転換後の起点(仮:ヒゲ)',init_up:'初期化 上昇',init_down:'初期化 下降'};
+let tf='M15',chart,cs,ps,trSel=null,trMode='all';
+
+
+function build(){
+  const el=document.getElementById('chart');el.innerHTML='';
+  const d=DATA[tf];
+  chart=LightweightCharts.createChart(el,{autoSize:true,
+    layout:{background:{color:css('--panel')},textColor:css('--muted'),fontFamily:css('--mono')},
+    grid:{vertLines:{color:css('--line')},horzLines:{color:css('--line')}},
+    rightPriceScale:{borderColor:css('--line')},
+    crosshair:{mode:0},
+    localization:{locale:'ja-JP',timeFormatter:t=>fmt(t)},
+    timeScale:{borderColor:css('--line'),timeVisible:intraday(),secondsVisible:false,
+      tickMarkFormatter:(t,type)=>{const d=new Date(t*1000),p=x=>String(x).padStart(2,'0');
+        return type===0?`${d.getUTCFullYear()}`:type===1?`${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}`:
+          type===2?`${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`:`${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`}}});
+  chart.applyOptions({localization:{locale:'ja-JP',timeFormatter:t=>fmt(t)}});
+  chart.subscribeCrosshairMove(q=>{const el=document.getElementById('hover');
+    if(!q.time){el.textContent='';return}const b=q.seriesData.get(cs);
+    el.textContent=b?`${fmt(q.time)}  始${b.open} 高${b.high} 安${b.low} 終${b.close}`:fmt(q.time)});
+  cs=chart.addCandlestickSeries({upColor:'#ffffff00',borderUpColor:css('--fg'),wickUpColor:css('--fg'),
+    downColor:css('--fg'),borderDownColor:css('--fg'),wickDownColor:css('--fg'),priceLineVisible:false});
+  cs.setData(d.candles.map(c=>({time:c[0],open:c[1],high:c[2],low:c[3],close:c[4]})));
+  ps=chart.addLineSeries({lineType:1,lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  if(document.getElementById('optProt').checked)
+    ps.setData(d.prot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1],color:p[2]==='up'?css('--prot-up'):css('--prot-down')}));
+  const pv=chart.addLineSeries({lineType:1,lineWidth:2,lineStyle:2,color:css('--prov'),priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+  const showProv=document.getElementById('optProv').checked;
+  if(showProv) pv.setData(d.pprot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1]}));
+  if(document.getElementById('optSma').checked){
+    chart.addLineSeries({color:css('--sma20'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.sma20.map(x=>({time:x[0],value:x[1]})));
+    chart.addLineSeries({color:css('--sma75'),lineWidth:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false}).setData(d.sma75.map(x=>({time:x[0],value:x[1]})));
+  }
+  setupZones(el,d);
+  const m=[];
+  if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
+  if(document.getElementById('optW').checked) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
+  if(document.getElementById('optPiv').checked) for(const k of ['hi','lo']){
+    const s=chart.addLineSeries({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:k==='hi'?css('--down'):css('--up'),
+      priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    s.setData(d.piv.filter(p=>p[1]===k).map(p=>({time:p[0],value:p[2]})));}
+  for(const e of d.ev){
+    if(e[1]==='rev')m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
+    if(e[1]==='bo'&&document.getElementById('optBo').checked)m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
+  }
+  const barT=t=>{let lo=0,hi=d.candles.length-1;if(t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
+  for(const x of trView()){const bt=barT(x.t),xt=barT(x.xt);const col=stgCol(x.stg);
+    if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+stgTxt(x.stg),size:x.n===trSel?2:1});
+    if(xt!=null)m.push({time:xt,position:x.side===1?'aboveBar':'belowBar',shape:'circle',color:col,text:(x.R>0?'+':'')+x.R+'R'})}
+  m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
+  const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
+  const last=d.prot[n-1];
+  const pl=d.pprot[n-1],jp=x=>x==='up'?'上昇':'下降';
+  document.getElementById('state').innerHTML=(last[2]?`最新足 主要 <b class="${last[2]}">${jp(last[2])}</b> ${last[2]==='up'?'押し安値':'戻り高値'} ${last[1]}`:'判定前')+(pl[2]?` ／ 仮 <b class="${pl[2]}">${jp(pl[2])}</b> ${pl[1]}`:'');
+  const all=d.ev.filter(e=>e[1]!=='bo').concat(
+    d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
+    d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
+  const rows=all.slice().reverse().map(e=>{
+    const cls=e[2]==='up'?'up':e[2]==='down'?'down':'';
+    const txt=e[1]==='prov'?`仮トレンド → ${e[2]==='up'?'上昇':'下降'}`:e[1]==='W_TOP'?'Wトップ（ネック割れ）':e[1]==='W_BOTTOM'?'Wボトム（ネック抜け）':e[1]==='rev'?`${NAMES.rev} → ${e[2]==='up'?'上昇':'下降'}（${e[3]} を終値で抜け）`:NAMES[e[1]]||e[1];
+    return `<tr data-t="${e[0]}"><td>${fmt(e[0])}</td><td class="${cls}">${txt}</td><td>${e[3]}</td><td>${fmt(e[4])}</td></tr>`}).join('');
+  document.getElementById('log').innerHTML=rows;
+  labTable();
+}
+let zc=null,zraf=0;
+function idxOf(d,t){if(t==null)return d.candles.length+3;let lo=0,hi=d.candles.length-1;
+  if(t<=d.candles[0][0])return -0.5;while(lo<hi){const m=(lo+hi)>>1;if(d.candles[m][0]<t)lo=m+1;else hi=m}return lo}
+function setupZones(el,d){
+  cancelAnimationFrame(zraf);zc=document.createElement('canvas');
+  zc.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:3';el.appendChild(zc);
+  const zs=d.zones.map(z=>({a:idxOf(d,z[0]),v:idxOf(d,z[1]),e:idxOf(d,z[2]),lo:z[3],hi:z[4],lab:z[5]}));
+  const draw=()=>{zraf=requestAnimationFrame(draw);
+    const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
+    if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
+    const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
+    drawTrade(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
+    const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
+    g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
+    for(const z of zs){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
+      const y0=cs.priceToCoordinate(z.hi),y1=cs.priceToCoordinate(z.lo);if([x0,xv,x1,y0,y1].some(v=>v==null))continue;
+      const h=Math.max(2,y1-y0);
+      g.setLineDash([3,3]);g.strokeStyle=edge;g.strokeRect(x0,y0,xv-x0,h);g.setLineDash([]);
+      g.fillStyle=fill;g.fillRect(xv,y0,x1-xv,h);g.strokeStyle=edge;g.strokeRect(xv,y0,x1-xv,h);
+      if(x1-xv>60){g.fillStyle=fg;g.fillText(z.lab,xv+4,y0-3)}}
+    g.restore()};
+  draw();
+}
+function drawLabels(g,r){
+  const d=DATA[tf],ts=chart.timeScale(),W=ts.width();
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=2;g.setLineDash([]);
+  const X=t=>ts.timeToCoordinate(t),Y=p=>cs.priceToCoordinate(p);
+  for(const[t,k,p,ok]of d.ulab){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=ok?css('--ok'):css('--miss');g.beginPath();g.arc(x,yy,ok?5:7,0,7);g.stroke()}
+  for(const[t,k,p]of d.extra){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=css('--extra');g.beginPath();g.moveTo(x-5,yy-5);g.lineTo(x+5,yy+5);g.moveTo(x-5,yy+5);g.lineTo(x+5,yy-5);g.stroke()}
+  g.restore()}
+function labTable(){const d=DATA[tf];const rows=[];
+  for(const[t,k,p,ok]of d.ulab)if(!ok)rows.push([t,k,'あなたの点（エンジン取れず）',p,'miss']);
+  for(const[t,k,p]of d.extra)rows.push([t,k,'エンジンだけ',p,'extra']);
+  rows.sort((a,b)=>b[0]-a[0]);
+  const ok=d.ulab.filter(x=>x[3]).length;
+  document.getElementById('labLog').innerHTML=`<tr><td colspan="4">一致 ${ok} / あなたの点 ${d.ulab.length}　・取れず ${d.ulab.length-ok}　・エンジンだけ ${d.extra.length}</td></tr>`+
+    rows.map(r=>`<tr data-t="${r[0]}"><td>${fmt(r[0])}</td><td>${r[1]==='hi'?'高値':'安値'}</td><td style="color:var(--${r[4]})">${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+  document.getElementById('labPanel').hidden=!document.getElementById('optLab').checked}
+document.getElementById('labLog').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
+function drawLines(g,r){
+  const d=DATA[tf],ts=chart.timeScale(),W=ts.width(),last=d.candles.length-1;
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.4;
+  for(const L of d.lines){const[a,ap,b,bp,cr,rt,kind]=L;const end=rt==null?last+3:rt;
+    const y=i=>cs.priceToCoordinate(ap+(bp-ap)*(i-a)/(b-a)),x=i=>ts.logicalToCoordinate(i);
+    const col=kind==='lo'?css('--up'):css('--down');g.strokeStyle=col;
+    const seg=(i0,i1,dash)=>{const X0=x(i0),X1=x(i1),Y0=y(i0),Y1=y(i1);if([X0,X1,Y0,Y1].some(v=>v==null))return;
+      g.setLineDash(dash);g.beginPath();g.moveTo(X0,Y0);g.lineTo(X1,Y1);g.stroke()};
+    seg(a,cr,[4,4]);seg(cr,end,[]);
+    if(rt!=null){const X=x(rt),Y=y(rt);if(X!=null&&Y!=null){g.setLineDash([]);g.beginPath();g.moveTo(X-4,Y-4);g.lineTo(X+4,Y+4);g.moveTo(X-4,Y+4);g.lineTo(X+4,Y-4);g.stroke()}}}
+  g.restore()}
+const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0]];
+const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
+function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
+function drawTrade(g,r){const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
+  const d=DATA[tf],ts=chart.timeScale(),W=ts.width();const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
+  const x0=ts.logicalToCoordinate(ix(x.t)),x1=ts.logicalToCoordinate(ix(x.xt));if(x0==null||x1==null)return;
+  const ye=cs.priceToCoordinate(x.entry),ys=cs.priceToCoordinate(x.sl),yx=cs.priceToCoordinate(x.xp);if([ye,ys,yx].some(v=>v==null))return;
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.5;g.font='bold 11px '+css('--mono');
+  g.fillStyle=x.R>0?'rgba(34,197,94,.10)':'rgba(239,68,68,.10)';g.fillRect(x0,Math.min(ye,yx),Math.max(2,x1-x0),Math.abs(yx-ye));
+  g.strokeStyle=css('--accent');g.setLineDash([]);g.beginPath();g.moveTo(x0,ye);g.lineTo(x1,ye);g.stroke();
+  g.strokeStyle=css('--down');g.setLineDash([5,4]);g.beginPath();g.moveTo(x0,ys);g.lineTo(x1,ys);g.stroke();g.setLineDash([]);
+  g.fillStyle=css('--accent');g.fillText(`#${x.n} エントリー ${x.entry}`,x0+4,ye-5);g.fillStyle=css('--down');g.fillText(`損切り ${x.sl}`,x0+4,ys+(x.side===1?13:-5));
+  g.fillStyle=x.R>0?css('--up'):css('--down');g.beginPath();g.arc(x1,yx,4,0,7);g.fill();g.fillText(`決済 ${x.xp} (${x.R>0?'+':''}${x.R}R)`,x1+6,yx-4);g.restore()}
+function trTable(){const T=DATA.trades,V=trView();const jp=v=>v==='up'?'↑':v==='down'?'↓':'-';
+  const sum=a=>{const s=a.reduce((p,x)=>p+x.R,0),w=a.filter(x=>x.R>0),l=a.filter(x=>x.R<=0);const pf=w.reduce((p,x)=>p+x.R,0)/Math.max(1e-9,-l.reduce((p,x)=>p+x.R,0));return `${a.length}回・勝率${Math.round(w.length/Math.max(1,a.length)*100)}%・合計${s>=0?'+':''}${s.toFixed(1)}R・PF${pf.toFixed(2)}`};
+  document.getElementById('trSum').textContent='表示中：'+sum(V)+'（スプレッド1.2pips控除後）';
+  for(const b of document.getElementById('trBtns').children)b.setAttribute('aria-pressed',b.dataset.m===trMode);
+  document.getElementById('trList').innerHTML=V.map(x=>`<tr data-n="${x.n}" class="${x.n===trSel?'sel':''}"><td>${x.n}</td><td>${fmt(x.t)}</td>
+    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>P${x.p}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${x.stg<0?'H4逆':'段階'+stgTxt(x.stg)}</span></td><td>${x.nrev}回</td>
+    <td>${jp(x.d1)}${jp(x.h4)}${jp(x.h1)}</td><td>${x.entry}</td><td>${x.risk}</td><td>${fmt(x.xt)}${x.trail?' ('+x.trail+'後)':''}</td>
+    <td class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}</td></tr>`).join('')}
+document.getElementById('trList').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-n]');if(!r)return;trSel=+r.dataset.n;
+  const x=DATA.trades.find(y=>y.n===trSel);build.keep=true;build();build.keep=false;trTable();
+  const c=DATA[tf].candles;let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=x.t)lo=k;else hi=k-1}
+  let j=lo;while(j<c.length-1&&c[j][0]<x.xt)j++;const span=Math.max(40,j-lo);chart.timeScale().setVisibleLogicalRange({from:lo-span*1.2,to:j+span*0.5})});
+for(const[m,lab]of MODES){const b=document.createElement('button');b.dataset.m=m;b.textContent=lab;b.onclick=()=>{trMode=m;trTable();const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)};document.getElementById('trBtns').appendChild(b)}
+function jump(t){const d=DATA[tf].candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.length-1;
+  chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
+document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
+const tfs=document.getElementById('tfs');
+for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
+  b.onclick=()=>{tf=x;try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);build()};tfs.appendChild(b)}
+for(const id of ['optPiv','optProt','optProv','optW','optSma','optBo','optLab'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',build);
+new MutationObserver(build).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+build();trTable();
+</script>
