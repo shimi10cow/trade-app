@@ -68,6 +68,7 @@ SPECS.update({
     'R2a': ('EA-R 新レンジ判定(スコア>0.6)', lambda: LV.E.Config(extra_filter=env(env='R2', rs_hi=0.6))),
     'R2b': ('EA-R 新レンジ判定(スコア>0.5)', lambda: LV.E.Config(extra_filter=env(env='R2', rs_hi=0.5))),
     'R2c': ('EA-R 新レンジ判定(スコア>0.7)', lambda: LV.E.Config(extra_filter=env(env='R2', rs_hi=0.7))),
+    'R2d': ('EA-R 新レンジ判定(スコア>0.6)＋H4三角の最中は除外', lambda: LV.E.Config(extra_filter=env(env='R2', rs_hi=0.6, notri='H4'))),
     'T2a': ('EA-T 新判定(スコア<0.4)', lambda: LV.E.Config(use_long_ma=False, extra_filter=env(env='T2', rs_lo=0.4))),
     'T2b': ('EA-T 新判定(スコア<0.5)', lambda: LV.E.Config(use_long_ma=False, extra_filter=env(env='T2', rs_lo=0.5))),
     'T2c': ('EA-T 新判定(スコア<0.3)', lambda: LV.E.Config(use_long_ma=False, extra_filter=env(env='T2', rs_lo=0.3))),
