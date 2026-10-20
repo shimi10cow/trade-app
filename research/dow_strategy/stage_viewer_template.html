@@ -56,7 +56,7 @@ tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--a
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-.qt{white-space:nowrap}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -87,6 +87,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
+<div class="selbar" id="selBar" hidden></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
 <div class="fbwrap" id="under"></div>
@@ -103,7 +104,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <div class="fbwrap">
 <section class="fb" id="fbBox" aria-label="トレードの評価">
-  <div class="fbrow"><b id="fbTitle">下の一覧からトレードを選ぶと、ここで評価できます</b><span class="note" id="fbStatus" style="margin:0"></span></div>
+  <div class="fbrow"><b id="fbTitle">チャートのトレードをタップするか、一覧から選ぶと、ここで評価できます</b><span class="note" id="fbStatus" style="margin:0"></span></div>
   <div id="fbBody" hidden>
     <div class="fbrow"><span class="lbl">エントリー</span><span class="seg" data-k="entry"></span></div>
     <div class="fbrow"><span class="lbl">損切り</span><span class="seg" data-k="sl"></span></div>
@@ -391,7 +392,7 @@ document.getElementById('clReset').onclick=()=>{CL=JSON.parse(JSON.stringify(CLD
 for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=Math.max(k==='lo'||k==='hi'?0:1,+ev.target.value||0);saveCL();rekeep()});
 for(const [id,k] of [['stOn','on'],['stSig','sig']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=ev.target.checked?1:0;saveCL();rekeep()});
 renderCL();
-const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0],['m1','+1R→負け',x=>x.mfe>=1&&x.R<=0],['m05','+0.5R→負け',x=>x.mfe>=0.5&&x.R<=0],['quick','すぐ負け',x=>x.mfe!=null&&x.mfe<0.3&&x.R<=0],['big','+3R以上',x=>x.R>=3],['chk','チェック済み',x=>!!FB[fid(x)]],['bad','いらない・渋い',x=>{const f=FB[fid(x)];return !!f&&(f.entry==='skip'||f.entry==='meh')}]];
+const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0],['m1','+1R→負け',x=>x.mfe>=1&&x.R<=0],['m05','+0.5R→負け',x=>x.mfe>=0.5&&x.R<=0],['quick','すぐ負け',x=>x.mfe!=null&&x.mfe<0.3&&x.R<=0],['big','+3R以上',x=>x.R>=3],['chk','チェック済み',x=>!!FB[fid(x)]],['bad','いらない',x=>{const f=FB[fid(x)];return !!f&&f.entry==='skip'}],['bx','決済早い/逃げ遅れ',x=>{const f=FB[fid(x)];return !!f&&!!f.exit&&f.exit!=='ok'}]];
 const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
 const lblTxt=x=>x.src||stgTxt(x.stg);const lblLong=x=>x.src?x.src+' '+x.srcl:(x.stg<0?'H4逆':'段階'+stgTxt(x.stg));
 function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
@@ -482,17 +483,17 @@ function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A
   const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
     for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}
     const yrs={};for(const x of a)yrs[x[0]]=(yrs[x[0]]||0)+x[2];const ny=Object.keys(yrs).length,ly=Object.values(yrs).filter(v=>v<0).length;
-    const m1=a.filter(x=>x[3]>=1&&x[2]<=0);const chk=a.filter(x=>fbOf(x)),bad=a.filter(x=>{const f=fbOf(x);return f&&(f.entry==='skip'||f.entry==='meh')});
-    return `<td>${a.length}</td><td>${w.length}勝${l.length}敗</td><td>${Math.round(w.length/Math.max(1,a.length)*100)}%</td><td>+${(w.reduce((p,v)=>p+v,0)/Math.max(1,w.length)).toFixed(2)} / ${(l.reduce((p,v)=>p+v,0)/Math.max(1,l.length)).toFixed(2)}</td><td>${(w.reduce((p,v)=>p+v,0)/Math.max(1e-9,-l.reduce((p,v)=>p+v,0))).toFixed(2)}</td><td>${s>=0?'+':''}${s.toFixed(1)}R</td><td>${dd.toFixed(1)}R</td><td>${ly}/${ny}</td><td>${m1.length}回 ${m1.reduce((p,x)=>p+x[2],0).toFixed(0)}R</td><td>${chk.length}（いらない・渋い ${bad.length}回 ${bad.reduce((p,x)=>p+x[2],0).toFixed(1)}R）</td>`};
+    const m1=a.filter(x=>x[3]>=1&&x[2]<=0);const chk=a.filter(x=>fbOf(x)),bad=a.filter(x=>{const f=fbOf(x);return f&&f.entry==='skip'}),ex=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='hold'}),el=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='earlier'});
+    return `<td>${a.length}</td><td>${w.length}勝${l.length}敗</td><td>${Math.round(w.length/Math.max(1,a.length)*100)}%</td><td>+${(w.reduce((p,v)=>p+v,0)/Math.max(1,w.length)).toFixed(2)} / ${(l.reduce((p,v)=>p+v,0)/Math.max(1,l.length)).toFixed(2)}</td><td>${(w.reduce((p,v)=>p+v,0)/Math.max(1e-9,-l.reduce((p,v)=>p+v,0))).toFixed(2)}</td><td>${s>=0?'+':''}${s.toFixed(1)}R</td><td>${dd.toFixed(1)}R</td><td>${ly}/${ny}</td><td>${m1.length}回 ${m1.reduce((p,x)=>p+x[2],0).toFixed(0)}R</td><td>${chk.length}（いらない ${bad.length}回 ${bad.reduce((p,x)=>p+x[2],0).toFixed(1)}R／決済早い ${ex.length}／逃げ遅れ ${el.length}）</td>`};
   document.getElementById('eaTbl').innerHTML='<thead><tr><th>EA</th><th>回数</th><th>勝敗</th><th>勝率</th><th>平均 勝ち/負け</th><th>PF</th><th>合計</th><th>最大DD</th><th>負け年</th><th>+1R→負け</th><th>あなたのチェック</th></tr></thead><tbody>'+
     codes.map(c=>`<tr><th>${c} ${PFALL.names[c]}</th>${st(T.filter(x=>x[1]===c))}</tr>`).join('')+`<tr><th>合計</th>${st(T)}</tr></tbody>`;
-  document.getElementById('eaNote').textContent='上の「表示するEA」でEAを選ぶと、そのEAの履歴だけがチャートと一覧に出ます。一覧のボタンでワンクリック評価（良い／いらない／渋い／決済早い／逃げ遅れ）。理由は下の「トレードの評価」のメモへ。入ってほしかった所は「入りたかった所」へ'}
+  document.getElementById('eaNote').textContent='上の「表示するEA」でEAを選ぶと、そのEAの履歴だけがチャートと一覧に出ます。チャートのトレード（エントリーの矢印か、エントリー〜決済の枠）をタップすると、そのトレードが選ばれて評価できます。一覧のボタンでもワンクリック評価（良い／いらない／決済早い／逃げ遅れ）。理由は下の「トレードの評価」のメモへ。入ってほしかった所は「入りたかった所」へ'}
 fetch('data/pf_all.json').then(r=>r.ok?r.json():null).then(j=>{PFALL=j;eaTable()}).catch(()=>{});
 /* ---------- feedback (saved to the artifact database) ---------- */
-const OPTS={entry:[['good','良い'],['meh','渋い'],['early','早い'],['late','遅い'],['skip','いらない']],
+const OPTS={entry:[['good','良い'],['early','早い'],['late','遅い'],['skip','いらない']],
   sl:[['ok','適切'],['tighter','もっと浅くできた'],['wider','もっと深く必要']],
   exit:[['ok','適切'],['hold','決済が早い'],['earlier','逃げ遅れ']]};
-const QT=[['entry','good','良い'],['entry','skip','いらない'],['entry','meh','渋い'],['exit','hold','決済早い'],['exit','earlier','逃げ遅れ']];
+const QT=[['entry','good','良い'],['entry','skip','いらない'],['exit','hold','決済早い'],['exit','earlier','逃げ遅れ']];
 const IDEAL=[['entry','理想エントリー'],['sl','理想損切り'],['exit','理想決済']];
 let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null,msDraft=null,msSel=null;
 const fid=x=>`t${x.t}_${x.side}`+(x.src?`_${x.src}`:"");const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
@@ -516,8 +517,14 @@ async function save(x,f){if(!db){status('この表示では保存できません
   const p=(pending[id]||Promise.resolve()).then(()=>db.collection('feedback').doc(id).set(f));pending[id]=p.catch(()=>{});
   try{await p;status('保存しました')}catch(e){status('保存できませんでした（'+(e.code||e.message||'エラー')+'）')}}
 function status(t){document.getElementById('fbStatus').textContent=t}
-function renderFb(){const x=curTrade();const body=document.getElementById('fbBody');
-  if(!x){body.hidden=true;document.getElementById('fbTitle').textContent='下の一覧からトレードを選ぶと、ここで評価できます';return}
+function renderSel(){const el=document.getElementById('selBar');const x=curTrade();if(!x){el.hidden=true;return}el.hidden=false;
+  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button><button id="selClose">選択を外す</button>`}
+document.getElementById('selBar').addEventListener('click',ev=>{const x=curTrade();if(!x)return;
+  const q=ev.target.closest('[data-qk]');if(q){const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;save(x,f);return}
+  if(ev.target.id==='selMemo'){const fb=document.getElementById('fbBox');fb.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>document.getElementById('fbNote').focus({preventScroll:true}),400)}
+  if(ev.target.id==='selClose'){trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()}});
+function renderFb(){renderSel();const x=curTrade();const body=document.getElementById('fbBody');
+  if(!x){body.hidden=true;document.getElementById('fbTitle').textContent='チャートのトレードをタップするか、一覧から選ぶと、ここで評価できます';return}
   body.hidden=false;document.getElementById('fbTitle').textContent=`${year}年 #${x.n}　${x.side===1?'買い':'売り'}　${x.src?x.src+' '+x.srcl:'段階'+(x.stg<0?'H4逆':x.stg)}　${x.R>0?'+':''}${x.R}R${x.mfe!=null?'（最大含み益 +'+x.mfe+'R）':''}`;
   const f=FB[fid(x)]||{};
   for(const el of document.querySelectorAll('.seg[data-k]'))for(const b of el.children)b.setAttribute('aria-pressed',f[el.dataset.k]===b.dataset.v);
@@ -622,9 +629,22 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
     try{await db.collection('drawings').doc(g.it.id).update(upd)}catch(err){Object.assign(dr,g.before);status('線を動かせませんでした')}};
   el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
   el.addEventListener('click',e=>{if(drag){e.stopPropagation();return}
+    if(!armed&&DATA&&chart){const[x,y]=xy(e);const n=tradeAt(x,y);if(n!=null){selectTrade(n);return}}
     if(!armed||!DATA||!chart)return;const[x,y]=xy(e),li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
     e.stopPropagation();onChartClick({point:{x,y},time:tAt(li)})},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
+/* tap a trade on the chart: entry arrow (nearest within 14px) or inside its entry-to-exit box */
+function tradeAt(px,py){if(!document.getElementById('optTr').checked)return null;const d=DV(),ts=chart.timeScale();
+  const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
+  let best=null,bd=14,box=null,bw=1e9;
+  for(const x of trView()){if(RT!=null&&x.t+900>RT)continue;const x0=ts.logicalToCoordinate(ix(x.t));if(x0==null)continue;
+    const dx=Math.abs(x0-px);if(dx<bd){bd=dx;best=x.n}
+    const x1=ts.logicalToCoordinate(ix(x.xt));const ya=cs.priceToCoordinate(x.entry),yb=cs.priceToCoordinate(x.R>0?x.xp:x.sl);
+    if(x1!=null&&ya!=null&&yb!=null&&px>=x0&&px<=x1&&py>=Math.min(ya,yb)-4&&py<=Math.max(ya,yb)+4&&x1-x0<bw){bw=x1-x0;box=x.n}}
+  return best!=null?best:box}
+function selectTrade(n){trSel=n;build.keep=true;const r=chart.timeScale().getVisibleLogicalRange();build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);
+  trTable();renderFb();const row=document.querySelector(`#trList tr[data-n="${n}"]`);if(row){const lg=row.closest('.log');if(lg)lg.scrollTop=row.offsetTop-lg.clientHeight/2}
+  const fb=document.getElementById('fbBox');fb.classList.remove('flash');void fb.offsetWidth;fb.classList.add('flash')}
 function tAt(i){const c=DV().candles,n=c.length-1;if(i>n)return c[n][0]+Math.round(i-n)*TFLEN[tf];return c[Math.max(0,Math.round(i))][0]}
 /* ---------- market state labels (user's environment view): time ranges tagged up/down impulse, correction, range ---------- */
 const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b'],['enter_buy','買いで入りたい','rgba(22,163,74,.15)','#15803d'],['watch_buy','買いを検討中','rgba(22,163,74,.06)','#4d9b6b'],['enter_sell','売りで入りたい','rgba(219,39,119,.14)','#be185d'],['watch_sell','売りを検討中','rgba(219,39,119,.06)','#c06a95'],['avoid','触りたくない','rgba(120,120,120,.10)','#475569']];
