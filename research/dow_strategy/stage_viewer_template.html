@@ -54,6 +54,7 @@ td,th{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-
 tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 </style>
 
 <div class="bar">
@@ -73,11 +74,23 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optTr" checked> EAのトレード</label>
   <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">新4本（R/T/L/A）</option></select>
   <label><input type="checkbox" id="optUL" checked> 自動ライン（あなた式）</label>
+  <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
+<section class="fb m15cfg" id="m15cfg" hidden aria-label="M15チェック表示の設定">
+  <div class="fbrow"><b>M15チェック表示：線の設定</b><span class="note" style="margin:0">変更はすぐチャートに反映され、この端末に保存されます。足＝どの時間足で計算するか（H1を選ぶとM15上に階段状で表示、その足が確定した時点の値）</span></div>
+  <div class="log" style="max-height:none"><table><thead><tr><th>表示</th><th>足</th><th>種類</th><th>期間</th><th>色</th><th>太さ</th><th>線</th><th></th></tr></thead><tbody id="clList"></tbody></table></div>
+  <div class="fbrow"><button id="clAdd">線を追加</button><button id="clReset">初期設定に戻す</button></div>
+  <div class="fbrow"><b>ストキャス</b>
+    <label><input type="checkbox" id="stOn"> 表示</label>
+    <label>%K期間 <input type="number" id="stN" min="2" max="200"></label><label>スムーズ <input type="number" id="stK" min="1" max="50"></label><label>%D <input type="number" id="stD" min="1" max="50"></label>
+    <label>下ライン <input type="number" id="stLo" min="0" max="100"></label><label>上ライン <input type="number" id="stHi" min="0" max="100"></label>
+    <label><input type="checkbox" id="stSig"> 既存EAのサイン（H1のSMA20/75の向きだけ）</label></div>
+  <div class="fbrow"><span class="note" style="margin:0">既存EAのサイン：買いは %K が下ラインより下 → %K が %D を上抜け → %K が下ラインを上抜けた足（売りは逆）。H1 SMA20＞SMA75 なら買いだけ、逆なら売りだけ。長期MAなどの絞り込み前の「候補」です</span></div>
+</section>
 <div class="fbwrap">
 <section class="fb" id="fbBox" aria-label="トレードの評価">
   <div class="fbrow"><b id="fbTitle">下の一覧からトレードを選ぶと、ここで評価できます</b><span class="note" id="fbStatus" style="margin:0"></span></div>
@@ -199,6 +212,12 @@ function build(){
   S.ma={20:ln({color:css('--sma20'),lineWidth:1}),75:ln({color:css('--sma75'),lineWidth:1}),200:ln({color:css('--sma200'),lineWidth:2})};
   S.piv={hi:ln({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:css('--down')}),
          lo:ln({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:css('--up')})};
+  S.cl=CL.rows.map(r=>ln({color:r.color,lineWidth:+r.w,lineStyle:+r.style}));
+  S.stK=ln({color:css('--accent'),lineWidth:1,priceScaleId:'st'});S.stD=ln({color:css('--down'),lineWidth:1,lineStyle:2,priceScaleId:'st'});
+  const stShow=m15on()&&CL.st.on;
+  chart.priceScale('st').applyOptions({scaleMargins:{top:.78,bottom:.02},visible:stShow,borderColor:css('--line')});
+  chart.priceScale('right').applyOptions({scaleMargins:stShow?{top:.04,bottom:.26}:{top:.1,bottom:.1}});
+  if(stShow)for(const v of [CL.st.lo,CL.st.hi])S.stK.createPriceLine({price:+v,color:css('--muted'),lineWidth:1,lineStyle:2,axisLabelVisible:false});
   setupZones(el);
   const d=fillAll();
   const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
@@ -217,7 +236,8 @@ function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
   ps.setData(on('optProt')?d.prot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1],color:p[2]==='up'?css('--prot-up'):css('--prot-down')}):[]);
   const showProv=on('optProv');
   S.pv.setData(showProv?d.pprot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1]}):[]);
-  for(const p of [20,75,200])S.ma[p].setData(on('optS'+p)&&d['sma'+p]?d['sma'+p].map(x=>({time:x[0],value:x[1]})):[]);
+  for(const p of [20,75,200])S.ma[p].setData(!m15on()&&on('optS'+p)&&d['sma'+p]?d['sma'+p].map(x=>({time:x[0],value:x[1]})):[]);
+  fillCustom(d);
   for(const k of ['hi','lo'])S.piv[k].setData(on('optPiv')?d.piv.filter(p=>p[1]===k).map(p=>({time:p[0],value:p[2]})):[]);
   ZS=d.zones.map(z=>({a:idxOf(d,z[0]),v:idxOf(d,z[1]),e:idxOf(d,z[2]),lo:z[3],hi:z[4],lab:z[5]}));
   const m=[];
@@ -231,6 +251,7 @@ function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
   for(const x of on('optTr')?trView():[]){if(RT!=null&&x.t+900>RT)continue;const bt=barT(x.t),xt=RT!=null&&x.xt+900>RT?null:barT(x.xt);const col=stgCol(x.stg);
     if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+lblTxt(x),size:x.n===trSel?2:1});
     if(xt!=null)m.push({time:xt,position:x.side===1?'aboveBar':'belowBar',shape:'circle',color:col,text:(x.R>0?'+':'')+x.R+'R'})}
+  for(const x of SIG)m.push(x);
   m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
   const last=d.prot[d.prot.length-1]||[0,null,null],pl=d.pprot[d.pprot.length-1]||[0,null,null],jp=x=>x==='up'?'上昇':'下降';
   document.getElementById('state').innerHTML=(RT!=null?`<b>リプレイ ${fmtAll(RT)}</b>　`:'')+(last[2]?`${RT!=null?'現在':'最新足'} 主要 <b class="${last[2]}">${jp(last[2])}</b> ${last[2]==='up'?'押し安値':'戻り高値'} ${last[1]}`:'判定前')+(pl[2]?` ／ 仮 <b class="${pl[2]}">${jp(pl[2])}</b> ${pl[1]}`:'');
@@ -287,6 +308,63 @@ function drawLines(g,r){
     seg(a,cr,[4,4]);seg(cr,end,[]);
     if(rt!=null){const X=x(rt),Y=y(rt);if(X!=null&&Y!=null){g.setLineDash([]);g.beginPath();g.moveTo(X-4,Y-4);g.lineTo(X+4,Y+4);g.moveTo(X-4,Y+4);g.lineTo(X+4,Y-4);g.stroke()}}}
   g.restore()}
+/* ---------- M15 check view: editable lines + stochastic ---------- */
+const CLDEF={rows:[
+  {on:1,tf:'M15',type:'SMA',n:20,color:'#0284c7',w:1,style:0},{on:1,tf:'M15',type:'SMA',n:75,color:'#b45309',w:1,style:0},
+  {on:1,tf:'M15',type:'SMA',n:200,color:'#64748b',w:2,style:0},{on:1,tf:'H1',type:'SMA',n:20,color:'#16a34a',w:1,style:2},
+  {on:1,tf:'H1',type:'SMA',n:75,color:'#dc2626',w:2,style:2},{on:1,tf:'H1',type:'SMA',n:200,color:'#7c3aed',w:2,style:2},
+  {on:0,tf:'H1',type:'SMA',n:480,color:'#a16207',w:2,style:2}],
+  st:{on:1,n:14,k:3,d:5,lo:20,hi:80,sig:1}};
+let CL=JSON.parse(JSON.stringify(CLDEF));try{const v=JSON.parse(localStorage.getItem('svM15cfg'));if(v&&Array.isArray(v.rows)&&v.st)CL=v}catch(e){}
+let SIG=[];
+const saveCL=()=>{try{localStorage.setItem('svM15cfg',JSON.stringify(CL))}catch(e){}};
+const m15on=()=>{const e=document.getElementById('optM15');return !!(e&&e.checked)};
+function maArr(c,type,n){const out=new Array(c.length).fill(null);n=Math.max(1,Math.round(n));
+  if(type==='EMA'){const a=2/(n+1);let e=null;for(let i=0;i<c.length;i++){e=e==null?c[i][4]:e+a*(c[i][4]-e);if(i>=n-1)out[i]=e}}
+  else{let s=0;for(let i=0;i<c.length;i++){s+=c[i][4];if(i>=n)s-=c[i-n][4];if(i>=n-1)out[i]=s/n}}return out}
+/* value for each chart bar = last source bar already closed (at the chart bar's close, or at its open with atOpen) */
+function mapTo(d,src,vals,atOpen){const L=TFLEN[tf],Ls=TFLEN[src],sc=DATA[src].candles,res=[];let j=-1;
+  for(const c of d.candles){const lim=Math.min(atOpen?c[0]:c[0]+L,RT!=null?RT:Infinity);while(j+1<sc.length&&sc[j+1][0]+Ls<=lim)j++;res.push(j>=0?vals[j]:null)}return res}
+function stochArr(c,n,k,dd){const raw=c.map((x,i)=>{if(i<n-1)return null;let hh=-1e9,ll=1e9;for(let j=i-n+1;j<=i;j++){if(c[j][2]>hh)hh=c[j][2];if(c[j][3]<ll)ll=c[j][3]}return hh>ll?100*(x[4]-ll)/(hh-ll):50});
+  const sm=(a,m)=>a.map((_,i)=>{if(i<m-1)return null;let s=0;for(let j=i-m+1;j<=i;j++){if(a[j]==null)return null;s+=a[j]}return s/m});const K=sm(raw,k);return [K,sm(K,dd)]}
+function fillCustom(d){SIG=[];const M=m15on();
+  CL.rows.forEach((r,i)=>{const sr=S.cl[i];if(!sr)return;if(!M||!r.on||!DATA[r.tf]){sr.setData([]);return}
+    const v=mapTo(d,r.tf,maArr(DATA[r.tf].candles,r.type,+r.n));sr.setData(d.candles.map((c,k)=>v[k]==null?{time:c[0]}:{time:c[0],value:+v[k].toFixed(5)}))});
+  if(!M||!CL.st.on){S.stK.setData([]);S.stD.setData([]);return}
+  const st=CL.st,[K,D]=stochArr(d.candles,+st.n,+st.k,+st.d);
+  S.stK.setData(d.candles.map((c,i)=>K[i]==null?{time:c[0]}:{time:c[0],value:+K[i].toFixed(1)}));
+  S.stD.setData(d.candles.map((c,i)=>D[i]==null?{time:c[0]}:{time:c[0],value:+D[i].toFixed(1)}));
+  if(!st.sig||!DATA.H1)return;
+  const H=DATA.H1.candles,a20=mapTo(d,'H1',maArr(H,'SMA',20),true),a75=mapTo(d,'H1',maArr(H,'SMA',75),true),lo=+st.lo,hi=+st.hi;
+  let reg=0,s1=0,s2=0,pK=null,pD=null;
+  for(let i=0;i<d.candles.length;i++){const t=d.candles[i][0];
+    if(RT!=null&&t+TFLEN[tf]>RT)break;
+    const rs=a20[i]!=null&&a75[i]!=null?Math.sign(a20[i]-a75[i]):0;if(rs!==0&&rs!==reg){reg=rs;s1=0;s2=0}
+    const k=K[i],dd=D[i];
+    if(k!=null&&dd!=null){let buy=false,sell=false;
+      if(s1===0&&k<lo)s1=1;else if(s1===1&&pK!=null&&pD!=null&&pK<=pD&&k>dd)s1=2;else if(s1===2&&pK!=null&&pK<=lo&&k>lo){s1=0;buy=true}
+      if(s2===0&&k>hi)s2=1;else if(s2===1&&pK!=null&&pD!=null&&pK>=pD&&k<dd)s2=2;else if(s2===2&&pK!=null&&pK>=hi&&k<hi){s2=0;sell=true}
+      if(buy&&reg===1)SIG.push({time:t,position:'belowBar',shape:'arrowUp',color:css('--buy'),text:'S買'});
+      if(sell&&reg===-1)SIG.push({time:t,position:'aboveBar',shape:'arrowDown',color:css('--sell'),text:'S売'})}
+    pK=k;pD=dd}}
+function rekeep(){if(!chart)return;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)}
+function renderCL(){const opt=(v,a)=>a.map(x=>`<option value="${x[0]}"${String(x[0])===String(v)?' selected':''}>${x[1]}</option>`).join('');
+  document.getElementById('clList').innerHTML=CL.rows.map((r,i)=>`<tr data-i="${i}"><td><input type="checkbox" data-f="on"${r.on?' checked':''}></td>
+    <td><select data-f="tf">${opt(r.tf,[['M15','M15'],['H1','H1'],['H4','H4'],['D1','D1']])}</select></td>
+    <td><select data-f="type">${opt(r.type,[['SMA','SMA'],['EMA','EMA']])}</select></td>
+    <td><input type="number" data-f="n" min="1" max="2000" value="${r.n}"></td><td><input type="color" data-f="color" value="${r.color}"></td>
+    <td><select data-f="w">${opt(r.w,[[1,'細'],[2,'中'],[3,'太']])}</select></td><td><select data-f="style">${opt(r.style,[[0,'実線'],[2,'点線'],[1,'細点線']])}</select></td>
+    <td><button data-del="${i}">削除</button></td></tr>`).join('');
+  const st=CL.st;for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).value=st[k];
+  document.getElementById('stOn').checked=!!st.on;document.getElementById('stSig').checked=!!st.sig}
+document.getElementById('clList').addEventListener('change',ev=>{const tr=ev.target.closest('tr[data-i]'),f=ev.target.dataset.f;if(!tr||!f)return;const r=CL.rows[+tr.dataset.i];
+  r[f]=f==='on'?(ev.target.checked?1:0):f==='n'?Math.max(1,+ev.target.value||1):f==='w'||f==='style'?+ev.target.value:ev.target.value;saveCL();rekeep()});
+document.getElementById('clList').addEventListener('click',ev=>{const b=ev.target.closest('button[data-del]');if(!b)return;CL.rows.splice(+b.dataset.del,1);saveCL();renderCL();rekeep()});
+document.getElementById('clAdd').onclick=()=>{CL.rows.push({on:1,tf:'M15',type:'SMA',n:50,color:'#0891b2',w:1,style:0});saveCL();renderCL();rekeep()};
+document.getElementById('clReset').onclick=()=>{CL=JSON.parse(JSON.stringify(CLDEF));saveCL();renderCL();rekeep()};
+for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=Math.max(k==='lo'||k==='hi'?0:1,+ev.target.value||0);saveCL();rekeep()});
+for(const [id,k] of [['stOn','on'],['stSig','sig']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=ev.target.checked?1:0;saveCL();rekeep()});
+renderCL();
 const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0]];
 const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
 const lblTxt=x=>x.src||stgTxt(x.stg);const lblLong=x=>x.src?x.src+' '+x.srcl:(x.stg<0?'H4逆':'段階'+stgTxt(x.stg));
@@ -319,6 +397,10 @@ function jump(t){const d=DV().candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.l
   chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
+function applyM15(){const on=m15on();document.getElementById('m15cfg').hidden=!on;try{localStorage.setItem('svM15',on?'1':'0')}catch(e){}
+  if(on&&tf!=='M15'){const b=[...tfs.children].find(y=>y.textContent==='M15');if(b){b.click();return}}rekeep()}
+document.getElementById('optM15').addEventListener('change',applyM15);
+try{if(localStorage.getItem('svM15')==='1'){document.getElementById('optM15').checked=true;document.getElementById('m15cfg').hidden=false}}catch(e){}
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
   b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(()=>{renderW();renderUL()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
     build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
