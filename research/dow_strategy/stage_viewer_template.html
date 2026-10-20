@@ -78,6 +78,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">新4本（R/T/L/A）</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
+  <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -281,7 +282,7 @@ function setupZones(el){
     const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
     if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
     const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
-    drawRegimes(g,r);drawTrade(g,r);drawFeedback(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
+    drawRegimes(g,r);drawTri(g,r);drawTrade(g,r);drawFeedback(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
     const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
     g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
     for(const z of ZS){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
@@ -445,6 +446,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
   DATA.M15.ulNew=null;try{const r=await fetch('data/cl_'+y+'.json');if(r.ok)DATA.M15.ulNew=await r.json()}catch(e){}
   applyUL();
+  DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
   rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg()}
@@ -642,6 +644,22 @@ function updHTF(){const el=document.getElementById('htfBar');if(!el||!DATA||!cha
     while(lo<hi){const m=(lo+hi+1)>>1;if(P[m][0]+TFLEN[x]<=ref)lo=m;else hi=m-1}
     const q=lo>=0?P[lo]:null;out.push(q&&q[2]?`<span>${x} <b class="${q[2]}">${q[2]==='up'?'上昇':'下降'}</b> ${q[2]==='up'?'押し安値':'戻り高値'} ${q[1]}</span>`:`<span>${x} 判定前</span>`)}
   el.innerHTML='<span>ダウ（画面右端の時点'+(RT!=null?'＝リプレイ位置':'')+'）：</span>'+out.join('')}
+/* ---------- automatic triangles (v2: 3 highs + 3 lows, outer tangents, >=3 touches, converged) ---------- */
+const TRIN={sym:'三角',flat_top:'三角（上辺水平）',flat_bottom:'三角（下辺水平）',wedge_up:'上昇ウェッジ',wedge_down:'下降ウェッジ'};
+function drawTri(g,r){if(!DATA||!DATA.tri||!chart||!document.getElementById('optTri').checked)return;const L=DATA.tri[tf];if(!L)return;
+  const d=DV(),ts=chart.timeScale(),c=d.candles;if(!c.length)return;const lim=RT!=null?RT:Infinity;
+  g.save();g.font='bold 11px '+css('--mono');
+  for(const x of L){const [tu0,pu0,tk,puk,tl0,pl0,tk2,plk,cr,en,bo,sh]=x;if(cr+TFLEN[tf]>lim)continue;
+    const iu0=fIdx(d,tu0),ik=fIdx(d,tk),il0=fIdx(d,tl0);if(iu0==null||ik==null||il0==null||ik===iu0||ik===il0)continue;
+    const done=en+TFLEN[tf]<=lim,te=done?en:Math.min(lim,c[c.length-1][0]),ie=fIdx(d,te);if(ie==null)continue;
+    const su=(puk-pu0)/(ik-iu0),sl=(plk-pl0)/(ik-il0),X=i=>ts.logicalToCoordinate(i),Y=p=>cs.priceToCoordinate(p);
+    const wedge=sh.startsWith('wedge'),col=wedge?css('--muted'):css('--prov');g.strokeStyle=g.fillStyle=col;g.lineWidth=wedge?1.2:1.8;g.setLineDash(wedge?[5,4]:[]);
+    const seg=(i0,p0,s)=>{const a=X(i0),b=X(ie),ya=Y(p0),yb=Y(p0+s*(ie-i0));if(a==null||b==null||ya==null||yb==null)return;g.beginPath();g.moveTo(a,ya);g.lineTo(b,yb);g.stroke()};
+    seg(iu0,pu0,su);seg(il0,pl0,sl);g.setLineDash([]);
+    const xa=X(iu0),ya=Y(pu0);if(xa!=null&&ya!=null)g.fillText(TRIN[sh]||sh,xa,ya-6);
+    if(done&&bo){const xb=X(ie),yb=Y(bo===1?pu0+su*(ie-iu0):pl0+sl*(ie-il0));if(xb!=null&&yb!=null){g.fillStyle=bo===1?css('--up'):css('--down');g.fillText(bo===1?'↑抜け':'↓抜け',xb+4,yb+(bo===1?-6:14))}}}
+  g.restore()}
+document.getElementById('optTri').addEventListener('change',()=>{});
 /* ---------- replay ---------- */
 let rpTimer=null;
 function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
