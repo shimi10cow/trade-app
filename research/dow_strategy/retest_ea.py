@@ -21,7 +21,8 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import dow_turn_ea as B  # noqa: E402  (shared prep: h4/h1/m15 frames, Dow runs, H1 swings, stats, recall)
+import dow_turn_ea as B
+import env_ctx as EC  # noqa: E402  (shared prep: h4/h1/m15 frames, Dow runs, H1 swings, stats, recall)
 from env_recognition.pivots import atr  # noqa: E402
 from env_recognition.ea_api import TF_LEN  # noqa: E402
 
@@ -179,6 +180,8 @@ def run(cfg):
                 continue
             if cfg.get('ma') and not (s * (B.h1.c.iloc[k1] - S75[k1]) > 0 and s * (S20[k1] - S75[k1]) > 0):
                 continue
+            if not EC.env_ok(cfg, M15T[i] + TF_LEN['M15'], s):
+                continue
             swing = ext[0] if ext else B.R15['prov_bars'][i][1]
             if swing is None:
                 continue
@@ -241,6 +244,16 @@ QRUN = float(os.environ.get('QRUN', '6'))
 S20 = B.h1.c.rolling(20).mean().to_numpy(); S75 = B.h1.c.rolling(75).mean().to_numpy()
 BASE = dict(tfs=('H4', 'H1'), kinds=('major', 'prov', 'w'), win=72, tol=0.3, buf=1.0)
 CFGS = [
+    dict(BASE, name='E1 K4＋日足側', tfs=('H4',), ma=True, dside=0),
+    dict(BASE, name='E2 K6＋日足側', tfs=('H4',), ma=True, exit='m15', act=1.5, dside=0),
+    dict(BASE, name='E3 Q2＋日足側', tfs=('H4',), kinds=('major', 'prov', 'wq'), ma=True, exit='m15', act=1.5, dside=0),
+    dict(BASE, name='E6 K4・MAなし＋日足側', tfs=('H4',), dside=0),
+    dict(BASE, name='E7 H1全転換＋MA＋日足側', tfs=('H1',), ma=True, dside=0, win=36),
+    dict(BASE, name='E8 H4+H1全転換＋MA＋日足側', ma=True, dside=0),
+    dict(BASE, name='E9 H1全転換＋MA＋日足側・M15トレール', tfs=('H1',), ma=True, dside=0, win=36, exit='m15', act=1.5),
+    dict(BASE, name='E10 H1全転換＋MA＋日足側2ATR超', tfs=('H1',), ma=True, dside=2, win=36),
+    dict(BASE, name='E4 K4＋R環境', tfs=('H4',), ma=True, env='R'),
+    dict(BASE, name='E5 K4＋T環境', tfs=('H4',), ma=True, env='T'),
     dict(BASE, name='R1 H4+H1・全転換・72h・トレール'),
     dict(BASE, name='R2 H4のみ・全転換', tfs=('H4',)),
     dict(BASE, name='R3 H1はWのみ＋H4全転換', tfs=('H4',), extra_h1w=True),
