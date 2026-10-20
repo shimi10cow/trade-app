@@ -31,7 +31,7 @@ research/data/cache/
   US500/mt5/{M15,H1,H4,D1}/US500_mt5_*.parquet
   MANIFEST.json
 ```
-計30データセット（EURUSD/JPY各11、指数各4）。
+計34データセット（EURUSD/USDJPY各11、指数各4）。
 
 ## スプレッドの保存・使用
 - ForexTester M1 ZIP: OHLC・VOLのみ。**ヒストリカルスプレッドなし**。
