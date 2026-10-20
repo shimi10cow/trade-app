@@ -71,6 +71,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr" checked> EAのトレード</label>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">新4本（R/T/L/A）</option></select>
   <label><input type="checkbox" id="optUL" checked> 自動ライン（あなた式）</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -228,7 +229,7 @@ function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
   }
   const barT=t=>{let lo=0,hi=d.candles.length-1;if(!d.candles.length||t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
   for(const x of on('optTr')?trView():[]){if(RT!=null&&x.t+900>RT)continue;const bt=barT(x.t),xt=RT!=null&&x.xt+900>RT?null:barT(x.xt);const col=stgCol(x.stg);
-    if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+stgTxt(x.stg),size:x.n===trSel?2:1});
+    if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+lblTxt(x),size:x.n===trSel?2:1});
     if(xt!=null)m.push({time:xt,position:x.side===1?'aboveBar':'belowBar',shape:'circle',color:col,text:(x.R>0?'+':'')+x.R+'R'})}
   m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
   const last=d.prot[d.prot.length-1]||[0,null,null],pl=d.pprot[d.pprot.length-1]||[0,null,null],jp=x=>x==='up'?'上昇':'下降';
@@ -288,6 +289,7 @@ function drawLines(g,r){
   g.restore()}
 const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0]];
 const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
+const lblTxt=x=>x.src||stgTxt(x.stg);const lblLong=x=>x.src?x.src+' '+x.srcl:(x.stg<0?'H4逆':'段階'+stgTxt(x.stg));
 function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
 function drawTrade(g,r){if(!document.getElementById('optTr').checked)return;const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
   if(RT!=null&&x.t+900>RT)return;const open=RT!=null&&x.xt+900>RT;
@@ -305,7 +307,7 @@ function trTable(){if(!DATA)return;const T=DATA.trades,V=trView();const jp=v=>v=
   document.getElementById('trSum').textContent='表示中：'+sum(V)+'（スプレッド1.2pips控除後）';
   for(const b of document.getElementById('trBtns').children)b.setAttribute('aria-pressed',b.dataset.m===trMode);
   document.getElementById('trList').innerHTML=V.map(x=>`<tr data-n="${x.n}" class="${x.n===trSel?'sel':''}"><td>${x.n}</td><td>${fmt(x.t)}</td>
-    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>P${x.p}</td><td>${FB[fid(x)]?'<span class="done">済</span>':''}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${x.stg<0?'H4逆':'段階'+stgTxt(x.stg)}</span></td><td>${x.nrev}回</td>
+    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>P${x.p}</td><td>${FB[fid(x)]?'<span class="done">済</span>':''}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${lblLong(x)}</span></td><td>${x.nrev}回</td>
     <td>${jp(x.d1)}${jp(x.h4)}${jp(x.h1)}</td><td>${x.entry}</td><td>${x.risk}</td><td>${fmt(x.xt)}${x.trail?' ('+x.trail+'後)':''}</td>
     <td class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}</td></tr>`).join('')}
 document.getElementById('trList').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-n]');if(!r)return;trSel=+r.dataset.n;
@@ -333,10 +335,16 @@ new MutationObserver(rebuild).observe(document.documentElement,{attributes:true,
 /* ---------- years ---------- */
 const yrsEl=document.getElementById('yrs');
 for(const y of YEARS){const b=document.createElement('button');b.textContent=y;b.onclick=()=>loadYear(y);yrsEl.appendChild(b)}
+function applySet(){if(!DATA)return;const v=document.getElementById('trSet').value;DATA.trades=v==='pf'&&DATA.trPF?DATA.trPF:DATA.trEA}
+document.getElementById('trSet').addEventListener('change',()=>{try{localStorage.setItem('svSet',document.getElementById('trSet').value)}catch(e){}
+  applySet();trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()});
+try{const v=localStorage.getItem('svSet');if(v)document.getElementById('trSet').value=v}catch(e){}
 async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){}
   for(const b of yrsEl.children)b.setAttribute('aria-pressed',+b.textContent===y);
   document.getElementById('state').textContent=y+'年を読み込み中…';
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
+  DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
+  applySet();
   rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed()}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
@@ -350,7 +358,7 @@ const OPTS={entry:[['good','良い'],['early','早い'],['late','遅い'],['skip
   exit:[['ok','適切'],['hold','もっと保有すべき'],['earlier','もっと早く逃げるべき']]};
 const IDEAL=[['entry','理想エントリー'],['sl','理想損切り'],['exit','理想決済']];
 let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null,msDraft=null,msSel=null;
-const fid=x=>`t${x.t}_${x.side}`;const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
+const fid=x=>`t${x.t}_${x.side}`+(x.src?`_${x.src}`:"");const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
 const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 for(const el of document.querySelectorAll('.seg[data-k]')){const k=el.dataset.k;
   for(const[v,lab]of OPTS[k]){const b=document.createElement('button');b.textContent=lab;b.dataset.v=v;

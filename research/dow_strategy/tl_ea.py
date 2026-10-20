@@ -81,7 +81,8 @@ def line_touches(tf, band=0.25):
                 continue
             v = pa + slope * (j - ia)
             if (Cl[j] < v) if up else (Cl[j] > v):
-                out.append(dict(kind='break', t=C[j], d='up' if up else 'down', ia=ia, tf=tf))
+                out.append(dict(kind='break', t=C[j], d='up' if up else 'down', ia=ia, tf=tf, n=ntouch,
+                                angle=abs(slope) / A[ia], depth=depth, trend=R['bars'][j][0]))
                 break
             bd = band * A[j]
             if not away and ((L[j] - v) if up else (v - H[j])) > A[j]:
@@ -115,6 +116,18 @@ def run(cfg):
     entries = {}
     for tf in cfg['tfs']:
         for e in TOUCH[tf]:
+            if cfg.get('mode') == 'cbreak':
+                # correction line (against that TF's Dow trend) closed through in the trend direction
+                if e['kind'] != 'break' or e['trend'] is None or e['trend'] == e['d'] or e['n'] < cfg.get('cb_nmin', 2):
+                    continue
+                if e['angle'] < cfg.get('cb_angle', 0.0):
+                    continue
+                dd = e['trend']
+                i0 = M15T.searchsorted(e['t']); i1 = M15T.searchsorted(e['t'] + pd.Timedelta(hours=cfg['win']))
+                lst = turns[dd]; j = bisect.bisect_left(lst, i0)
+                if j < len(lst) and lst[j] < i1:
+                    entries.setdefault(lst[j], []).append((dd, None, tf))
+                continue
             if e['kind'] != 'touch' or not (cfg['nmin'] <= e['n'] <= cfg['nmax']):
                 continue
             if cfg.get('impulse', True) and e['trend'] != e['d']:
@@ -212,6 +225,12 @@ CFGS = [
     dict(BASE, name='S8 D2・押し0.2-1.0', tfs=('H4', 'H1'), dside=0, depth=(0.2, 1.0)),
     dict(BASE, name='S9 D2・日足側2ATR超', tfs=('H4', 'H1'), dside=2),
     dict(BASE, name='S10 D2・推進条件なし', tfs=('H4', 'H1'), dside=0, impulse=False),
+    dict(BASE, name='C1 H4調整ライン抜け＋日足側', mode='cbreak', dside=0),
+    dict(BASE, name='C2 H1調整ライン抜け＋日足側', mode='cbreak', tfs=('H1',), win=12, dside=0),
+    dict(BASE, name='C3 H4+H1調整ライン抜け＋日足側', mode='cbreak', tfs=('H4', 'H1'), dside=0),
+    dict(BASE, name='C4 H4調整ライン(3点以上)抜け＋日足側', mode='cbreak', cb_nmin=3, dside=0),
+    dict(BASE, name='C5 H4調整ライン抜け（日足条件なし）', mode='cbreak'),
+    dict(BASE, name='C6 H1調整ライン(3点以上)抜け＋日足側', mode='cbreak', tfs=('H1',), win=12, cb_nmin=3, dside=0),
     dict(BASE, name='G1 T1＋相場判定（更新が続く）', gate=40, gate_kind='brk'),
     dict(BASE, name='G2 T1＋相場判定（転換が続く）', gate=40, gate_kind='rev'),
 ]
