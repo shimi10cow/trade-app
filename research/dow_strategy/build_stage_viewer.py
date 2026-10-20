@@ -41,8 +41,55 @@ def compute(tf, y=None):
         tt = pd.to_datetime(df.t)
         df = df[(tt >= pd.Timestamp(f'{y}-01-01') - PER_YEAR[tf] - LEAD[tf]) & (tt < pd.Timestamp(f'{y + 1}-01-01'))].reset_index(drop=True)
     res = dow_trend.run(df, tf)
-    return dict(df=df, res=res, zones=zones.build(df, res), lines=lines.run(df, tf, res), t=epoch_s(df.t),
+    return dict(tf=tf, df=df, res=res, zones=zones.build(df, res), lines=lines.run(df, tf, res), t=epoch_s(df.t),
                 tt=pd.to_datetime(df.t), sma20=df.c.rolling(20).mean(), sma75=df.c.rolling(75).mean(), sma200=df.c.rolling(200).mean())
+
+
+ULOOK = {'W1': 20, 'D1': 20, 'H4': 20, 'H1': 40, 'M15': 40}
+MAXLEN = 500
+
+
+def user_lines(df, res, tf):
+    """User-style trendlines (2026-10-20, from 45 user lines): start A = a swing that is the most extreme
+    price of the previous ULOOK bars; the line is the outer tangent from A over the later same-kind Dow swings
+    (all of them stay inside the line). Created when the 2nd swing is confirmed; ends when price goes beyond A
+    (invalid) or a close crosses the line (break). Returns [a_idx, a_price, b_idx, b_price, created_idx, end_idx, kind, broken]."""
+    H, L, C = (df[z].to_numpy(float) for z in 'hlc')
+    last = {}
+    for e in res['pivot_events']:
+        last[e['id']] = e
+    piv = sorted((e['idx'], e['kind'], e['price'], e['available_idx']) for e in last.values())
+    n, N = len(df), ULOOK.get(tf, 30)
+    out = []
+    for ia, kind, pa, avail_a in piv:
+        hi = kind == 'hi'
+        j0 = max(0, ia - N)
+        if hi and H[j0:ia].size and H[j0:ia].max() > pa:
+            continue
+        if (not hi) and L[j0:ia].size and L[j0:ia].min() < pa:
+            continue
+        later = [p for p in piv if p[1] == kind and ia < p[0] <= ia + MAXLEN]
+        slope, b = None, None
+        q = 0
+        end, broken, created = None, False, None
+        for j in range(ia + 1, min(n, ia + MAXLEN)):
+            while q < len(later) and later[q][3] <= j:
+                pb = later[q]; sl = (pb[2] - pa) / (pb[0] - ia)
+                if slope is None or (sl > slope if hi else sl < slope):
+                    slope, b = sl, pb
+                    if created is None:
+                        created = j
+                q += 1
+            if (H[j] > pa) if hi else (L[j] < pa):
+                end = j; break
+            if slope is not None:
+                v = pa + slope * (j - ia)
+                if (C[j] > v) if hi else (C[j] < v):
+                    end, broken = j, True; break
+        if b is None:
+            continue
+        out.append([ia, pa, b[0], b[2], created, end, kind, broken])
+    return out
 
 
 def payload(C, s0, s1):
@@ -80,7 +127,12 @@ def payload(C, s0, s1):
     lout = [[x['anchor_idx'] - s0, r5(x['anchor_price']), x['end_idx'] - s0, r5(x['end_price']),
              x['created'] - s0, rel(x['retired']), x['kind'], x['reason'] or '', x['type']]
             for x in C['lines']['lines'] if x['created'] < s1 and (x['retired'] is None or x['retired'] >= s0)]
-    return dict(ulab=[], extra=[], lines=lout, candles=candles, sma20=sma[20], sma75=sma[75], sma200=sma[200], prot=prot, pprot=pprot,
+    ul = []
+    for ia, pa, ib, pb, cr, en, kind, broken in C.setdefault('ulines', user_lines(df, res, C.get('tf', 'H4'))):
+        if cr >= s1 or (en is not None and en < s0) or ia < s0 - 2000:
+            continue
+        ul.append([t[ia], r5(pa), t[ib], r5(pb), t[cr], t[en] if en is not None and en < s1 else None, kind, bool(broken and en is not None and en < s1)])
+    return dict(ulab=[], extra=[], ulines=ul, lines=lout, candles=candles, sma20=sma[20], sma75=sma[75], sma200=sma[200], prot=prot, pprot=pprot,
                 piv=piv, ev=ev, pev=pev, wev=wev, zones=zout)
 
 

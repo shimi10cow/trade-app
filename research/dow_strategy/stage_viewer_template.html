@@ -71,6 +71,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr" checked> EAのトレード</label>
+  <label><input type="checkbox" id="optUL" checked> 自動ライン（あなた式）</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
@@ -88,6 +89,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><label for="fbNote" class="lbl">理由・メモ</label><textarea id="fbNote" rows="2" placeholder="例：H4戻り高値の手前。M15ラインを抜けてからで良かった"></textarea></div>
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
+</section>
+<section class="fb" aria-label="自動ラインの判定" style="grid-column:1/-1">
+  <div class="fbrow"><b>自動ライン（あなたの引き方を真似た線）の判定</b><span class="note" id="ulCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線を太く表示（●＝始点と2点目、×＝ブレイク）。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
+  <div class="log" style="max-height:220px"><table><thead><tr><th>線ができた足</th><th>向き</th><th>始点</th><th>2点目</th><th>終わり</th><th>判定</th></tr></thead><tbody id="ulList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
   <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
@@ -164,6 +170,7 @@ function DV(){const d=DATA[tf];if(RT==null)return d;const key=year+':'+tf+':'+RT
   const v={off,candles,prot:d.prot.slice(off,k+1),pprot:d.pprot.slice(off,k+1),sma20:upTo(d.sma20),sma75:upTo(d.sma75),sma200:d.sma200?upTo(d.sma200):null,
     piv:d.piv.filter(p=>kn(p[4])&&p[0]>=firstT),ev:d.ev.filter(e=>kn(e[0])&&e[0]>=firstT),pev:d.pev.filter(e=>kn(e[0])&&e[0]>=firstT),wev:d.wev.filter(e=>kn(e[0])&&e[0]>=firstT),
     zones:d.zones.filter(z=>kn(z[1])).map(z=>z[2]!=null&&!kn(z[2])?[z[0],z[1],null,z[3],z[4],z[5]]:z),
+    ulines:(d.ulines||[]).filter(u=>kn(u[4])).map(u=>u[5]!=null&&!kn(u[5])?[u[0],u[1],u[2],u[3],u[4],null,u[6],false]:u),
     lines:d.lines.filter(x=>x[4]<=k&&(x[5]==null||x[5]>=off)).map(x=>[x[0]-off,x[1],x[2]-off,x[3],x[4]-off,x[5]!=null&&x[5]<=k?x[5]-off:null,x[6],x[7],x[8]]),ulab:[],extra:[]};
   VC.key=key;VC.v=v;return v}
 const S={};let ZS=[];
@@ -311,7 +318,7 @@ function jump(t){const d=DV().candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.l
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
-  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(renderW);try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
+  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(()=>{renderW();renderUL()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
     build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
 /* keep the same dates on screen when the timeframe changes */
 function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVisibleLogicalRange();if(!r)return null;
@@ -319,7 +326,7 @@ function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVi
 function showTimes([a,b]){const c=DV().candles;const ix=t=>{const i=fIdx(DV(),t);return i==null?0:i};
   let i0=ix(a),i1=ix(b);const mid=(i0+i1)/2;if(i1-i0<60){i0=mid-30;i1=mid+30}
   chart.timeScale().setVisibleLogicalRange({from:i0,to:i1})}
-for(const id of ['optPiv','optProt','optProv','optW','optS20','optS75','optS200','optBo','optLab','optTr'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
+for(const id of ['optPiv','optProt','optProv','optW','optS20','optS75','optS200','optBo','optLab','optTr','optUL'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
 const rebuild=()=>{if(DATA)build()};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rebuild);
 new MutationObserver(rebuild).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -330,7 +337,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   for(const b of yrsEl.children)b.setAttribute('aria-pressed',+b.textContent===y);
   document.getElementById('state').textContent=y+'年を読み込み中…';
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;setArmed(null);build();renderW();trTable();renderFb();renderMissed()}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed()}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -508,6 +515,31 @@ function drawW(g,P,W){if(wSel==null||!DATA)return;const w=DATA[tf].wev.find(x=>x
   const a=P(w[5],w[3]),e=P(w[0],w[3]);if(a&&e){g.beginPath();g.moveTo(a[0]-40,a[1]);g.lineTo(e[0]+60,e[1]);g.stroke();g.fillText('B ネック '+w[3],a[0]-40,a[1]-6)}
   g.setLineDash([]);const lv=(p,lab)=>{const q=P(w[5],p),r=P(w[0],p);if(q&&r){g.globalAlpha=.5;g.beginPath();g.moveTo(q[0]-80,q[1]);g.lineTo(r[0],r[1]);g.stroke();g.globalAlpha=1;g.fillText(lab+' '+p,q[0]-80,q[1]-4)}};
   lv(w[2],'A');lv(w[4],'C');if(e){g.beginPath();g.arc(e[0],e[1],6,0,7);g.stroke()}g.restore()}
+/* ---------- auto (user-style) trendlines + judgement ---------- */
+let ULJ={},ulSel=null;
+const ulid=u=>`${tf}_${u[0]}_${u[6]}`;
+function ulRows(){if(!DATA)return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return (DATA[tf].ulines||[]).filter(u=>u[4]>=y0&&u[4]<y1)}
+function drawUL(g,P,W){if(!DATA||!document.getElementById('optUL').checked)return;const d=DV();const L=d.ulines||[];if(!L.length)return;
+  const ts=chart.timeScale(),last=d.candles.length-1;g.save();
+  for(const u of L){const sel=u[0]===ulSel&&tf===ulSelTf;const a=P(u[0],u[1]),b=P(u[2],u[3]);if(!a||!b||b[0]===a[0])continue;
+    const endI=u[5]!=null?fIdx(d,u[5]):last+3;const xe=ts.logicalToCoordinate(endI);if(xe==null)continue;const k=(b[1]-a[1])/(b[0]-a[0]);const ye=a[1]+k*(xe-a[0]);
+    g.strokeStyle=g.fillStyle=sel?css('--hl'):(u[6]==='hi'?'#b45309':'#0f766e');g.lineWidth=sel?3:1.5;g.globalAlpha=sel?1:.75;g.setLineDash(u[7]?[]:[6,3]);
+    g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(xe,ye);g.stroke();g.setLineDash([]);
+    if(sel){for(const q of [a,b]){g.beginPath();g.arc(q[0],q[1],5,0,7);g.fill()}if(u[7]){g.lineWidth=2;g.beginPath();g.moveTo(xe-5,ye-5);g.lineTo(xe+5,ye+5);g.moveTo(xe-5,ye+5);g.lineTo(xe+5,ye-5);g.stroke()}}}
+  g.restore()}
+let ulSelTf=null;
+function renderUL(){const L=ulRows();const done=L.filter(u=>ULJ[ulid(u)]).length;
+  document.getElementById('ulCount').textContent=`${tf} ${year}年：${L.length}本中 ${done}本判定済み（全体で${Object.keys(ULJ).length}本）`;
+  document.getElementById('ulList').innerHTML=L.map(u=>{const v=(ULJ[ulid(u)]||{}).v;const b=(k,l)=>`<button data-uv="${k}" data-ua="${u[0]}" data-uk="${u[6]}" aria-pressed="${v===k}">${l}</button>`;
+    const end=u[5]==null?'継続中':(u[7]?'ブレイク '+fmt(u[5]):'始点を超えて無効 '+fmt(u[5]));
+    return `<tr data-ua="${u[0]}" data-uk="${u[6]}" class="${u[0]===ulSel&&tf===ulSelTf?'sel':''}"><td>${fmt(u[4])}</td><td class="${u[6]==='hi'?'down':'up'}">${u[6]==='hi'?'下降ライン':'上昇ライン'}</td><td>${fmt(u[0])} ${u[1]}</td><td>${fmt(u[2])} ${u[3]}</td><td>${end}</td><td><span class="seg">${b('ok','○')}${b('ng_start','×始点')}${b('ng_angle','×角度')}${b('ng_no','×不要')}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
+document.getElementById('ulList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-uv]');
+  if(bt){ev.stopPropagation();const u=ulRows().find(x=>x[0]===+bt.dataset.ua&&x[6]===bt.dataset.uk);if(!u||!db){status('この表示では保存できません');return}
+    const id=ulid(u),cur=(ULJ[id]||{}).v,v=cur===bt.dataset.uv?null:bt.dataset.uv;
+    if(v){ULJ[id]={tf,a_t:u[0],a_p:u[1],b_t:u[2],b_p:u[3],created:u[4],end:u[5],kind:u[6],broken:u[7],v,year};renderUL();try{await db.collection('tljudge').doc(id).set(ULJ[id])}catch(e){status('保存できませんでした')}}
+    else{delete ULJ[id];renderUL();try{await db.collection('tljudge').doc(id).delete()}catch(e){}}return}
+  const r=ev.target.closest('tr[data-ua]');if(!r)return;ulSel=+r.dataset.ua;ulSelTf=tf;renderUL();const u=ulRows().find(x=>x[0]===ulSel&&x[6]===r.dataset.uk);
+  const d=DV(),i0=fIdx(d,u[0])??0,i1=u[5]!=null?(fIdx(d,u[5])??i0):d.candles.length-1;const sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.4,to:i1+sp*0.5})});
 function fIdx(d,t){const c=d.candles;if(!c.length||t<c[0][0])return null;const n=c.length-1;if(t>c[n][0])return n+(t-c[n][0])/TFLEN[tf];let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
 function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=ts.width();
   g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='bold 11px '+css('--mono');g.lineWidth=2;g.setLineDash([]);
@@ -516,7 +548,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   if(f&&f.ideal){const I=f.ideal;g.strokeStyle=g.fillStyle=css('--hl');
     for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
     if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
-  drawUser(g,P,W);drawW(g,P,W);
+  drawUser(g,P,W);drawW(g,P,W);drawUL(g,P,W);
   const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):css('--hl');
     g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
     g.fillText((d.kind==='ideal'?'理想':'お手本')+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
@@ -530,6 +562,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
+  db.collection('tljudge').onSnapshot(s=>{ULJ={};for(const d of s.docs)ULJ[d.id]={...d.data()};renderUL()},e=>status('ライン判定を読み込めませんでした'));
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
