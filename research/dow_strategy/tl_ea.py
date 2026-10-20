@@ -21,6 +21,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dow_turn_ea as B  # noqa: E402
+import env_ctx as EC  # noqa: E402
 from env_recognition.pivots import atr  # noqa: E402
 from env_recognition.ea_api import TF_LEN  # noqa: E402
 
@@ -154,12 +155,14 @@ def run(cfg):
                 p['exit'] = p['sl']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if cfg['exit'] in ('line', 'line_m15') and p['kill'] is not None and M15T[i] + TF_LEN['M15'] > p['kill']:
                 p['exit'] = B.c[i]; p['exit_t'] = M15T[i]; p['why'] = 'line'; trades.append(p); continue
-            if cfg['exit'] in ('h1', 'm15', 'line_m15'):
-                act = 1.0 if cfg['exit'] == 'h1' else 1.5
-                if not p['trail'] and s * ((B.h[i] if s == 1 else B.l[i]) - p['entry']) >= act * p['risk']:
+            if cfg['exit'] in ('h1', 'm15', 'line_m15', 'hyb'):
+                act = cfg.get('act', 1.0 if cfg['exit'] == 'h1' else 1.5)
+                fav = s * ((B.h[i] if s == 1 else B.l[i]) - p['entry'])
+                p['mfe'] = max(p.get('mfe', 0.0), fav / p['risk'])
+                if not p['trail'] and fav >= act * p['risk']:
                     p['trail'] = True
                 if p['trail']:
-                    if cfg['exit'] == 'h1':
+                    if cfg['exit'] == 'h1' or (cfg['exit'] == 'hyb' and p['mfe'] >= cfg.get('sw', 2.0)):
                         j = bisect.bisect_right(B.H1PT, M15T[i] + TF_LEN['M15']) - 1
                         while j >= 0 and B.H1P[j][1] != ('lo' if s == 1 else 'hi'):
                             j -= 1
@@ -180,6 +183,8 @@ def run(cfg):
             if any(p['side'] == s for p in pos):
                 continue
             if cfg.get('dside') is not None and not ctx_at(M15T[i] + TF_LEN['M15'], s)['sd'] > cfg['dside']:
+                continue
+            if not EC.env_ok({k: cfg.get(k) for k in ('maxdev', 'notri')}, M15T[i] + TF_LEN['M15'], s):
                 continue
             swing = B.R15['prov_bars'][i][1]
             if swing is None:
@@ -231,6 +236,13 @@ CFGS = [
     dict(BASE, name='C4 H4調整ライン(3点以上)抜け＋日足側', mode='cbreak', cb_nmin=3, dside=0),
     dict(BASE, name='C5 H4調整ライン抜け（日足条件なし）', mode='cbreak'),
     dict(BASE, name='C6 H1調整ライン(3点以上)抜け＋日足側', mode='cbreak', tfs=('H1',), win=12, cb_nmin=3, dside=0),
+    dict(BASE, name='N1 D2＋伸びすぎ除外', tfs=('H4', 'H1'), dside=0, maxdev=3),
+    dict(BASE, name='N2 D2＋H4三角の最中は除外', tfs=('H4', 'H1'), dside=0, notri='H4'),
+    dict(BASE, name='N3 D2＋両方', tfs=('H4', 'H1'), dside=0, maxdev=3, notri='H4'),
+    dict(BASE, name='X1 D2・H1トレール1.5R後', tfs=('H4', 'H1'), dside=0, act=1.5),
+    dict(BASE, name='X2 D2・M15トレール1R後', tfs=('H4', 'H1'), dside=0, exit='m15', act=1.0),
+    dict(BASE, name='X3 D2・M15→2RからH1', tfs=('H4', 'H1'), dside=0, exit='hyb', act=1.0, sw=2.0),
+    dict(BASE, name='X4 D2・M15→3RからH1', tfs=('H4', 'H1'), dside=0, exit='hyb', act=1.0, sw=3.0),
     dict(BASE, name='G1 T1＋相場判定（更新が続く）', gate=40, gate_kind='brk'),
     dict(BASE, name='G2 T1＋相場判定（転換が続く）', gate=40, gate_kind='rev'),
 ]

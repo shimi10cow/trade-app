@@ -159,7 +159,7 @@ def run(cfg):
                         if (v < B.c[i]) if s == 1 else (v > B.c[i]):
                             p['sl'] = max(p['sl'], v) if s == 1 else min(p['sl'], v)
             elif not cfg.get('tp'):
-                if not p['trail'] and s * ((B.h[i] if s == 1 else B.l[i]) - p['entry']) >= p['risk']:
+                if not p['trail'] and s * ((B.h[i] if s == 1 else B.l[i]) - p['entry']) >= cfg.get('h1act', 1.0) * p['risk']:
                     p['trail'] = True
                 if p['trail']:
                     j = bisect.bisect_right(B.H1PT, M15T[i] + TF_LEN['M15']) - 1
@@ -249,6 +249,11 @@ CFGS = [
     dict(BASE, name='E3 Q2＋日足側', tfs=('H4',), kinds=('major', 'prov', 'wq'), ma=True, exit='m15', act=1.5, dside=0),
     dict(BASE, name='E6 K4・MAなし＋日足側', tfs=('H4',), dside=0),
     dict(BASE, name='E7 H1全転換＋MA＋日足側', tfs=('H1',), ma=True, dside=0, win=36),
+    dict(BASE, name='N1 E1＋伸びすぎ除外', tfs=('H4',), ma=True, dside=0, maxdev=3),
+    dict(BASE, name='N2 E1＋H4三角の最中は除外', tfs=('H4',), ma=True, dside=0, notri='H4'),
+    dict(BASE, name='N3 E1＋両方', tfs=('H4',), ma=True, dside=0, maxdev=3, notri='H4'),
+    dict(BASE, name='Y1 E1・H1トレール1.5R後', tfs=('H4',), ma=True, dside=0, h1act=1.5),
+    dict(BASE, name='Y2 E1・M15トレール1R後', tfs=('H4',), ma=True, dside=0, exit='m15', act=1.0),
     dict(BASE, name='E8 H4+H1全転換＋MA＋日足側', ma=True, dside=0),
     dict(BASE, name='E9 H1全転換＋MA＋日足側・M15トレール', tfs=('H1',), ma=True, dside=0, win=36, exit='m15', act=1.5),
     dict(BASE, name='E10 H1全転換＋MA＋日足側2ATR超', tfs=('H1',), ma=True, dside=2, win=36),
