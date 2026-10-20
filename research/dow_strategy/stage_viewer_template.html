@@ -109,6 +109,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線だけオレンジで太く表示（他の線は薄く）。同じ行をもう一度クリックで解除。選んだ線の始点・2点目はドラッグで動かせます（あなたならこう引く、として保存）。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
   <div class="log" style="max-height:220px"><table><thead><tr><th>線ができた足</th><th>向き</th><th>始点</th><th>2点目</th><th>終わり</th><th>判定</th></tr></thead><tbody id="ulList"></tbody></table></div>
 </section>
+<section class="fb" aria-label="相場の状態の印付け" style="grid-column:1/-1" id="rgBox">
+  <div class="fbrow"><b>相場の状態の印付け</b><span class="note" id="rgCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">状態のボタンを押して、チャートで「始まりの足」→「終わりの足」をクリック。どの時間足で付けてもよく、全部の時間足に帯で表示されます。重ねて付けてもOK（例：上昇の推進の中の調整）。迷ったらメモに一言</span></div>
+  <div class="fbrow"><span class="seg" id="rgBtns"></span><label><input type="checkbox" id="optRg" checked> 帯を表示</label><span class="note" id="rgHint" style="margin:0"></span></div>
+  <div class="log" style="max-height:260px"><table><thead><tr><th>始まり</th><th>終わり</th><th>状態</th><th>付けた足</th><th>メモ</th><th></th></tr></thead><tbody id="rgList"></tbody></table></div>
+</section>
 <section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
   <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○。違う時は理由で選ぶ：×レンジ＝トレンドの終わりではない（レンジ内）、×形＝山が2つに見えない・ネックが認識できない、×他＝それ以外。微妙なら△</span></div>
@@ -267,7 +273,7 @@ function setupZones(el){
     const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
     if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
     const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
-    drawTrade(g,r);drawFeedback(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
+    drawRegimes(g,r);drawTrade(g,r);drawFeedback(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
     const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
     g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
     for(const z of ZS){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
@@ -431,7 +437,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed()}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg()}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -455,6 +461,7 @@ for(const[k,lab]of IDEAL){const b=document.createElement('button');b.textContent
 function setArmed(a){armed=a;for(const b of document.querySelectorAll('[data-a]'))b.classList.toggle('armed',b.dataset.a===a);
   document.getElementById('msAdd').classList.toggle('armed',a==='missed');if(a!=='missed')msDraft=null;msHint();
   for(const b of document.querySelectorAll('[data-d]'))b.classList.toggle('armed',b.dataset.d===a);tlFirst=null;
+  for(const b of document.querySelectorAll('[data-rg]'))b.classList.toggle('armed','rg_'+b.dataset.rg===a);rgFirst=null;if(typeof rgHint==='function')rgHint();
   document.getElementById('rpStart').classList.toggle('armed',a==='replay');
   document.getElementById('chart').style.cursor=a?'crosshair':''}
 function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
@@ -478,6 +485,7 @@ document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'mis
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
   if(armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
+  if(armed&&armed.startsWith('rg_'))return rgClick(p);
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
     if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
@@ -573,6 +581,41 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
     e.stopPropagation();onChartClick({point:{x,y},time:tAt(li)})},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
 function tAt(i){const c=DV().candles,n=c.length-1;if(i>n)return c[n][0]+Math.round(i-n)*TFLEN[tf];return c[Math.max(0,Math.round(i))][0]}
+/* ---------- market state labels (user's environment view): time ranges tagged up/down impulse, correction, range ---------- */
+const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b']];
+var RG=[],rgFirst=null,rgSel=null;
+{const box=document.getElementById('rgBtns');for(const[k,lab,,col]of RGK){const b=document.createElement('button');b.textContent=lab;b.dataset.rg=k;b.style.borderColor=col;b.onclick=()=>setArmed(armed==='rg_'+k?null:'rg_'+k);box.appendChild(b)}}
+function rgHint(){const el=document.getElementById('rgHint');if(!el)return;el.textContent=armed&&armed.startsWith('rg_')?(rgFirst?'終わりの足をクリック':'始まりの足をクリック'):''}
+async function rgClick(p){if(!db){status('この表示では保存できません');return}
+  if(!rgFirst){rgFirst={t:p.time};rgHint();return}
+  const kind=armed.slice(3),a=rgFirst.t,b=p.time;rgFirst=null;setArmed(null);if(a===b)return;
+  const t1=Math.min(a,b),t2=Math.max(a,b)+TFLEN[tf]-900;
+  try{const ref=await db.collection('regime').add({year:new Date(t1*1000).getUTCFullYear(),tf,kind,t1,t2,note:'',created:new Date().toISOString()});rgSel=ref.id}catch(e){status('保存できませんでした')}}
+function drawRegimes(g,r){if(!DATA||!chart||!document.getElementById('optRg').checked)return;const d=DV(),ts=chart.timeScale(),W=ts.width(),c=d.candles;if(!c.length)return;
+  const X=t=>{const i=t<c[0][0]?-1e4:fIdx(d,t);const x=ts.logicalToCoordinate(i);return x==null?null:x};
+  g.save();g.font='bold 11px '+css('--mono');
+  for(const it of RG){const v=it.d,K=RGK.find(k=>k[0]===v.kind);if(!K)continue;const x1=X(v.t1),x2=X(v.t2+900);if(x1==null||x2==null||x2<0||x1>W)continue;
+    const a=Math.max(0,x1),b=Math.min(W,x2);g.fillStyle=K[2];g.fillRect(a,0,Math.max(1,b-a),r.height);
+    if(it.id===rgSel){g.strokeStyle=K[3];g.lineWidth=2;g.strokeRect(a,1,Math.max(1,b-a),r.height-2)}
+    g.fillStyle=K[3];g.fillText(K[1]+(v.note?'：'+v.note:''),a+4,14+(['up','down'].includes(v.kind)?0:14))}
+  if(rgFirst){const x=X(rgFirst.t);if(x!=null){g.strokeStyle=css('--hl');g.setLineDash([4,4]);g.beginPath();g.moveTo(x,0);g.lineTo(x,r.height);g.stroke()}}
+  g.restore()}
+function renderRg(){const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;
+  const L=RG.filter(it=>it.d.t2>=y0&&it.d.t1<y1).sort((a,b)=>a.d.t1-b.d.t1);
+  const cov=k=>{let s=0;for(const it of L)if(!k||it.d.kind===k)s+=Math.min(y1,it.d.t2)-Math.max(y0,it.d.t1);return Math.round(s/(y1-y0)*100)};
+  document.getElementById('rgCount').textContent=`${year}年：${L.length}件（年の${cov()}%に印。推進 ${cov('up')+cov('down')}% ／ 調整 ${cov('adj')}% ／ レンジ ${cov('range')}%）・全体 ${RG.length}件`;
+  const opt=v=>RGK.map(k=>`<option value="${k[0]}"${k[0]===v?' selected':''}>${k[1]}</option>`).join('');
+  const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
+  document.getElementById('rgList').innerHTML=L.map(it=>`<tr data-rid="${esc(it.id)}" class="${it.id===rgSel?'sel':''}"><td>${fa(it.d.t1)}</td><td>${fa(it.d.t2)}</td>
+    <td><select data-rk="${esc(it.id)}">${opt(it.d.kind)}</select></td><td>${esc(it.d.tf)}</td><td><input data-rn="${esc(it.id)}" value="${esc(it.d.note)}" placeholder="メモ" style="width:220px"></td>
+    <td><button data-rdel="${esc(it.id)}">消す</button></td></tr>`).join('')||'<tr><td colspan="6">この年はまだありません</td></tr>'}
+document.getElementById('rgList').addEventListener('click',async ev=>{const del=ev.target.closest('[data-rdel]');
+  if(del){ev.stopPropagation();try{await db.collection('regime').doc(del.dataset.rdel).delete()}catch(e){status('消せませんでした')}return}
+  if(ev.target.closest('select,input'))return;const r=ev.target.closest('tr[data-rid]');if(!r)return;rgSel=rgSel===r.dataset.rid?null:r.dataset.rid;renderRg();
+  const it=RG.find(z=>z.id===rgSel);if(it){const d=DV(),i0=fIdx(d,it.d.t1)??0,i1=fIdx(d,it.d.t2)??i0,sp=Math.max(40,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.3,to:i1+sp*0.3})}});
+document.getElementById('rgList').addEventListener('change',async ev=>{const k=ev.target.dataset.rk,n=ev.target.dataset.rn;
+  try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
+document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- replay ---------- */
 let rpTimer=null;
 function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
@@ -684,6 +727,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
   db.collection('tljudge').onSnapshot(s=>{ULJ={};for(const d of s.docs)ULJ[d.id]={...d.data()};renderUL()},e=>status('ライン判定を読み込めませんでした'));
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
+  db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
