@@ -119,9 +119,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="相場の状態の印付け" style="grid-column:1/-1" id="rgBox">
   <div class="fbrow"><b>相場の状態の印付け</b><span class="note" id="rgCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">状態のボタンを押して、チャートで「始まりの足」→「終わりの足」をクリック。どの時間足で付けてもよく、全部の時間足に帯で表示されます。重ねて付けてもOK（例：上昇の推進の中の調整）。迷ったらメモに一言</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">状態のボタンを押して、チャートで「始まりの足」→「終わりの足」をクリック。どの時間足で付けてもよく、全部の時間足に帯で表示されます。重ねて付けてもOK（例：上昇の推進の中の調整）。「新規で入りたい」「触りたくない」は状態とは別に、新しくポジションを持ちたいエリアかどうかを重ねて付けるためのもの（入りたい所だけ付けるのでもOK）。迷ったらメモに一言</span></div>
   <div class="fbrow"><span class="seg" id="rgBtns"></span><label><input type="checkbox" id="optRg" checked> 帯を表示</label><span class="note" id="rgHint" style="margin:0"></span></div>
   <div class="log" style="max-height:260px"><table><thead><tr><th>始まり</th><th>終わり</th><th>状態</th><th>付けた足</th><th>メモ</th><th></th></tr></thead><tbody id="rgList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="三角とウェッジの判定" style="grid-column:1/-1" id="secTri">
+  <div class="fbrow"><b>三角保ち合い・ウェッジの判定</b><span class="note" id="triCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">自動で見つけた三角・ウェッジ（今の時間足・今の年）。行をクリックでチャートが移動し、その三角だけオレンジで表示。あなたも三角（ウェッジ）として見るなら○。違う時：×形＝三角に見えない（収束していない・山谷がはっきりしない等）、×位置＝形は良いがトレンドの調整の位置ではない、×不要＝そもそも見ない。微妙なら△。種類の絞り込みはボタンで</span></div>
+  <div class="fbrow"><span class="seg" id="triFilt"></span></div>
+  <div class="log" style="max-height:260px"><table><thead><tr><th>形ができた足</th><th>種類</th><th>始まりの幅</th><th>抜け</th><th>判定</th></tr></thead><tbody id="triList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="Wの判定" style="grid-column:1/-1" id="secW">
   <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
@@ -421,7 +427,7 @@ function applyM15(){const on=m15on();m15Opts(on);document.getElementById('m15cfg
 document.getElementById('optM15').addEventListener('change',applyM15);
 try{if(localStorage.getItem('svM15')==='1'){document.getElementById('optM15').checked=true;document.getElementById('m15cfg').hidden=false;for(const id of M15OFF)document.getElementById(id).checked=false}}catch(e){}
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
-  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(()=>{renderW();renderUL()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
+  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;triSel=null;setTimeout(()=>{renderW();renderUL();renderTri()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
     build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
 /* keep the same dates on screen when the timeframe changes */
 function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVisibleLogicalRange();if(!r)return null;
@@ -449,7 +455,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg()}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri()}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -594,7 +600,7 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
   document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
 function tAt(i){const c=DV().candles,n=c.length-1;if(i>n)return c[n][0]+Math.round(i-n)*TFLEN[tf];return c[Math.max(0,Math.round(i))][0]}
 /* ---------- market state labels (user's environment view): time ranges tagged up/down impulse, correction, range ---------- */
-const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b']];
+const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b'],['enter','新規で入りたい','rgba(37,99,235,.13)','#2563eb'],['avoid','触りたくない','rgba(120,120,120,.10)','#475569']];
 var RG=[],rgFirst=null,rgSel=null;
 {const box=document.getElementById('rgBtns');for(const[k,lab,,col]of RGK){const b=document.createElement('button');b.textContent=lab;b.dataset.rg=k;b.style.borderColor=col;b.onclick=()=>setArmed(armed==='rg_'+k?null:'rg_'+k);box.appendChild(b)}}
 function rgHint(){const el=document.getElementById('rgHint');if(!el)return;el.textContent=armed&&armed.startsWith('rg_')?(rgFirst?'終わりの足をクリック':'始まりの足をクリック'):''}
@@ -609,13 +615,13 @@ function drawRegimes(g,r){if(!DATA||!chart||!document.getElementById('optRg').ch
   for(const it of RG){const v=it.d,K=RGK.find(k=>k[0]===v.kind);if(!K)continue;const x1=X(v.t1),x2=X(v.t2+900);if(x1==null||x2==null||x2<0||x1>W)continue;
     const a=Math.max(0,x1),b=Math.min(W,x2);g.fillStyle=K[2];g.fillRect(a,0,Math.max(1,b-a),r.height);
     if(it.id===rgSel){g.strokeStyle=K[3];g.lineWidth=2;g.strokeRect(a,1,Math.max(1,b-a),r.height-2)}
-    g.fillStyle=K[3];g.fillText(K[1]+(v.note?'：'+v.note:''),a+4,14+(['up','down'].includes(v.kind)?0:14))}
+    g.fillStyle=K[3];g.fillText(K[1]+(v.note?'：'+v.note:''),a+4,14+(['up','down'].includes(v.kind)?0:['enter','avoid'].includes(v.kind)?28:14))}
   if(rgFirst){const x=X(rgFirst.t);if(x!=null){g.strokeStyle=css('--hl');g.setLineDash([4,4]);g.beginPath();g.moveTo(x,0);g.lineTo(x,r.height);g.stroke()}}
   g.restore()}
 function renderRg(){const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;
   const L=RG.filter(it=>it.d.t2>=y0&&it.d.t1<y1).sort((a,b)=>a.d.t1-b.d.t1);
   const cov=k=>{let s=0;for(const it of L)if(!k||it.d.kind===k)s+=Math.min(y1,it.d.t2)-Math.max(y0,it.d.t1);return Math.round(s/(y1-y0)*100)};
-  document.getElementById('rgCount').textContent=`${year}年：${L.length}件（年の${cov()}%に印。推進 ${cov('up')+cov('down')}% ／ 調整 ${cov('adj')}% ／ レンジ ${cov('range')}%）・全体 ${RG.length}件`;
+  document.getElementById('rgCount').textContent=`${year}年：${L.length}件（年の${cov()}%に印。推進 ${cov('up')+cov('down')}% ／ 調整 ${cov('adj')}% ／ レンジ ${cov('range')}% ／ 入りたい ${cov('enter')}%）・全体 ${RG.length}件`;
   const opt=v=>RGK.map(k=>`<option value="${k[0]}"${k[0]===v?' selected':''}>${k[1]}</option>`).join('');
   const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
   document.getElementById('rgList').innerHTML=L.map(it=>`<tr data-rid="${esc(it.id)}" class="${it.id===rgSel?'sel':''}"><td>${fa(it.d.t1)}</td><td>${fa(it.d.t2)}</td>
@@ -629,7 +635,7 @@ document.getElementById('rgList').addEventListener('change',async ev=>{const k=e
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
-const UNDER=[['secUL','線の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['secDraw','線を引く'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+const UNDER=[['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['secDraw','線を引く'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
 {const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
   for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
     const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
@@ -653,13 +659,35 @@ function drawTri(g,r){if(!DATA||!DATA.tri||!chart||!document.getElementById('opt
     const iu0=fIdx(d,tu0),ik=fIdx(d,tk),il0=fIdx(d,tl0);if(iu0==null||ik==null||il0==null||ik===iu0||ik===il0)continue;
     const done=en+TFLEN[tf]<=lim,te=done?en:Math.min(lim,c[c.length-1][0]),ie=fIdx(d,te);if(ie==null)continue;
     const su=(puk-pu0)/(ik-iu0),sl=(plk-pl0)/(ik-il0),X=i=>ts.logicalToCoordinate(i),Y=p=>cs.priceToCoordinate(p);
-    const wedge=sh.startsWith('wedge'),col=wedge?css('--muted'):css('--prov');g.strokeStyle=g.fillStyle=col;g.lineWidth=wedge?1.2:1.8;g.setLineDash(wedge?[5,4]:[]);
+    const sel=triSel===cr,any=triSel!=null,wedge=sh.startsWith('wedge'),col=sel?css('--hl'):wedge?css('--muted'):css('--prov');g.strokeStyle=g.fillStyle=col;g.lineWidth=sel?3:wedge?1.2:1.8;g.globalAlpha=any&&!sel?.35:1;g.setLineDash(wedge&&!sel?[5,4]:[]);
     const seg=(i0,p0,s)=>{const a=X(i0),b=X(ie),ya=Y(p0),yb=Y(p0+s*(ie-i0));if(a==null||b==null||ya==null||yb==null)return;g.beginPath();g.moveTo(a,ya);g.lineTo(b,yb);g.stroke()};
     seg(iu0,pu0,su);seg(il0,pl0,sl);g.setLineDash([]);
     const xa=X(iu0),ya=Y(pu0);if(xa!=null&&ya!=null)g.fillText(TRIN[sh]||sh,xa,ya-6);
     if(done&&bo){const xb=X(ie),yb=Y(bo===1?pu0+su*(ie-iu0):pl0+sl*(ie-il0));if(xb!=null&&yb!=null){g.fillStyle=bo===1?css('--up'):css('--down');g.fillText(bo===1?'↑抜け':'↓抜け',xb+4,yb+(bo===1?-6:14))}}}
-  g.restore()}
+  g.globalAlpha=1;g.restore()}
 document.getElementById('optTri').addEventListener('change',()=>{});
+let TJ={},triSel=null,triF='all';
+const TRIF=[['all','全部'],['tri','三角だけ'],['wedge','ウェッジだけ'],['todo','未判定']];
+{const b=document.getElementById('triFilt');for(const[k,l]of TRIF){const x=document.createElement('button');x.textContent=l;x.dataset.tf=k;x.onclick=()=>{triF=k;renderTri()};b.appendChild(x)}}
+const triId=x=>`${tf}_${x[8]}_${x[11]}`;
+function triRows(){if(!DATA||!DATA.tri||!DATA.tri[tf])return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;
+  return DATA.tri[tf].filter(x=>x[8]>=y0&&x[8]<y1&&(triF==='all'||(triF==='tri'&&!x[11].startsWith('wedge'))||(triF==='wedge'&&x[11].startsWith('wedge'))||(triF==='todo'&&!TJ[triId(x)])))}
+function renderTri(){const el=document.getElementById('triList');if(!el)return;
+  for(const b of document.querySelectorAll('[data-tf]'))b.setAttribute('aria-pressed',b.dataset.tf===triF);
+  const all=(DATA&&DATA.tri&&DATA.tri[tf]||[]),y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000,yr=all.filter(x=>x[8]>=y0&&x[8]<y1);
+  document.getElementById('triCount').textContent=`${tf} ${year}年：${yr.length}個中 ${yr.filter(x=>TJ[triId(x)]).length}個判定済み（全体で${Object.keys(TJ).length}個）`;
+  const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
+  el.innerHTML=triRows().map(x=>{const v=(TJ[triId(x)]||{}).v,b=(k,l)=>`<button data-trv="${k}" data-trc="${x[8]}" data-trs="${x[11]}" aria-pressed="${v===k}">${l}</button>`;
+    return `<tr data-trc="${x[8]}" data-trs="${x[11]}" class="${x[8]===triSel?'sel':''}"><td>${fa(x[8])}</td><td>${TRIN[x[11]]||x[11]}</td><td>${(Math.abs(x[1]-x[5])/1e-4).toFixed(0)}pips</td><td class="${x[10]===1?'up':x[10]===-1?'down':''}">${x[10]===1?'上':x[10]===-1?'下':'—'}</td>
+      <td><span class="seg">${b('ok','○')}${b('ng_shape','×形')}${b('ng_pos','×位置')}${b('ng_no','×不要')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="5">この時間足・この年にはありません（H4・H1・M15のみ）</td></tr>'}
+document.getElementById('triList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-trv]');
+  if(bt){ev.stopPropagation();const c=+bt.dataset.trc,x=(DATA.tri[tf]||[]).find(z=>z[8]===c&&z[11]===bt.dataset.trs);if(!x||!db){status('この表示では保存できません');return}
+    const id=triId(x),cur=(TJ[id]||{}).v,v=cur===bt.dataset.trv?null:bt.dataset.trv;
+    if(v){TJ[id]={tf,year,v,created:x[8],shape:x[11],bo:x[10],u0_t:x[0],u0_p:x[1],k_t:x[2],uk_p:x[3],l0_t:x[4],l0_p:x[5],lk_p:x[7],end:x[9]};renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id])}catch(e){status('保存できませんでした')}}
+    else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}return}
+  const r=ev.target.closest('tr[data-trc]');if(!r)return;const c=+r.dataset.trc;triSel=triSel===c?null:c;
+  if(triSel!=null&&!document.getElementById('optTri').checked){document.getElementById('optTri').checked=true}renderTri();
+  const x=(DATA.tri[tf]||[]).find(z=>z[8]===c);if(x&&triSel!=null){const d=DV(),i0=fIdx(d,Math.min(x[0],x[4]))??0,i1=fIdx(d,x[9])??i0,sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.8,to:i1+sp*0.8})}});
 /* ---------- replay ---------- */
 let rpTimer=null;
 function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
@@ -777,6 +805,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
   db.collection('tljudge').onSnapshot(s=>{ULJ={};for(const d of s.docs)ULJ[d.id]={...d.data()};renderUL()},e=>status('ライン判定を読み込めませんでした'));
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
+  db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
   db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
