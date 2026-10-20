@@ -57,6 +57,18 @@ def load_long_m15():
     return d.rename(columns=dict(time='t', open='o', high='h', low='l', close='c')).reset_index(drop=True)
 
 
+RAW_M5 = RESEARCH / 'datasets/raw/m5'
+
+
+def load_m5(sym='EURUSD'):
+    """M5 2003-05..2026-10 from the user's upload (<SYM>_m1_M5.csv.gz on main, built from M1; UTC like the long M15:
+    EURUSD M5 resampled to M15 matches LONG_M15 exactly on all 583,458 bars). Converted to broker time like load_long_m15."""
+    d = pd.read_csv(RAW_M5 / f'{sym}_M5.csv.gz', usecols=['time', 'open', 'high', 'low', 'close'], parse_dates=['time'])
+    d['time'] = d.time.dt.tz_localize('UTC').dt.tz_convert('Europe/Athens').dt.tz_localize(None)
+    d = d.drop_duplicates('time').sort_values('time')
+    return d.rename(columns=dict(time='t', open='o', high='h', low='l', close='c')).reset_index(drop=True)
+
+
 def load(tf, source='chart'):
     if source == 'chart':
         return load_chart_series(tf)

@@ -17,7 +17,7 @@ import pandas as pd
 from . import dow_trend, zones as zmod, lines as lmod
 
 TF_LEN = {'W1': pd.Timedelta(days=7), 'D1': pd.Timedelta(days=1), 'H4': pd.Timedelta(hours=4),
-          'H1': pd.Timedelta(hours=1), 'M15': pd.Timedelta(minutes=15)}
+          'H1': pd.Timedelta(hours=1), 'M15': pd.Timedelta(minutes=15), 'M5': pd.Timedelta(minutes=5)}
 
 
 class EnvRecognizer:
