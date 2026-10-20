@@ -82,6 +82,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
+  <span class="rp" title="押している間、チャートをタップするたびに「入りたい点」を付けます。もう一度押すかEscで終了"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
@@ -145,7 +146,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">ボタンを押すたびに1本引けます。トレンドライン＝2点クリック（右へ延長）、ボックス＝対角の2点をクリック。線をクリックすると端の点と×（削除）が出ます。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
 <section class="fb" aria-label="入りたかった所" id="secMiss">
-  <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
+  <div class="fbrow"><b>入りたかった所（お手本トレード・入りたい点）</b></div>
   <div class="fbrow"><label for="msKind" class="lbl" style="min-width:0">種類</label><select id="msKind"><option value="real">裁量で取れる</option><option value="ideal">理想（裁量では難しい）</option></select>
     <input id="msNote" placeholder="根拠メモ（音声入力OK・例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
   <div class="fbrow"><span class="note" id="msTxt" style="margin:0">「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定。行を選ぶと、その間に引いた線がこのお手本に紐づきます</span></div>
@@ -509,6 +510,7 @@ function setArmed(a){armed=a;for(const b of document.querySelectorAll('[data-a]'
   for(const b of document.querySelectorAll('[data-d]'))b.classList.toggle('armed',b.dataset.d===a);tlFirst=null;
   for(const b of document.querySelectorAll('[data-rg]'))b.classList.toggle('armed','rg_'+b.dataset.rg===a);rgFirst=null;if(typeof rgHint==='function')rgHint();
   document.getElementById('rpStart').classList.toggle('armed',a==='replay');
+  for(const b of document.querySelectorAll('[data-mp]'))b.classList.toggle('armed',a==='mp'+b.dataset.mp);
   document.getElementById('chart').style.cursor=a?'crosshair':''}
 function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,src:x.src||null,mfe:x.mfe??null,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
 const pending={};
@@ -534,10 +536,14 @@ let noteTimer=0;document.getElementById('fbNote').addEventListener('input',()=>{
 document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!db)return;const id=fid(x);delete FB[id];renderFb();trTable();
   try{await db.collection('feedback').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
 document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'missed');
+for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
   if(armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
+  if(armed==='mp1'||armed==='mp-1'){if(!db){status('この表示では保存できません');return}
+    const m={year,t:p.time,p:price,side:armed==='mp1'?1:-1,kind:'point',setup:'',back:[],trig:[],note:'',tf,created:new Date().toISOString()};
+    try{const ref=await db.collection('missed').add(m);msSel=ref.id;renderMissed();msHint();status('入りたい点を付けました（続けてタップで追加、ボタンをもう一度押すと終了）')}catch(e){status('保存できませんでした')}return}
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
     if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
@@ -563,7 +569,7 @@ function msHint(){msEditSync();const el=document.getElementById('msTxt');if(!el)
     !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
 const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
-  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
+  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
     <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="10">まだありません</td></tr>'}
 document.getElementById('msList').addEventListener('click',async ev=>{const b=ev.target.closest('[data-del]');
   if(b){ev.stopPropagation();try{await db.collection('missed').doc(b.dataset.del).delete()}catch(e){status('消せませんでした')}return}
@@ -876,9 +882,9 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
     for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
     if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
   drawUser(g,P,W);drawW(g,P,W);drawUL(g,P,W);
-  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):css('--hl');
+  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):d.kind==='point'?(up?css('--up'):css('--down')):css('--hl');
     g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
-    g.fillText((d.kind==='ideal'?'理想':'お手本')+(d.p?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
+    g.fillText((d.kind==='ideal'?'理想':d.kind==='point'?(up?'入りたい 買い':'入りたい 売り'):'お手本')+(d.p&&d.kind!=='point'?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
     const xe=d.exit?P(d.exit.t,d.exit.p):null;
     if(d.sl){const a=P(d.t,d.sl.p),b=P(d.exit?d.exit.t:d.sl.t,d.sl.p);if(a&&b){g.setLineDash([5,4]);g.lineWidth=sel?2:1.2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(Math.max(b[0],a[0]+20),b[1]);g.stroke();g.setLineDash([]);g.fillText('SL',a[0]-18,a[1]+4)}}
     if(xe){g.beginPath();g.arc(xe[0],xe[1],5,0,7);g.fill();const r=msR(d);if(r!=null)g.fillText((r>0?'+':'')+r.toFixed(2)+'R',xe[0]+8,xe[1]-6);
