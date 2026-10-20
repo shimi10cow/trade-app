@@ -92,7 +92,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="自動ラインの判定" style="grid-column:1/-1">
   <div class="fbrow"><b>自動ライン（あなたの引き方を真似た線）の判定</b><span class="note" id="ulCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線を太く表示（●＝始点と2点目、×＝ブレイク）。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線だけオレンジで太く表示（他の線は薄く）。同じ行をもう一度クリックで解除。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
   <div class="log" style="max-height:220px"><table><thead><tr><th>線ができた足</th><th>向き</th><th>始点</th><th>2点目</th><th>終わり</th><th>判定</th></tr></thead><tbody id="ulList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
@@ -523,9 +523,12 @@ function drawUL(g,P,W){if(!DATA||!document.getElementById('optUL').checked)retur
   const ts=chart.timeScale(),last=d.candles.length-1;g.save();
   for(const u of L){const sel=u[0]===ulSel&&tf===ulSelTf;const a=P(u[0],u[1]),b=P(u[2],u[3]);if(!a||!b||b[0]===a[0])continue;
     const endI=u[5]!=null?fIdx(d,u[5]):last+3;const xe=ts.logicalToCoordinate(endI);if(xe==null)continue;const k=(b[1]-a[1])/(b[0]-a[0]);const ye=a[1]+k*(xe-a[0]);
-    g.strokeStyle=g.fillStyle=sel?css('--hl'):(u[6]==='hi'?'#b45309':'#0f766e');g.lineWidth=sel?3:1.5;g.globalAlpha=sel?1:.75;g.setLineDash(u[7]?[]:[6,3]);
+    const any=ulSel!=null&&tf===ulSelTf;
+    g.strokeStyle=g.fillStyle=sel?css('--hl'):(u[6]==='hi'?'#b45309':'#0f766e');g.lineWidth=sel?4:1.5;g.globalAlpha=sel?1:(any?.12:.75);g.setLineDash(u[7]?[]:[6,3]);
     g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(xe,ye);g.stroke();g.setLineDash([]);
-    if(sel){for(const q of [a,b]){g.beginPath();g.arc(q[0],q[1],5,0,7);g.fill()}if(u[7]){g.lineWidth=2;g.beginPath();g.moveTo(xe-5,ye-5);g.lineTo(xe+5,ye+5);g.moveTo(xe-5,ye+5);g.lineTo(xe+5,ye-5);g.stroke()}}}
+    if(sel){for(const q of [a,b]){g.beginPath();g.arc(q[0],q[1],6,0,7);g.fill()}
+      g.font='bold 12px '+css('--mono');const lab=(q,t)=>{const w=g.measureText(t).width+10;g.fillStyle=css('--hl');g.fillRect(q[0]+8,q[1]-22,w,18);g.fillStyle='#fff';g.fillText(t,q[0]+13,q[1]-9);g.fillStyle=css('--hl')};
+      lab(a,'選択中の線：始点');lab(b,'2点目');if(u[7]){g.lineWidth=2;g.beginPath();g.moveTo(xe-5,ye-5);g.lineTo(xe+5,ye+5);g.moveTo(xe-5,ye+5);g.lineTo(xe+5,ye-5);g.stroke()}}}
   g.restore()}
 let ulSelTf=null;
 function renderUL(){const L=ulRows();const done=L.filter(u=>ULJ[ulid(u)]).length;
@@ -538,7 +541,7 @@ document.getElementById('ulList').addEventListener('click',async ev=>{const bt=e
     const id=ulid(u),cur=(ULJ[id]||{}).v,v=cur===bt.dataset.uv?null:bt.dataset.uv;
     if(v){ULJ[id]={tf,a_t:u[0],a_p:u[1],b_t:u[2],b_p:u[3],created:u[4],end:u[5],kind:u[6],broken:u[7],v,year};renderUL();try{await db.collection('tljudge').doc(id).set(ULJ[id])}catch(e){status('保存できませんでした')}}
     else{delete ULJ[id];renderUL();try{await db.collection('tljudge').doc(id).delete()}catch(e){}}return}
-  const r=ev.target.closest('tr[data-ua]');if(!r)return;ulSel=+r.dataset.ua;ulSelTf=tf;renderUL();const u=ulRows().find(x=>x[0]===ulSel&&x[6]===r.dataset.uk);
+  const r=ev.target.closest('tr[data-ua]');if(!r)return;if(ulSel===+r.dataset.ua&&ulSelTf===tf){ulSel=null;renderUL();return}ulSel=+r.dataset.ua;ulSelTf=tf;renderUL();const u=ulRows().find(x=>x[0]===ulSel&&x[6]===r.dataset.uk);
   const d=DV(),i0=fIdx(d,u[0])??0,i1=u[5]!=null?(fIdx(d,u[5])??i0):d.candles.length-1;const sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.4,to:i1+sp*0.5})});
 function fIdx(d,t){const c=d.candles;if(!c.length||t<c[0][0])return null;const n=c.length-1;if(t>c[n][0])return n+(t-c[n][0])/TFLEN[tf];let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
 function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=ts.width();
