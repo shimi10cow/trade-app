@@ -34,6 +34,15 @@ for _e in B.R15['pivot_events']:
     _last[_e['id']] = _e
 P15 = sorted(((M15T[e['available_idx']] + TF_LEN['M15'], e['kind'], e['price']) for e in _last.values()), key=lambda x: x[0])
 P15T = [x[0] for x in P15]
+# daily-side context: H4 SMA1200 (~ daily SMA200), H4 ER200, known at the H4 close
+_c4 = pd.Series(B.h4.c.to_numpy(float))
+SMA1200 = _c4.rolling(1200).mean().to_numpy(); SMA200_4 = _c4.rolling(200).mean().to_numpy()
+ER200 = (_c4.diff(200).abs() / _c4.diff().abs().rolling(200).sum()).to_numpy()
+
+
+def ctx_at(t, s):
+    k = bisect.bisect_right(B.C4, t) - 1
+    return dict(sd=s * (_c4[k] - SMA1200[k]) / A4[k], er=ER200[k], sh=s * (_c4[k] - SMA200_4[k]) / A4[k])
 
 
 def line_touches(tf, band=0.25):
@@ -157,6 +166,8 @@ def run(cfg):
             s = 1 if d == 'up' else -1
             if any(p['side'] == s for p in pos):
                 continue
+            if cfg.get('dside') is not None and not ctx_at(M15T[i] + TF_LEN['M15'], s)['sd'] > cfg['dside']:
+                continue
             swing = B.R15['prov_bars'][i][1]
             if swing is None:
                 continue
@@ -183,6 +194,14 @@ CFGS = [
     dict(BASE, name='T7 T1・良い線条件なし', min_angle=0.0, depth=(0, 99)),
     dict(BASE, name='T8 T1・3点目のみ', nmax=3),
     dict(BASE, name='T9 T1・5点目以降も', nmax=99),
+    dict(BASE, name='D1 T1＋日足側', dside=0),
+    dict(BASE, name='D2 T6(H4+H1)＋日足側', tfs=('H4', 'H1'), dside=0),
+    dict(BASE, name='D3 T8(3点目のみ)＋日足側', nmax=3, dside=0),
+    dict(BASE, name='D4 T9(5点目以降も)＋日足側', nmax=99, dside=0),
+    dict(BASE, name='D5 H1のみ＋日足側', tfs=('H1',), win=12, dside=0),
+    dict(BASE, name='D6 D2・M15トレール', tfs=('H4', 'H1'), dside=0, exit='m15'),
+    dict(BASE, name='D7 D2・良い線条件なし', tfs=('H4', 'H1'), dside=0, min_angle=0.0, depth=(0, 99)),
+    dict(BASE, name='D8 D2・3点目以降すべて', tfs=('H4', 'H1'), dside=0, nmax=99),
     dict(BASE, name='G1 T1＋相場判定（更新が続く）', gate=40, gate_kind='brk'),
     dict(BASE, name='G2 T1＋相場判定（転換が続く）', gate=40, gate_kind='rev'),
 ]
