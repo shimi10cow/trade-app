@@ -60,20 +60,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="bar">
   <h1>既存EAのエントリー（色＝H4ダウの段階）</h1><nav class="yrs" id="yrs" aria-label="年"></nav>
   <div class="tfs" id="tfs"></div>
-  <label><input type="checkbox" id="optPiv" checked> 高値安値の点</label>
-  <label><input type="checkbox" id="optProt" checked> 押し安値/戻り高値</label>
-  <label><input type="checkbox" id="optProv" checked> 仮トレンド</label>
-  <label><input type="checkbox" id="optW" checked> Wトップ/ボトム</label>
-  <label><input type="checkbox" id="optZone" checked> 水平帯</label>
+  <label><input type="checkbox" id="optPiv"> 高値安値の点</label>
+  <label><input type="checkbox" id="optProt"> 押し安値/戻り高値</label>
+  <label><input type="checkbox" id="optProv"> 仮トレンド</label>
+  <label><input type="checkbox" id="optW"> Wトップ/ボトム</label>
+  <label><input type="checkbox" id="optZone"> 水平帯</label>
   <label><input type="checkbox" id="optLab"> 手打ちの点と照合</label>
-  <label><input type="checkbox" id="optLine" checked> トレンドライン</label>
+  <label><input type="checkbox" id="optLine"> トレンドライン</label>
   <label><input type="checkbox" id="optS20" checked> SMA20</label>
   <label><input type="checkbox" id="optS75" checked> SMA75</label>
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
-  <label><input type="checkbox" id="optTr" checked> EAのトレード</label>
+  <label><input type="checkbox" id="optTr"> EAのトレード</label>
   <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">新4本（R/T/L/A）</option></select>
-  <label><input type="checkbox" id="optUL" checked> 自動ライン（あなた式）</label>
+  <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -250,7 +250,7 @@ function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
   if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
   if(on('optW')) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
   for(const e of d.ev){
-    if(e[1]==='rev'&&!m15on())m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
+    if(e[1]==='rev'&&!m15on()&&on('optProt'))m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
     if(e[1]==='bo'&&on('optBo'))m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
   }
   const barT=t=>{let lo=0,hi=d.candles.length-1;if(!d.candles.length||t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
