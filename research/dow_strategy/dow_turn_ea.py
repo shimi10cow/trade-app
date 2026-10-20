@@ -36,7 +36,13 @@ def cut(df):
     return df[pd.to_datetime(df.t) >= START - pd.Timedelta(days=400)].reset_index(drop=True)
 h4 = cut(load('H4', 'long')); h1 = cut(load('H1', 'long'))
 m15 = load('M15', 'long'); m15 = m15[pd.to_datetime(m15.t) >= START - pd.Timedelta(days=30)].reset_index(drop=True)
-R4 = dow_trend.run(h4, 'H4'); R1 = dow_trend.run(h1, 'H1'); R15 = dow_trend.run(m15, 'M15')
+import pickle
+_cache = Path(os.environ.get('DT_CACHE', '/tmp')) / f"dowruns_{START.date()}.pkl"
+if _cache.exists():
+    R4, R1, R15 = pickle.load(open(_cache, 'rb'))
+else:
+    R4 = dow_trend.run(h4, 'H4'); R1 = dow_trend.run(h1, 'H1'); R15 = dow_trend.run(m15, 'M15')
+    pickle.dump((R4, R1, R15), open(_cache, 'wb'))
 C4 = list(pd.to_datetime(h4.t) + TF_LEN['H4']); C1 = list(pd.to_datetime(h1.t) + TF_LEN['H1'])
 T15 = pd.to_datetime(m15.t); o, h, l, c = (m15[z].to_numpy(float) for z in 'ohlc')
 A1 = atr(h1)
