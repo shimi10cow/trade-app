@@ -39,7 +39,7 @@ def read_mt5(path):
         raise ValueError(f"Missing MT5 columns: {required - set(df.columns)}")
     # Preserve clock values exactly as recorded; timezone-aware values become UTC.
     s = df["time"].astype(str)
-    aware = s.str.contains(r"(?:Z|[+-]\\d\\d:\\d\\d)$", regex=True).all()
+    aware = s.str.contains(r"(?:Z|[+-]\d\d:\d\d)$", regex=True).all()
     if aware:
         t = pd.to_datetime(s, utc=True).dt.tz_localize(None)
         timezone = "UTC from source offset"
