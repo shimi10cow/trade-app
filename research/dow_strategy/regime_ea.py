@@ -37,7 +37,28 @@ def gate_T(side_min, er_min):
     return f
 
 
+PT = LV.trail.sort_values('confirm_time').reset_index(drop=True)
+PTT = list(PT.confirm_time)
+
+
+def swing_sl(pips):
+    def f(t, s, entry, sl):
+        j = bisect.bisect_right(PTT, t) - 1
+        want = 'L' if s == 1 else 'H'
+        while j >= 0 and PT.kind[j] != want:
+            j -= 1
+        if j < 0:
+            return sl
+        p = PT.price[j] - s * pips * 1e-4
+        return p if s * (entry - p) > 0 else None
+    return f
+
+
 SPECS = {
+    'R3': ('EA-R ER<0.08 side_h<3 P3まで', lambda: LV.E.Config(extra_filter=gate_R(0.08, 3), max_entry_point=3)),
+    'T3': ('EA-T side_d>0 ER>0.10 P3まで', lambda: LV.E.Config(use_long_ma=False, extra_filter=gate_T(0, 0.10), max_entry_point=3)),
+    'R4': ('EA-R ER<0.08 side_h<3 M15スイング+15p損切り', lambda: LV.E.Config(extra_filter=gate_R(0.08, 3), sl_fn=swing_sl(15))),
+    'T4': ('EA-T side_d>0 ER>0.10 M15スイング+15p損切り', lambda: LV.E.Config(use_long_ma=False, extra_filter=gate_T(0, 0.10), sl_fn=swing_sl(15))),
     'R1': ('EA-R ER<0.08 side_h<3', lambda: LV.E.Config(extra_filter=gate_R(0.08, 3))),
     'R2': ('EA-R ER<0.10 side_h<3', lambda: LV.E.Config(extra_filter=gate_R(0.10, 3))),
     'T1': ('EA-T side_d>0 ER>0.10', lambda: LV.E.Config(use_long_ma=False, extra_filter=gate_T(0, 0.10))),
