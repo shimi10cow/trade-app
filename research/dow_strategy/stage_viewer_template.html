@@ -74,6 +74,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optTr"> EAのトレード</label>
   <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">新4本（R/T/L/A）</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
+  <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -435,6 +436,8 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   for(const b of yrsEl.children)b.setAttribute('aria-pressed',+b.textContent===y);
   document.getElementById('state').textContent=y+'年を読み込み中…';
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
+  DATA.M15.ulNew=null;try{const r=await fetch('data/cl_'+y+'.json');if(r.ok)DATA.M15.ulNew=await r.json()}catch(e){}
+  applyUL();
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
   rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg()}
@@ -654,7 +657,13 @@ function drawW(g,P,W){if(wSel==null||!DATA)return;const w=DATA[tf].wev.find(x=>x
   lv(w[2],'A');lv(w[4],'C');if(e){g.beginPath();g.arc(e[0],e[1],6,0,7);g.stroke()}g.restore()}
 /* ---------- auto (user-style) trendlines + judgement ---------- */
 let ULJ={},ulSel=null;
-const ulid=u=>`${tf}_${u[0]}_${u[6]}`;
+const ulNewOn=()=>document.getElementById('ulSet').value==='new';
+const ulid=u=>`${tf}${tf==='M15'&&ulNewOn()&&DATA&&DATA.M15.ulNew?'c':''}_${u[0]}_${u[6]}`;
+function applyUL(){if(!DATA||!DATA.M15)return;if(DATA.M15.ulOld===undefined)DATA.M15.ulOld=DATA.M15.ulines;
+  DATA.M15.ulines=ulNewOn()&&DATA.M15.ulNew?DATA.M15.ulNew:DATA.M15.ulOld;VC.key=null}
+try{const v=localStorage.getItem('svULSet');if(v)document.getElementById('ulSet').value=v}catch(e){}
+document.getElementById('ulSet').addEventListener('change',()=>{try{localStorage.setItem('svULSet',document.getElementById('ulSet').value)}catch(e){}
+  applyUL();ulSel=null;rekeep();renderUL()});
 function ulEff(u){const j=ULJ[ulid(u)]||{};return {a_t:j.fa_t??u[0],a_p:j.fa_p??u[1],b_t:j.fb_t??u[2],b_p:j.fb_p??u[3],fixed:j.fa_t!=null||j.fb_t!=null}}
 function ulRows(){if(!DATA)return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return (DATA[tf].ulines||[]).filter(u=>u[4]>=y0&&u[4]<y1)}
 function drawUL(g,P,W){if(!DATA||!document.getElementById('optUL').checked)return;const d=DV();const L=d.ulines||[];if(!L.length)return;
@@ -672,7 +681,7 @@ function drawUL(g,P,W){if(!DATA||!document.getElementById('optUL').checked)retur
   g.restore()}
 let ulSelTf=null;
 function renderUL(){const L=ulRows();const done=L.filter(u=>ULJ[ulid(u)]).length;
-  document.getElementById('ulCount').textContent=`${tf} ${year}年：${L.length}本中 ${done}本判定済み（全体で${Object.keys(ULJ).length}本）`;
+  document.getElementById('ulCount').textContent=`${tf}${tf==='M15'&&ulNewOn()&&DATA&&DATA.M15.ulNew?'（調整ライン・新）':''} ${year}年：${L.length}本中 ${done}本判定済み（全体で${Object.keys(ULJ).length}本）`;
   document.getElementById('ulList').innerHTML=L.map(u=>{const v=(ULJ[ulid(u)]||{}).v;const b=(k,l)=>`<button data-uv="${k}" data-ua="${u[0]}" data-uk="${u[6]}" aria-pressed="${v===k}">${l}</button>`;
     const end=u[5]==null?'継続中':(u[7]?'ブレイク '+fmt(u[5]):'始点を超えて無効 '+fmt(u[5]));
     return `<tr data-ua="${u[0]}" data-uk="${u[6]}" class="${u[0]===ulSel&&tf===ulSelTf?'sel':''}"><td>${fmt(u[4])}</td><td class="${u[6]==='hi'?'down':'up'}">${u[6]==='hi'?'下降ライン':'上昇ライン'}</td><td>${fmt(u[0])} ${u[1]}</td><td>${fmt(u[2])} ${u[3]}</td><td>${end}</td><td><span class="seg">${b('ok','○')}${b('ng_start','×始点')}${b('ng_angle','×角度')}${b('ng_no','×不要')}${(ULJ[ulid(u)]||{}).fb_t!=null||(ULJ[ulid(u)]||{}).fa_t!=null?`<button data-ureset="${u[0]}" data-uk="${u[6]}">修正を戻す</button>`:''}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
