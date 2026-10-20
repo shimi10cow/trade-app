@@ -244,7 +244,7 @@ function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
   if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
   if(on('optW')) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
   for(const e of d.ev){
-    if(e[1]==='rev')m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
+    if(e[1]==='rev'&&!m15on())m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
     if(e[1]==='bo'&&on('optBo'))m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
   }
   const barT=t=>{let lo=0,hi=d.candles.length-1;if(!d.candles.length||t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
@@ -314,7 +314,7 @@ const CLDEF={rows:[
   {on:1,tf:'M15',type:'SMA',n:200,color:'#64748b',w:2,style:0},{on:1,tf:'H1',type:'SMA',n:20,color:'#16a34a',w:1,style:2},
   {on:1,tf:'H1',type:'SMA',n:75,color:'#dc2626',w:2,style:2},{on:1,tf:'H1',type:'SMA',n:200,color:'#7c3aed',w:2,style:2},
   {on:0,tf:'H1',type:'SMA',n:480,color:'#a16207',w:2,style:2}],
-  st:{on:1,n:14,k:3,d:5,lo:20,hi:80,sig:1}};
+  st:{on:0,n:14,k:3,d:5,lo:20,hi:80,sig:0}};
 let CL=JSON.parse(JSON.stringify(CLDEF));try{const v=JSON.parse(localStorage.getItem('svM15cfg'));if(v&&Array.isArray(v.rows)&&v.st)CL=v}catch(e){}
 let SIG=[];
 const saveCL=()=>{try{localStorage.setItem('svM15cfg',JSON.stringify(CL))}catch(e){}};
@@ -397,10 +397,14 @@ function jump(t){const d=DV().candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.l
   chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
 document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
 const tfs=document.getElementById('tfs');
-function applyM15(){const on=m15on();document.getElementById('m15cfg').hidden=!on;try{localStorage.setItem('svM15',on?'1':'0')}catch(e){}
+const M15OFF=['optPiv','optProt','optProv','optW','optZone','optLab','optLine','optBo','optTr','optUL'];
+function m15Opts(on){/* M15 check view shows only the MA lines: turn the other overlays off, restore them when leaving */
+  if(on){const keep={};for(const id of M15OFF){const e=document.getElementById(id);keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svM15keep',JSON.stringify(keep))}catch(e){}}
+  else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svM15keep'))}catch(e){}if(keep)for(const id of M15OFF)if(id in keep)document.getElementById(id).checked=keep[id]}}
+function applyM15(){const on=m15on();m15Opts(on);document.getElementById('m15cfg').hidden=!on;try{localStorage.setItem('svM15',on?'1':'0')}catch(e){}
   if(on&&tf!=='M15'){const b=[...tfs.children].find(y=>y.textContent==='M15');if(b){b.click();return}}rekeep()}
 document.getElementById('optM15').addEventListener('change',applyM15);
-try{if(localStorage.getItem('svM15')==='1'){document.getElementById('optM15').checked=true;document.getElementById('m15cfg').hidden=false}}catch(e){}
+try{if(localStorage.getItem('svM15')==='1'){document.getElementById('optM15').checked=true;document.getElementById('m15cfg').hidden=false;for(const id of M15OFF)document.getElementById(id).checked=false}}catch(e){}
 for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
   b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;setTimeout(()=>{renderW();renderUL()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
     build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
