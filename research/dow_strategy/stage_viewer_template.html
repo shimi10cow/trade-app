@@ -55,6 +55,9 @@ tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--a
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
+.underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
+#under:empty{display:none}#under>*{grid-column:1/-1}
 </style>
 
 <div class="bar">
@@ -81,6 +84,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
+<div class="htf" id="htfBar"></div>
+<div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
+<div class="fbwrap" id="under"></div>
 <section class="fb m15cfg" id="m15cfg" hidden aria-label="M15チェック表示の設定">
   <div class="fbrow"><b>M15チェック表示：線の設定</b><span class="note" style="margin:0">変更はすぐチャートに反映され、この端末に保存されます。足＝どの時間足で計算するか（H1を選ぶとM15上に階段状で表示、その足が確定した時点の値）</span></div>
   <div class="log" style="max-height:none"><table><thead><tr><th>表示</th><th>足</th><th>種類</th><th>期間</th><th>色</th><th>太さ</th><th>線</th><th></th></tr></thead><tbody id="clList"></tbody></table></div>
@@ -105,7 +111,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
 </section>
-<section class="fb" aria-label="自動ラインの判定" style="grid-column:1/-1">
+<section class="fb" aria-label="自動ラインの判定" style="grid-column:1/-1" id="secUL">
   <div class="fbrow"><b>自動ライン（あなたの引き方を真似た線）の判定</b><span class="note" id="ulCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線だけオレンジで太く表示（他の線は薄く）。同じ行をもう一度クリックで解除。選んだ線の始点・2点目はドラッグで動かせます（あなたならこう引く、として保存）。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
   <div class="log" style="max-height:220px"><table><thead><tr><th>線ができた足</th><th>向き</th><th>始点</th><th>2点目</th><th>終わり</th><th>判定</th></tr></thead><tbody id="ulList"></tbody></table></div>
@@ -116,17 +122,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><span class="seg" id="rgBtns"></span><label><input type="checkbox" id="optRg" checked> 帯を表示</label><span class="note" id="rgHint" style="margin:0"></span></div>
   <div class="log" style="max-height:260px"><table><thead><tr><th>始まり</th><th>終わり</th><th>状態</th><th>付けた足</th><th>メモ</th><th></th></tr></thead><tbody id="rgList"></tbody></table></div>
 </section>
-<section class="fb" aria-label="Wの判定" style="grid-column:1/-1">
+<section class="fb" aria-label="Wの判定" style="grid-column:1/-1" id="secW">
   <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○。違う時は理由で選ぶ：×レンジ＝トレンドの終わりではない（レンジ内）、×形＝山が2つに見えない・ネックが認識できない、×他＝それ以外。微妙なら△</span></div>
   <div class="log" style="max-height:220px"><table><thead><tr><th>確定した足</th><th>種類</th><th>A</th><th>B（ネック）</th><th>C</th><th>判定</th></tr></thead><tbody id="wList"></tbody></table></div>
 </section>
-<section class="fb" aria-label="線を引く">
+<section class="fb" aria-label="線を引く" id="secDraw">
   <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
   <div class="fbrow"><span class="seg" id="drawBtns"></span></div>
   <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">ボタンを押すたびに1本引けます。トレンドライン＝2点クリック（右へ延長）、ボックス＝対角の2点をクリック。線をクリックすると端の点と×（削除）が出ます。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
-<section class="fb" aria-label="入りたかった所">
+<section class="fb" aria-label="入りたかった所" id="secMiss">
   <div class="fbrow"><b>お手本トレード（自分ならこう入る）</b></div>
   <div class="fbrow"><label for="msKind" class="lbl" style="min-width:0">種類</label><select id="msKind"><option value="real">裁量で取れる</option><option value="ideal">理想（裁量では難しい）</option></select>
     <input id="msNote" placeholder="根拠メモ（音声入力OK・例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
@@ -157,11 +163,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="log"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th>価格</th></tr></thead><tbody id="labLog"></tbody></table></div>
 </div>
 <details class="sum"><summary>年×段階の成績（全年）</summary><div class="log" style="max-height:none"><table id="sumTbl"></table></div></details>
-<h2 id="trTitle">エントリー一覧（クリックでそのトレードへ移動）</h2>
+<div id="secTr" style="grid-column:1/-1"><h2 id="trTitle">エントリー一覧（クリックでそのトレードへ移動）</h2>
 <div class="bar" style="margin-bottom:6px"><span class="lbl">表示：</span>
   <span class="trb" id="trBtns"></span>
   <span class="note" id="trSum" style="margin:0"></span></div>
-<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>P</th><th>評価</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div>
+<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>P</th><th>評価</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div></div>
 <h2>イベント一覧（クリックでその日付へ移動）</h2>
 <div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
 
@@ -228,6 +234,7 @@ function build(){
   setupZones(el);
   const d=fillAll();
   const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
+  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
   const all=d.ev.filter(e=>e[1]!=='bo').concat(
     d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
     d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
@@ -619,6 +626,22 @@ document.getElementById('rgList').addEventListener('click',async ev=>{const del=
 document.getElementById('rgList').addEventListener('change',async ev=>{const k=ev.target.dataset.rk,n=ev.target.dataset.rn;
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
+/* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
+const UNDER=[['secUL','線の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['secDraw','線を引く'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+{const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
+  for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
+    const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
+    const put=()=>{if(c.checked)und.appendChild(el);else ph.parentNode.insertBefore(el,ph.nextSibling)};
+    c.dataset.sec=id;c.addEventListener('change',()=>{put();const cur=[...pick.querySelectorAll('input:checked')].map(x=>x.dataset.sec);try{localStorage.setItem('svUnder',JSON.stringify(cur))}catch(e){}});
+    if(c.checked)put()}}
+/* ---------- higher-timeframe Dow state at the chart's right edge (or the replay time) ---------- */
+function updHTF(){const el=document.getElementById('htfBar');if(!el||!DATA||!chart)return;const d=DV(),c=d.candles;if(!c.length)return;
+  const r=chart.timeScale().getVisibleLogicalRange();let i=r?Math.min(c.length-1,Math.max(0,Math.floor(r.to))):c.length-1;
+  const ref=RT!=null?RT:c[i][0]+TFLEN[tf];
+  const out=[];for(const x of TFS){const P=(DATA[x]||{}).prot;if(!P||!P.length)continue;let lo=-1,hi=P.length-1;
+    while(lo<hi){const m=(lo+hi+1)>>1;if(P[m][0]+TFLEN[x]<=ref)lo=m;else hi=m-1}
+    const q=lo>=0?P[lo]:null;out.push(q&&q[2]?`<span>${x} <b class="${q[2]}">${q[2]==='up'?'上昇':'下降'}</b> ${q[2]==='up'?'押し安値':'戻り高値'} ${q[1]}</span>`:`<span>${x} 判定前</span>`)}
+  el.innerHTML='<span>ダウ（画面右端の時点'+(RT!=null?'＝リプレイ位置':'')+'）：</span>'+out.join('')}
 /* ---------- replay ---------- */
 let rpTimer=null;
 function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
@@ -626,7 +649,7 @@ function rpFollow(force){const n=DV().candles.length,ts=chart.timeScale(),r=ts.g
   if(force||n-1>r.to-4||n-1<r.from)ts.setVisibleLogicalRange({from:n-w*0.85,to:n+w*0.15})}
 function rpStep(dir){if(RT==null||!DATA)return;const M=DATA.M15.candles,L=TFLEN[tf];
   RT=Math.min(M[M.length-1][0]+900,Math.max(M[0][0]+900,RT+dir*L));
-  VC.key=null;fillAll();rpFollow(false)}
+  VC.key=null;fillAll();rpFollow(false);updHTF()}
 function rpStop(){clearInterval(rpTimer);rpTimer=null}
 document.getElementById('rpStart').onclick=()=>setArmed(armed==='replay'?null:'replay');
 document.getElementById('rpEnd').onclick=()=>{rpStop();const k=visTimes();RT=null;VC.key=null;rpUI();build.keep=!!k;build();build.keep=false;if(k)showTimes(k)};
