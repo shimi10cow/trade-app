@@ -121,11 +121,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><b>相場の状態の印付け</b><span class="note" id="rgCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" style="margin:0">状態のボタンを押して、チャートで「始まりの足」→「終わりの足」をクリック。どの時間足で付けてもよく、全部の時間足に帯で表示されます。重ねて付けてもOK（例：上昇の推進の中の調整）。「買い／売りで入りたい」＝形がきれいになれば今すぐでも入りたいエリア、「買い／売りを検討中」＝もう少し形ができたら入ろうかなというエリア、「触りたくない」＝エントリーを全く考えていないエリア。状態とは別に重ねて付ける（下降トレンド中の買いでもOK。入りたい所だけ付けるのでもOK）。迷ったらメモに一言</span></div>
   <div class="fbrow"><span class="seg" id="rgBtns"></span><label><input type="checkbox" id="optRg" checked> 帯を表示</label><span class="note" id="rgHint" style="margin:0"></span></div>
+  <div class="fbrow"><button id="rgDelYearState">この年の状態の印を消す</button><button id="rgDelYearZone">この年のエリアの印を消す</button><button id="rgDelAll">印を全部消す（全部の年）</button></div>
   <div class="log" style="max-height:260px"><table><thead><tr><th>始まり</th><th>終わり</th><th>状態</th><th>付けた足</th><th>メモ</th><th></th></tr></thead><tbody id="rgList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="三角とウェッジの判定" style="grid-column:1/-1" id="secTri">
   <div class="fbrow"><b>三角保ち合い・ウェッジの判定</b><span class="note" id="triCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">自動で見つけた三角・ウェッジ（今の時間足・今の年）。行をクリックでチャートが移動し、その三角だけオレンジで表示。あなたも三角（ウェッジ）として見るなら○。違う時：×形＝三角に見えない（収束していない・山谷がはっきりしない等）、×位置＝形は良いがトレンドの調整の位置ではない、×不要＝そもそも見ない。微妙なら△。種類の絞り込みはボタンで</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">自動で見つけた三角・ウェッジ（今の時間足・今の年）。行をクリックでチャートが移動し、その三角だけオレンジで表示。4つの端の点（□）はドラッグで動かせます（あなたならこう引く、として保存。元の線は点線で残ります）。あなたも三角（ウェッジ）として見るなら○。違う時：×形＝三角に見えない（収束していない・山谷がはっきりしない等）、×位置＝形は良いがトレンドの調整の位置ではない、×不要＝そもそも見ない。微妙なら△。種類の絞り込みはボタンで</span></div>
   <div class="fbrow"><span class="seg" id="triFilt"></span></div>
   <div class="log" style="max-height:260px"><table><thead><tr><th>形ができた足</th><th>種類</th><th>始まりの幅</th><th>抜け</th><th>判定</th></tr></thead><tbody id="triList"></tbody></table></div>
 </section>
@@ -136,7 +137,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="線を引く" id="secDraw">
   <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
-  <div class="fbrow"><span class="seg" id="drawBtns"></span></div>
+  <div class="fbrow"><span class="seg" id="drawBtns"></span><label><input type="checkbox" id="optUser" checked> 自分の線を表示</label></div>
+  <div class="fbrow"><button id="drDelYear">この年の自分の線を全部消す</button><button id="drDelAll">自分の線を全部消す（全部の年）</button><span class="note" id="drCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">ボタンを押すたびに1本引けます。トレンドライン＝2点クリック（右へ延長）、ボックス＝対角の2点をクリック。線をクリックすると端の点と×（削除）が出ます。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
 <section class="fb" aria-label="入りたかった所" id="secMiss">
@@ -545,7 +547,7 @@ function dP(t,p){const d=DV(),ts=chart.timeScale(),i=fIdx(d,t);if(i==null)return
 function lineXY(dr,P,W){const a=P(dr.t1,dr.p1);if(!a)return null;if(dr.kind==='hl')return [a[0],a[1],W,a[1]];
   const b=P(dr.t2,dr.p2);if(!b)return null;if(dr.kind==='box')return [a[0],a[1],b[0],b[1]];if(b[0]===a[0])return [a[0],a[1],b[0],b[1]];
   const k=(b[1]-a[1])/(b[0]-a[0]);return [a[0],a[1],W,a[1]+k*(W-a[0])]}
-function drawUser(g,P,W){g.save();g.lineWidth=1.6;g.setLineDash([]);xBadge=null;
+function drawUser(g,P,W){xBadge=null;if(!document.getElementById('optUser').checked)return;g.save();g.lineWidth=1.6;g.setLineDash([]);
   for(const it of DR){const dr=it.d;if(dr.year!==year)continue;const L=lineXY(dr,P,W);if(!L)continue;const col=DCOL[dr.tf]||css('--draw');g.strokeStyle=g.fillStyle=col;
     if(dr.kind==='box'){const x=Math.min(L[0],L[2]),y=Math.min(L[1],L[3]),w=Math.abs(L[2]-L[0]),h=Math.abs(L[3]-L[1]);
       g.globalAlpha=.13;g.fillRect(x,y,w,h);g.globalAlpha=1;g.strokeRect(x,y,w,h);g.fillText(`${dr.tf} ${Math.min(dr.p1,dr.p2)}〜${Math.max(dr.p1,dr.p2)}`,x+4,y-4)}
@@ -655,18 +657,39 @@ const TRIN={sym:'三角',flat_top:'三角（上辺水平）',flat_bottom:'三角
 function drawTri(g,r){if(!DATA||!DATA.tri||!chart||!document.getElementById('optTri').checked)return;const L=DATA.tri[tf];if(!L)return;
   const d=DV(),ts=chart.timeScale(),c=d.candles;if(!c.length)return;const lim=RT!=null?RT:Infinity;
   g.save();g.font='bold 11px '+css('--mono');
-  for(const x of L){const [tu0,pu0,tk,puk,tl0,pl0,tk2,plk,cr,en,bo,sh]=x;if(cr+TFLEN[tf]>lim)continue;
-    const iu0=fIdx(d,tu0),ik=fIdx(d,tk),il0=fIdx(d,tl0);if(iu0==null||ik==null||il0==null||ik===iu0||ik===il0)continue;
+  for(const x of L){const [,,,,,,,,cr,en,bo,sh]=x;if(cr+TFLEN[tf]>lim)continue;const E=triEff(x);
+    const iu0=fIdx(d,E.u0t),iuk=fIdx(d,E.ukt),il0=fIdx(d,E.l0t),ilk=fIdx(d,E.lkt);if(iu0==null||iuk==null||il0==null||ilk==null||iuk===iu0||ilk===il0)continue;
+    const pu0=E.u0p,pl0=E.l0p,ik=iuk;
     const done=en+TFLEN[tf]<=lim,te=done?en:Math.min(lim,c[c.length-1][0]),ie=fIdx(d,te);if(ie==null)continue;
-    const su=(puk-pu0)/(ik-iu0),sl=(plk-pl0)/(ik-il0),X=i=>ts.logicalToCoordinate(i),Y=p=>cs.priceToCoordinate(p);
+    const su=(E.ukp-pu0)/(iuk-iu0),sl=(E.lkp-pl0)/(ilk-il0),X=i=>ts.logicalToCoordinate(i),Y=p=>cs.priceToCoordinate(p);
     const sel=triSel===cr,any=triSel!=null,wedge=sh.startsWith('wedge'),col=sel?css('--hl'):wedge?css('--muted'):css('--prov');g.strokeStyle=g.fillStyle=col;g.lineWidth=sel?3:wedge?1.2:1.8;g.globalAlpha=any&&!sel?.35:1;g.setLineDash(wedge&&!sel?[5,4]:[]);
     const seg=(i0,p0,s)=>{const a=X(i0),b=X(ie),ya=Y(p0),yb=Y(p0+s*(ie-i0));if(a==null||b==null||ya==null||yb==null)return;g.beginPath();g.moveTo(a,ya);g.lineTo(b,yb);g.stroke()};
     seg(iu0,pu0,su);seg(il0,pl0,sl);g.setLineDash([]);
+    if(sel){for(const[i,p]of[[iu0,pu0],[iuk,E.ukp],[il0,pl0],[ilk,E.lkp]]){const a=X(i),b=Y(p);if(a!=null&&b!=null){g.fillStyle=css('--panel');g.fillRect(a-5,b-5,10,10);g.strokeRect(a-5,b-5,10,10)}}g.fillStyle=col;
+      if(E.fixed){const O=triOrig(x),a=X(fIdx(d,O.u0t)),b=X(fIdx(d,O.ukt)),c2=X(fIdx(d,O.l0t)),e2=X(fIdx(d,O.lkt));g.save();g.globalAlpha=.5;g.strokeStyle=css('--muted');g.setLineDash([3,4]);g.lineWidth=1.2;
+        if(a!=null&&b!=null){g.beginPath();g.moveTo(a,Y(O.u0p));g.lineTo(b,Y(O.ukp));g.stroke()}if(c2!=null&&e2!=null){g.beginPath();g.moveTo(c2,Y(O.l0p));g.lineTo(e2,Y(O.lkp));g.stroke()}g.restore()}}
     const xa=X(iu0),ya=Y(pu0);if(xa!=null&&ya!=null)g.fillText(TRIN[sh]||sh,xa,ya-6);
     if(done&&bo){const xb=X(ie),yb=Y(bo===1?pu0+su*(ie-iu0):pl0+sl*(ie-il0));if(xb!=null&&yb!=null){g.fillStyle=bo===1?css('--up'):css('--down');g.fillText(bo===1?'↑抜け':'↓抜け',xb+4,yb+(bo===1?-6:14))}}}
   g.globalAlpha=1;g.restore()}
 document.getElementById('optTri').addEventListener('change',()=>{});
-let TJ={},triSel=null,triF='all';
+let TJ={},triSel=null,triF='all',triDrag=null;
+const triOrig=x=>({u0t:x[0],u0p:x[1],ukt:x[2],ukp:x[3],l0t:x[4],l0p:x[5],lkt:x[6],lkp:x[7]});
+function triEff(x){const o=triOrig(x),j=TJ[`${tf}_${x[8]}_${x[11]}`]||{};let fixed=false;
+  for(const k of ['u0','uk','l0','lk'])if(j['f'+k+'_t']!=null){o[k+'t']=j['f'+k+'_t'];o[k+'p']=j['f'+k+'_p'];fixed=true}o.fixed=fixed;return o}
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  const near=(x,y)=>{if(triSel==null||armed||!DATA||!DATA.tri||!chart||!document.getElementById('optTri').checked)return null;const t=(DATA.tri[tf]||[]).find(z=>z[8]===triSel);if(!t)return null;const E=triEff(t);
+    for(const k of ['uk','lk','u0','l0']){const q=dP(E[k+'t'],E[k+'p']);if(q&&Math.hypot(q[0]-x,q[1]-y)<11)return {t,part:k}}return null};
+  el.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const[x,y]=xy(ev);const h=near(x,y);if(!h)return;if(!db){status('この表示では保存できません');return}
+    ev.stopPropagation();ev.preventDefault();triDrag=h;chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(ev.pointerId);setCur('grabbing')},true);
+  el.addEventListener('pointermove',ev=>{const[x,y]=xy(ev);
+    if(triDrag){ev.stopPropagation();ev.preventDefault();const li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+      const t=triDrag.t,id=triId(t),j=TJ[id]||{tf,year,created:t[8],shape:t[11],bo:t[10],u0_t:t[0],u0_p:t[1],k_t:t[2],uk_p:t[3],l0_t:t[4],l0_p:t[5],lk_p:t[7],end:t[9]};
+      j['f'+triDrag.part+'_t']=tAt(li);j['f'+triDrag.part+'_p']=+(+pr).toFixed(5);TJ[id]=j;triDrag.moved=true;return}
+    if(near(x,y))setCur('grab')},true);
+  const end=async ev=>{if(!triDrag)return;ev.stopPropagation();const g=triDrag;triDrag=null;chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(!g.moved)return;const id=triId(g.t);renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id]);status('三角の修正を保存しました')}catch(e){status('保存できませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',ev=>{if(triDrag)ev.stopPropagation()},true)}
 const TRIF=[['all','全部'],['tri','三角だけ'],['wedge','ウェッジだけ'],['todo','未判定']];
 {const b=document.getElementById('triFilt');for(const[k,l]of TRIF){const x=document.createElement('button');x.textContent=l;x.dataset.tf=k;x.onclick=()=>{triF=k;renderTri()};b.appendChild(x)}}
 const triId=x=>`${tf}_${x[8]}_${x[11]}`;
@@ -679,15 +702,33 @@ function renderTri(){const el=document.getElementById('triList');if(!el)return;
   const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
   el.innerHTML=triRows().map(x=>{const v=(TJ[triId(x)]||{}).v,b=(k,l)=>`<button data-trv="${k}" data-trc="${x[8]}" data-trs="${x[11]}" aria-pressed="${v===k}">${l}</button>`;
     return `<tr data-trc="${x[8]}" data-trs="${x[11]}" class="${x[8]===triSel?'sel':''}"><td>${fa(x[8])}</td><td>${TRIN[x[11]]||x[11]}</td><td>${(Math.abs(x[1]-x[5])/1e-4).toFixed(0)}pips</td><td class="${x[10]===1?'up':x[10]===-1?'down':''}">${x[10]===1?'上':x[10]===-1?'下':'—'}</td>
-      <td><span class="seg">${b('ok','○')}${b('ng_shape','×形')}${b('ng_pos','×位置')}${b('ng_no','×不要')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="5">この時間足・この年にはありません（H4・H1・M15のみ）</td></tr>'}
-document.getElementById('triList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-trv]');
+      <td><span class="seg">${b('ok','○')}${b('ng_shape','×形')}${b('ng_pos','×位置')}${b('ng_no','×不要')}${b('meh','△')}${triEff(x).fixed?`<button data-trreset="${x[8]}" data-trs="${x[11]}">修正を戻す</button>`:''}</span></td></tr>`}).join('')||'<tr><td colspan="5">この時間足・この年にはありません（H4・H1・M15のみ）</td></tr>'}
+document.getElementById('triList').addEventListener('click',async ev=>{const rs=ev.target.closest('[data-trreset]');
+  if(rs){ev.stopPropagation();const c=+rs.dataset.trreset,x=(DATA.tri[tf]||[]).find(z=>z[8]===c&&z[11]===rs.dataset.trs);if(!x||!db)return;const id=triId(x),j={...(TJ[id]||{})};
+    for(const k of ['u0','uk','l0','lk']){delete j['f'+k+'_t'];delete j['f'+k+'_p']}
+    if(j.v){TJ[id]=j;renderTri();try{await db.collection('trijudge').doc(id).set(j)}catch(e){}}else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}return}
+  const bt=ev.target.closest('[data-trv]');
   if(bt){ev.stopPropagation();const c=+bt.dataset.trc,x=(DATA.tri[tf]||[]).find(z=>z[8]===c&&z[11]===bt.dataset.trs);if(!x||!db){status('この表示では保存できません');return}
     const id=triId(x),cur=(TJ[id]||{}).v,v=cur===bt.dataset.trv?null:bt.dataset.trv;
-    if(v){TJ[id]={tf,year,v,created:x[8],shape:x[11],bo:x[10],u0_t:x[0],u0_p:x[1],k_t:x[2],uk_p:x[3],l0_t:x[4],l0_p:x[5],lk_p:x[7],end:x[9]};renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id])}catch(e){status('保存できませんでした')}}
-    else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}return}
+    if(v){TJ[id]={...(TJ[id]||{}),tf,year,v,created:x[8],shape:x[11],bo:x[10],u0_t:x[0],u0_p:x[1],k_t:x[2],uk_p:x[3],l0_t:x[4],l0_p:x[5],lk_p:x[7],end:x[9]};renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id])}catch(e){status('保存できませんでした')}}
+    else{const j={...(TJ[id]||{})};delete j.v;const fx=['u0','uk','l0','lk'].some(k=>j['f'+k+'_t']!=null);
+      if(fx){TJ[id]=j;renderTri();try{await db.collection('trijudge').doc(id).set(j)}catch(e){}}else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}}return}
   const r=ev.target.closest('tr[data-trc]');if(!r)return;const c=+r.dataset.trc;triSel=triSel===c?null:c;
   if(triSel!=null&&!document.getElementById('optTri').checked){document.getElementById('optTri').checked=true}renderTri();
   const x=(DATA.tri[tf]||[]).find(z=>z[8]===c);if(x&&triSel!=null){const d=DV(),i0=fIdx(d,Math.min(x[0],x[4]))??0,i1=fIdx(d,x[9])??i0,sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.8,to:i1+sp*0.8})}});
+/* ---------- bulk delete of the user's own objects (asks first) ---------- */
+async function bulkDel(col,ids,what){if(!db){status('この表示では保存できません');return}if(!ids.length){status('消すものがありません');return}
+  if(!confirm(what+'（'+ids.length+'件）を消します。元に戻せません。よろしいですか？'))return;
+  let n=0;for(const id of ids){try{await db.collection(col).doc(id).delete();n++}catch(e){}}status(what+'を'+n+'件消しました')}
+const ZONEK=['enter_buy','enter_sell','watch_buy','watch_sell','avoid'];
+const inYear=(t1,t2)=>{const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return t2>=y0&&t1<y1};
+document.getElementById('drDelYear').onclick=()=>bulkDel('drawings',DR.filter(it=>it.d.year===year).map(it=>it.id),year+'年の自分の線');
+document.getElementById('drDelAll').onclick=()=>bulkDel('drawings',DR.map(it=>it.id),'自分の線（全部の年）');
+document.getElementById('rgDelYearState').onclick=()=>bulkDel('regime',RG.filter(it=>!ZONEK.includes(it.d.kind)&&inYear(it.d.t1,it.d.t2)).map(it=>it.id),year+'年の状態の印');
+document.getElementById('rgDelYearZone').onclick=()=>bulkDel('regime',RG.filter(it=>ZONEK.includes(it.d.kind)&&inYear(it.d.t1,it.d.t2)).map(it=>it.id),year+'年のエリアの印');
+document.getElementById('rgDelAll').onclick=()=>bulkDel('regime',RG.map(it=>it.id),'状態・エリアの印（全部の年）');
+document.getElementById('optUser').addEventListener('change',()=>{});
+setInterval(()=>{const el=document.getElementById('drCount');if(el)el.textContent=`${year}年 ${DR.filter(it=>it.d.year===year).length}本 ／ 全部 ${DR.length}本`},1500);
 /* ---------- replay ---------- */
 let rpTimer=null;
 function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
