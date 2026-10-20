@@ -20,6 +20,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font);
 h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.02em}
 .tfs{display:flex;gap:4px}
 .yrs{display:flex;flex-wrap:wrap;gap:4px;font:600 12px var(--mono)}.yrs button,.seg button,.fb button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.yrs select{font:600 12px var(--mono);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--fg)}
 .yrs button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .rp{display:inline-flex;flex-wrap:wrap;gap:4px}.rp[hidden]{display:none}.rp button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer;user-select:none;touch-action:none}
 .rp button.armed,.fb button.armed{background:var(--hl);border-color:var(--hl);color:#fff}
@@ -54,7 +55,7 @@ td,th{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-
 tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+[hidden]{display:none!important}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -443,13 +444,17 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rebuild);
 new MutationObserver(rebuild).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 /* ---------- years ---------- */
 const yrsEl=document.getElementById('yrs');
-for(const y of YEARS){const b=document.createElement('button');b.textContent=y;b.onclick=()=>loadYear(y);yrsEl.appendChild(b)}
+yrsEl.innerHTML='<button id="yPrev" title="前の年">◀</button><select id="ySel" title="年"></select><button id="yNext" title="次の年">▶</button>';
+{const sel=document.getElementById('ySel');for(const y of YEARS){const o=document.createElement('option');o.value=y;o.textContent=y+'年';sel.appendChild(o)}
+  sel.onchange=()=>loadYear(+sel.value);
+  const step=d=>{const i=YEARS.indexOf(year)+d;if(i>=0&&i<YEARS.length)loadYear(YEARS[i])};
+  document.getElementById('yPrev').onclick=()=>step(-1);document.getElementById('yNext').onclick=()=>step(1)}
 function applySet(){if(!DATA)return;const v=document.getElementById('trSet').value;DATA.trades=v==='pf'&&DATA.trPF?DATA.trPF:DATA.trEA}
 document.getElementById('trSet').addEventListener('change',()=>{try{localStorage.setItem('svSet',document.getElementById('trSet').value)}catch(e){}
   applySet();trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()});
 try{const v=localStorage.getItem('svSet');if(v)document.getElementById('trSet').value=v}catch(e){}
 async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){}
-  for(const b of yrsEl.children)b.setAttribute('aria-pressed',+b.textContent===y);
+  document.getElementById('ySel').value=y;
   document.getElementById('state').textContent=y+'年を読み込み中…';
   try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
   DATA.M15.ulNew=null;try{const r=await fetch('data/cl_'+y+'.json');if(r.ok)DATA.M15.ulNew=await r.json()}catch(e){}
