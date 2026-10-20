@@ -55,7 +55,8 @@ td,th{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-
 tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-[hidden]{display:none!important}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+[hidden]{display:none!important}
+.qt{white-space:nowrap}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -76,7 +77,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr"> EAのトレード</label>
-  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">改良5本（R/T/L/A/C）</option></select>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">改良5本（全部）</option><option value="pf_R">R レンジ型押し目</option><option value="pf_T">T トレンド型押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
@@ -172,12 +173,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <p class="note">◯ 緑＝あなたの点とエンジンが一致　◯ 橙＝あなたの点だがエンジンが取れていない　✕ 赤紫＝エンジンだけが取った点</p>
 <div class="log"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th>価格</th></tr></thead><tbody id="labLog"></tbody></table></div>
 </div>
-<details class="sum"><summary>年×段階の成績（全年）</summary><div class="log" style="max-height:none"><table id="sumTbl"></table></div></details>
+<details class="sum" open><summary>EAごとの成績（改良5本・全年、コスト込み）</summary><div class="log" style="max-height:none"><table id="eaTbl"></table></div><p class="note" id="eaNote"></p></details>
+<details class="sum"><summary>年×段階の成績（全年・既存EA）</summary><div class="log" style="max-height:none"><table id="sumTbl"></table></div></details>
 <div id="secTr" style="grid-column:1/-1"><h2 id="trTitle">エントリー一覧（クリックでそのトレードへ移動）</h2>
 <div class="bar" style="margin-bottom:6px"><span class="lbl">表示：</span>
   <span class="trb" id="trBtns"></span>
   <span class="note" id="trSum" style="margin:0"></span></div>
-<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>P</th><th>評価</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div></div>
+<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>EA/P</th><th>チェック（押すと保存・もう一度で解除）</th><th>最大含み益</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div></div>
 <h2>イベント一覧（クリックでその日付へ移動）</h2>
 <div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
 
@@ -389,7 +391,7 @@ document.getElementById('clReset').onclick=()=>{CL=JSON.parse(JSON.stringify(CLD
 for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=Math.max(k==='lo'||k==='hi'?0:1,+ev.target.value||0);saveCL();rekeep()});
 for(const [id,k] of [['stOn','on'],['stSig','sig']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=ev.target.checked?1:0;saveCL();rekeep()});
 renderCL();
-const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0]];
+const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0],['m1','+1R→負け',x=>x.mfe>=1&&x.R<=0],['m05','+0.5R→負け',x=>x.mfe>=0.5&&x.R<=0],['quick','すぐ負け',x=>x.mfe!=null&&x.mfe<0.3&&x.R<=0],['big','+3R以上',x=>x.R>=3],['chk','チェック済み',x=>!!FB[fid(x)]],['bad','いらない・渋い',x=>{const f=FB[fid(x)];return !!f&&(f.entry==='skip'||f.entry==='meh')}]];
 const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
 const lblTxt=x=>x.src||stgTxt(x.stg);const lblLong=x=>x.src?x.src+' '+x.srcl:(x.stg<0?'H4逆':'段階'+stgTxt(x.stg));
 function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
@@ -404,15 +406,18 @@ function drawTrade(g,r){if(!document.getElementById('optTr').checked)return;cons
   g.strokeStyle=css('--down');g.setLineDash([5,4]);g.beginPath();g.moveTo(x0,ys);g.lineTo(x1,ys);g.stroke();g.setLineDash([]);
   g.fillStyle=css('--accent');g.fillText(`#${x.n} エントリー ${x.entry}`,x0+4,ye-5);g.fillStyle=css('--down');g.fillText(`損切り ${x.sl}`,x0+4,ys+(x.side===1?13:-5));
   if(open){g.restore();return}g.fillStyle=x.R>0?css('--up'):css('--down');g.beginPath();g.arc(x1,yx,4,0,7);g.fill();g.fillText(`決済 ${x.xp} (${x.R>0?'+':''}${x.R}R)`,x1+6,yx-4);g.restore()}
+function qtCell(x){const f=FB[fid(x)]||{};return QT.map(([k,v,lab])=>`<button class="qb" data-qk="${k}" data-qv="${v}" aria-pressed="${f[k]===v}">${lab}</button>`).join('')+(f.note?' <span class="done" title="'+esc(f.note)+'">メモ</span>':'')}
 function trTable(){if(!DATA)return;const T=DATA.trades,V=trView();const jp=v=>v==='up'?'↑':v==='down'?'↓':'-';
   const sum=a=>{const s=a.reduce((p,x)=>p+x.R,0),w=a.filter(x=>x.R>0),l=a.filter(x=>x.R<=0);const pf=w.reduce((p,x)=>p+x.R,0)/Math.max(1e-9,-l.reduce((p,x)=>p+x.R,0));return `${a.length}回・勝率${Math.round(w.length/Math.max(1,a.length)*100)}%・合計${s>=0?'+':''}${s.toFixed(1)}R・PF${pf.toFixed(2)}`};
   document.getElementById('trSum').textContent='表示中：'+sum(V)+'（スプレッド1.2pips控除後）';
   for(const b of document.getElementById('trBtns').children)b.setAttribute('aria-pressed',b.dataset.m===trMode);
   document.getElementById('trList').innerHTML=V.map(x=>`<tr data-n="${x.n}" class="${x.n===trSel?'sel':''}"><td>${x.n}</td><td>${fmt(x.t)}</td>
-    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>P${x.p}</td><td>${FB[fid(x)]?'<span class="done">済</span>':''}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${lblLong(x)}</span></td><td>${x.nrev}回</td>
+    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>${x.src||'P'+x.p}</td><td class="qt">${qtCell(x)}</td><td>${x.mfe==null?'':(x.mfe>=0?'+':'')+x.mfe+'R'}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${lblLong(x)}</span></td><td>${x.nrev}回</td>
     <td>${jp(x.d1)}${jp(x.h4)}${jp(x.h1)}</td><td>${x.entry}</td><td>${x.risk}</td><td>${fmt(x.xt)}${x.trail?' ('+x.trail+'後)':''}</td>
     <td class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}</td></tr>`).join('')}
-document.getElementById('trList').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-n]');if(!r)return;trSel=+r.dataset.n;
+document.getElementById('trList').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-n]');if(!r)return;
+  const q=ev.target.closest('[data-qk]');if(q){const x=DATA.trades.find(y=>y.n===+r.dataset.n);if(!x)return;const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;if(x.src)f.src=x.src;save(x,f);return}
+  trSel=+r.dataset.n;
   const x=DATA.trades.find(y=>y.n===trSel);build.keep=true;build();build.keep=false;trTable();renderFb();
   const c=DV().candles;let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=x.t)lo=k;else hi=k-1}
   let j=lo;while(j<c.length-1&&c[j][0]<x.xt)j++;const span=Math.max(40,j-lo);chart.timeScale().setVisibleLogicalRange({from:lo-span*1.2,to:j+span*0.5})});
@@ -449,7 +454,8 @@ yrsEl.innerHTML='<button id="yPrev" title="前の年">◀</button><select id="yS
   sel.onchange=()=>loadYear(+sel.value);
   const step=d=>{const i=YEARS.indexOf(year)+d;if(i>=0&&i<YEARS.length)loadYear(YEARS[i])};
   document.getElementById('yPrev').onclick=()=>step(-1);document.getElementById('yNext').onclick=()=>step(1)}
-function applySet(){if(!DATA)return;const v=document.getElementById('trSet').value;DATA.trades=v==='pf'&&DATA.trPF?DATA.trPF:DATA.trEA}
+function applySet(){if(!DATA)return;const v=document.getElementById('trSet').value;
+  if(v.startsWith('pf')&&DATA.trPF){const c=v.split('_')[1];DATA.trades=c?DATA.trPF.filter(x=>x.src===c):DATA.trPF}else DATA.trades=DATA.trEA}
 document.getElementById('trSet').addEventListener('change',()=>{try{localStorage.setItem('svSet',document.getElementById('trSet').value)}catch(e){}
   applySet();trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()});
 try{const v=localStorage.getItem('svSet');if(v)document.getElementById('trSet').value=v}catch(e){}
@@ -469,10 +475,24 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   const row=(lab,T)=>`<tr><th>${lab}</th>${G.map(g=>`<td>${st(T.filter(x=>g[1](x[1])).map(x=>x[2]))}</td>`).join('')}</tr>`;
   document.getElementById('sumTbl').innerHTML=`<thead><tr><th>年</th>${G.map(g=>`<th>${g[0]}</th>`).join('')}</tr></thead><tbody>`+
     YEARS.map(y=>row(y,ALLTR.filter(x=>x[0]===y))).join('')+row('合計',ALLTR)+'</tbody>'})();
+/* ---------- per-EA summary over all years ---------- */
+let PFALL=null;
+function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C'];
+  const fbOf=x=>FB[`t${x[4]}_${x[5]}_${x[1]}`];
+  const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
+    for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}
+    const yrs={};for(const x of a)yrs[x[0]]=(yrs[x[0]]||0)+x[2];const ny=Object.keys(yrs).length,ly=Object.values(yrs).filter(v=>v<0).length;
+    const m1=a.filter(x=>x[3]>=1&&x[2]<=0);const chk=a.filter(x=>fbOf(x)),bad=a.filter(x=>{const f=fbOf(x);return f&&(f.entry==='skip'||f.entry==='meh')});
+    return `<td>${a.length}</td><td>${w.length}勝${l.length}敗</td><td>${Math.round(w.length/Math.max(1,a.length)*100)}%</td><td>+${(w.reduce((p,v)=>p+v,0)/Math.max(1,w.length)).toFixed(2)} / ${(l.reduce((p,v)=>p+v,0)/Math.max(1,l.length)).toFixed(2)}</td><td>${(w.reduce((p,v)=>p+v,0)/Math.max(1e-9,-l.reduce((p,v)=>p+v,0))).toFixed(2)}</td><td>${s>=0?'+':''}${s.toFixed(1)}R</td><td>${dd.toFixed(1)}R</td><td>${ly}/${ny}</td><td>${m1.length}回 ${m1.reduce((p,x)=>p+x[2],0).toFixed(0)}R</td><td>${chk.length}（いらない・渋い ${bad.length}回 ${bad.reduce((p,x)=>p+x[2],0).toFixed(1)}R）</td>`};
+  document.getElementById('eaTbl').innerHTML='<thead><tr><th>EA</th><th>回数</th><th>勝敗</th><th>勝率</th><th>平均 勝ち/負け</th><th>PF</th><th>合計</th><th>最大DD</th><th>負け年</th><th>+1R→負け</th><th>あなたのチェック</th></tr></thead><tbody>'+
+    codes.map(c=>`<tr><th>${c} ${PFALL.names[c]}</th>${st(T.filter(x=>x[1]===c))}</tr>`).join('')+`<tr><th>合計</th>${st(T)}</tr></tbody>`;
+  document.getElementById('eaNote').textContent='上の「表示するEA」でEAを選ぶと、そのEAの履歴だけがチャートと一覧に出ます。一覧のボタンでワンクリック評価（良い／いらない／渋い／決済早い／逃げ遅れ）。理由は下の「トレードの評価」のメモへ。入ってほしかった所は「入りたかった所」へ'}
+fetch('data/pf_all.json').then(r=>r.ok?r.json():null).then(j=>{PFALL=j;eaTable()}).catch(()=>{});
 /* ---------- feedback (saved to the artifact database) ---------- */
-const OPTS={entry:[['good','良い'],['early','早い'],['late','遅い'],['skip','入るべきでない']],
+const OPTS={entry:[['good','良い'],['meh','渋い'],['early','早い'],['late','遅い'],['skip','いらない']],
   sl:[['ok','適切'],['tighter','もっと浅くできた'],['wider','もっと深く必要']],
-  exit:[['ok','適切'],['hold','もっと保有すべき'],['earlier','もっと早く逃げるべき']]};
+  exit:[['ok','適切'],['hold','決済が早い'],['earlier','逃げ遅れ']]};
+const QT=[['entry','good','良い'],['entry','skip','いらない'],['entry','meh','渋い'],['exit','hold','決済早い'],['exit','earlier','逃げ遅れ']];
 const IDEAL=[['entry','理想エントリー'],['sl','理想損切り'],['exit','理想決済']];
 let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null,msDraft=null,msSel=null;
 const fid=x=>`t${x.t}_${x.side}`+(x.src?`_${x.src}`:"");const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
@@ -489,16 +509,16 @@ function setArmed(a){armed=a;for(const b of document.querySelectorAll('[data-a]'
   for(const b of document.querySelectorAll('[data-rg]'))b.classList.toggle('armed','rg_'+b.dataset.rg===a);rgFirst=null;if(typeof rgHint==='function')rgHint();
   document.getElementById('rpStart').classList.toggle('armed',a==='replay');
   document.getElementById('chart').style.cursor=a?'crosshair':''}
-function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
+function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,src:x.src||null,mfe:x.mfe??null,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
 const pending={};
 async function save(x,f){if(!db){status('この表示では保存できません');return}
-  const id=fid(x);f.updated=new Date().toISOString();FB[id]=f;renderFb();trTable();status('保存中…');
+  const id=fid(x);f.updated=new Date().toISOString();FB[id]=f;renderFb();trTable();eaTable();status('保存中…');
   const p=(pending[id]||Promise.resolve()).then(()=>db.collection('feedback').doc(id).set(f));pending[id]=p.catch(()=>{});
   try{await p;status('保存しました')}catch(e){status('保存できませんでした（'+(e.code||e.message||'エラー')+'）')}}
 function status(t){document.getElementById('fbStatus').textContent=t}
 function renderFb(){const x=curTrade();const body=document.getElementById('fbBody');
   if(!x){body.hidden=true;document.getElementById('fbTitle').textContent='下の一覧からトレードを選ぶと、ここで評価できます';return}
-  body.hidden=false;document.getElementById('fbTitle').textContent=`${year}年 #${x.n}　${x.side===1?'買い':'売り'}　段階${x.stg<0?'H4逆':x.stg}　${x.R>0?'+':''}${x.R}R`;
+  body.hidden=false;document.getElementById('fbTitle').textContent=`${year}年 #${x.n}　${x.side===1?'買い':'売り'}　${x.src?x.src+' '+x.srcl:'段階'+(x.stg<0?'H4逆':x.stg)}　${x.R>0?'+':''}${x.R}R${x.mfe!=null?'（最大含み益 +'+x.mfe+'R）':''}`;
   const f=FB[fid(x)]||{};
   for(const el of document.querySelectorAll('.seg[data-k]'))for(const b of el.children)b.setAttribute('aria-pressed',f[el.dataset.k]===b.dataset.v);
   const I=f.ideal||{};document.getElementById('idealTxt').textContent=IDEAL.filter(([k])=>I[k]).map(([k,lab])=>`${lab} ${I[k].p}（${fmt(I[k].t)}）`).join('　')||'ボタンを押してからチャートをクリックすると、理想の位置を置けます';
@@ -848,7 +868,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   g.restore()}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
-  db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable()},e=>status('評価を読み込めませんでした'));
+  db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable();eaTable()},e=>status('評価を読み込めませんでした'));
   db.collection('tljudge').onSnapshot(s=>{ULJ={};for(const d of s.docs)ULJ[d.id]={...d.data()};renderUL()},e=>status('ライン判定を読み込めませんでした'));
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
   db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
