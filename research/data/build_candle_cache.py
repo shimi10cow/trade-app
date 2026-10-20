@@ -50,6 +50,7 @@ def read_mt5(path):
     return df, timezone
 
 def read_m1_zip(path):
+    """Read ForexTester M1 ZIPs using the actual CSV header and ticker column."""
     with zipfile.ZipFile(path) as z:
         members = [n for n in z.namelist() if n.lower().endswith(".csv")]
         if len(members) != 1:
