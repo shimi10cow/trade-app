@@ -56,7 +56,7 @@ tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--a
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.ptpop{position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -82,13 +82,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
-  <span class="rp" title="押している間、チャートをタップするたびに「入りたい点」を付けます。もう一度押すかEscで終了"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
+  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
+<div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
 <div class="fbwrap" id="under"></div>
@@ -248,7 +249,7 @@ function build(){
   setupZones(el);
   const d=fillAll();
   const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
-  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{if(typeof hidePt==='function'&&ptCur)hidePt();cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
   const all=d.ev.filter(e=>e[1]!=='bo').concat(
     d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
     d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
@@ -543,7 +544,7 @@ async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const pr
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
   if(armed==='mp1'||armed==='mp-1'){if(!db){status('この表示では保存できません');return}
     const m={year,t:p.time,p:price,side:armed==='mp1'?1:-1,kind:'point',setup:'',back:[],trig:[],note:'',tf,created:new Date().toISOString()};
-    try{const ref=await db.collection('missed').add(m);msSel=ref.id;renderMissed();msHint();status('入りたい点を付けました（続けてタップで追加、ボタンをもう一度押すと終了）')}catch(e){status('保存できませんでした')}return}
+    setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;renderMissed();msHint();status('入りたい点を付けました。点をタップすると消せます')}catch(e){status('保存できませんでした')}return}
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
     if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
@@ -635,10 +636,23 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
     try{await db.collection('drawings').doc(g.it.id).update(upd)}catch(err){Object.assign(dr,g.before);status('線を動かせませんでした')}};
   el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
   el.addEventListener('click',e=>{if(drag){e.stopPropagation();return}
-    if(!armed&&DATA&&chart){const[x,y]=xy(e);const n=tradeAt(x,y);if(n!=null){selectTrade(n);return}}
+    if(!armed&&DATA&&chart){const[x,y]=xy(e);const pt=pointAt(x,y);if(pt){showPt(pt,x,y);e.stopPropagation();return}hidePt();const n=tradeAt(x,y);if(n!=null){selectTrade(n);return}}
     if(!armed||!DATA||!chart)return;const[x,y]=xy(e),li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
     e.stopPropagation();onChartClick({point:{x,y},time:tAt(li)})},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
+/* tap a 'want to enter' point (or a model trade's entry) on the chart -> small delete pop-up */
+function pointAt(px,py){const ts=chart.timeScale(),d=DV();let best=null,bd=13;
+  for(const m of MS){if(m.d.year!==year)continue;const li=fIdx(d,m.d.t);if(li==null)continue;const x=ts.logicalToCoordinate(li),y=cs.priceToCoordinate(m.d.p);if(x==null||y==null)continue;
+    const dd=Math.hypot(x-px,y-py);if(dd<bd){bd=dd;best=m}}return best}
+var ptCur=null;
+function showPt(m,x,y){ptCur=m;msSel=m.id;renderMissed();const r=document.getElementById('chart').getBoundingClientRect(),el=document.getElementById('ptPop');
+  document.getElementById('ptTxt').textContent=(m.d.kind==='point'?'入りたい点 ':m.d.kind==='ideal'?'理想 ':'お手本 ')+(m.d.side===1?'買い':'売り')+' '+fmt(m.d.t);
+  el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-230))+'px';el.style.top=(r.top+scrollY+Math.max(4,y-40))+'px'}
+function hidePt(){ptCur=null;document.getElementById('ptPop').hidden=true}
+document.getElementById('ptNo').onclick=hidePt;
+document.getElementById('ptDel').onclick=async()=>{const m=ptCur;hidePt();if(!m||!db)return;MS=MS.filter(z=>z.id!==m.id);if(msSel===m.id)msSel=null;renderMissed();
+  {const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)}
+  try{await db.collection('missed').doc(m.id).delete();status('消しました')}catch(e){status('消せませんでした')}};
 /* tap a trade on the chart: entry arrow (nearest within 14px) or inside its entry-to-exit box */
 function tradeAt(px,py){if(!document.getElementById('optTr').checked)return null;const d=DV(),ts=chart.timeScale();
   const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
