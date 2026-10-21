@@ -56,7 +56,7 @@ tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--a
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-.ptpop{position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.pbtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.pbtags button{font:600 12px var(--mono);padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.pbtags button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}.pbtags button.auto{border:2px dashed var(--accent)}.pbtags .lb{font-size:11px;color:var(--muted,#888)}.ptpop{max-width:min(440px,92vw);flex-wrap:wrap;position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -83,13 +83,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
+  <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 表示</label></span>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
-<div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
+<div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
 <div class="fbwrap" id="under"></div>
@@ -145,8 +146,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="log" style="max-height:220px"><table><thead><tr><th>確定した足</th><th>種類</th><th>A</th><th>B（ネック）</th><th>C</th><th>判定</th></tr></thead><tbody id="wList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="線を引く" id="secDraw">
-  <div class="fbrow"><b>自分で線を引く</b><span class="note" style="margin:0">どの時間足でも表示されます（年ごとに保存）</span></div>
-  <div class="fbrow"><span class="seg" id="drawBtns"></span><label><input type="checkbox" id="optUser" checked> 自分の線を表示</label></div>
+  <div class="fbrow"><b>自分の線の一括削除</b><span class="note" style="margin:0">線を引くボタンはチャートの上（「線：」）に移しました</span></div>
   <div class="fbrow"><button id="drDelYear">この年の自分の線を全部消す</button><button id="drDelAll">自分の線を全部消す（全部の年）</button><span class="note" id="drCount" style="margin:0"></span></div>
   <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">ボタンを押すたびに1本引けます。トレンドライン＝2点クリック（右へ延長）、ボックス＝対角の2点をクリック。線をクリックすると端の点と×（削除）が出ます。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
 </section>
@@ -158,6 +158,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><label for="msSetup" class="lbl">パターン</label><select id="msSetup"></select><span class="note" style="margin:0">行を選ぶとそのお手本を変更、選ばずに設定すると次に追加するお手本に付きます</span></div>
   <div class="fbrow"><span class="lbl">背にした所</span><span class="seg" id="msBack"></span></div>
   <div class="fbrow"><span class="lbl">入り方</span><span class="seg" id="msTrig"></span></div>
+  <div class="fbrow" id="pbRow" hidden><span class="lbl">押し・水平線</span><span id="pbPanel" class="pbtags"></span></div>
   <div class="fbrow" id="msEditRow" hidden><label for="msEdit" class="lbl">選択中のメモ</label><textarea id="msEdit" rows="3" placeholder="なぜここで入ったか（音声入力：Windowsは Win＋H、Macは Fnキー2回、スマホはキーボードのマイク）"></textarea></div>
   <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>パターン</th><th>種類</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
 </section>
@@ -592,11 +593,12 @@ document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'mis
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
-  if(armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
+  if(armed==='hl'||armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
   if(armed==='mp1'||armed==='mp-1'){if(!db){status('この表示では保存できません');return}
     const m={year,t:p.time,p:price,side:armed==='mp1'?1:-1,kind:'point',setup:'',back:[],trig:[],note:'',tf,created:new Date().toISOString()};
-    setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;renderMissed();msHint();status('入りたい点を付けました。点をタップすると消せます')}catch(e){status('保存できませんでした')}return}
+    m.pb_h1=pbAuto(m,'H1');m.pb_h4=pbAuto(m,'H4');
+    setArmed(null);try{const ref=await db.collection('missed').add(m);const it={id:ref.id,d:m};if(!MS.some(z=>z.id===ref.id))MS.push(it);showPt(it,p.point.x,p.point.y);msHint();status('入りたい点を付けました。押しの回数が自動と違えば押し直してください')}catch(e){status('保存できませんでした')}return}
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
     if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
@@ -614,13 +616,31 @@ const SETUPS=[['','（未分類）'],['A','A リターンムーブ（H4転換・
 function msEditSync(){const row=document.getElementById('msEditRow'),ta=document.getElementById('msEdit');const m=MS.find(z=>z.id===msSel);
   const sel=document.getElementById('msSetup');if(m&&document.activeElement!==sel)sel.value=m.d.setup||'';
   for(const[key,boxId]of[['back','msBack'],['trig','msTrig']]){const tr=m?(m.d[key]||[]):msDraftTags[key];for(const b of document.getElementById(boxId).children)b.setAttribute('aria-pressed',tr.includes(b.dataset.v))}
-  row.hidden=!m;if(m&&document.activeElement!==ta)ta.value=m.d.note||''}
+  row.hidden=!m;if(m&&document.activeElement!==ta)ta.value=m.d.note||'';if(typeof pbSync==='function')pbSync()}
 let msTimer=0;document.getElementById('msEdit').addEventListener('input',()=>{clearTimeout(msTimer);const id=msSel,v=document.getElementById('msEdit').value;
   msTimer=setTimeout(async()=>{if(!db||!id)return;try{await db.collection('missed').doc(id).update({note:v});status('メモを保存しました')}catch(e){status('メモを保存できませんでした')}},800)});
 function msHint(){msEditSync();const el=document.getElementById('msTxt');if(!el)return;
   el.textContent=armed!=='missed'?(msSel?'選択中のお手本に線が紐づきます（行をもう一度クリックで解除）':'「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定'):
     !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
 const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
+
+/* ---------- pullback number (counted on the timeframe the point was marked on: H4 -> H4 waves, otherwise H1) + horizontal-line tag ---------- */
+let PBC=null;fetch('data/pbc.json').then(r=>r.ok?r.json():null).then(j=>{PBC=j;pbSync()}).catch(()=>{});
+const PBO=[['rev','逆・転換'],['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目〜'],['?','？']],HLO=[['y','あり'],['n','なし']];
+const pbBase=tf=>(tf==='H4'||tf==='D1'||tf==='W1')?'H4':'H1';
+function pbAuto(d,base){if(!PBC||!PBC[base])return null;const R=PBC[base],t=d.t+(TFLEN[d.tf]||3600);if(!R.length||R[0][0]>t)return null;
+  let lo=0,hi=R.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(R[k][0]<=t)lo=k;else hi=k-1}const tr=R[lo][1],n=R[lo][2];return tr!==d.side?'rev':String(Math.min(n+1,4))}
+const pbCur=()=>MS.find(z=>z.id===msSel)||(ptCur&&ptCur.id===msSel?ptCur:null);
+function pbHTML(m){if(!m)return'';const d=m.d,base=pbBase(d.tf),au=pbAuto(d,base),v=d.pb??au;
+  return `<span class="lb">${base}の押し${d.pb==null&&au?'（自動）':''}</span>`+PBO.map(([k,l])=>`<button data-pbv="${k}" aria-pressed="${v===k}" class="${d.pb==null&&au===k?'auto':''}">${l}</button>`).join('')+
+    `<span class="lb">水平線</span>`+HLO.map(([k,l])=>`<button data-hlv="${k}" aria-pressed="${d.hl===k}">${l}</button>`).join('')}
+function pbSync(){try{pbSync0()}catch(e){}}
+function pbSync0(){const m=pbCur();const a=document.getElementById('ptTags');if(a)a.innerHTML=ptCur?pbHTML(ptCur.id===msSel&&m?m:ptCur):'';
+  const row=document.getElementById('pbRow'),pn=document.getElementById('pbPanel');if(row){row.hidden=!m;pn.innerHTML=pbHTML(m)}}
+document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pbv],[data-hlv]');if(!b)return;ev.stopPropagation();const m=pbCur();if(!m||!db)return;
+  let upd;if(b.dataset.pbv!=null){const v=b.dataset.pbv;upd=m.d.pb===v?{pb:null}:{pb:v,pb_base:pbBase(m.d.tf),pb_h1:pbAuto(m.d,'H1'),pb_h4:pbAuto(m.d,'H4')}}
+  else{const v=b.dataset.hlv;upd={hl:m.d.hl===v?null:v}}
+  Object.assign(m.d,upd);pbSync();try{await db.collection('missed').doc(m.id).update(upd);status('保存しました')}catch(e){status('保存できませんでした')}},true);
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
   document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
     <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="10">まだありません</td></tr>'}
@@ -631,7 +651,7 @@ document.getElementById('msList').addEventListener('click',async ev=>{const b=ev
     chart.timeScale().setVisibleLogicalRange({from:i0-sp*1.2,to:i1+sp*0.5})}else jump(+r.dataset.t)});
 /* ---------- user drawings: trendline / box / (old) horizontal line; one-shot tools; select = handles + delete badge; drag ---------- */
 {const box=document.getElementById('drawBtns');
-  for(const[k,lab]of[['tl','トレンドライン'],['box','ボックス'],['del','線を消す']]){const b=document.createElement('button');b.textContent=lab;b.dataset.d=k;b.onclick=()=>setArmed(armed===k?null:k);box.appendChild(b)}}
+  for(const[k,lab]of[['hl','水平線'],['tl','トレンドライン'],['box','ボックス'],['del','線を消す']]){const b=document.createElement('button');b.textContent=lab;b.dataset.d=k;b.onclick=()=>setArmed(armed===k?null:k);box.appendChild(b)}}
 const DCOL={W1:'#9333ea',D1:'#dc2626',H4:'#16a34a',H1:'#0ea5e9',M15:'#ec4899'};
 let selDr=null,xBadge=null,drag=null;
 function dP(t,p){const d=DV(),ts=chart.timeScale(),i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i),Y=cs.priceToCoordinate(p);return X==null||Y==null?null:[X,Y]}
@@ -661,6 +681,7 @@ async function delDrawing(id){if(selDr===id)selDr=null;try{await db.collection('
 async function drawClick(p,price){if(!db){status('この表示では保存できません');return}
   if(armed==='del'){const h=hitLine(p.point.x,p.point.y);setArmed(null);if(h)await delDrawing(h.it.id);return}
   const x=curTrade(),base={year,tf,trade:msSel?'m:'+msSel:x?fid(x):null,created:new Date().toISOString()};
+  if(armed==='hl'){setArmed(null);try{const ref=await db.collection('drawings').add({...base,kind:'hl',t1:p.time,p1:price,t2:p.time,p2:price});selDr=ref.id}catch(e){status('保存できませんでした')}return}
   if(!tlFirst){tlFirst={t:p.time,p:price};return}
   const a=tlFirst,kind=armed;tlFirst=null;if(a.t===p.time&&kind==='tl')return;setArmed(null);
   try{const ref=await db.collection('drawings').add({...base,kind,t1:a.t,p1:a.p,t2:p.time,p2:price});selDr=ref.id}catch(e){status('保存できませんでした')}}
@@ -699,7 +720,7 @@ function pointAt(px,py){const ts=chart.timeScale(),d=DV();let best=null,bd=13;
 var ptCur=null;
 function showPt(m,x,y){ptCur=m;msSel=m.id;renderMissed();const r=document.getElementById('chart').getBoundingClientRect(),el=document.getElementById('ptPop');
   document.getElementById('ptTxt').textContent=(m.d.kind==='point'?'入りたい点 ':m.d.kind==='ideal'?'理想 ':'お手本 ')+(m.d.side===1?'買い':'売り')+' '+fmt(m.d.t);
-  el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-230))+'px';el.style.top=(r.top+scrollY+Math.max(4,y-40))+'px'}
+  pbSync();el.hidden=false;el.style.left=(r.left+scrollX+Math.max(0,Math.min(x+12,r.width-440)))+'px';el.style.top=(r.top+scrollY+Math.max(4,y-40))+'px'}
 function hidePt(){ptCur=null;document.getElementById('ptPop').hidden=true}
 document.getElementById('ptNo').onclick=hidePt;
 document.getElementById('ptDel').onclick=async()=>{const m=ptCur;hidePt();if(!m||!db)return;MS=MS.filter(z=>z.id!==m.id);if(msSel===m.id)msSel=null;renderMissed();
@@ -754,7 +775,7 @@ document.getElementById('rgList').addEventListener('change',async ev=>{const k=e
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
-const UNDER=[['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['secDraw','線を引く'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+const UNDER=[['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
 {const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
   for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
     const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
