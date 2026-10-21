@@ -9,9 +9,13 @@ SRC = [('R', 'regime2_R2c.csv', 'レンジ型押し目'), ('T', 'regime2_T1t.csv
        ('J2', 'turn/jt2_h1major+hour0_10.csv', '転換追随（H1同方向・東京時間）'), ('J3', 'turn/j3_h41_s0_h1prot.csv', 'H1本転換についていく'), ('EV', 'session/ev_18-21+0-3.csv', '夜の転換追随')]
 sec = lambda ts: int((pd.Timestamp(ts) - pd.Timestamp('1970-01-01')) // pd.Timedelta(seconds=1))
 m = pd.read_csv(os.environ['EA_M15_CACHE']); MT = pd.to_datetime(m.time).to_numpy(); MH = m.high.to_numpy(); ML = m.low.to_numpy()
+MULT = float(os.environ.get('PRICE_MULT', '1'))
+RESD = Path(os.environ['PF_RESULTS']) if os.environ.get('PF_RESULTS') else D
 rows = []
 for code, f, lab in SRC:
-    d = pd.read_csv(D / f)
+    if not (RESD / f).exists():
+        continue
+    d = pd.read_csv(RESD / f)
     for x in d.itertuples():
         if 'Rc' in d:
             t, xt, R, sl = x.time, x.ExitTime, x.Rc, x.initial_sl
@@ -23,8 +27,8 @@ for code, f, lab in SRC:
         s = int(x.side)
         hi, lo = MH[i0:ie].max(), ML[i0:ie].min()
         mfe = (hi - x.entry if s == 1 else x.entry - lo) / x.risk; mae = (lo - x.entry if s == 1 else x.entry - hi) / x.risk
-        rows.append(dict(t=sec(t), side=s, p=0, entry=round(float(x.entry), 5), sl=round(float(sl), 5), xt=sec(xt),
-                         xp=round(float(x.exit), 5), R=round(float(R), 2), risk=round(float(x.risk) / 1e-4, 1),
+        rows.append(dict(t=sec(t), side=s, p=0, entry=round(float(x.entry) * MULT, 5), sl=round(float(sl) * MULT, 5), xt=sec(xt),
+                         xp=round(float(x.exit) * MULT, 5), R=round(float(R), 2), risk=round(float(x.risk) / 1e-4, 1),
                          stg=['R', 'T', 'L', 'A', 'C', 'J2', 'J3', 'EV'].index(code), nrev=0, trail='', d1=None, h4=None, h1=None, src=code, srcl=lab,
                          mfe=round(float(mfe), 2), mae=round(float(mae), 2)))
 out = Path(sys.argv[1]); years = [int(y) for y in sys.argv[2:]]
