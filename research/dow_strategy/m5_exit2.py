@@ -26,7 +26,7 @@ if os.environ.get('NO_M5DOW'):
     m5 = load_m5(os.environ.get('M5_SYM', 'EURUSD')); m5 = m5[m5.t >= B.START - pd.Timedelta(days=5)].reset_index(drop=True); R5 = {'events': []}
 else:
     m5, R5 = MB.get()
- T5 = pd.DatetimeIndex(m5.t); O5, H5, L5, C5 = (m5[z].to_numpy(float) for z in 'ohlc'); A5 = atr(m5); N = len(T5)
+T5 = pd.DatetimeIndex(m5.t); O5, H5, L5, C5 = (m5[z].to_numpy(float) for z in 'ohlc'); A5 = atr(m5); N = len(T5)
 CL5 = T5 + pd.Timedelta(minutes=5)
 # H1 swings known at each M5 close, H1 ATR, M15 provisional trend of the last closed M15 bar
 H1P = B.H1P; HT = np.array([p[0] for p in H1P], dtype='datetime64[ns]')
