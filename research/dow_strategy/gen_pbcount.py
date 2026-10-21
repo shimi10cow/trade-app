@@ -32,25 +32,26 @@ class Pushes:
         return [int(self.side), int(self.n)]
 
 
-out = {}
-for tf in ('H1', 'H4'):
-    df = load(tf, 'long').reset_index(drop=True)
-    R = dow_trend.run(df, tf)
-    dow = [1 if b[0] == 'up' else -1 if b[0] == 'down' else 0 for b in R['bars']]
-    ma = np.sign(df.c.rolling(20).mean() - df.c.rolling(75).mean()).fillna(0).astype(int).to_numpy()
-    conf = {}
-    for e in R['pivot_events']:
-        if e['action'] == 'confirm':
-            conf.setdefault(e['available_idx'], []).append(e)
-    ts = ((pd.to_datetime(df.t) + TF_LEN[tf] - pd.Timestamp(0)) // pd.Timedelta(seconds=1)).tolist()
-    h, l = df.h.to_numpy(float), df.l.to_numpy(float)
-    A, B, rows = Pushes(), Pushes(), []
-    for i in range(len(df)):
-        c = conf.get(i, [])
-        st = A.step(i, ma[i], h[i], l[i], c) + B.step(i, dow[i], h[i], l[i], c)
-        if not rows or rows[-1][1:] != st:
-            rows.append([ts[i]] + st)
-    out[tf] = rows
-    print(tf, len(df), 'bars', len(rows), 'rows', flush=True)
-Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)
-json.dump(out, open(Path(sys.argv[1]) / 'pbc.json', 'w'), separators=(',', ':'))
+if __name__ == '__main__':
+    out = {}
+    for tf in ('H1', 'H4'):
+        df = load(tf, 'long').reset_index(drop=True)
+        R = dow_trend.run(df, tf)
+        dow = [1 if b[0] == 'up' else -1 if b[0] == 'down' else 0 for b in R['bars']]
+        ma = np.sign(df.c.rolling(20).mean() - df.c.rolling(75).mean()).fillna(0).astype(int).to_numpy()
+        conf = {}
+        for e in R['pivot_events']:
+            if e['action'] == 'confirm':
+                conf.setdefault(e['available_idx'], []).append(e)
+        ts = ((pd.to_datetime(df.t) + TF_LEN[tf] - pd.Timestamp(0)) // pd.Timedelta(seconds=1)).tolist()
+        h, l = df.h.to_numpy(float), df.l.to_numpy(float)
+        A, B, rows = Pushes(), Pushes(), []
+        for i in range(len(df)):
+            c = conf.get(i, [])
+            st = A.step(i, ma[i], h[i], l[i], c) + B.step(i, dow[i], h[i], l[i], c)
+            if not rows or rows[-1][1:] != st:
+                rows.append([ts[i]] + st)
+        out[tf] = rows
+        print(tf, len(df), 'bars', len(rows), 'rows', flush=True)
+    Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)
+    json.dump(out, open(Path(sys.argv[1]) / 'pbc.json', 'w'), separators=(',', ':'))

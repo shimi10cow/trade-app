@@ -82,7 +82,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
-  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
+  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button><select id="msTfSel" title="どの足で付けた印を表示するか"><option value="cur">表示：今の足で付けた印</option><option value="all">表示：全部の足の印</option><option value="H4">表示：H4で付けた印</option><option value="H1">表示：H1で付けた印</option><option value="M15">表示：M15で付けた印</option><option value="none">表示：印を隠す</option></select></span>
   <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 表示</label></span>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -647,6 +647,10 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pb
   let upd;if(b.dataset.pbv!=null){const v=b.dataset.pbv;upd=m.d.pb===v?{pb:null}:{pb:v,pb_base:pbBase(m.d.tf),pb_h1:pbAuto(m.d,'H1'),pb_h4:pbAuto(m.d,'H4'),pb_h1_dow:pbAuto(m.d,'H1',1),pb_h4_dow:pbAuto(m.d,'H4',1)}}
   else{const k=b.dataset.lnk,v=b.dataset.lnv;upd=m.d[k]===v?{[k]:null}:{[k]:v,[k+'_auto']:lineAuto(m.d,k)}}
   Object.assign(m.d,upd);pbSync();try{await db.collection('missed').doc(m.id).update(upd);status('保存しました')}catch(e){status('保存できませんでした')}},true);
+/* which marks to show, by the timeframe they were made on (remembered per viewer) */
+let msTfMode='cur';try{msTfMode=localStorage.getItem('msTfMode')||'cur'}catch(e){}
+{const sel=document.getElementById('msTfSel');sel.value=msTfMode;sel.onchange=()=>{msTfMode=sel.value;try{localStorage.setItem('msTfMode',msTfMode)}catch(e){};hidePt()}}
+function msShow(d){const k=d.tf||'H1';return msTfMode==='all'?true:msTfMode==='none'?false:msTfMode==='cur'?k===tf:k===msTfMode}
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
   document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
     <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="10">まだありません</td></tr>'}
@@ -721,7 +725,7 @@ function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;f
   document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
 /* tap a 'want to enter' point (or a model trade's entry) on the chart -> small delete pop-up */
 function pointAt(px,py){const ts=chart.timeScale(),d=DV();let best=null,bd=13;
-  for(const m of MS){if(m.d.year!==year)continue;const li=fIdx(d,m.d.t);if(li==null)continue;const x=ts.logicalToCoordinate(li),y=cs.priceToCoordinate(m.d.p);if(x==null||y==null)continue;
+  for(const m of MS){if(m.d.year!==year||!msShow(m.d))continue;const li=fIdx(d,m.d.t);if(li==null)continue;const x=ts.logicalToCoordinate(li),y=cs.priceToCoordinate(m.d.p);if(x==null||y==null)continue;
     const dd=Math.hypot(x-px,y-py);if(dd<bd){bd=dd;best=m}}return best}
 var ptCur=null;
 function showPt(m,x,y){ptCur=m;msSel=m.id;renderMissed();const r=document.getElementById('chart').getBoundingClientRect(),el=document.getElementById('ptPop');
@@ -977,12 +981,12 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   drawUser(g,P,W);drawW(g,P,W);drawUL(g,P,W);
   const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):d.kind==='point'?(up?css('--up'):css('--down')):css('--hl');
     g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
-    g.fillText((d.kind==='ideal'?'理想':d.kind==='point'?(up?'入りたい 買い':'入りたい 売り'):'お手本')+(d.p&&d.kind!=='point'?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
+    g.fillText((d.kind==='ideal'?'理想':d.kind==='point'?(up?'入りたい 買い':'入りたい 売り'):'お手本')+(d.tf&&d.tf!==tf?' ('+d.tf+')':'')+(d.p&&d.kind!=='point'?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
     const xe=d.exit?P(d.exit.t,d.exit.p):null;
     if(d.sl){const a=P(d.t,d.sl.p),b=P(d.exit?d.exit.t:d.sl.t,d.sl.p);if(a&&b){g.setLineDash([5,4]);g.lineWidth=sel?2:1.2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(Math.max(b[0],a[0]+20),b[1]);g.stroke();g.setLineDash([]);g.fillText('SL',a[0]-18,a[1]+4)}}
     if(xe){g.beginPath();g.arc(xe[0],xe[1],5,0,7);g.fill();const r=msR(d);if(r!=null)g.fillText((r>0?'+':'')+r.toFixed(2)+'R',xe[0]+8,xe[1]-6);
       if(sel){g.globalAlpha=.10;g.fillRect(q[0],Math.min(q[1],xe[1]),xe[0]-q[0],Math.abs(xe[1]-q[1]));g.globalAlpha=1}}};
-  for(const m of MS)if(m.d.year===year)drawM(m.d,m.id===msSel);
+  for(const m of MS)if(m.d.year===year&&msShow(m.d))drawM(m.d,m.id===msSel);
   if(msDraft)drawM({...msDraft,side:msDraft.sl?(msDraft.sl.p<msDraft.p?1:-1):1},true);
   g.restore()}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
