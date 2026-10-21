@@ -21,7 +21,12 @@ from env_recognition.pivots import atr  # noqa: E402
 RES = Path(__file__).resolve().parent / 'results'
 FILES = [x.split('=') for x in os.environ.get('TRADE_FILES', 'R=regime2_R2c.csv,T=regime2_T1t.csv,L=tl_N2.csv,A=retest_N1.csv,C=step2/cl15_md4tri.csv').split(',')]
 COST = 1.2e-4; PIP = 1e-4
-m5, R5 = MB.get(); T5 = pd.DatetimeIndex(m5.t); O5, H5, L5, C5 = (m5[z].to_numpy(float) for z in 'ohlc'); A5 = atr(m5); N = len(T5)
+if os.environ.get('NO_M5DOW'):
+    from env_recognition.data import load_m5
+    m5 = load_m5(os.environ.get('M5_SYM', 'EURUSD')); m5 = m5[m5.t >= B.START - pd.Timedelta(days=5)].reset_index(drop=True); R5 = {'events': []}
+else:
+    m5, R5 = MB.get()
+ T5 = pd.DatetimeIndex(m5.t); O5, H5, L5, C5 = (m5[z].to_numpy(float) for z in 'ohlc'); A5 = atr(m5); N = len(T5)
 CL5 = T5 + pd.Timedelta(minutes=5)
 # H1 swings known at each M5 close, H1 ATR, M15 provisional trend of the last closed M15 bar
 H1P = B.H1P; HT = np.array([p[0] for p in H1P], dtype='datetime64[ns]')
@@ -89,13 +94,15 @@ if __name__ == '__main__':
     print(f'基準 {len(TR)}回 {base:+.1f}R  ' + ' '.join(f"{c}:{TR.R[TR.src == c].sum():+.0f}" for c in TR.src.unique()))
     rows = []
     GRID = list(itertools.product(('big1.5', 'big2', 'big3', 'm5maj'), ('none', 'stop', 'm15', 'stop|m15'), ('all', 'early', 'late'), (0.5,)))
+    if os.environ.get('GRID3'):
+        GRID = list(itertools.product(('big1.5', 'big2', 'big2.5', 'big3'), ('stop', 'none'), ('all', 'early', 'late'), (1.0, 1.5, 2.0, 2.5, 3.0)))
     if os.environ.get('GRID2'):
         GRID = list(itertools.product(('big2', 'big3', 'm5maj'), ('stop', 'stop&m15'), ('all', 'early', 'late'), (0.25, 0.5, 1.0, 1.5, 2.0)))
     for trig, zone, phase, zd in GRID:
         r, f, g = apply(trig, zone, phase, zd)
-        b = [r[(y >= a) & (y <= c)].sum() for a, c in ((2005, 2015), (2016, 2026))]
+        b = [r[(y >= a) & (y <= c)].sum() - TR.R[(y >= a) & (y <= c)].sum() for a, c in ((2005, 2015), (2016, 2026))]
         rows.append(dict(trig=trig, zone=zone, phase=phase, zd=zd, fired=f, good_save=g, total=r.sum(), diff=r.sum() - base, first=b[0], second=b[1],
                          **{f'd_{c}': r[(TR.src == c).to_numpy()].sum() - TR.R[TR.src == c].sum() for c in TR.src.unique()}))
     D = pd.DataFrame(rows).sort_values('diff', ascending=False)
-    D.to_csv(RES / f"m5_exit2_{os.environ.get('M5_SYM', 'EURUSD')}{'_g2' if os.environ.get('GRID2') else ''}.csv", index=False)
+    D.to_csv(RES / f"m5_exit2_{os.environ.get('M5_SYM', 'EURUSD')}{'_g2' if os.environ.get('GRID2') else ''}{'_g3' if os.environ.get('GRID3') else ''}.csv", index=False)
     pd.set_option('display.width', 250); print(D.round(1).head(20).to_string(index=False)); print('...'); print(D.round(1).tail(5).to_string(index=False))
