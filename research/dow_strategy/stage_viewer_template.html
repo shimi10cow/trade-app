@@ -158,7 +158,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <div class="fbrow"><label for="msSetup" class="lbl">パターン</label><select id="msSetup"></select><span class="note" style="margin:0">行を選ぶとそのお手本を変更、選ばずに設定すると次に追加するお手本に付きます</span></div>
   <div class="fbrow"><span class="lbl">背にした所</span><span class="seg" id="msBack"></span></div>
   <div class="fbrow"><span class="lbl">入り方</span><span class="seg" id="msTrig"></span></div>
-  <div class="fbrow" id="pbRow" hidden><span class="lbl">押し・水平線</span><span id="pbPanel" class="pbtags"></span></div>
+  <div class="fbrow" id="pbRow" hidden><span class="lbl">押し・線</span><span id="pbPanel" class="pbtags"></span></div>
   <div class="fbrow" id="msEditRow" hidden><label for="msEdit" class="lbl">選択中のメモ</label><textarea id="msEdit" rows="3" placeholder="なぜここで入ったか（音声入力：Windowsは Win＋H、Macは Fnキー2回、スマホはキーボードのマイク）"></textarea></div>
   <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>パターン</th><th>種類</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
 </section>
@@ -597,7 +597,7 @@ async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const pr
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
   if(armed==='mp1'||armed==='mp-1'){if(!db){status('この表示では保存できません');return}
     const m={year,t:p.time,p:price,side:armed==='mp1'?1:-1,kind:'point',setup:'',back:[],trig:[],note:'',tf,created:new Date().toISOString()};
-    m.pb_h1=pbAuto(m,'H1');m.pb_h4=pbAuto(m,'H4');
+    m.pb_h1=pbAuto(m,'H1');m.pb_h4=pbAuto(m,'H4');m.pb_h1_dow=pbAuto(m,'H1',1);m.pb_h4_dow=pbAuto(m,'H4',1);
     setArmed(null);try{const ref=await db.collection('missed').add(m);const it={id:ref.id,d:m};if(!MS.some(z=>z.id===ref.id))MS.push(it);showPt(it,p.point.x,p.point.y);msHint();status('入りたい点を付けました。押しの回数が自動と違えば押し直してください')}catch(e){status('保存できませんでした')}return}
   if(armed==='missed'){if(!db){status('この表示では保存できません');return}
     if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
@@ -626,20 +626,26 @@ const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
 
 /* ---------- pullback number (counted on the timeframe the point was marked on: H4 -> H4 waves, otherwise H1) + horizontal-line tag ---------- */
 let PBC=null;fetch('data/pbc.json').then(r=>r.ok?r.json():null).then(j=>{PBC=j;pbSync()}).catch(()=>{});
-const PBO=[['rev','逆・転換'],['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目〜'],['?','？']],HLO=[['y','あり'],['n','なし']];
+const PBO=[['bo','ブレイク'],['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目〜'],['?','？']],HLO=[['y','あり'],['n','なし']];
 const pbBase=tf=>(tf==='H4'||tf==='D1'||tf==='W1')?'H4':'H1';
-function pbAuto(d,base){if(!PBC||!PBC[base])return null;const R=PBC[base],t=d.t+(TFLEN[d.tf]||3600);if(!R.length||R[0][0]>t)return null;
-  let lo=0,hi=R.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(R[k][0]<=t)lo=k;else hi=k-1}const tr=R[lo][1],n=R[lo][2];return tr!==d.side?'rev':String(Math.min(n+1,4))}
+function pbAuto(d,base,dow){if(!PBC||!PBC[base])return null;const R=PBC[base],t=d.t+(TFLEN[d.tf]||3600);if(!R.length||R[0][0]>t)return null;
+  let lo=0,hi=R.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(R[k][0]<=t)lo=k;else hi=k-1}const o=dow?3:1,tr=R[lo][o],n=R[lo][o+1];return tr!==d.side?'bo':String(Math.min(n+1,4))}
+/* a line the user drew passes near the point (within 0.1% of price) -> auto 'あり' */
+function lineAuto(d,kind){const tol=Math.abs(d.p)*0.001;for(const it of DR){const r=it.d;if(r.kind!==kind)continue;
+  if(kind==='hl'){if(Math.abs(r.p1-d.p)<=tol)return 'y';continue}
+  if(r.t1===r.t2)continue;const a=r.t1<r.t2?[r.t1,r.p1,r.t2,r.p2]:[r.t2,r.p2,r.t1,r.p1];if(d.t<a[0])continue;
+  const v=a[1]+(a[3]-a[1])*(d.t-a[0])/(a[2]-a[0]);if(Math.abs(v-d.p)<=tol)return 'y'}return null}
 const pbCur=()=>MS.find(z=>z.id===msSel)||(ptCur&&ptCur.id===msSel?ptCur:null);
-function pbHTML(m){if(!m)return'';const d=m.d,base=pbBase(d.tf),au=pbAuto(d,base),v=d.pb??au;
+function pbHTML(m){if(!m)return'';const d=m.d,base=pbBase(d.tf),au=pbAuto(d,base),v=d.pb==='rev'?'bo':(d.pb??au);
+  const ln=(k,lab)=>{const a=lineAuto(d,k),cur=d[k]??a;return `<span class="lb">${lab}${d[k]==null&&a?'（自動）':''}</span>`+HLO.map(([x,l])=>`<button data-lnk="${k}" data-lnv="${x}" aria-pressed="${cur===x}" class="${d[k]==null&&a===x?'auto':''}">${l}</button>`).join('')};
   return `<span class="lb">${base}の押し${d.pb==null&&au?'（自動）':''}</span>`+PBO.map(([k,l])=>`<button data-pbv="${k}" aria-pressed="${v===k}" class="${d.pb==null&&au===k?'auto':''}">${l}</button>`).join('')+
-    `<span class="lb">水平線</span>`+HLO.map(([k,l])=>`<button data-hlv="${k}" aria-pressed="${d.hl===k}">${l}</button>`).join('')}
+    ln('hl','水平線')+ln('tl','トレンドライン')}
 function pbSync(){try{pbSync0()}catch(e){}}
 function pbSync0(){const m=pbCur();const a=document.getElementById('ptTags');if(a)a.innerHTML=ptCur?pbHTML(ptCur.id===msSel&&m?m:ptCur):'';
   const row=document.getElementById('pbRow'),pn=document.getElementById('pbPanel');if(row){row.hidden=!m;pn.innerHTML=pbHTML(m)}}
-document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pbv],[data-hlv]');if(!b)return;ev.stopPropagation();const m=pbCur();if(!m||!db)return;
-  let upd;if(b.dataset.pbv!=null){const v=b.dataset.pbv;upd=m.d.pb===v?{pb:null}:{pb:v,pb_base:pbBase(m.d.tf),pb_h1:pbAuto(m.d,'H1'),pb_h4:pbAuto(m.d,'H4')}}
-  else{const v=b.dataset.hlv;upd={hl:m.d.hl===v?null:v}}
+document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pbv],[data-lnv]');if(!b)return;ev.stopPropagation();const m=pbCur();if(!m||!db)return;
+  let upd;if(b.dataset.pbv!=null){const v=b.dataset.pbv;upd=m.d.pb===v?{pb:null}:{pb:v,pb_base:pbBase(m.d.tf),pb_h1:pbAuto(m.d,'H1'),pb_h4:pbAuto(m.d,'H4'),pb_h1_dow:pbAuto(m.d,'H1',1),pb_h4_dow:pbAuto(m.d,'H4',1)}}
+  else{const k=b.dataset.lnk,v=b.dataset.lnv;upd=m.d[k]===v?{[k]:null}:{[k]:v,[k+'_auto']:lineAuto(m.d,k)}}
   Object.assign(m.d,upd);pbSync();try{await db.collection('missed').doc(m.id).update(upd);status('保存しました')}catch(e){status('保存できませんでした')}},true);
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
   document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
@@ -986,7 +992,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
   db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
   db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
-  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}))},e=>status('線を読み込めませんでした'));
+  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync()},e=>status('線を読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
 </script>
