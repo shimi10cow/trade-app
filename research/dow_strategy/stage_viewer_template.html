@@ -77,7 +77,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr"> EAのトレード</label>
-  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA（8本）</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option></select>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
@@ -523,7 +523,12 @@ const EAINFO=[
  {c:'EV',n:'夜の転換追随',use:'ユーロドル（追加候補）',k:'転換追随型（時間帯）',
   env:'H4の仮トレンドが同じ向き。日本時間18〜21時と0〜3時の転換だけ（夜は転換がそのまま続きやすい、という時間帯の性格から）',
   setup:'M15で、本転換より先に安値の切り上げ（仮転換）が出た所',trig:'次の足ですぐ入る',stop:'切り上げた安値の外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
-  res:'ユーロドル PF1.41（1.58/1.25）+38R ／ ポンドドル 1.22 ／ ユーロ円 1.14 ／ ドル円 1.15（前半0.78）'}];
+  res:'ユーロドル PF1.41（1.58/1.25）+38R ／ ポンドドル 1.22 ／ ユーロ円 1.14 ／ ドル円 1.15（前半0.78）'},
+ {c:'P',n:'押し目（ユーザーの印から作った候補）',use:'ドル円（不採用・目視確認用）',k:'押し目型',
+  env:'H1の仮ダウとSMA20/75がトレンド方向。価格がH1 SMA75からH1 ATR×2.5以上離れている（強いトレンドの押し）',
+  setup:'押しの回数が3回目まで（H1の仮ダウの向きが変わるかSMA75を逆に割ったら数え直し、ATR×2以上の戻りを1回と数える）。戻りがATR×2に達した所',
+  trig:'24時間以内にM15が押しの方向から仮転換したら次の足で入る',stop:'H1のスイングの外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
+  res:'ドル円 前半 +25R PF1.16 ／ 後半 +24R PF1.14、最大DD -21R。7本に足すと年+2%だがDDが増えるので不採用。負けトレードを目視して「入らない理由」を探す用'}];
 function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;const v=document.getElementById('trSet').value;const sel=v.startsWith('pf_')?v.slice(3):null;
   const row=(k,t)=>`<tr><th style="white-space:nowrap;text-align:left;padding:3px 8px">${k}</th><td style="padding:3px 8px;white-space:normal;word-break:break-word">${t}</td></tr>`;
   el.innerHTML=EAINFO.map(e=>`<div class="eacard" style="border:1px solid ${e.c===sel?'var(--accent)':'var(--line)'};${e.c===sel?'box-shadow:0 0 0 2px var(--accent);':''}border-radius:8px;padding:8px;margin:8px 0;${sel&&e.c!==sel?'opacity:.55':''}">
@@ -533,7 +538,7 @@ function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;c
 eaInfoSync();
 /* ---------- per-EA summary over all years ---------- */
 let PFALL=null;
-function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV'];
+function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P'];
   const fbOf=x=>FB[`t${x[4]}_${x[5]}_${x[1]}`];
   const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
     for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}
@@ -541,7 +546,7 @@ function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A
     const m1=a.filter(x=>x[3]>=1&&x[2]<=0);const chk=a.filter(x=>fbOf(x)),bad=a.filter(x=>{const f=fbOf(x);return f&&f.entry==='skip'}),ex=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='hold'}),el=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='earlier'});
     return `<td>${a.length}</td><td>${w.length}勝${l.length}敗</td><td>${Math.round(w.length/Math.max(1,a.length)*100)}%</td><td>+${(w.reduce((p,v)=>p+v,0)/Math.max(1,w.length)).toFixed(2)} / ${(l.reduce((p,v)=>p+v,0)/Math.max(1,l.length)).toFixed(2)}</td><td>${(w.reduce((p,v)=>p+v,0)/Math.max(1e-9,-l.reduce((p,v)=>p+v,0))).toFixed(2)}</td><td>${s>=0?'+':''}${s.toFixed(1)}R</td><td>${dd.toFixed(1)}R</td><td>${ly}/${ny}</td><td>${m1.length}回 ${m1.reduce((p,x)=>p+x[2],0).toFixed(0)}R</td><td>${chk.length}（いらない ${bad.length}回 ${bad.reduce((p,x)=>p+x[2],0).toFixed(1)}R／決済早い ${ex.length}／逃げ遅れ ${el.length}）</td>`};
   document.getElementById('eaTbl').innerHTML='<thead><tr><th>EA</th><th>回数</th><th>勝敗</th><th>勝率</th><th>平均 勝ち/負け</th><th>PF</th><th>合計</th><th>最大DD</th><th>負け年</th><th>+1R→負け</th><th>あなたのチェック</th></tr></thead><tbody>'+
-    codes.map(c=>`<tr><th>${c} ${PFALL.names[c]}</th>${st(T.filter(x=>x[1]===c))}</tr>`).join('')+`<tr><th>合計</th>${st(T)}</tr></tbody>`;
+    codes.filter(c=>PFALL.names[c]).map(c=>`<tr><th>${c} ${PFALL.names[c]}</th>${st(T.filter(x=>x[1]===c))}</tr>`).join('')+`<tr><th>合計</th>${st(T)}</tr></tbody>`;
   document.getElementById('eaNote').textContent='上の「表示するEA」でEAを選ぶと、そのEAの履歴だけがチャートと一覧に出ます。チャートのトレード（エントリーの矢印か、エントリー〜決済の枠）をタップすると、そのトレードが選ばれて評価できます。一覧のボタンでもワンクリック評価（良い／いらない／決済早い／逃げ遅れ）。理由は下の「トレードの評価」のメモへ。入ってほしかった所は「入りたかった所」へ'}
 fetch('data/pf_all.json').then(r=>r.ok?r.json():null).then(j=>{PFALL=j;eaTable()}).catch(()=>{});
 /* ---------- feedback (saved to the artifact database) ---------- */
