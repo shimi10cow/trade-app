@@ -70,7 +70,9 @@ for e in B.R1['events']:
     if e.get('machine') != 'major': continue
     i = M15_OF_H1[e['idx']]
     if i < start: continue
-    if e['action'] == 'REVERSAL': add('turn_major_h1', i, dirs[e['to']])
+    if e['action'] == 'REVERSAL':
+        add('turn_major_h1', i, dirs[e['to']])
+        if h4p(i) == e['to']: add('turn_major_h1+h4', i, dirs[e['to']])
     if e['action'] == 'BREAKOUT': add('bo_h1', i, dirs[e.get('to', h1maj[e['idx']])] if e.get('to', h1maj[e['idx']]) in dirs else 0)
 import step2_newea as S2
 for e in S2.cl15_events():
