@@ -60,19 +60,21 @@ for x in TR.itertuples():
     ok = (mfe >= 1) & np.isfinite(cand) & ((cand < C5[ix]) if s == 1 else (cand > C5[ix]))
     raw = np.where(ok, cand, sl0 if s == 1 else sl0)
     stop = np.maximum.accumulate(np.maximum(raw, sl0)) if s == 1 else np.minimum.accumulate(np.minimum(raw, sl0))
-    near = s * (C5[ix] - stop) <= 0.5 * AH1[ix]
+    dist = s * (C5[ix] - stop) / AH1[ix]
     against = 'down' if s == 1 else 'up'
     m15a = m15dir[ix] == against
     big = -s * BODY[ix]
-    SL.append(dict(ix=ix, mfe=mfe, near=near, m15a=m15a, big=big, maj=MAJ[against][ix]))
-def apply(trig, zone, phase):
+    SL.append(dict(ix=ix, mfe=mfe, dist=dist, m15a=m15a, big=big, maj=MAJ[against][ix]))
+def apply(trig, zone, phase, zd=0.5):
     r = TR.R.to_numpy().copy(); fired = 0; good = 0; lost = 0.0
     for q, (x, z) in enumerate(zip(TR.itertuples(), SL)):
         if z is None: continue
         a = (z['maj'] if trig == 'm5maj' else z['big'] >= float(trig[3:]))
-        if zone == 'stop': a = a & z['near']
+        near = z['dist'] <= zd
+        if zone == 'stop': a = a & near
         elif zone == 'm15': a = a & z['m15a']
-        elif zone == 'stop|m15': a = a & (z['near'] | z['m15a'])
+        elif zone == 'stop|m15': a = a & (near | z['m15a'])
+        elif zone == 'stop&m15': a = a & near & z['m15a']
         if phase == 'early': a = a & (z['mfe'] < 1)
         elif phase == 'late': a = a & (z['mfe'] >= 1)
         h = np.nonzero(a)[0]
@@ -86,11 +88,14 @@ if __name__ == '__main__':
     y = TR.t0.dt.year.to_numpy(); base = TR.R.sum()
     print(f'基準 {len(TR)}回 {base:+.1f}R  ' + ' '.join(f"{c}:{TR.R[TR.src == c].sum():+.0f}" for c in TR.src.unique()))
     rows = []
-    for trig, zone, phase in itertools.product(('big1.5', 'big2', 'big3', 'm5maj'), ('none', 'stop', 'm15', 'stop|m15'), ('all', 'early', 'late')):
-        r, f, g = apply(trig, zone, phase)
+    GRID = list(itertools.product(('big1.5', 'big2', 'big3', 'm5maj'), ('none', 'stop', 'm15', 'stop|m15'), ('all', 'early', 'late'), (0.5,)))
+    if os.environ.get('GRID2'):
+        GRID = list(itertools.product(('big2', 'big3', 'm5maj'), ('stop', 'stop&m15'), ('all', 'early', 'late'), (0.25, 0.5, 1.0, 1.5, 2.0)))
+    for trig, zone, phase, zd in GRID:
+        r, f, g = apply(trig, zone, phase, zd)
         b = [r[(y >= a) & (y <= c)].sum() for a, c in ((2005, 2015), (2016, 2026))]
-        rows.append(dict(trig=trig, zone=zone, phase=phase, fired=f, good_save=g, total=r.sum(), diff=r.sum() - base, first=b[0], second=b[1],
+        rows.append(dict(trig=trig, zone=zone, phase=phase, zd=zd, fired=f, good_save=g, total=r.sum(), diff=r.sum() - base, first=b[0], second=b[1],
                          **{f'd_{c}': r[(TR.src == c).to_numpy()].sum() - TR.R[TR.src == c].sum() for c in TR.src.unique()}))
     D = pd.DataFrame(rows).sort_values('diff', ascending=False)
-    D.to_csv(RES / f"m5_exit2_{os.environ.get('M5_SYM', 'EURUSD')}.csv", index=False)
+    D.to_csv(RES / f"m5_exit2_{os.environ.get('M5_SYM', 'EURUSD')}{'_g2' if os.environ.get('GRID2') else ''}.csv", index=False)
     pd.set_option('display.width', 250); print(D.round(1).head(20).to_string(index=False)); print('...'); print(D.round(1).tail(5).to_string(index=False))
