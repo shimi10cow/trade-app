@@ -7,7 +7,7 @@
   stop    : 'm15turn' (protected swing of the new M15 provisional trend), 'm15swing' (last confirmed M15 swing),
             'h1swing' (last confirmed H1 swing), 'h1prot' (H1 major protected level), 'h1ma75', 'h1ma200',
             'ref' (the setup's own reference price, e.g. the line or the W low); beyond it by buf x ATR(H1) + pips
-  exit    : trail to swings once +act R: 'h1', 'm15', or 'hyb' (M15 swings until +sw R, then H1 swings); trail only tightens
+  exit    : trail to swings once +act R: 'h1', 'h4', 'm15', or 'hyb' (M15 swings until +sw R, then H1 swings); trail only tightens
 Entry at the next M15 open. Cost 1.2 pip. Optional environment filter via env_ctx (dside / env).
 Everything uses only information known at the signal bar's close (causal)."""
 import bisect, sys
@@ -73,6 +73,8 @@ for _e in B.R15['pivot_events']:
     _last[_e['id']] = _e
 P15 = sorted(((M15T[e['available_idx']] + L15, e['kind'], e['price']) for e in B.R15['pivot_events']), key=lambda x: x[0])
 P15T = [x[0] for x in P15]
+H4P = sorted(((B.C4[e['available_idx']], e['kind'], e['price']) for e in B.R4['pivot_events']), key=lambda x: x[0])
+H4PT = [x[0] for x in H4P]
 H1MA = {n: B.h1.c.rolling(n).mean().to_numpy() for n in (20, 75, 200)}
 
 
@@ -136,9 +138,10 @@ def run(events, cfg):
             if not p['trail'] and fav >= act * p['risk']:
                 p['trail'] = True
             if p['trail']:
-                src = 'h1' if exit_kind == 'h1' or (exit_kind == 'hyb' and p['mfe'] >= sw) else 'm15'
+                src = 'h4' if exit_kind == 'h4' else 'h1' if exit_kind == 'h1' or (exit_kind == 'hyb' and p['mfe'] >= sw) else 'm15'
                 ts = M15T[i] + L15; want = 'lo' if s == 1 else 'hi'
-                v = _last_swing(B.H1P, B.H1PT, ts, want) if src == 'h1' else _last_swing(P15, P15T, ts, want)
+                v = (_last_swing(H4P, H4PT, ts, want) if src == 'h4' else
+                     _last_swing(B.H1P, B.H1PT, ts, want) if src == 'h1' else _last_swing(P15, P15T, ts, want))
                 if v is not None:
                     v -= s * B.PIP
                     if (v < B.c[i]) if s == 1 else (v > B.c[i]):
