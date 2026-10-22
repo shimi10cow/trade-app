@@ -155,6 +155,8 @@ def run(events, cfg):
             s = ev['side']
             if cfg.get('one_per_side', True) and any(p['side'] == s for p in pos):
                 continue
+            if cfg.get('max_side') and sum(p['side'] == s for p in pos) >= cfg['max_side']:
+                continue
             if not EC.env_ok(cfg, CL15[i], s):
                 continue
             ref = stop_ref(cfg.get('stop', 'm15turn'), i, s, ev)
