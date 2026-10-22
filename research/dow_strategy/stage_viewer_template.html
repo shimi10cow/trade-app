@@ -94,7 +94,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
 <div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
-<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envAllOk" title="まだ押していない項目を全部 ○ にする">残りを全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
+<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
@@ -125,8 +125,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="環境チェック" style="grid-column:1/-1" id="secEnv">
   <div class="fbrow"><b>環境チェック（チャートの状態の読みが合っているか）</b><span class="note" id="envCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、自動の読みを出します。合っていれば○、違えば×を押して本当の状態を選ぶだけ。「残りを全部○」でまとめて○にできます。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かり、◆をクリックするとカードが開いて直せます。</span></div>
-  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>違っていた項目</th><th>段階</th><th>自分なら</th><th>メモ</th><th></th></tr></thead><tbody id="envList"></tbody></table></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、ダウと近くの抵抗の自動の読みを出すので○×を押します。あとは H4・H1 それぞれの段階（何回目の押しか・レンジ・転換中）と、できれば「トレンドが出たと思う足」をチャートで指定してください。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かり、◆をクリックするとカードが開いて直せます。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>違っていた項目</th><th>H4 の段階</th><th>H1 の段階</th><th>メモ</th><th></th></tr></thead><tbody id="envList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="EAの条件" style="grid-column:1/-1" id="secEA">
   <div class="fbrow"><b>EAの条件</b><span class="note" style="margin:0">上の「表示するEA」で選んだEAが強調されます。成績は2005〜2026年、コスト1.2pips込み、PFの（ ）は前半2005-15／後半2016-26</span></div>
@@ -649,6 +649,8 @@ document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'mis
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
+  if(armed&&armed.startsWith('envs_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
+    if(p.time>envCur.T){status('チェックした時点より後の足は選べません');return}envSave({tags:{...(e.tags||{}),['start_'+k]:p.time,['start_'+k+'_tf']:tf}});rekeep();return}
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
   if(armed==='hl'||armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
@@ -1058,21 +1060,18 @@ function eAtr(){const c=DATA.H1.candles;if(EATR.y===year&&EATR.n===c.length)retu
   for(let i=0;i<c.length;i++){s+=tr[i];if(i>=14)s-=tr[i-14];if(i>=13)a[i]=s/14}EATR={y:year,n:c.length,a};return a}
 const DIRO=[['up','上昇'],['down','下降'],['range','レンジ'],['unk','わからない']],PBO2=[['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目以降'],['bo','転換中・ブレイク'],['none','トレンドなし']];
 const EITEMS=[['dow_D1','D1 ダウ',DIRO],['dow_H4','H4 ダウ',DIRO],['dow_H1','H1 ダウ',DIRO],['dow_M15','M15 ダウ',DIRO],
-  ['pb_H4','H4 何回目の押し',PBO2],['pb_H1','H1 何回目の押し',PBO2],
-  ['wave','H1 の波',[['push','推進中'],['corr','調整中'],['corrend','調整の終わりかけ'],['range','レンジ']]],
-  ['yoko','横軸（調整の時間）',[['filled','埋まっている'],['short','まだ短い'],['na','関係ない']]],
-  ['ma','H1 の MA',[['up','上向き'],['down','下向き'],['flat','横ばい']]],
-  ['vol','値動きの大きさ',[['quiet','静か'],['normal','普通'],['wild','荒い']]],
-  ['res','近くの H4 抵抗',[['near','近い'],['room','余裕あり'],['none','ない']]]];
-const ETAGS=[['stage','相場の段階',[['early','トレンド序盤'],['mid','中盤'],['late','終盤'],['range','レンジ'],['turn','転換中']]],
-  ['me','自分なら',[['buy','買いたい'],['sell','売りたい'],['wait','様子見'],['skip','触らない']]]];
+  ['res','近くの H4 抵抗（橙の点線）',[['other','別の所が抵抗'],['notres','抵抗ではない'],['none','近くに抵抗なし']]]];
+/* your judgement (not a check of ours): the stage of the trend on each timeframe, and where you think the trend started */
+const STG=[['start','出始め（まだ押しなし）'],['1','1回目の押し'],['2','2回目'],['3','3回目'],['4','4回目以降'],['range','レンジ'],['turn','転換中']];
+const ETAGS=[['stage_H4','H4 の段階',STG],['stage_H1','H1 の段階',STG],['heat','勢い',[['calm','落ち着いている'],['normal','普通'],['hot','過熱']]],
+  ['me','自分なら（任意）',[['buy','買いたい'],['sell','売りたい'],['wait','様子見'],['skip','触らない']]]];
 const ETL=Object.fromEntries(ETAGS.map(([k,,o])=>[k,Object.fromEntries(o)]));
 function envAuto(T){const o={},F={};
   for(const x of ['D1','H4','H1','M15']){const d=DATA[x];if(!d||!d.prot)continue;const L=TFLEN[x],i=eLast(d.prot,T,L),j=eLast(d.pprot,T,L);
     const mj=(i>=0&&d.prot[i][2])||'none',pv=(j>=0&&d.pprot[j][2])||'none';F['dow_'+x]=mj;F['pdow_'+x]=pv;
     o['dow_'+x]=EDIR[mj]+(pv!=='none'&&pv!==mj?'（仮ダウは'+EDIR[pv]+'）':'')+(mj!=='none'&&d.prot[i][1]!=null?'　'+(mj==='up'?'押し安値 ':'戻り高値 ')+d.prot[i][1]:'')}
   for(const b of ['H4','H1'])if(PBC&&PBC[b]){const R=PBC[b];let lo=-1,hi=R.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(R[m][0]<=T)lo=m;else hi=m-1}
-    if(lo>=0){const sd=R[lo][1],n=R[lo][2];F['pb_'+b]=sd?String(Math.min(n+1,4)):'none';o['pb_'+b]=sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}の押し（MA基準）`:'トレンドなし（MA基準）'}}
+    if(lo>=0){const sd=R[lo][1],n=R[lo][2];F['pb_'+b]=sd?String(Math.min(n+1,4)):'none';F['side_'+b]=sd;o['pb_'+b]=sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}の押し（MA基準）`:'トレンドなし（MA基準）'}}
   const H=DATA.H1;if(!H)return {o,F};const k=eLast(H.candles,T,3600);if(k<20)return {o,F};
   const c=H.candles,close=c[k][4],A=eAtr(),atr=A[k],s=F.dow_H1==='up'?1:F.dow_H1==='down'?-1:0;F.close=close;
   if(s){const want=s===1?'hi':'lo',P=H.piv.filter(p=>p[4]<=T);let e=P.length-1;while(e>=0&&P[e][1]!==want)e--;let g=e-1;while(g>=0&&P[g][1]===want)g--;
@@ -1090,9 +1089,9 @@ function envAuto(T){const o={},F={};
   if(s&&atr&&DATA.H4){const P4=DATA.H4.piv.filter(p=>p[4]<=T).slice(-40),want=s===1?'hi':'lo';let best=null;
     for(const p of P4)if(p[1]===want&&s*(p[2]-close)>0&&(best==null||s*(p[2]-best)<0))best=p[2];
     if(best==null){F.res='none';o.res=`${s===1?'上':'下'}に H4 の${s===1?'高値':'安値'}なし（更新中）`}
-    else{const dist=s*(best-close)/atr;F.res=dist<1?'near':'room';F.res_atr=+dist.toFixed(2);o.res=`${s===1?'上の H4 高値':'下の H4 安値'} ${best} まで H1 ATR ${dist.toFixed(1)} 本分（${dist<1?'近い':'余裕あり'}）`}}
+    else{const dist=s*(best-close)/atr;F.res=dist<1?'near':'room';F.res_p=best;F.res_atr=+dist.toFixed(2);o.res=`${s===1?'上の H4 高値':'下の H4 安値'} ${best} まで H1 ATR ${dist.toFixed(1)} 本分（${dist<1?'近い':'余裕あり'}）`}}
   return {o,F}}
-function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F};envPlace(pt);envRender()}
+function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F};F.res_p=F.res_p??null;envPlace(pt);envRender()}
 function envPlace(pt){const c=document.getElementById('envCard');c.hidden=false;const r=document.getElementById('chart').getBoundingClientRect(),W=c.offsetWidth||460;
   let left=r.width-W-8,top=8;if(pt){left=pt.x>r.width/2?pt.x-W-18:pt.x+18;top=Math.max(8,pt.y-80)}left=Math.max(4,Math.min(left,r.width-W-4));
   c.style.left=(r.left+scrollX+left)+'px';c.style.top=(r.top+scrollY+top)+'px'}
@@ -1100,14 +1099,22 @@ function envRender(){const c=document.getElementById('envCard');if(!envCur){c.hi
   if(document.activeElement&&document.activeElement.id==='envNote')return;
   const e=ENV[envCur.id]||{},v=e.v||{},fx=e.fix||{},tg=e.tags||{};
   document.getElementById('envTitle').textContent=`環境チェック ${fmtAll(envCur.T)} 時点`;
-  const b=(a,on,l)=>`<button ${a} aria-pressed="${on}">${l}</button>`;let h='<table class="envt">';
+  const b=(a,on,l,cls='')=>`<button ${a} aria-pressed="${on}" class="${cls}">${l}</button>`;
+  let h='<div class="note" style="margin:0 0 4px">① 自動の読みが合っているか（○／×）</div><table class="envt">';
   for(const [k,lab,opts] of EITEMS){const txt=envCur.o[k];if(txt==null)continue;const cur=v[k];
-    h+=`<tr><th>${lab}</th><td><div>${txt}</div><div class="pbtags">${b(`data-ek="${k}" data-ev="ok"`,cur==='ok','○ 合ってる')}${b(`data-ek="${k}" data-ev="ng"`,cur==='ng','× 違う')}${b(`data-ek="${k}" data-ev="q"`,cur==='q','？')}`+
+    h+=`<tr><th>${lab}</th><td><div class="pbtags" style="margin:0"><span style="margin-right:6px">${txt}</span>${b(`data-ek="${k}" data-ev="ok"`,cur==='ok','○')}${b(`data-ek="${k}" data-ev="ng"`,cur==='ng','×')}${b(`data-ek="${k}" data-ev="q"`,cur==='q','？')}`+
       (cur==='ng'?'<span class="lb">本当は</span>'+opts.map(([x,l])=>b(`data-ef="${k}" data-ev="${x}"`,fx[k]===x,l)).join(''):'')+'</div></td></tr>'}
-  for(const [k,lab,opts] of ETAGS)h+=`<tr><th>${lab}</th><td><div class="pbtags">${opts.map(([x,l])=>b(`data-et="${k}" data-ev="${x}"`,tg[k]===x,l)).join('')}</div></td></tr>`;
+  h+='</table><div class="note" style="margin:8px 0 4px">② あなたの判断（点線の枠＝自動の数え方の答え。合っていればそれを押すだけ）</div><table class="envt">';
+  for(const [k,lab,opts] of ETAGS){const tfk=k.startsWith('stage_')?k.slice(6):null;let au=null;
+    if(tfk){const pb=envCur.F['pb_'+tfk],sd=envCur.F['side_'+tfk];au=pb==='none'?'range':pb||null;
+      if(au&&au!=='range'&&envCur.F['dow_'+tfk]&&sd&&((sd===1)!==(envCur.F['dow_'+tfk]==='up')))au='turn'}
+    let row=opts.map(([x,l])=>b(`data-et="${k}" data-ev="${x}"`,tg[k]===x,l,tg[k]==null&&au===x?'auto':'')).join('');
+    if(tfk){const st=tg['start_'+tfk];row+=`<span class="lb" style="flex-basis:100%">トレンドが出たと思う足：${st?fmtAll(st):'未指定'}</span>`+
+      b(`data-a="envs_${tfk}" data-envs="${tfk}"`,false,st?'指定し直す':'チャートで指定')+(st?b(`data-envsdel="${tfk}"`,false,'消す'):'')}
+    h+=`<tr><th>${lab}</th><td><div class="pbtags">${row}</div></td></tr>`}
   h+=`</table><textarea id="envNote" rows="2" placeholder="気づいたこと（例：H4 はレンジに見える／すぐ上に日足の高値）">${(e.note||'').replace(/</g,'&lt;')}</textarea>`+
     `<div class="pbtags" style="margin-top:6px"><span class="lb">${ENV[envCur.id]?'保存済み（押すたびに自動で保存）':'まだ保存していません（どれかを押すと保存）'}</span>${ENV[envCur.id]?'<button id="envDel">このチェックを消す</button>':''}</div>`;
-  document.getElementById('envBody').innerHTML=h}
+  document.getElementById('envBody').innerHTML=h;if(armed&&armed.startsWith('envs_'))setArmed(armed)}
 async function envSave(upd){if(!db){status('この表示では保存できません');return}if(!envCur)return;const id=envCur.id;
   const base=ENV[id]||{year,tf:envCur.tf,t:envCur.T,t0:envCur.t0,auto:envCur.o,raw:envCur.F,v:{},fix:{},tags:{},note:'',created:new Date().toISOString()};
   const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ENV[id]=nx;envRender();renderEnvList();
@@ -1117,7 +1124,7 @@ async function envDelete(id){delete ENV[id];if(envCur&&envCur.id===id)envCur=nul
 function renderEnvList(){const el=document.getElementById('envList');if(!el)return;const L=Object.entries(ENV).filter(([,e])=>e.year===year).sort((a,b)=>a[1].t-b[1].t);
   document.getElementById('envCount').textContent=`この年 ${L.length} 件／全部 ${Object.keys(ENV).length} 件`;
   el.innerHTML=L.map(([id,e])=>{const ng=Object.entries(e.v||{}).filter(([,x])=>x==='ng').map(([k])=>(EITEMS.find(z=>z[0]===k)||[,k])[1]),tg=e.tags||{};
-    return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage?ETL.stage[tg.stage]:''}</td><td>${tg.me?ETL.me[tg.me]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
+    return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage_H4?ETL.stage_H4[tg.stage_H4]:''}</td><td>${tg.stage_H1?ETL.stage_H1[tg.stage_H1]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
 function envAt(px,py){if(py>26||!chart)return null;const d=DV(),ts=chart.timeScale();let best=null,bd=10;
   for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;const i=fIdx(d,e.t0??(e.t-TFLEN[e.tf]));if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;const dd=Math.abs(X-px);if(dd<bd){bd=dd;best=id}}
   return best}
@@ -1126,7 +1133,12 @@ function drawEnv(g,W){if(!DATA||!chart)return;const d=DV(),ts=chart.timeScale();
     g.fillStyle=g.strokeStyle=col;g.beginPath();g.moveTo(X,4);g.lineTo(X+6,11);g.lineTo(X,18);g.lineTo(X-6,11);g.closePath();g.fill();
     if(sel){g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(X,18);g.lineTo(X,4000);g.stroke();g.setLineDash([])}};
   for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
-  if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true)}
+  if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true);
+  if(envCur){const e=ENV[envCur.id]||{},tg=e.tags||{};
+    if(envCur.F.res_p!=null){const Y=cs.priceToCoordinate(envCur.F.res_p),i=fIdx(d,envCur.t0),X0=i==null?0:Math.max(0,ts.logicalToCoordinate(i)-260);
+      if(Y!=null){g.strokeStyle=g.fillStyle=css('--hl');g.lineWidth=1.5;g.setLineDash([6,4]);g.beginPath();g.moveTo(X0,Y);g.lineTo(W,Y);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText('自動の抵抗 '+envCur.F.res_p,X0+4,Y-4)}}
+    for(const k of ['H4','H1']){const st=tg['start_'+k];if(st==null)continue;const i=fIdx(d,st);if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;
+      g.strokeStyle=g.fillStyle=k==='H4'?css('--s3'):css('--s2');g.lineWidth=1.5;g.setLineDash([2,3]);g.beginPath();g.moveTo(X,22);g.lineTo(X,4000);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText(k+' トレンド開始',X+4,34+(k==='H1'?14:0))}}}
 document.getElementById('chart').addEventListener('click',e=>{if(armed||!DATA||!chart)return;const r=document.getElementById('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
   const id=envAt(x,y);if(!id)return;e.stopPropagation();const m=ENV[id];openEnv(m.t,m.t0,{x,y:Math.max(y,40)},id);rekeep()},true);
 document.getElementById('envBtn').onclick=()=>setArmed(armed==='env'?null:'env');
@@ -1135,6 +1147,8 @@ document.getElementById('envClose').onclick=()=>{envCur=null;envRender();rekeep(
 document.getElementById('envAllOk').onclick=()=>{if(!envCur)return;const e=ENV[envCur.id]||{},v={...(e.v||{})};for(const [k] of EITEMS)if(envCur.o[k]!=null&&!v[k])v[k]='ok';envSave({v})};
 document.getElementById('envBody').addEventListener('click',ev=>{if(!envCur)return;const bt=ev.target.closest('button');if(!bt)return;const e=ENV[envCur.id]||{};
   if(bt.id==='envDel'){envDelete(envCur.id);return}
+  if(bt.dataset.envs){const a='envs_'+bt.dataset.envs;setArmed(armed===a?null:a);status(armed?'トレンドが出たと思う足をチャートでクリック':'');return}
+  if(bt.dataset.envsdel){const tags={...(e.tags||{})};delete tags['start_'+bt.dataset.envsdel];envSave({tags});rekeep();return}
   const k=bt.dataset.ek,f=bt.dataset.ef,t=bt.dataset.et,val=bt.dataset.ev;
   if(k){const v={...(e.v||{})},fix={...(e.fix||{})};v[k]=v[k]===val?null:val;if(v[k]!=='ng')delete fix[k];envSave({v,fix});rekeep()}
   else if(f){const fix={...(e.fix||{})};fix[f]=fix[f]===val?null:val;envSave({fix})}
