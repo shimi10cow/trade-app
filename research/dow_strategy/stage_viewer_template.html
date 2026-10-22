@@ -1307,7 +1307,7 @@ function zSetMode(on){if(on&&pbOn)pbSetMode(false);zOn=on;document.getElementByI
   else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svZkeep'))}catch(e){}if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}try{localStorage.setItem('svZ','0')}catch(e){}if(armed==='zAdd')setArmed(null);zHidePop()}
   zHint();if(chart)rekeep();renderZ()}
 function zHint(){const el=document.getElementById('zHint');if(el)el.textContent=!zOn?'':armed==='zAdd'?(zFirst?'帯の下（上）の端をクリック':'帯の上（下）の端をクリック'):'帯を押すと判定。端を掴むと直せます'}
-const zid=(x,z)=>`${x}_${z[0]}_${z[5]}`;
+const zid=(x,z)=>`${x}_${z[0]}_${z[1]}`;  /* ASCII only: the database rejects other characters in ids */
 function zItems(){if(!DATA)return[];const out=[],now=RT;
   for(const x of ZTF){if(!document.getElementById('z'+x).checked||!DATA[x]||!DATA[x].zones)continue;
     for(const z of DATA[x].zones){if(now!=null&&z[1]+TFLEN[x]>now)continue;const id=zid(x,z),j=ZJ[id]||{};
