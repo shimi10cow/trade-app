@@ -98,7 +98,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="selbar" id="selBar" hidden></div>
 <div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
 <div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envNext" hidden title="次の質問の場所へ">次の質問 ▶</button><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
-<div id="zPop" class="ptpop" hidden><span id="zTxt"></span><button data-zv="ok" title="自分も見る線">○ 見る線</button><button data-zv="ng" title="自分なら引かない">× 要らない</button><button data-zv="live" title="まだ効いている（自動の終わりが早すぎる）">まだ有効</button><button id="zReset" title="判定と直した幅・終わりを消す">元に戻す</button><button id="zDelU" hidden>× 消す</button><button id="zClose">閉じる</button><span class="note" style="margin:0;flex-basis:100%">上下の端・右の端を掴むと、幅と終わる所を直せます</span></div>
+<div id="zPop" class="ptpop" hidden><span id="zTxt"></span><button data-zv="ok" title="自分も見る線">○ 見る線</button><button data-zv="ng" title="自分なら引かない">× 要らない</button><button data-zv="live" title="まだ効いている（自動の終わりが早すぎる）">まだ有効</button><button id="zEndPick" title="押してから、線が終わった足をチャートでクリック">終わりを指定</button><button id="zEndNone" title="終わりなし（今も有効）にする">終わりなし</button><button id="zReset" title="判定と直した幅・終わりを消す">元に戻す</button><button id="zDelU" hidden>× 消す</button><button id="zClose">閉じる</button><span class="note" style="margin:0;flex-basis:100%">選んでいる間は、帯の中を掴むと上下に移動、上か下の端を掴むと幅を変えられます。終わりは「終わりを指定」→ チャートの足をクリック。帯の外を押すと選択が外れて固定されます</span></div>
 <div id="pbPop" class="ptpop" hidden><span id="pbTxt"></span><button id="pbDel">× 消す</button><button id="pbClose">閉じる</button></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
@@ -668,6 +668,7 @@ document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!
 document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'missed');
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
+  if(armed==='zEndPick'){setArmed(null);status('');if(zPickId){zSel=zPickId;zSave(zPickId,{end:p.time});zPickId=null}return}
   if(armed==='zAdd'){zAddClick(p,price);return}
   if(armed&&armed.startsWith('pb')){pbPlace(p,price);return}
   if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
@@ -1332,8 +1333,8 @@ function drawZ(g,W,r){if(!zOn||!DATA||!chart)return;const d=DV(),ts=chart.timeSc
   if(zFirst&&armed==='zAdd'){const y=cs.priceToCoordinate(zFirst.p);if(y!=null){g.strokeStyle=ZCOL.U;g.setLineDash([4,3]);g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();g.setLineDash([])}}}
 function zHit(x,y){let best=null,ba=1e9;for(const h of ZHIT){if(x>=h.x0-3&&x<=h.x1+6&&y>=h.y0-5&&y<=h.y1+5){const a=(h.y1-h.y0);if(a<ba){ba=a;best=h}}}return best}
 function zHandle(x,y){if(!zSel)return null;const h=ZHIT.find(q=>q.id===zSel);if(!h)return null;
-  if(Math.abs(x-h.x1)<=7&&y>=h.y0-4&&y<=h.y1+4&&h.x1<chart.timeScale().width()-2)return {h,part:'end'};
-  if(x>=h.x0&&x<=h.x1){if(Math.abs(y-h.y0)<=5)return {h,part:'top'};if(Math.abs(y-h.y1)<=5)return {h,part:'bot'}}return null}
+  if(Math.abs(x-h.x1)<=8&&y>=h.y0-6&&y<=h.y1+6&&h.x1<chart.timeScale().width()-2)return {h,part:'end'};
+  if(x>=h.x0-4&&x<=h.x1+4){const e=Math.min(8,Math.max(4,(h.y1-h.y0)/3));if(Math.abs(y-h.y0)<=e)return {h,part:'top'};if(Math.abs(y-h.y1)<=e)return {h,part:'bot'};if(y>h.y0&&y<h.y1)return {h,part:'body'}}return null}
 function zHidePop(){zSel=null;const e=document.getElementById('zPop');if(e)e.hidden=true}
 function zShowPop(h,x,y){zSel=h.id;const z=h.z,el=document.getElementById('zPop'),r=document.getElementById('chart').getBoundingClientRect();
   document.getElementById('zTxt').textContent=`${z.user?'あなたの線':z.tf+' '+z.lab}　${(+z.bot).toFixed(z.top>50?3:5)}〜${(+z.top).toFixed(z.top>50?3:5)}　${fmtAll(z.a)}〜${z.end?fmtAll(z.end):'今も有効'}`;
@@ -1342,7 +1343,7 @@ function zShowPop(h,x,y){zSel=h.id;const z=h.z,el=document.getElementById('zPop'
   el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-360))+'px';el.style.top=(r.top+scrollY+Math.max(4,y+12))+'px'}
 async function zSave(id,upd){if(!db){status('この表示では保存できません');return}const it=zItems().find(q=>q.id===id);if(!it)return;
   if(it.user){const u=ZU.find(q=>q.id===id);if(u)Object.assign(u.d,upd);renderZ();try{await db.collection('zuser').doc(id).update(upd)}catch(e){status('保存できませんでした')}return}
-  const base=ZJ[id]||{tf:it.tf,anchor:it.a,act:it.act,auto_end:it.auto[2],auto_top:it.auto[4],auto_bot:it.auto[3],lab:it.lab,year};
+  const base={...(ZJ[id]||{}),tf:it.tf,anchor:it.a,act:it.act,auto_end:it.auto[2],auto_top:it.auto[4],auto_bot:it.auto[3],lab:it.lab,year:(ZJ[id]||{}).year||year};
   const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ZJ[id]=nx;renderZ();try{await db.collection('zjudge').doc(id).set(nx)}catch(e){status('保存できませんでした')}}
 async function zAddClick(p,price){if(!zFirst){zFirst={t:p.time,p:price};zHint();return}
   const a=zFirst;zFirst=null;setArmed(null);zHint();if(!db){status('この表示では保存できません');return}
@@ -1360,21 +1361,25 @@ for(const b of document.querySelectorAll('#zPop [data-zv]'))b.onclick=()=>{if(!z
 document.getElementById('zReset').onclick=async()=>{if(!zSel)return;const id=zSel;delete ZJ[id];zHidePop();renderZ();try{await db.collection('zjudge').doc(id).delete()}catch(e){}};
 document.getElementById('zDelU').onclick=async()=>{if(!zSel)return;const id=zSel;ZU=ZU.filter(q=>q.id!==id);zHidePop();renderZ();try{await db.collection('zuser').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
 document.getElementById('zClose').onclick=()=>zHidePop();
+let zPickId=null;
+document.getElementById('zEndPick').onclick=()=>{if(!zSel)return;zPickId=zSel;document.getElementById('zPop').hidden=true;setArmed('zEndPick');status('線が終わった足をチャートでクリック')};
+document.getElementById('zEndNone').onclick=()=>{if(!zSel)return;zSave(zSel,{end:null});document.getElementById('zPop').hidden=true};
 document.getElementById('zList').addEventListener('click',ev=>{const r=ev.target.closest('[data-zid]');if(!r)return;if(!zOn)zSetMode(true);jump(+r.dataset.zt);setTimeout(()=>{zSel=r.dataset.zid},300)});
 {const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};let just=false;
   el.addEventListener('pointerdown',e=>{if(!zOn||armed||e.button!==0||!DATA||!chart)return;const[x,y]=xy(e);const hd=zHandle(x,y);
-    if(hd){e.stopPropagation();e.preventDefault();zDrag={id:hd.h.id,part:hd.part,z:hd.h.z,moved:false};chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur(hd.part==='end'?'ew-resize':'ns-resize');return}
-    const h=zHit(x,y);if(!h)return;e.stopPropagation();e.preventDefault();zDrag={id:h.id,part:'tap',z:h.z,x,y,moved:false};el.setPointerCapture(e.pointerId)},true);
+    if(hd){e.stopPropagation();e.preventDefault();zDrag={id:hd.h.id,part:hd.part,z:hd.h.z,moved:false,p0:cs.coordinateToPrice(y),top0:hd.h.z.top,bot0:hd.h.z.bot,x,y};chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur(hd.part==='end'?'ew-resize':hd.part==='body'?'grabbing':'ns-resize');return}
+    const h=zHit(x,y);if(!h){if(zSel){zHidePop()}return}e.stopPropagation();e.preventDefault();zDrag={id:h.id,part:'tap',z:h.z,x,y,moved:false};el.setPointerCapture(e.pointerId)},true);
   el.addEventListener('pointermove',e=>{if(!zOn)return;const[x,y]=xy(e);
     if(zDrag){e.stopPropagation();e.preventDefault();if(zDrag.part==='tap')return;zDrag.moved=true;const z=zDrag.z;
       if(zDrag.part==='end'){const li=chart.timeScale().coordinateToLogical(x);if(li==null)return;const d=DV(),i=Math.max(0,Math.min(d.candles.length-1,Math.round(li)));z.end=d.candles[i][0]}
+      else if(zDrag.part==='body'){const pr=cs.coordinateToPrice(y);if(pr==null||zDrag.p0==null)return;const dp=pr-zDrag.p0;z.top=zDrag.top0+dp;z.bot=zDrag.bot0+dp}
       else{const pr=cs.coordinateToPrice(y);if(pr==null)return;if(zDrag.part==='top')z.top=Math.max(pr,z.bot);else z.bot=Math.min(pr,z.top)}
       zDrag.tmp={top:z.top,bot:z.bot,end:z.end};const it=ZHIT.find(q=>q.id===z.id);if(it)Object.assign(it.z,z);
       if(z.user){const u=ZU.find(q=>q.id===z.id);if(u)Object.assign(u.d,{top:z.top,bot:z.bot,end:z.end})}else ZJ[z.id]={...(ZJ[z.id]||{}),...(zDrag.part==='end'?{end:z.end}:{top:z.top,bot:z.bot})};return}
-    if(!armed){const hd=zHandle(x,y);setCur(hd?(hd.part==='end'?'ew-resize':'ns-resize'):zHit(x,y)?'pointer':'')}},true);
+    if(!armed){const hd=zHandle(x,y);setCur(hd?(hd.part==='end'?'ew-resize':hd.part==='body'?'grab':'ns-resize'):zHit(x,y)?'pointer':'')}},true);
   const end=async e=>{if(!zDrag)return;e.stopPropagation();const g=zDrag;zDrag=null;just=true;setTimeout(()=>just=false,50);chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
     if(g.part==='tap'){const h=ZHIT.find(q=>q.id===g.id);if(h)zShowPop(h,g.x,g.y);return}
-    if(!g.moved)return;const r5=v=>+(+v).toFixed(5);
+    if(!g.moved){if(g.part==='body'){const h=ZHIT.find(q=>q.id===g.id);if(h)zShowPop(h,g.x,g.y)}return}const r5=v=>+(+v).toFixed(5);
     await zSave(g.id,g.part==='end'?{end:g.z.end}:{top:r5(g.z.top),bot:r5(g.z.bot)})};
   el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
   el.addEventListener('click',e=>{if(just){e.stopPropagation();e.preventDefault()}},true)}
