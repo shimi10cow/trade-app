@@ -77,7 +77,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr"> EAのトレード</label>
-  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option></select>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option><option value="pf_S">S トレンド＋M15転換（ゴールド・BTC）</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
@@ -528,7 +528,12 @@ const EAINFO=[
   env:'H1の仮ダウとSMA20/75がトレンド方向。価格がH1 SMA75からH1 ATR×2.5以上離れている（強いトレンドの押し）。H4のレンジ度が0.5未満（レンジ中は入らない）',
   setup:'押しの回数が3回目まで（H1の仮ダウの向きが変わるかSMA75を逆に割ったら数え直し、ATR×2以上の戻りを1回と数える）。戻りがATR×2に達した所',
   trig:'24時間以内にM15が押しの方向から仮転換したら次の足で入る',stop:'H1のスイングの外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
-  res:'ドル円 前半 +18R PF1.35 ／ 後半 +17R PF1.34、最大DD -14R（レンジ除外前は PF1.16/1.14・DD -21R）。7本に足すと年+2.5%、DDは-18%→-20%、最悪年は-3%→-10%。目視確認用の候補'}];
+  res:'ドル円 前半 +18R PF1.35 ／ 後半 +17R PF1.34、最大DD -14R（レンジ除外前は PF1.16/1.14・DD -21R）。7本に足すと年+2.5%、DDは-18%→-20%、最悪年は-3%→-10%。目視確認用の候補'},
+ {c:'S',n:'トレンド＋M15転換（ゴールド・BTC用）',use:'ゴールド・BTC（採用候補）',k:'トレンド追随型',
+  env:'H4のSMA20/75とH1のトレンドが上向き（ゴールド：H1は仮ダウ／BTC：H1もSMA20/75）。買いだけ',
+  setup:'上の条件がそろっている間ずっと',trig:'M15で仮転換（安値の切り上げ）が出たら次の足で入る',
+  stop:'M15の転換の安値の外＋H1 ATR×0.3',exit:'ゴールド：+1RからH1のスイングで追いかける／BTC：+2RからH1のスイングで追いかける',
+  res:'ゴールド 前半+94R PF1.60／後半+84R PF1.39、DD-32R、勝率38%（コスト0.025%）。BTC 前半(2017-21)+156R PF2.35／後半(2022-26)+81R PF1.67、DD-17R、勝率34%（コスト0.08%）。144通りの作り方のうちゴールド94%・BTC100%が前後半とも黒字。7本に足すと後半年利26%→37%（ゴールド）、BTCも足すと62%、DDは-18%→-23〜24%'}];
 function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;const v=document.getElementById('trSet').value;const sel=v.startsWith('pf_')?v.slice(3):null;
   const row=(k,t)=>`<tr><th style="white-space:nowrap;text-align:left;padding:3px 8px">${k}</th><td style="padding:3px 8px;white-space:normal;word-break:break-word">${t}</td></tr>`;
   el.innerHTML=EAINFO.map(e=>`<div class="eacard" style="border:1px solid ${e.c===sel?'var(--accent)':'var(--line)'};${e.c===sel?'box-shadow:0 0 0 2px var(--accent);':''}border-radius:8px;padding:8px;margin:8px 0;${sel&&e.c!==sel?'opacity:.55':''}">
@@ -538,7 +543,7 @@ function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;c
 eaInfoSync();
 /* ---------- per-EA summary over all years ---------- */
 let PFALL=null;
-function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P'];
+function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P','S'];
   const fbOf=x=>FB[`t${x[4]}_${x[5]}_${x[1]}`];
   const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
     for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}
