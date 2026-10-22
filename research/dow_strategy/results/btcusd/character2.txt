@@ -1,0 +1,27 @@
+                family  h     n   mean    se  first  second
+                 bo_h1 24   944  0.123 0.078    NaN   0.123
+                 bo_h1 96   944  0.388 0.157    NaN   0.388
+            cl15_break 24  3393  0.101 0.041    NaN   0.101
+            cl15_break 96  3393  0.272 0.086    NaN   0.272
+               pb_ma75 24  4124 -0.007 0.036    NaN  -0.007
+               pb_ma75 96  4123 -0.057 0.076    NaN  -0.057
+              pb_stoch 24  4496  0.046 0.030    NaN   0.046
+              pb_stoch 96  4494  0.025 0.070    NaN   0.025
+            range_fade 24  3188  0.002 0.035    NaN   0.002
+            range_fade 96  3186 -0.038 0.081    NaN  -0.038
+           trend_drift 24 18212  0.026 0.016    NaN   0.026
+           trend_drift 96 18207  0.010 0.037    NaN   0.010
+         turn_major_h1 24   668  0.106 0.080    NaN   0.106
+         turn_major_h1 96   668  0.300 0.141    NaN   0.300
+      turn_major_h1+h4 24   251  0.277 0.164    NaN   0.277
+      turn_major_h1+h4 96   251  0.517 0.269    NaN   0.517
+             turn_prov 24  1452 -0.103 0.070    NaN  -0.103
+             turn_prov 96  1452 -0.152 0.152    NaN  -0.152
+          turn_prov+h4 24   577 -0.050 0.118    NaN  -0.050
+          turn_prov+h4 96   577  0.067 0.240    NaN   0.067
+       turn_prov+h4+h1 24   283  0.060 0.152    NaN   0.060
+       turn_prov+h4+h1 96   283  0.378 0.347    NaN   0.378
+ turn_prov+h4+h1+0-10h 24   120  0.050 0.166    NaN   0.050
+ turn_prov+h4+h1+0-10h 96   120  0.635 0.489    NaN   0.635
+turn_prov+h4+h1+10-24h 24   163  0.068 0.233    NaN   0.068
+turn_prov+h4+h1+10-24h 96   163  0.189 0.482    NaN   0.189
