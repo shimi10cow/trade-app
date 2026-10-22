@@ -84,8 +84,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
-  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button><select id="msTfSel" title="どの足で付けた印を表示するか"><option value="cur">表示：今の足で付けた印</option><option value="all">表示：全部の足の印</option><option value="H4">表示：H4で付けた印</option><option value="H1">表示：H1で付けた印</option><option value="M15">表示：M15で付けた印</option><option value="none">表示：印を隠す</option></select></span>
-  <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 表示</label></span>
+  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
+  <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span></span>
+  <span class="rp" title="自分で付けた印・線・環境チェックの表示。足を選ぶと、その足で付けたものだけ出します"><b style="font-size:12px">表示：</b><label style="font-size:12px"><input type="checkbox" id="optMk" checked> 入りたい点</label><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 線</label><label style="font-size:12px"><input type="checkbox" id="optEnvMk" checked> 環境チェック</label><select id="msTfSel" title="どの足で付けたものを表示するか"><option value="cur">今の足で付けたもの</option><option value="all">全部の足</option><option value="H4">H4で付けたもの</option><option value="H1">H1で付けたもの</option><option value="M15">M15で付けたもの</option></select></span>
   <span class="rp"><button data-a="env" id="envBtn" title="押してからチャートの足をクリック。その足が確定した時点の「自動の読み」に ○× を付けます">環境チェック</button></span>
   <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnv">この位置で環境チェック</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
@@ -94,7 +95,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
 <div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
-<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
+<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envNext" hidden title="次の質問の場所へ">次の質問 ▶</button><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
@@ -122,6 +123,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><label for="fbNote" class="lbl">理由・メモ</label><textarea id="fbNote" rows="2" placeholder="例：H4戻り高値の手前。M15ラインを抜けてからで良かった"></textarea></div>
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
+</section>
+<section class="fb" aria-label="質問リスト" style="grid-column:1/-1" id="secQ">
+  <div class="fbrow"><b>質問リスト（自動の読みが迷っている所）</b><span class="note" id="qCount" style="margin:0"></span><button id="qStart">最初の未回答から始める</button></div>
+  <div class="fbrow"><span class="note" style="margin:0">MA で数えた押しの回数とダウで数えた回数が食い違う所、本ダウと仮ダウが長く食い違う所、本ダウが転換した所から、この年の H4・H1 で最大 8 か所ずつ選びました。行を押すとその場所へ移動して環境チェックが開き、上に質問が出ます。答えたら「次の質問 ▶」。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>種類</th><th>質問</th><th>回答</th></tr></thead><tbody id="qList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="環境チェック" style="grid-column:1/-1" id="secEnv">
   <div class="fbrow"><b>環境チェック（チャートの状態の読みが合っているか）</b><span class="note" id="envCount" style="margin:0"></span></div>
@@ -487,7 +493,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;try{envRender();renderEnvList()}catch(e){}}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;QL=[];try{envRender();renderEnvList();renderQ()}catch(e){}}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -649,6 +655,8 @@ document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'mis
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
   if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
+  if(armed&&armed.startsWith('envp_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
+    envSave({fix:{...(e.fix||{}),['prot_'+k]:{t:p.time,p:price,tf}}});rekeep();return}
   if(armed&&armed.startsWith('envs_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
     if(p.time>envCur.T){status('チェックした時点より後の足は選べません');return}envSave({tags:{...(e.tags||{}),['start_'+k]:p.time,['start_'+k+'_tf']:tf}});rekeep();return}
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
@@ -684,7 +692,7 @@ function msHint(){msEditSync();const el=document.getElementById('msTxt');if(!el)
 const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
 
 /* ---------- pullback number (counted on the timeframe the point was marked on: H4 -> H4 waves, otherwise H1) + horizontal-line tag ---------- */
-let PBC=null;fetch('data/pbc.json').then(r=>r.ok?r.json():null).then(j=>{PBC=j;pbSync()}).catch(()=>{});
+let PBC=null;fetch('data/pbc.json').then(r=>r.ok?r.json():null).then(j=>{PBC=j;pbSync();try{QL=[];renderQ()}catch(e){}}).catch(()=>{});
 const PBO=[['bo','ブレイク'],['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目〜'],['?','？']],HLO=[['y','あり'],['n','なし']];
 const pbBase=tf=>(tf==='H4'||tf==='D1'||tf==='W1')?'H4':'H1';
 function pbAuto(d,base,dow){if(!PBC||!PBC[base])return null;const R=PBC[base],t=d.t+(TFLEN[d.tf]||3600);if(!R.length||R[0][0]>t)return null;
@@ -708,8 +716,12 @@ document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pb
   Object.assign(m.d,upd);pbSync();try{await db.collection('missed').doc(m.id).update(upd);status('保存しました')}catch(e){status('保存できませんでした')}},true);
 /* which marks to show, by the timeframe they were made on (remembered per viewer) */
 let msTfMode='cur';try{msTfMode=localStorage.getItem('msTfMode')||'cur'}catch(e){}
-{const sel=document.getElementById('msTfSel');sel.value=msTfMode;sel.onchange=()=>{msTfMode=sel.value;try{localStorage.setItem('msTfMode',msTfMode)}catch(e){};hidePt()}}
-function msShow(d){const k=d.tf||'H1';return msTfMode==='all'?true:msTfMode==='none'?false:msTfMode==='cur'?k===tf:k===msTfMode}
+for(const id of ['optMk','optUser','optEnvMk']){const c=document.getElementById(id);try{const v=localStorage.getItem('sv_'+id);if(v!=null)c.checked=v==='1'}catch(e){}
+  c.addEventListener('change',()=>{try{localStorage.setItem('sv_'+id,c.checked?'1':'0')}catch(e){};hidePt();if(chart)rekeep()})}
+if(msTfMode==='none'){msTfMode='cur';document.getElementById('optMk').checked=false}
+function objShow(k){k=k||'H1';return msTfMode==='all'?true:msTfMode==='cur'?k===tf:k===msTfMode}
+{const sel=document.getElementById('msTfSel');sel.value=msTfMode;sel.onchange=()=>{msTfMode=sel.value;try{localStorage.setItem('msTfMode',msTfMode)}catch(e){};hidePt();if(chart)rekeep()}}
+function msShow(d){return document.getElementById('optMk').checked&&objShow(d.tf)}
 function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
   document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
     <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="10">まだありません</td></tr>'}
@@ -728,7 +740,7 @@ function lineXY(dr,P,W){const a=P(dr.t1,dr.p1);if(!a)return null;if(dr.kind==='h
   const b=P(dr.t2,dr.p2);if(!b)return null;if(dr.kind==='box')return [a[0],a[1],b[0],b[1]];if(b[0]===a[0])return [a[0],a[1],b[0],b[1]];
   const k=(b[1]-a[1])/(b[0]-a[0]);return [a[0],a[1],W,a[1]+k*(W-a[0])]}
 function drawUser(g,P,W){xBadge=null;if(!document.getElementById('optUser').checked)return;g.save();g.lineWidth=1.6;g.setLineDash([]);
-  for(const it of DR){const dr=it.d;if(dr.year!==year)continue;const L=lineXY(dr,P,W);if(!L)continue;const col=DCOL[dr.tf]||css('--draw');g.strokeStyle=g.fillStyle=col;
+  for(const it of DR){const dr=it.d;if(dr.year!==year||!objShow(dr.tf))continue;const L=lineXY(dr,P,W);if(!L)continue;const col=DCOL[dr.tf]||css('--draw');g.strokeStyle=g.fillStyle=col;
     if(dr.kind==='box'){const x=Math.min(L[0],L[2]),y=Math.min(L[1],L[3]),w=Math.abs(L[2]-L[0]),h=Math.abs(L[3]-L[1]);
       g.globalAlpha=.13;g.fillRect(x,y,w,h);g.globalAlpha=1;g.strokeRect(x,y,w,h);g.fillText(`${dr.tf} ${Math.min(dr.p1,dr.p2)}〜${Math.max(dr.p1,dr.p2)}`,x+4,y-4)}
     else{g.beginPath();g.moveTo(L[0],L[1]);g.lineTo(L[2],L[3]);g.stroke();if(dr.kind==='hl')g.fillText(dr.tf+' '+dr.p1,L[0]+4,L[1]-4)}
@@ -738,8 +750,8 @@ function drawUser(g,P,W){xBadge=null;if(!document.getElementById('optUser').chec
         g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(bx-4,by-4);g.lineTo(bx+4,by+4);g.moveTo(bx-4,by+4);g.lineTo(bx+4,by-4);g.stroke();g.lineWidth=1.6;xBadge={x:bx,y:by,id:it.id}}}}
   if(tlFirst){const a=P(tlFirst.t,tlFirst.p);if(a){g.fillStyle=DCOL[tf]||css('--draw');g.beginPath();g.arc(a[0],a[1],4,0,7);g.fill()}}
   g.restore()}
-function hitLine(x,y){if(!DATA||!chart)return null;const W=chart.timeScale().width();let best=null,bd=9;
-  for(const it of DR){const dr=it.d;if(dr.year!==year)continue;
+function hitLine(x,y){if(!DATA||!chart||!document.getElementById('optUser').checked)return null;const W=chart.timeScale().width();let best=null,bd=9;
+  for(const it of DR){const dr=it.d;if(dr.year!==year||!objShow(dr.tf))continue;
     if(dr.kind!=='hl')for(const k of ['1','2']){const q=dP(dr['t'+k],dr['p'+k]);if(q){const dd=Math.hypot(q[0]-x,q[1]-y);if(dd<10&&dd<bd+2){bd=dd;best={it,part:k}}}}
     const L=lineXY(dr,dP,W);if(!L)continue;let dd;
     if(dr.kind==='box'){const x0=Math.min(L[0],L[2])-4,x1=Math.max(L[0],L[2])+4,y0=Math.min(L[1],L[3])-4,y1=Math.max(L[1],L[3])+4;dd=x>=x0&&x<=x1&&y>=y0&&y<=y1?bd-0.01:1e9}
@@ -749,7 +761,7 @@ function hitLine(x,y){if(!DATA||!chart)return null;const W=chart.timeScale().wid
 async function delDrawing(id){if(selDr===id)selDr=null;try{await db.collection('drawings').doc(id).delete()}catch(e){status('消せませんでした')}}
 async function drawClick(p,price){if(!db){status('この表示では保存できません');return}
   if(armed==='del'){const h=hitLine(p.point.x,p.point.y);setArmed(null);if(h)await delDrawing(h.it.id);return}
-  const x=curTrade(),base={year,tf,trade:msSel?'m:'+msSel:x?fid(x):null,created:new Date().toISOString()};
+  const x=curTrade(),base={year,tf,trade:msSel?'m:'+msSel:x?fid(x):null,env:envCur&&!document.getElementById('envCard').hidden?envCur.id:null,created:new Date().toISOString()};
   if(armed==='hl'){setArmed(null);try{const ref=await db.collection('drawings').add({...base,kind:'hl',t1:p.time,p1:price,t2:p.time,p2:price});selDr=ref.id}catch(e){status('保存できませんでした')}return}
   if(!tlFirst){tlFirst={t:p.time,p:price};return}
   const a=tlFirst,kind=armed;tlFirst=null;if(a.t===p.time&&kind==='tl')return;setArmed(null);
@@ -844,7 +856,7 @@ document.getElementById('rgList').addEventListener('change',async ev=>{const k=e
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
-const UNDER=[['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+const UNDER=[['secQ','質問リスト'],['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
 {const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
   for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
     const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
@@ -1063,7 +1075,7 @@ const EITEMS=[['dow_D1','D1 ダウ',DIRO],['dow_H4','H4 ダウ',DIRO],['dow_H1',
   ['res','近くの H4 抵抗（橙の点線）',[['other','別の所が抵抗'],['notres','抵抗ではない'],['none','近くに抵抗なし']]]];
 /* your judgement (not a check of ours): the stage of the trend on each timeframe, and where you think the trend started */
 const STG=[['start','出始め（まだ押しなし）'],['1','1回目の押し'],['2','2回目'],['3','3回目'],['4','4回目以降'],['range','レンジ'],['turn','転換中']];
-const ETAGS=[['stage_H4','H4 の段階',STG],['stage_H1','H1 の段階',STG],['heat','勢い',[['calm','落ち着いている'],['normal','普通'],['hot','過熱']]],
+const ETAGS=[['stage_H4','H4 の段階',STG],['stage_H1','H1 の段階',STG],['move','直前の動き（任意）',[['slow','ゆっくり'],['normal','普通'],['fast','一気に伸びた']]],
   ['me','自分なら（任意）',[['buy','買いたい'],['sell','売りたい'],['wait','様子見'],['skip','触らない']]]];
 const ETL=Object.fromEntries(ETAGS.map(([k,,o])=>[k,Object.fromEntries(o)]));
 function envAuto(T){const o={},F={};
@@ -1091,7 +1103,7 @@ function envAuto(T){const o={},F={};
     if(best==null){F.res='none';o.res=`${s===1?'上':'下'}に H4 の${s===1?'高値':'安値'}なし（更新中）`}
     else{const dist=s*(best-close)/atr;F.res=dist<1?'near':'room';F.res_p=best;F.res_atr=+dist.toFixed(2);o.res=`${s===1?'上の H4 高値':'下の H4 安値'} ${best} まで H1 ATR ${dist.toFixed(1)} 本分（${dist<1?'近い':'余裕あり'}）`}}
   return {o,F}}
-function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F};F.res_p=F.res_p??null;envPlace(pt);envRender()}
+function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F,q:ex&&ex.q||null,qkind:ex&&ex.qkind||null};F.res_p=F.res_p??null;envPlace(pt);envRender()}
 function envPlace(pt){const c=document.getElementById('envCard');c.hidden=false;const r=document.getElementById('chart').getBoundingClientRect(),W=c.offsetWidth||460;
   let left=r.width-W-8,top=8;if(pt){left=pt.x>r.width/2?pt.x-W-18:pt.x+18;top=Math.max(8,pt.y-80)}left=Math.max(4,Math.min(left,r.width-W-4));
   c.style.left=(r.left+scrollX+left)+'px';c.style.top=(r.top+scrollY+top)+'px'}
@@ -1100,10 +1112,12 @@ function envRender(){const c=document.getElementById('envCard');if(!envCur){c.hi
   const e=ENV[envCur.id]||{},v=e.v||{},fx=e.fix||{},tg=e.tags||{};
   document.getElementById('envTitle').textContent=`環境チェック ${fmtAll(envCur.T)} 時点`;
   const b=(a,on,l,cls='')=>`<button ${a} aria-pressed="${on}" class="${cls}">${l}</button>`;
-  let h='<div class="note" style="margin:0 0 4px">① 自動の読みが合っているか（○／×）</div><table class="envt">';
+  let h=envCur.q?`<div class="note" style="margin:0 0 8px;background:var(--warn-soft,rgba(234,88,12,.12));border-radius:6px;padding:6px 8px"><b>質問：</b>${envCur.q}</div>`:'';
+  h+='<div class="note" style="margin:0 0 4px">① 自動の読みが合っているか（○／×）</div><table class="envt">';
   for(const [k,lab,opts] of EITEMS){const txt=envCur.o[k];if(txt==null)continue;const cur=v[k];
     h+=`<tr><th>${lab}</th><td><div class="pbtags" style="margin:0"><span style="margin-right:6px">${txt}</span>${b(`data-ek="${k}" data-ev="ok"`,cur==='ok','○')}${b(`data-ek="${k}" data-ev="ng"`,cur==='ng','×')}${b(`data-ek="${k}" data-ev="q"`,cur==='q','？')}`+
-      (cur==='ng'?'<span class="lb">本当は</span>'+opts.map(([x,l])=>b(`data-ef="${k}" data-ev="${x}"`,fx[k]===x,l)).join(''):'')+'</div></td></tr>'}
+      (cur==='ng'?'<span class="lb">本当は</span>'+opts.map(([x,l])=>b(`data-ef="${k}" data-ev="${x}"`,fx[k]===x,l)).join('')+
+        (k.startsWith('dow_')?(()=>{const t2=k.slice(4),pf=fx['prot_'+t2];return `<span class="lb" style="flex-basis:100%">正しい押し安値／戻り高値：${pf?pf.p+'（'+fmtAll(pf.t)+'）':'未指定'}</span>`+b(`data-a="envp_${t2}" data-envp="${t2}"`,false,pf?'指定し直す':'チャートで指定')})():''):'')+'</div></td></tr>'}
   h+='</table><div class="note" style="margin:8px 0 4px">② あなたの判断（点線の枠＝自動の数え方の答え。合っていればそれを押すだけ）</div><table class="envt">';
   for(const [k,lab,opts] of ETAGS){const tfk=k.startsWith('stage_')?k.slice(6):null;let au=null;
     if(tfk){const pb=envCur.F['pb_'+tfk],sd=envCur.F['side_'+tfk];au=pb==='none'?'range':pb||null;
@@ -1112,31 +1126,37 @@ function envRender(){const c=document.getElementById('envCard');if(!envCur){c.hi
     if(tfk){const st=tg['start_'+tfk];row+=`<span class="lb" style="flex-basis:100%">トレンドが出たと思う足：${st?fmtAll(st):'未指定'}</span>`+
       b(`data-a="envs_${tfk}" data-envs="${tfk}"`,false,st?'指定し直す':'チャートで指定')+(st?b(`data-envsdel="${tfk}"`,false,'消す'):'')}
     h+=`<tr><th>${lab}</th><td><div class="pbtags">${row}</div></td></tr>`}
-  h+=`</table><textarea id="envNote" rows="2" placeholder="気づいたこと（例：H4 はレンジに見える／すぐ上に日足の高値）">${(e.note||'').replace(/</g,'&lt;')}</textarea>`+
+  const nl=DR.filter(it=>it.d.env===envCur.id).length;
+  h+=`</table><div class="pbtags" style="margin:6px 0"><button data-a="hl" id="envHl">今見ている水平線を引く</button><span class="lb">押してからチャートをクリック（1回で1本）。この時点で引いた線：${nl}本</span></div>`;
+  h+=`<textarea id="envNote" rows="3" placeholder="気づいたこと（音声入力OK：スマホはキーボードのマイク、Windows は Win+H、Mac は fn を2回）">${(e.note||'').replace(/</g,'&lt;')}</textarea>`+
     `<div class="pbtags" style="margin-top:6px"><span class="lb">${ENV[envCur.id]?'保存済み（押すたびに自動で保存）':'まだ保存していません（どれかを押すと保存）'}</span>${ENV[envCur.id]?'<button id="envDel">このチェックを消す</button>':''}</div>`;
-  document.getElementById('envBody').innerHTML=h;if(armed&&armed.startsWith('envs_'))setArmed(armed)}
+  document.getElementById('envBody').innerHTML=h;if(armed&&(armed.startsWith('envs_')||armed.startsWith('envp_')||armed==='hl'))setArmed(armed);
+  const nx=document.getElementById('envNext');if(nx)nx.hidden=!envCur.q}
 async function envSave(upd){if(!db){status('この表示では保存できません');return}if(!envCur)return;const id=envCur.id;
-  const base=ENV[id]||{year,tf:envCur.tf,t:envCur.T,t0:envCur.t0,auto:envCur.o,raw:envCur.F,v:{},fix:{},tags:{},note:'',created:new Date().toISOString()};
+  const base=ENV[id]||{year,tf:envCur.tf,t:envCur.T,t0:envCur.t0,auto:envCur.o,raw:envCur.F,q:envCur.q||null,qkind:envCur.qkind||null,v:{},fix:{},tags:{},note:'',created:new Date().toISOString()};
   const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ENV[id]=nx;envRender();renderEnvList();
   try{await db.collection('envcheck').doc(id).set(nx)}catch(err){status('環境チェックを保存できませんでした')}}
 async function envDelete(id){delete ENV[id];if(envCur&&envCur.id===id)envCur=null;envRender();renderEnvList();rekeep();
   try{await db.collection('envcheck').doc(id).delete();status('消しました')}catch(err){status('消せませんでした')}}
-function renderEnvList(){const el=document.getElementById('envList');if(!el)return;const L=Object.entries(ENV).filter(([,e])=>e.year===year).sort((a,b)=>a[1].t-b[1].t);
+function renderEnvList(){try{renderQ()}catch(e){}
+const el=document.getElementById('envList');if(!el)return;const L=Object.entries(ENV).filter(([,e])=>e.year===year).sort((a,b)=>a[1].t-b[1].t);
   document.getElementById('envCount').textContent=`この年 ${L.length} 件／全部 ${Object.keys(ENV).length} 件`;
   el.innerHTML=L.map(([id,e])=>{const ng=Object.entries(e.v||{}).filter(([,x])=>x==='ng').map(([k])=>(EITEMS.find(z=>z[0]===k)||[,k])[1]),tg=e.tags||{};
     return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage_H4?ETL.stage_H4[tg.stage_H4]:''}</td><td>${tg.stage_H1?ETL.stage_H1[tg.stage_H1]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
-function envAt(px,py){if(py>26||!chart)return null;const d=DV(),ts=chart.timeScale();let best=null,bd=10;
-  for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;const i=fIdx(d,e.t0??(e.t-TFLEN[e.tf]));if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;const dd=Math.abs(X-px);if(dd<bd){bd=dd;best=id}}
+function envAt(px,py){if(py>26||!chart||!document.getElementById('optEnvMk').checked)return null;const d=DV(),ts=chart.timeScale();let best=null,bd=10;
+  for(const [id,e] of Object.entries(ENV)){if(e.year!==year||!objShow(e.tf))continue;const i=fIdx(d,e.t0??(e.t-TFLEN[e.tf]));if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;const dd=Math.abs(X-px);if(dd<bd){bd=dd;best=id}}
   return best}
 function drawEnv(g,W){if(!DATA||!chart)return;const d=DV(),ts=chart.timeScale();
   const mark=(t0,col,sel)=>{const i=fIdx(d,t0);if(i==null)return;const X=ts.logicalToCoordinate(i);if(X==null||X<-10||X>W+10)return;
     g.fillStyle=g.strokeStyle=col;g.beginPath();g.moveTo(X,4);g.lineTo(X+6,11);g.lineTo(X,18);g.lineTo(X-6,11);g.closePath();g.fill();
     if(sel){g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(X,18);g.lineTo(X,4000);g.stroke();g.setLineDash([])}};
-  for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
+  if(document.getElementById('optEnvMk').checked)for(const [id,e] of Object.entries(ENV)){if(e.year!==year||!objShow(e.tf))continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
   if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true);
   if(envCur){const e=ENV[envCur.id]||{},tg=e.tags||{};
     if(envCur.F.res_p!=null){const Y=cs.priceToCoordinate(envCur.F.res_p),i=fIdx(d,envCur.t0),X0=i==null?0:Math.max(0,ts.logicalToCoordinate(i)-260);
       if(Y!=null){g.strokeStyle=g.fillStyle=css('--hl');g.lineWidth=1.5;g.setLineDash([6,4]);g.beginPath();g.moveTo(X0,Y);g.lineTo(W,Y);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText('自動の抵抗 '+envCur.F.res_p,X0+4,Y-4)}}
+    for(const [kk,pf] of Object.entries(e.fix||{})){if(!kk.startsWith('prot_')||!pf||pf.p==null)continue;const q=dP(pf.t,pf.p);if(!q)continue;
+      g.strokeStyle=g.fillStyle=css('--accent');g.lineWidth=2;g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.font='bold 11px '+css('--mono');g.fillText('正しい'+kk.slice(5)+' '+pf.p,q[0]+8,q[1]-6)}
     for(const k of ['H4','H1']){const st=tg['start_'+k];if(st==null)continue;const i=fIdx(d,st);if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;
       g.strokeStyle=g.fillStyle=k==='H4'?css('--s3'):css('--s2');g.lineWidth=1.5;g.setLineDash([2,3]);g.beginPath();g.moveTo(X,22);g.lineTo(X,4000);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText(k+' トレンド開始',X+4,34+(k==='H1'?14:0))}}}
 document.getElementById('chart').addEventListener('click',e=>{if(armed||!DATA||!chart)return;const r=document.getElementById('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
@@ -1147,6 +1167,8 @@ document.getElementById('envClose').onclick=()=>{envCur=null;envRender();rekeep(
 document.getElementById('envAllOk').onclick=()=>{if(!envCur)return;const e=ENV[envCur.id]||{},v={...(e.v||{})};for(const [k] of EITEMS)if(envCur.o[k]!=null&&!v[k])v[k]='ok';envSave({v})};
 document.getElementById('envBody').addEventListener('click',ev=>{if(!envCur)return;const bt=ev.target.closest('button');if(!bt)return;const e=ENV[envCur.id]||{};
   if(bt.id==='envDel'){envDelete(envCur.id);return}
+  if(bt.id==='envHl'){setArmed(armed==='hl'?null:'hl');return}
+  if(bt.dataset.envp){const a='envp_'+bt.dataset.envp;setArmed(armed===a?null:a);status(armed?'正しい押し安値／戻り高値の位置をチャートでクリック':'');return}
   if(bt.dataset.envs){const a='envs_'+bt.dataset.envs;setArmed(armed===a?null:a);status(armed?'トレンドが出たと思う足をチャートでクリック':'');return}
   if(bt.dataset.envsdel){const tags={...(e.tags||{})};delete tags['start_'+bt.dataset.envsdel];envSave({tags});rekeep();return}
   const k=bt.dataset.ek,f=bt.dataset.ef,t=bt.dataset.et,val=bt.dataset.ev;
@@ -1159,6 +1181,31 @@ document.getElementById('envList').addEventListener('click',ev=>{const dl=ev.tar
 {const hd=document.getElementById('envHead');let g=null;hd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const c=document.getElementById('envCard');g={x:e.pageX,y:e.pageY,l:parseFloat(c.style.left)||0,t:parseFloat(c.style.top)||0};hd.setPointerCapture(e.pointerId)});
   hd.addEventListener('pointermove',e=>{if(!g)return;const c=document.getElementById('envCard');c.style.left=(g.l+e.pageX-g.x)+'px';c.style.top=(g.t+e.pageY-g.y)+'px'});
   hd.addEventListener('pointerup',()=>{g=null})}
+
+/* ---------- 質問リスト：自動の読みが迷っている所をこちらから選んで聞く ---------- */
+let QL=[];const QK={count:'押しの数え方',prov:'本ダウと仮ダウ',turn:'本ダウの転換'};
+const sideTxt=(sd,n)=>sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}`:'トレンドなし';
+function buildQs(){QL=[];if(!DATA)return;const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000,out=[];
+  for(const x of ['H4','H1']){const L=TFLEN[x],d=DATA[x];
+    if(PBC&&PBC[x]){let prev=false;for(const r of PBC[x]){const dis=r[1]!==r[3]||(r[1]&&r[2]!==r[4]);
+      if(r[0]>=y0&&r[0]<y1&&dis&&!prev)out.push({tf:x,T:r[0],kind:'count',pri:1,q:`${x}：MA で数えると「${sideTxt(r[1],r[2])}」、ダウで数えると「${sideTxt(r[3],r[4])}」。あなたの見方は？　②の「${x} の段階」を選んでください（どちらでもなければ別のものを）`});prev=dis}}
+    if(d&&d.prot){let st=null;for(let i=0;i<=d.prot.length;i++){const a=d.prot[i],b=d.pprot[i],dis=!!(a&&b&&a[2]&&b[2]&&a[2]!==b[2]);
+      if(dis&&st==null)st=i;if(!dis&&st!=null){const t0=d.prot[st][0];if(i-st>=6&&t0>=y0&&t0<y1)out.push({tf:x,T:t0+L*4,kind:'prov',pri:2,q:`${x}：本ダウは${EDIR[d.prot[st][2]]}のまま、仮ダウは${EDIR[d.pprot[st][2]]}。転換が始まっている？それともただの調整？　①の「${x} ダウ」と②の「${x} の段階」で答えてください`});st=null}}}
+    if(d&&d.ev)for(const e of d.ev){if(e[1]!=='rev'||e[0]<y0||e[0]>=y1)continue;out.push({tf:x,T:e[0]+L,kind:'turn',pri:3,q:`${x}：ここで本ダウが${EDIR[e[2]]}に転換したと判定しました。あなたの見方でも転換？　①の「${x} ダウ」で答えてください。違う所が転換なら「正しい押し安値／戻り高値」で指定を`})}}
+  /* spread over the year: 8 windows per timeframe, one question each, rotating the kinds */
+  const pick=[],NW=8,span=(y1-y0)/NW;
+  for(const x of ['H4','H1']){const used={count:0,prov:0,turn:0};
+    for(let w=0;w<NW;w++){const c=out.filter(q=>q.tf===x&&q.T>=y0+w*span&&q.T<y0+(w+1)*span);if(!c.length)continue;
+      c.sort((a,b)=>used[a.kind]-used[b.kind]||a.pri-b.pri||Math.abs(a.T-(y0+(w+.5)*span))-Math.abs(b.T-(y0+(w+.5)*span)));used[c[0].kind]++;pick.push(c[0])}}
+  QL=pick.sort((a,b)=>a.T-b.T).map(q=>({...q,id:'q_'+q.tf+'_'+q.T}))}
+function renderQ(){const el=document.getElementById('qList');if(!el)return;if(!QL.length)buildQs();const done=QL.filter(q=>ENV[q.id]).length;
+  document.getElementById('qCount').textContent=`この年 ${QL.length} 問／回答済み ${done}`;
+  el.innerHTML=QL.map((q,i)=>`<tr data-qi="${i}" style="cursor:pointer"><td>${fmtAll(q.T)}</td><td>${q.tf}</td><td>${QK[q.kind]}</td><td style="white-space:normal">${q.q}</td><td>${ENV[q.id]?'済み':''}</td></tr>`).join('')||'<tr><td colspan="5" class="note">この年は質問がありません</td></tr>'}
+function openQ(i){const q=QL[i];if(!q)return;if(tf!==q.tf){const b=document.getElementById('tf'+q.tf);if(b)b.click()}
+  setTimeout(()=>{jump(q.T-TFLEN[q.tf]);setTimeout(()=>{openEnv(q.T,q.T-TFLEN[q.tf],null,q.id);envCur.q=q.q;envCur.qkind=q.kind;envCur.qi=i;envRender();rekeep()},250)},150)}
+document.getElementById('qList').addEventListener('click',ev=>{const r=ev.target.closest('[data-qi]');if(r)openQ(+r.dataset.qi)});
+document.getElementById('qStart').onclick=()=>{if(!QL.length)buildQs();const i=QL.findIndex(q=>!ENV[q.id]);openQ(i<0?0:i)};
+document.getElementById('envNext').onclick=()=>{if(!envCur||envCur.qi==null)return;let i=QL.findIndex((q,j)=>j>envCur.qi&&!ENV[q.id]);if(i<0)i=QL.findIndex(q=>!ENV[q.id]);if(i<0){status('この年の質問は全部答えました');return}openQ(i)};
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable();eaTable()},e=>status('評価を読み込めませんでした'));
@@ -1166,8 +1213,8 @@ document.getElementById('envList').addEventListener('click',ev=>{const dl=ev.tar
   db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
   db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
   db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
-  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync()},e=>status('線を読み込めませんでした'));
-  db.collection('envcheck').onSnapshot(s=>{ENV={};for(const d of s.docs)ENV[d.id]=JSON.parse(JSON.stringify(d.data()));renderEnvList();envRender()},e=>status('環境チェックを読み込めませんでした'));
+  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync();if(envCur)envRender()},e=>status('線を読み込めませんでした'));
+  db.collection('envcheck').onSnapshot(s=>{ENV={};for(const d of s.docs)ENV[d.id]=JSON.parse(JSON.stringify(d.data()));renderEnvList();envRender();renderQ()},e=>status('環境チェックを読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
 </script>
