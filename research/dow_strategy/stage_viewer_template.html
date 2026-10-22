@@ -525,10 +525,10 @@ const EAINFO=[
   setup:'M15で、本転換より先に安値の切り上げ（仮転換）が出た所',trig:'次の足ですぐ入る',stop:'切り上げた安値の外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
   res:'ユーロドル PF1.41（1.58/1.25）+38R ／ ポンドドル 1.22 ／ ユーロ円 1.14 ／ ドル円 1.15（前半0.78）'},
  {c:'P',n:'押し目（ユーザーの印から作った候補）',use:'ドル円（不採用・目視確認用）',k:'押し目型',
-  env:'H1の仮ダウとSMA20/75がトレンド方向。価格がH1 SMA75からH1 ATR×2.5以上離れている（強いトレンドの押し）',
+  env:'H1の仮ダウとSMA20/75がトレンド方向。価格がH1 SMA75からH1 ATR×2.5以上離れている（強いトレンドの押し）。H4のレンジ度が0.5未満（レンジ中は入らない）',
   setup:'押しの回数が3回目まで（H1の仮ダウの向きが変わるかSMA75を逆に割ったら数え直し、ATR×2以上の戻りを1回と数える）。戻りがATR×2に達した所',
   trig:'24時間以内にM15が押しの方向から仮転換したら次の足で入る',stop:'H1のスイングの外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
-  res:'ドル円 前半 +25R PF1.16 ／ 後半 +24R PF1.14、最大DD -21R。7本に足すと年+2%だがDDが増えるので不採用。負けトレードを目視して「入らない理由」を探す用'}];
+  res:'ドル円 前半 +18R PF1.35 ／ 後半 +17R PF1.34、最大DD -14R（レンジ除外前は PF1.16/1.14・DD -21R）。7本に足すと年+2.5%、DDは-18%→-20%、最悪年は-3%→-10%。目視確認用の候補'}];
 function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;const v=document.getElementById('trSet').value;const sel=v.startsWith('pf_')?v.slice(3):null;
   const row=(k,t)=>`<tr><th style="white-space:nowrap;text-align:left;padding:3px 8px">${k}</th><td style="padding:3px 8px;white-space:normal;word-break:break-word">${t}</td></tr>`;
   el.innerHTML=EAINFO.map(e=>`<div class="eacard" style="border:1px solid ${e.c===sel?'var(--accent)':'var(--line)'};${e.c===sel?'box-shadow:0 0 0 2px var(--accent);':''}border-radius:8px;padding:8px;margin:8px 0;${sel&&e.c!==sel?'opacity:.55':''}">

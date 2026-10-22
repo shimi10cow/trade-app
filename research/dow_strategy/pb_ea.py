@@ -47,7 +47,7 @@ def counter(K=2.0):
 CNT = {}
 
 
-def ev_pullback(maxn=2, minn=1, K=2.0, ma=True, near=None, win=24, d75=None):
+def ev_pullback(maxn=2, minn=1, K=2.0, ma=True, near=None, win=24, d75=None, maj=False):
     if K not in CNT:
         CNT[K] = counter(K)
     st = CNT[K]; ev = []
@@ -58,6 +58,8 @@ def ev_pullback(maxn=2, minn=1, K=2.0, ma=True, near=None, win=24, d75=None):
         if num < minn or num > maxn:
             continue
         if ma and not (np.isfinite(M20[i]) and np.sign(M20[i] - M75[i]) == s):
+            continue
+        if maj and MAJ[i] != s:
             continue
         if d75 is not None and not (np.isfinite(M75[i]) and s * (cc[i] - M75[i]) >= d75 * A1[i]):
             continue
@@ -142,6 +144,11 @@ def specs(which):
         for d75, trig, stop in itertools.product((1.7, 2.5), ('dow', 'stoch', 'now'), ('m15swing', 'h1swing')):
             S.append((f'P3_d{d75}_{trig}_{stop}', 'P', dict(maxn=3, ma=True, d75=d75, win=24),
                       dict(trig=trig, stop=stop, buf=0.3, exit='h1', act=1.0)))
+    if which == 'P4':
+        for maj, rs in itertools.product((False, True), (None, 0.4, 0.5)):
+            cfg = dict(trig='dow', stop='h1swing', buf=0.3, exit='h1', act=1.0)
+            if rs: cfg.update(env='T2', rs_lo=rs)
+            S.append((f'P4_maj{int(maj)}_rs{rs}', 'P', dict(maxn=3, ma=True, d75=2.5, maj=maj), cfg))
     if which in ('BO', 'all'):
         for kind, trig, stop in itertools.product(('major', 'prov'), ('now', 'dow'), ('m15turn', 'h1swing')):
             S.append((f'BO_{kind}_{trig}_{stop}', 'BO', dict(kind=kind),

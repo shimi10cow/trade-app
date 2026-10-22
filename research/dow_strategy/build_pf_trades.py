@@ -7,7 +7,7 @@ import numpy as np, pandas as pd
 D = Path(__file__).parent / 'results'
 SRC = [('R', 'regime2_R2c.csv', 'レンジ型押し目'), ('T', 'regime2_T1t.csv', 'トレンド型押し目'), ('L', 'tl_N2.csv', 'ライン3〜4点目'), ('A', 'retest_N1.csv', 'H4転換リターン'), ('C', 'step2/cl15_md4tri.csv', 'M15調整ライン抜け'),
        ('J2', 'turn/jt2_h1major+hour0_10.csv', '転換追随（H1同方向・東京時間）'), ('J3', 'turn/j3_h41_s0_h1prot.csv', 'H1本転換についていく'), ('EV', 'session/ev_18-21+0-3.csv', '夜の転換追随'),
-       ('P', 'pb/P3_d2.5_dow_h1swing.csv', '押し目（印から作った候補）')]
+       ('P', 'pb/P4_maj0_rs0.5.csv', '押し目（印から作った候補・レンジ除外）')]
 sec = lambda ts: int((pd.Timestamp(ts) - pd.Timestamp('1970-01-01')) // pd.Timedelta(seconds=1))
 m = pd.read_csv(os.environ['EA_M15_CACHE']); MT = pd.to_datetime(m.time).to_numpy(); MH = m.high.to_numpy(); ML = m.low.to_numpy()
 MULT = float(os.environ.get('PRICE_MULT', '1'))
