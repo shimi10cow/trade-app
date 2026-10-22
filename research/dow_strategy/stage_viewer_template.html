@@ -86,6 +86,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
   <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span></span>
+  <span class="rp"><button id="zMode" title="ダウから作った水平帯（D1・H4・H1）だけを表示して、見る線か・幅・終わる所を直すモード">水平線</button><span id="zTools" class="rp" hidden><label style="font-size:12px"><input type="checkbox" id="zD1" checked> D1</label><label style="font-size:12px"><input type="checkbox" id="zH4" checked> H4</label><label style="font-size:12px"><input type="checkbox" id="zH1"> H1</label><label style="font-size:12px"><input type="checkbox" id="zDead" checked> 終わった線も出す</label><button data-a="zAdd" title="足りない線を足す：帯の上の端と下の端を順にクリック">線を足す</button><button id="zEnd">水平線を終わる</button><span class="note" id="zHint" style="margin:0"></span></span></span>
   <span class="rp"><button id="pbMode" title="トレンドが出た足（B）と何回目の押しかをチャートに置くモード。他の表示は一時的に消えます">押し目カウント</button><span id="pbTools" class="rp" hidden><button data-a="pbB1" title="押してからトレンドが出た足をクリック。そのあとはチャートを押すたびに 1回目・2回目…">上昇 B</button><button data-a="pbB-1" title="押してからトレンドが出た足をクリック。そのあとはチャートを押すたびに 1回目・2回目…">下降 B</button><button data-a="pbN" title="押すたびに次の押し（番号は自動）">次の押し</button><button data-a="pbR" title="レンジに入った足。次の B まで数えない">R レンジ入り</button><label style="font-size:12px"><input type="checkbox" id="pbAuto"> 自動の数え方も出す</label><button id="pbEnd">押し目カウントを終わる</button><span class="note" id="pbHint" style="margin:0"></span></span></span>
   <span class="rp" title="自分で付けた印・線・環境チェックの表示。足を選ぶと、その足で付けたものだけ出します"><b style="font-size:12px">表示：</b><label style="font-size:12px"><input type="checkbox" id="optMk" checked> 入りたい点</label><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 線</label><label style="font-size:12px"><input type="checkbox" id="optEnvMk" checked> 環境チェック</label><select id="msTfSel" title="どの足で付けたものを表示するか"><option value="cur">今の足で付けたもの</option><option value="all">全部の足</option><option value="H4">H4で付けたもの</option><option value="H1">H1で付けたもの</option><option value="M15">M15で付けたもの</option></select></span>
   <span class="rp"><button data-a="env" id="envBtn" title="押してからチャートの足をクリック。その足が確定した時点の「自動の読み」に ○× を付けます">環境チェック</button></span>
@@ -97,6 +98,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="selbar" id="selBar" hidden></div>
 <div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
 <div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envNext" hidden title="次の質問の場所へ">次の質問 ▶</button><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
+<div id="zPop" class="ptpop" hidden><span id="zTxt"></span><button data-zv="ok" title="自分も見る線">○ 見る線</button><button data-zv="ng" title="自分なら引かない">× 要らない</button><button data-zv="live" title="まだ効いている（自動の終わりが早すぎる）">まだ有効</button><button id="zReset" title="判定と直した幅・終わりを消す">元に戻す</button><button id="zDelU" hidden>× 消す</button><button id="zClose">閉じる</button><span class="note" style="margin:0;flex-basis:100%">上下の端・右の端を掴むと、幅と終わる所を直せます</span></div>
 <div id="pbPop" class="ptpop" hidden><span id="pbTxt"></span><button id="pbDel">× 消す</button><button id="pbClose">閉じる</button></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
@@ -125,6 +127,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><label for="fbNote" class="lbl">理由・メモ</label><textarea id="fbNote" rows="2" placeholder="例：H4戻り高値の手前。M15ラインを抜けてからで良かった"></textarea></div>
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
+</section>
+<section class="fb" aria-label="水平線" style="grid-column:1/-1" id="secZ">
+  <div class="fbrow"><b>水平線（ダウから作った水平帯）の判定</b><span class="note" id="zCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「水平線」を押すと、D1・H4（・H1）の帯だけが出ます。帯を押して「○ 見る線／× 要らない／まだ有効」。上下の端を掴むと幅、右の端を掴むと終わる所を直せます。足りない線は「線を足す」で上の端→下の端をクリック。ルール：割れた押し安値・戻り高値／仮の押し安値・戻り高値／Wのネック。外側＝ヒゲ先、内側＝その波で一番ヒゲ寄りの実体。点線＝まだ割れていない（有効化前）。終わり＝実体全体が反対側の端を越えた足。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>できた所</th><th>足</th><th>種類</th><th>帯</th><th>終わり</th><th>判定</th></tr></thead><tbody id="zList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="押し目カウント" style="grid-column:1/-1" id="secPB">
   <div class="fbrow"><b>押し目カウント（あなたのラベル）</b><span class="note" id="pbCount" style="margin:0"></span></div>
@@ -500,7 +507,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;QL=[];try{envRender();renderEnvList();renderQ();renderPB();pbHidePop()}catch(e){}}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;QL=[];try{envRender();renderEnvList();renderQ();renderPB();pbHidePop();zHidePop();renderZ()}catch(e){}}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -661,6 +668,7 @@ document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!
 document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'missed');
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
+  if(armed==='zAdd'){zAddClick(p,price);return}
   if(armed&&armed.startsWith('pb')){pbPlace(p,price);return}
   if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
   if(armed&&armed.startsWith('envp_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
@@ -864,7 +872,7 @@ document.getElementById('rgList').addEventListener('change',async ev=>{const k=e
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
-const UNDER=[['secPB','押し目カウント'],['secQ','質問リスト'],['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+const UNDER=[['secZ','水平線'],['secPB','押し目カウント'],['secQ','質問リスト'],['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
 {const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
   for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
     const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
@@ -1069,6 +1077,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   if(msDraft)drawM({...msDraft,side:msDraft.sl?(msDraft.sl.p<msDraft.p?1:-1):1},true);
   try{drawEnv(g,W)}catch(e){}
   try{drawPB(g,W)}catch(e){}
+  try{drawZ(g,W,r)}catch(e){}
   g.restore()}
 
 /* ---------- 環境チェック：ある時点の「自動の読み」に ○× を付ける（その足が確定した時点の情報だけを使う） ---------- */
@@ -1220,7 +1229,7 @@ document.getElementById('envNext').onclick=()=>{if(!envCur||envCur.qi==null)retu
 let PBM=[],pbOn=false,pbDrag=null,pbSelId=null,PBHIT=[];
 const PBOFF=['optPiv','optProt','optProv','optW','optZone','optLab','optLine','optBo','optTr','optUL','optTri','optRg','optMk','optUser','optEnvMk'];
 try{if(localStorage.getItem('svPB')==='1'){const keep=JSON.parse(localStorage.getItem('svPBkeep')||'null');if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}localStorage.setItem('svPB','0')}}catch(e){}
-function pbSetMode(on){pbOn=on;document.getElementById('pbMode').classList.toggle('armed',on);document.getElementById('pbTools').hidden=!on;
+function pbSetMode(on){if(on&&typeof zOn!=='undefined'&&zOn)zSetMode(false);pbOn=on;document.getElementById('pbMode').classList.toggle('armed',on);document.getElementById('pbTools').hidden=!on;
   if(on){const keep={};for(const id of PBOFF){const e=document.getElementById(id);if(!e)continue;keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svPBkeep',JSON.stringify(keep));localStorage.setItem('svPB','1')}catch(e){}}
   else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svPBkeep'))}catch(e){}if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}try{localStorage.setItem('svPB','0')}catch(e){}if(armed&&armed.startsWith('pb'))setArmed(null);pbHidePop()}
   pbHint();if(chart)rekeep();renderPB()}
@@ -1286,6 +1295,88 @@ document.getElementById('pbList').addEventListener('click',ev=>{const r=ev.targe
     renderPB();try{await db.collection('pbmarks').doc(g.id).update({t:g.m.d.t,p:+(+g.m.d.p).toFixed(5),side:g.m.d.side,year:new Date(g.m.d.t*1000).getUTCFullYear()})}catch(err){Object.assign(g.m.d,g.before);renderPB();status('動かせませんでした')}};
   el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
   el.addEventListener('click',e=>{if(just){e.stopPropagation();e.preventDefault()}},true)}
+
+/* ---------- 水平線モード：ダウから作った水平帯（D1・H4・H1）を判定・修正 ---------- */
+let zOn=false,ZJ={},ZU=[],zSel=null,zDrag=null,ZHIT=[],zFirst=null;
+const ZTF=['D1','H4','H1'],ZCOL={D1:'#9333ea',H4:'#2457c5',H1:'#0e7490',U:'#ea580c'};
+const ZOFF=PBOFF;
+try{if(localStorage.getItem('svZ')==='1'){const keep=JSON.parse(localStorage.getItem('svZkeep')||'null');if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}localStorage.setItem('svZ','0')}}catch(e){}
+function zSetMode(on){if(on&&pbOn)pbSetMode(false);zOn=on;document.getElementById('zMode').classList.toggle('armed',on);document.getElementById('zTools').hidden=!on;
+  if(on){const keep={};for(const id of ZOFF){const e=document.getElementById(id);if(!e)continue;keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svZkeep',JSON.stringify(keep));localStorage.setItem('svZ','1')}catch(e){}}
+  else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svZkeep'))}catch(e){}if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}try{localStorage.setItem('svZ','0')}catch(e){}if(armed==='zAdd')setArmed(null);zHidePop()}
+  zHint();if(chart)rekeep();renderZ()}
+function zHint(){const el=document.getElementById('zHint');if(el)el.textContent=!zOn?'':armed==='zAdd'?(zFirst?'帯の下（上）の端をクリック':'帯の上（下）の端をクリック'):'帯を押すと判定。端を掴むと直せます'}
+const zid=(x,z)=>`${x}_${z[0]}_${z[5]}`;
+function zItems(){if(!DATA)return[];const out=[],now=RT;
+  for(const x of ZTF){if(!document.getElementById('z'+x).checked||!DATA[x]||!DATA[x].zones)continue;
+    for(const z of DATA[x].zones){if(now!=null&&z[1]+TFLEN[x]>now)continue;const id=zid(x,z),j=ZJ[id]||{};
+      let end=j.end!==undefined?j.end:(j.v==='live'?null:z[2]);if(now!=null&&end!=null&&end>now)end=null;
+      if(!document.getElementById('zDead').checked&&end!=null&&j.v!=='ok')continue;
+      out.push({id,tf:x,a:z[0],act:z[1],end,top:j.top??z[4],bot:j.bot??z[3],lab:z[5],v:j.v||null,auto:z,edited:j.top!=null||j.end!==undefined})}}
+  for(const u of ZU){const d=u.d;if(now!=null&&d.t0>now)continue;out.push({id:u.id,tf:d.tf,a:d.t0,act:d.t0,end:d.end??null,top:d.top,bot:d.bot,lab:'あなたの線',v:'user',user:true})}
+  return out}
+function drawZ(g,W,r){if(!zOn||!DATA||!chart)return;const d=DV(),ts=chart.timeScale(),H=r.height,c=d.candles;ZHIT=[];
+  const X=t=>{if(t==null)return W;if(!c.length)return null;if(t<c[0][0])return -5;const i=fIdx(d,t);if(i==null)return W;const x=ts.logicalToCoordinate(i);return x==null?W:x};
+  g.font='11px '+css('--mono');
+  for(const z of zItems()){const x0=X(z.a),xa=X(z.act),x1=X(z.end),y0=cs.priceToCoordinate(z.top),y1=cs.priceToCoordinate(z.bot);
+    if([x0,xa,x1,y0,y1].some(v=>v==null)||x1<0||x0>W)continue;const col=z.user?ZCOL.U:ZCOL[z.tf],h=Math.max(3,y1-y0),ng=z.v==='ng',sel=z.id===zSel;
+    g.globalAlpha=ng?.35:1;g.strokeStyle=col;g.lineWidth=sel?2.2:(z.v==='ok'||z.v==='live'||z.user?1.8:1.1);
+    if(xa>x0){g.setLineDash([3,3]);g.strokeRect(x0,y0,xa-x0,h);g.setLineDash([])}
+    g.fillStyle=col;g.globalAlpha=ng?.06:(sel?.24:.13);g.fillRect(Math.max(xa,x0),y0,x1-Math.max(xa,x0),h);g.globalAlpha=ng?.35:1;
+    g.setLineDash(ng?[2,4]:[]);g.strokeRect(Math.max(xa,x0),y0,x1-Math.max(xa,x0),h);g.setLineDash([]);
+    const tag=`${z.user?'あなた':z.tf} ${z.lab}${z.v==='ok'?' ○':z.v==='ng'?' ×':z.v==='live'?' 有効':''}${z.edited?' 修正':''}`;
+    g.fillStyle=col;g.fillText(tag,Math.max(2,Math.max(xa,x0))+3,y0-3);g.globalAlpha=1;
+    if(sel){g.fillStyle=col;for(const[hx,hy]of[[ (Math.max(xa,x0)+Math.min(x1,W))/2,y0],[(Math.max(xa,x0)+Math.min(x1,W))/2,y0+h]])g.fillRect(hx-6,hy-3,12,6);if(x1<W)g.fillRect(x1-3,y0+h/2-8,6,16)}
+    ZHIT.push({id:z.id,z,x0:Math.max(xa,x0,0),x1:Math.min(x1,W),y0,y1:y0+h})}
+  if(zFirst&&armed==='zAdd'){const y=cs.priceToCoordinate(zFirst.p);if(y!=null){g.strokeStyle=ZCOL.U;g.setLineDash([4,3]);g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();g.setLineDash([])}}}
+function zHit(x,y){let best=null,ba=1e9;for(const h of ZHIT){if(x>=h.x0-3&&x<=h.x1+6&&y>=h.y0-5&&y<=h.y1+5){const a=(h.y1-h.y0);if(a<ba){ba=a;best=h}}}return best}
+function zHandle(x,y){if(!zSel)return null;const h=ZHIT.find(q=>q.id===zSel);if(!h)return null;
+  if(Math.abs(x-h.x1)<=7&&y>=h.y0-4&&y<=h.y1+4&&h.x1<chart.timeScale().width()-2)return {h,part:'end'};
+  if(x>=h.x0&&x<=h.x1){if(Math.abs(y-h.y0)<=5)return {h,part:'top'};if(Math.abs(y-h.y1)<=5)return {h,part:'bot'}}return null}
+function zHidePop(){zSel=null;const e=document.getElementById('zPop');if(e)e.hidden=true}
+function zShowPop(h,x,y){zSel=h.id;const z=h.z,el=document.getElementById('zPop'),r=document.getElementById('chart').getBoundingClientRect();
+  document.getElementById('zTxt').textContent=`${z.user?'あなたの線':z.tf+' '+z.lab}　${(+z.bot).toFixed(z.top>50?3:5)}〜${(+z.top).toFixed(z.top>50?3:5)}　${fmtAll(z.a)}〜${z.end?fmtAll(z.end):'今も有効'}`;
+  for(const b of el.querySelectorAll('[data-zv]')){b.hidden=!!z.user;b.setAttribute('aria-pressed',z.v===b.dataset.zv)}
+  document.getElementById('zReset').hidden=!!z.user;document.getElementById('zDelU').hidden=!z.user;
+  el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-360))+'px';el.style.top=(r.top+scrollY+Math.max(4,y+12))+'px'}
+async function zSave(id,upd){if(!db){status('この表示では保存できません');return}const it=zItems().find(q=>q.id===id);if(!it)return;
+  if(it.user){const u=ZU.find(q=>q.id===id);if(u)Object.assign(u.d,upd);renderZ();try{await db.collection('zuser').doc(id).update(upd)}catch(e){status('保存できませんでした')}return}
+  const base=ZJ[id]||{tf:it.tf,anchor:it.a,act:it.act,auto_end:it.auto[2],auto_top:it.auto[4],auto_bot:it.auto[3],lab:it.lab,year};
+  const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ZJ[id]=nx;renderZ();try{await db.collection('zjudge').doc(id).set(nx)}catch(e){status('保存できませんでした')}}
+async function zAddClick(p,price){if(!zFirst){zFirst={t:p.time,p:price};zHint();return}
+  const a=zFirst;zFirst=null;setArmed(null);zHint();if(!db){status('この表示では保存できません');return}
+  const u={year,tf,t0:Math.min(a.t,p.time),top:Math.max(a.p,price),bot:Math.min(a.p,price),end:null,created:new Date().toISOString()};
+  const tmp={id:'tmp'+Math.random(),d:u};ZU.push(tmp);renderZ();try{const ref=await db.collection('zuser').add(u);tmp.id=ref.id}catch(e){ZU=ZU.filter(q=>q!==tmp);status('保存できませんでした')}}
+function renderZ(){const el=document.getElementById('zList');if(!el||!DATA)return;zHint();const L=zItems().filter(z=>z.a<Date.UTC(year+1,0,1)/1000&&(z.end==null||z.end>=Date.UTC(year,0,1)/1000)).sort((a,b)=>a.act-b.act);
+  const done=L.filter(z=>z.v).length;document.getElementById('zCount').textContent=`表示中 ${L.length} 本／判定済み ${done}`;
+  el.innerHTML=L.map(z=>`<tr data-zid="${z.id}" data-zt="${z.act}" style="cursor:pointer"><td>${fmtAll(z.act)}</td><td>${z.user?'あなた':z.tf}</td><td>${z.lab}</td><td>${(+z.bot).toFixed(z.top>50?3:5)}〜${(+z.top).toFixed(z.top>50?3:5)}</td><td>${z.end?fmtAll(z.end):'有効'}</td><td>${z.v==='ok'?'○':z.v==='ng'?'×':z.v==='live'?'まだ有効':z.user?'追加':''}${z.edited?' 修正':''}</td></tr>`).join('')||'<tr><td colspan="6" class="note">ありません</td></tr>'}
+document.getElementById('zMode').onclick=()=>zSetMode(!zOn);
+document.getElementById('zEnd').onclick=()=>zSetMode(false);
+for(const id of ['zD1','zH4','zH1','zDead'])document.getElementById(id).addEventListener('change',()=>{zHidePop();renderZ()});
+document.querySelector('#zTools [data-a="zAdd"]').onclick=()=>{zFirst=null;setArmed(armed==='zAdd'?null:'zAdd');zHint()};
+for(const b of document.querySelectorAll('#zPop [data-zv]'))b.onclick=()=>{if(!zSel)return;const id=zSel,j=ZJ[id]||{};const v=j.v===b.dataset.zv?null:b.dataset.zv;
+  const upd={v};if(v==='live')upd.end=null;else if(j.v==='live')upd.end=undefined;zSave(id,upd);document.getElementById('zPop').hidden=true};
+document.getElementById('zReset').onclick=async()=>{if(!zSel)return;const id=zSel;delete ZJ[id];zHidePop();renderZ();try{await db.collection('zjudge').doc(id).delete()}catch(e){}};
+document.getElementById('zDelU').onclick=async()=>{if(!zSel)return;const id=zSel;ZU=ZU.filter(q=>q.id!==id);zHidePop();renderZ();try{await db.collection('zuser').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
+document.getElementById('zClose').onclick=()=>zHidePop();
+document.getElementById('zList').addEventListener('click',ev=>{const r=ev.target.closest('[data-zid]');if(!r)return;if(!zOn)zSetMode(true);jump(+r.dataset.zt);setTimeout(()=>{zSel=r.dataset.zid},300)});
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};let just=false;
+  el.addEventListener('pointerdown',e=>{if(!zOn||armed||e.button!==0||!DATA||!chart)return;const[x,y]=xy(e);const hd=zHandle(x,y);
+    if(hd){e.stopPropagation();e.preventDefault();zDrag={id:hd.h.id,part:hd.part,z:hd.h.z,moved:false};chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur(hd.part==='end'?'ew-resize':'ns-resize');return}
+    const h=zHit(x,y);if(!h)return;e.stopPropagation();e.preventDefault();zDrag={id:h.id,part:'tap',z:h.z,x,y,moved:false};el.setPointerCapture(e.pointerId)},true);
+  el.addEventListener('pointermove',e=>{if(!zOn)return;const[x,y]=xy(e);
+    if(zDrag){e.stopPropagation();e.preventDefault();if(zDrag.part==='tap')return;zDrag.moved=true;const z=zDrag.z;
+      if(zDrag.part==='end'){const li=chart.timeScale().coordinateToLogical(x);if(li==null)return;const d=DV(),i=Math.max(0,Math.min(d.candles.length-1,Math.round(li)));z.end=d.candles[i][0]}
+      else{const pr=cs.coordinateToPrice(y);if(pr==null)return;if(zDrag.part==='top')z.top=Math.max(pr,z.bot);else z.bot=Math.min(pr,z.top)}
+      zDrag.tmp={top:z.top,bot:z.bot,end:z.end};const it=ZHIT.find(q=>q.id===z.id);if(it)Object.assign(it.z,z);
+      if(z.user){const u=ZU.find(q=>q.id===z.id);if(u)Object.assign(u.d,{top:z.top,bot:z.bot,end:z.end})}else ZJ[z.id]={...(ZJ[z.id]||{}),...(zDrag.part==='end'?{end:z.end}:{top:z.top,bot:z.bot})};return}
+    if(!armed){const hd=zHandle(x,y);setCur(hd?(hd.part==='end'?'ew-resize':'ns-resize'):zHit(x,y)?'pointer':'')}},true);
+  const end=async e=>{if(!zDrag)return;e.stopPropagation();const g=zDrag;zDrag=null;just=true;setTimeout(()=>just=false,50);chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(g.part==='tap'){const h=ZHIT.find(q=>q.id===g.id);if(h)zShowPop(h,g.x,g.y);return}
+    if(!g.moved)return;const r5=v=>+(+v).toFixed(5);
+    await zSave(g.id,g.part==='end'?{end:g.z.end}:{top:r5(g.z.top),bot:r5(g.z.bot)})};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',e=>{if(just){e.stopPropagation();e.preventDefault()}},true)}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable();eaTable()},e=>status('評価を読み込めませんでした'));
@@ -1294,6 +1385,8 @@ document.getElementById('pbList').addEventListener('click',ev=>{const r=ev.targe
   db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
   db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync();if(envCur)envRender()},e=>status('線を読み込めませんでした'));
+  db.collection('zjudge').onSnapshot(s=>{if(zDrag)return;ZJ={};for(const d of s.docs)ZJ[d.id]={...d.data()};renderZ()},e=>status('水平線の判定を読み込めませんでした'));
+  db.collection('zuser').onSnapshot(s=>{if(zDrag)return;ZU=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderZ()},e=>status('足した水平線を読み込めませんでした'));
   db.collection('pbmarks').onSnapshot(s=>{if(pbDrag)return;PBM=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderPB()},e=>status('押し目のラベルを読み込めませんでした'));
   db.collection('envcheck').onSnapshot(s=>{ENV={};for(const d of s.docs)ENV[d.id]=JSON.parse(JSON.stringify(d.data()));renderEnvList();envRender();renderQ()},e=>status('環境チェックを読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
