@@ -49,6 +49,8 @@ def run1(c):
 
 if __name__ == '__main__':
     G = list(itertools.product(('ma', 'prov'), ('ma', 'prov'), ('stoch', 'dow'), ('both_d', 'buy', 'buy_d')))
+    if os.environ.get('ST_FX'):
+        G = list(itertools.product(('ma', 'prov'), ('ma', 'prov'), ('dow', 'stoch'), ('both_d',)))
     with Pool(int(os.environ.get('NPROC', '4'))) as p:
         for name, n in p.imap_unordered(run1, G):
             print(name, n, flush=True)

@@ -1,7 +1,7 @@
 """Summarise st_trend.py results per instrument (instrument split + realistic cost; top-5 dependence)."""
 import sys, glob, numpy as np, pandas as pd
 from pathlib import Path
-CFG = {'XAUUSD': ((2005, 2015), (2016, 2026), 2.5), 'BTCUSD': ((2017, 2021), (2022, 2026), 8.0)}
+CFG = {'XAUUSD': ((2005, 2015), (2016, 2026), 2.5), 'BTCUSD': ((2017, 2021), (2022, 2026), 8.0), 'EURUSD': ((2005, 2015), (2016, 2026), 1.2), 'USDJPY': ((2005, 2015), (2016, 2026), 1.2)}
 pf = lambda r: r[r > 0].sum() / max(1e-9, -r[r <= 0].sum())
 sym, D = sys.argv[1], Path(sys.argv[2]); h1, h2, c = CFG[sym]; rows = []
 for f in sorted(D.glob('S_*.csv')):
