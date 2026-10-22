@@ -56,7 +56,8 @@ tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--a
 .up{color:var(--up)} .down{color:var(--down)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-.pbtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.pbtags button{font:600 12px var(--mono);padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.pbtags button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}.pbtags button.auto{border:2px dashed var(--accent)}.pbtags .lb{font-size:11px;color:var(--muted,#888)}.ptpop{max-width:min(440px,92vw);flex-wrap:wrap;position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.pbtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.pbtags button{font:600 12px var(--mono);padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.pbtags button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}.pbtags button.auto{border:2px dashed var(--accent)}.pbtags .lb{font-size:11px;color:var(--muted,#888)}.fbfloat{position:absolute;z-index:25;width:min(430px,92vw);max-height:min(62vh,560px);overflow:auto;background:var(--panel);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.28)}.fbfloat .fb{border:none;padding:6px 10px 10px}.fbfhead{display:flex;gap:6px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);cursor:move;position:sticky;top:0;background:var(--panel);z-index:1;font-size:13px}.fbfhead button{font:600 12px var(--mono);padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.ptpop{max-width:min(440px,92vw);flex-wrap:wrap;position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
@@ -90,6 +91,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
+<div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
@@ -254,7 +256,7 @@ function build(){
   setupZones(el);
   const d=fillAll();
   const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
-  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{if(typeof hidePt==='function'&&ptCur)hidePt();cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
+  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{if(typeof hidePt==='function'&&ptCur)hidePt();if(typeof fbPlace==='function'&&!fbDragPos)requestAnimationFrame(fbPlace);cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
   const all=d.ev.filter(e=>e[1]!=='bo').concat(
     d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
     d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
@@ -584,18 +586,38 @@ async function save(x,f){if(!db){status('この表示では保存できません
   try{await p;status('保存しました')}catch(e){status('保存できませんでした（'+(e.code||e.message||'エラー')+'）')}}
 function status(t){document.getElementById('fbStatus').textContent=t}
 function renderSel(){const el=document.getElementById('selBar');const x=curTrade();if(!x){el.hidden=true;return}el.hidden=false;
-  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button><button id="selClose">選択を外す</button>`}
+  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button>${fbFloatOn?'':'<button id="selFloat">評価をチャートの横に出す</button>'}<button id="selClose">選択を外す</button>`}
 document.getElementById('selBar').addEventListener('click',ev=>{const x=curTrade();if(!x)return;
   const q=ev.target.closest('[data-qk]');if(q){const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;save(x,f);return}
+  if(ev.target.id==='selFloat'){fbFloatOn=true;try{localStorage.setItem('fbFloat','1')}catch(e){};fbDragPos=null;renderFb();return}
   if(ev.target.id==='selMemo'){const fb=document.getElementById('fbBox');fb.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>document.getElementById('fbNote').focus({preventScroll:true}),400)}
   if(ev.target.id==='selClose'){trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()}});
-function renderFb(){renderSel();const x=curTrade();const body=document.getElementById('fbBody');
+function renderFb(){renderSel();const x=curTrade();const body=document.getElementById('fbBody');setTimeout(fbPlace);
   if(!x){body.hidden=true;document.getElementById('fbTitle').textContent='チャートのトレードをタップするか、一覧から選ぶと、ここで評価できます';return}
   body.hidden=false;document.getElementById('fbTitle').textContent=`${year}年 #${x.n}　${x.side===1?'買い':'売り'}　${x.src?x.src+' '+x.srcl:'段階'+(x.stg<0?'H4逆':x.stg)}　${x.R>0?'+':''}${x.R}R${x.mfe!=null?'（最大含み益 +'+x.mfe+'R）':''}`;
   const f=FB[fid(x)]||{};
   for(const el of document.querySelectorAll('.seg[data-k]'))for(const b of el.children)b.setAttribute('aria-pressed',f[el.dataset.k]===b.dataset.v);
   const I=f.ideal||{};document.getElementById('idealTxt').textContent=IDEAL.filter(([k])=>I[k]).map(([k,lab])=>`${lab} ${I[k].p}（${fmt(I[k].t)}）`).join('　')||'ボタンを押してからチャートをクリックすると、理想の位置を置けます';
   const n=document.getElementById('fbNote');if(document.activeElement!==n)n.value=f.note||''}
+/* evaluation panel floats beside the selected trade's entry on the chart (can be dragged, or sent back below) */
+var fbFloatOn=true;try{fbFloatOn=localStorage.getItem('fbFloat')!=='0'}catch(e){}
+var fbHome=null,fbDragPos=null,fbLastSel=null;
+function fbPlace(){const fb=document.getElementById('fbBox'),fl=document.getElementById('fbFloat');if(!fb||!fl)return;
+  if(!fbHome)fbHome={parent:fb.parentNode,next:fb.nextSibling};const x=curTrade();
+  if(!x||!fbFloatOn||!chart){if(fb.parentNode===fl)fbHome.parent.insertBefore(fb,fbHome.next);fl.hidden=true;return}
+  if(fb.parentNode!==fl)fl.appendChild(fb);fl.hidden=false;if(fbLastSel!==x.n+'_'+year){fbLastSel=x.n+'_'+year;fbDragPos=null}
+  const r=document.getElementById('chart').getBoundingClientRect(),W=fl.offsetWidth,H=fl.offsetHeight;
+  if(fbDragPos){fl.style.left=fbDragPos.x+'px';fl.style.top=fbDragPos.y+'px';return}
+  let px=null,py=null;try{const li=fIdx(DV(),x.t);if(li!=null){px=chart.timeScale().logicalToCoordinate(li);py=cs.priceToCoordinate(x.entry)}}catch(e){}
+  let left,top;if(px==null||py==null||px<0||px>r.width){left=r.width-W-8;top=8}else{left=px>r.width/2?px-W-18:px+18;top=py-40}
+  left=Math.max(4,Math.min(left,r.width-W-4));top=Math.max(4,Math.min(top,r.height-Math.min(H,r.height)-4));
+  fl.style.left=(r.left+scrollX+left)+'px';fl.style.top=(r.top+scrollY+top)+'px'}
+document.getElementById('fbfHome').onclick=()=>{fbFloatOn=false;try{localStorage.setItem('fbFloat','0')}catch(e){};fbPlace();renderSel();document.getElementById('fbBox').scrollIntoView({block:'center',behavior:'smooth'})};
+document.getElementById('fbfClose').onclick=()=>{trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()};
+{const hd=document.querySelector('#fbFloat .fbfhead');let g=null;hd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const fl=document.getElementById('fbFloat');g={x:e.pageX,y:e.pageY,l:parseFloat(fl.style.left)||0,t:parseFloat(fl.style.top)||0};hd.setPointerCapture(e.pointerId)});
+  hd.addEventListener('pointermove',e=>{if(!g)return;const fl=document.getElementById('fbFloat');fbDragPos={x:g.l+e.pageX-g.x,y:g.t+e.pageY-g.y};fl.style.left=fbDragPos.x+'px';fl.style.top=fbDragPos.y+'px'});
+  hd.addEventListener('pointerup',()=>{g=null})}
+window.addEventListener('resize',()=>{fbDragPos=null;fbPlace()});
 let noteTimer=0;document.getElementById('fbNote').addEventListener('input',()=>{clearTimeout(noteTimer);noteTimer=setTimeout(()=>{const x=curTrade();if(!x)return;const f=draft(x);f.note=document.getElementById('fbNote').value;save(x,f)},800)});
 document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!db)return;const id=fid(x);delete FB[id];renderFb();trTable();
   try{await db.collection('feedback').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
@@ -757,7 +779,7 @@ function tradeAt(px,py){if(!document.getElementById('optTr').checked)return null
   return best!=null?best:box}
 function selectTrade(n){trSel=n;build.keep=true;const r=chart.timeScale().getVisibleLogicalRange();build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);
   trTable();renderFb();const row=document.querySelector(`#trList tr[data-n="${n}"]`);if(row){const lg=row.closest('.log');if(lg)lg.scrollTop=row.offsetTop-lg.clientHeight/2}
-  const fb=document.getElementById('fbBox');fb.classList.remove('flash');void fb.offsetWidth;fb.classList.add('flash')}
+  const fb=document.getElementById('fbBox');fb.classList.remove('flash');void fb.offsetWidth;fb.classList.add('flash');setTimeout(fbPlace,30)}
 function tAt(i){const c=DV().candles,n=c.length-1;if(i>n)return c[n][0]+Math.round(i-n)*TFLEN[tf];return c[Math.max(0,Math.round(i))][0]}
 /* ---------- market state labels (user's environment view): time ranges tagged up/down impulse, correction, range ---------- */
 const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b'],['enter_buy','買いで入りたい','rgba(22,163,74,.15)','#15803d'],['watch_buy','買いを検討中','rgba(22,163,74,.06)','#4d9b6b'],['enter_sell','売りで入りたい','rgba(219,39,119,.14)','#be185d'],['watch_sell','売りを検討中','rgba(219,39,119,.06)','#c06a95'],['avoid','触りたくない','rgba(120,120,120,.10)','#475569']];
