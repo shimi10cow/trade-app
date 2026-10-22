@@ -130,7 +130,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="水平線" style="grid-column:1/-1" id="secZ">
   <div class="fbrow"><b>水平線（ダウから作った水平帯）の判定</b><span class="note" id="zCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">上の「水平線」を押すと、D1・H4（・H1）の帯だけが出ます。帯を押して「○ 見る線／× 要らない／まだ有効」。上下の端を掴むと幅、右の端を掴むと終わる所を直せます。足りない線は「線を足す」で上の端→下の端をクリック。ルール：割れた押し安値・戻り高値／仮の押し安値・戻り高値／Wのネック。外側＝ヒゲ先、内側＝その波で一番ヒゲ寄りの実体。点線＝まだ割れていない（有効化前）。終わり＝実体全体が反対側の端を越えた足。</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「水平線」を押すと、D1・H4（・H1）の帯だけが出ます。帯を押して「○ 見る線／× 要らない／まだ有効」。上下の端を掴むと幅、右の端を掴むと終わる所を直せます。足りない線は「線を足す」で上の端→下の端をクリック。ルール：割れた押し安値・戻り高値／仮の押し安値・戻り高値／Wのネック。外側＝ヒゲ先、内側＝その波で一番ヒゲ寄りの実体。帯は元の高値・安値から終わりの足まで。終わり＝実体全体が反対側の端を越えた足。この年より前に終わった帯は出しません。</span></div>
   <div class="log" style="max-height:240px"><table><thead><tr><th>できた所</th><th>足</th><th>種類</th><th>帯</th><th>終わり</th><th>判定</th></tr></thead><tbody id="zList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="押し目カウント" style="grid-column:1/-1" id="secPB">
@@ -1298,7 +1298,7 @@ document.getElementById('pbList').addEventListener('click',ev=>{const r=ev.targe
 
 /* ---------- 水平線モード：ダウから作った水平帯（D1・H4・H1）を判定・修正 ---------- */
 let zOn=false,ZJ={},ZU=[],zSel=null,zDrag=null,ZHIT=[],zFirst=null;
-const ZTF=['D1','H4','H1'],ZCOL={D1:'#9333ea',H4:'#2457c5',H1:'#0e7490',U:'#ea580c'};
+const ZTF=['D1','H4','H1'],ZCOL={D1:'#9333ea',H4:'#22c55e',H1:'#06b6d4',U:'#ea580c'};
 const ZOFF=PBOFF;
 try{if(localStorage.getItem('svZ')==='1'){const keep=JSON.parse(localStorage.getItem('svZkeep')||'null');if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}localStorage.setItem('svZ','0')}}catch(e){}
 function zSetMode(on){if(on&&pbOn)pbSetMode(false);zOn=on;document.getElementById('zMode').classList.toggle('armed',on);document.getElementById('zTools').hidden=!on;
@@ -1311,9 +1311,10 @@ function zItems(){if(!DATA)return[];const out=[],now=RT;
   for(const x of ZTF){if(!document.getElementById('z'+x).checked||!DATA[x]||!DATA[x].zones)continue;
     for(const z of DATA[x].zones){if(now!=null&&z[1]+TFLEN[x]>now)continue;const id=zid(x,z),j=ZJ[id]||{};
       let end=j.end!==undefined?j.end:(j.v==='live'?null:z[2]);if(now!=null&&end!=null&&end>now)end=null;
+      if(end!=null&&end<Date.UTC(year,0,1)/1000)continue;
       if(!document.getElementById('zDead').checked&&end!=null&&j.v!=='ok')continue;
       out.push({id,tf:x,a:z[0],act:z[1],end,top:j.top??z[4],bot:j.bot??z[3],lab:z[5],v:j.v||null,auto:z,edited:j.top!=null||j.end!==undefined})}}
-  for(const u of ZU){const d=u.d;if(now!=null&&d.t0>now)continue;out.push({id:u.id,tf:d.tf,a:d.t0,act:d.t0,end:d.end??null,top:d.top,bot:d.bot,lab:'あなたの線',v:'user',user:true})}
+  for(const u of ZU){const d=u.d;if(now!=null&&d.t0>now)continue;if(d.end!=null&&d.end<Date.UTC(year,0,1)/1000)continue;out.push({id:u.id,tf:d.tf,a:d.t0,act:d.t0,end:d.end??null,top:d.top,bot:d.bot,lab:'あなたの線',v:'user',user:true})}
   return out}
 function drawZ(g,W,r){if(!zOn||!DATA||!chart)return;const d=DV(),ts=chart.timeScale(),H=r.height,c=d.candles;ZHIT=[];
   const X=t=>{if(t==null)return W;if(!c.length)return null;if(t<c[0][0])return -5;const i=fIdx(d,t);if(i==null)return W;const x=ts.logicalToCoordinate(i);return x==null?W:x};
@@ -1321,13 +1322,13 @@ function drawZ(g,W,r){if(!zOn||!DATA||!chart)return;const d=DV(),ts=chart.timeSc
   for(const z of zItems()){const x0=X(z.a),xa=X(z.act),x1=X(z.end),y0=cs.priceToCoordinate(z.top),y1=cs.priceToCoordinate(z.bot);
     if([x0,xa,x1,y0,y1].some(v=>v==null)||x1<0||x0>W)continue;const col=z.user?ZCOL.U:ZCOL[z.tf],h=Math.max(3,y1-y0),ng=z.v==='ng',sel=z.id===zSel;
     g.globalAlpha=ng?.35:1;g.strokeStyle=col;g.lineWidth=sel?2.2:(z.v==='ok'||z.v==='live'||z.user?1.8:1.1);
-    if(xa>x0){g.setLineDash([3,3]);g.strokeRect(x0,y0,xa-x0,h);g.setLineDash([])}
-    g.fillStyle=col;g.globalAlpha=ng?.06:(sel?.24:.13);g.fillRect(Math.max(xa,x0),y0,x1-Math.max(xa,x0),h);g.globalAlpha=ng?.35:1;
-    g.setLineDash(ng?[2,4]:[]);g.strokeRect(Math.max(xa,x0),y0,x1-Math.max(xa,x0),h);g.setLineDash([]);
+    const xs=Math.max(x0,-5);
+    g.fillStyle=col;g.globalAlpha=ng?.05:(sel?.22:.12);g.fillRect(xs,y0,x1-xs,h);g.globalAlpha=ng?.35:.9;
+    g.setLineDash(ng?[2,4]:[]);g.strokeRect(xs,y0,x1-xs,h);g.setLineDash([]);
     const tag=`${z.user?'あなた':z.tf} ${z.lab}${z.v==='ok'?' ○':z.v==='ng'?' ×':z.v==='live'?' 有効':''}${z.edited?' 修正':''}`;
-    g.fillStyle=col;g.fillText(tag,Math.max(2,Math.max(xa,x0))+3,y0-3);g.globalAlpha=1;
-    if(sel){g.fillStyle=col;for(const[hx,hy]of[[ (Math.max(xa,x0)+Math.min(x1,W))/2,y0],[(Math.max(xa,x0)+Math.min(x1,W))/2,y0+h]])g.fillRect(hx-6,hy-3,12,6);if(x1<W)g.fillRect(x1-3,y0+h/2-8,6,16)}
-    ZHIT.push({id:z.id,z,x0:Math.max(xa,x0,0),x1:Math.min(x1,W),y0,y1:y0+h})}
+    g.fillStyle=col;g.fillText(tag,Math.max(2,xs)+3,y0-3);g.globalAlpha=1;
+    if(sel){g.fillStyle=col;for(const[hx,hy]of[[(Math.max(xs,0)+Math.min(x1,W))/2,y0],[(Math.max(xs,0)+Math.min(x1,W))/2,y0+h]])g.fillRect(hx-6,hy-3,12,6);if(x1<W)g.fillRect(x1-3,y0+h/2-8,6,16)}
+    ZHIT.push({id:z.id,z,x0:Math.max(xs,0),x1:Math.min(x1,W),y0,y1:y0+h})}
   if(zFirst&&armed==='zAdd'){const y=cs.priceToCoordinate(zFirst.p);if(y!=null){g.strokeStyle=ZCOL.U;g.setLineDash([4,3]);g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();g.setLineDash([])}}}
 function zHit(x,y){let best=null,ba=1e9;for(const h of ZHIT){if(x>=h.x0-3&&x<=h.x1+6&&y>=h.y0-5&&y<=h.y1+5){const a=(h.y1-h.y0);if(a<ba){ba=a;best=h}}}return best}
 function zHandle(x,y){if(!zSel)return null;const h=ZHIT.find(q=>q.id===zSel);if(!h)return null;
