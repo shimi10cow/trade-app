@@ -61,6 +61,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
 .underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
 #under:empty{display:none}#under>*{grid-column:1/-1}
+.envt{width:100%;border-collapse:collapse;font-size:12.5px}.envt th{text-align:left;white-space:normal;width:7.2em;min-width:7.2em;padding:5px 6px;vertical-align:top;color:var(--muted);font-weight:500}.envt td{padding:5px 6px;border-bottom:1px solid var(--line);white-space:normal;word-break:break-word}.envt .pbtags{margin-top:3px}#envCard{width:min(500px,94vw);max-height:min(78vh,720px)}#envBody textarea{width:100%;box-sizing:border-box;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
 </style>
 
 <div class="bar">
@@ -85,13 +86,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
   <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button><select id="msTfSel" title="どの足で付けた印を表示するか"><option value="cur">表示：今の足で付けた印</option><option value="all">表示：全部の足の印</option><option value="H4">表示：H4で付けた印</option><option value="H1">表示：H1で付けた印</option><option value="M15">表示：M15で付けた印</option><option value="none">表示：印を隠す</option></select></span>
   <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 表示</label></span>
-  <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnd">リプレイ終了</button></span></span>
+  <span class="rp"><button data-a="env" id="envBtn" title="押してからチャートの足をクリック。その足が確定した時点の「自動の読み」に ○× を付けます">環境チェック</button></span>
+  <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnv">この位置で環境チェック</button><button id="rpEnd">リプレイ終了</button></span></span>
   <span class="state" id="state"></span>
 </div>
 <div class="hover" id="hover"></div>
 <div id="chart"></div>
 <div class="selbar" id="selBar" hidden></div>
 <div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
+<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envAllOk" title="まだ押していない項目を全部 ○ にする">残りを全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
 <div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
 <div class="htf" id="htfBar"></div>
 <div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
@@ -119,6 +122,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="fbrow"><label for="fbNote" class="lbl">理由・メモ</label><textarea id="fbNote" rows="2" placeholder="例：H4戻り高値の手前。M15ラインを抜けてからで良かった"></textarea></div>
     <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
   </div>
+</section>
+<section class="fb" aria-label="環境チェック" style="grid-column:1/-1" id="secEnv">
+  <div class="fbrow"><b>環境チェック（チャートの状態の読みが合っているか）</b><span class="note" id="envCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、自動の読みを出します。合っていれば○、違えば×を押して本当の状態を選ぶだけ。「残りを全部○」でまとめて○にできます。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かります。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>違っていた項目</th><th>段階</th><th>自分なら</th><th>メモ</th><th></th></tr></thead><tbody id="envList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="EAの条件" style="grid-column:1/-1" id="secEA">
   <div class="fbrow"><b>EAの条件</b><span class="note" style="margin:0">上の「表示するEA」で選んだEAが強調されます。成績は2005〜2026年、コスト1.2pips込み、PFの（ ）は前半2005-15／後半2016-26</span></div>
@@ -479,7 +487,7 @@ async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){
   DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
   DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
   applySet();
-  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri()}
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;try{envRender();renderEnvList()}catch(e){}}
 /* ---------- summary ---------- */
 (function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
   const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
@@ -601,9 +609,10 @@ async function save(x,f){if(!db){status('この表示では保存できません
   try{await p;status('保存しました')}catch(e){status('保存できませんでした（'+(e.code||e.message||'エラー')+'）')}}
 function status(t){document.getElementById('fbStatus').textContent=t}
 function renderSel(){const el=document.getElementById('selBar');const x=curTrade();if(!x){el.hidden=true;return}el.hidden=false;
-  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button>${fbFloatOn?'':'<button id="selFloat">評価をチャートの横に出す</button>'}<button id="selClose">選択を外す</button>`}
+  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button><button id="selEnv">エントリー時の環境</button>${fbFloatOn?'':'<button id="selFloat">評価をチャートの横に出す</button>'}<button id="selClose">選択を外す</button>`}
 document.getElementById('selBar').addEventListener('click',ev=>{const x=curTrade();if(!x)return;
   const q=ev.target.closest('[data-qk]');if(q){const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;save(x,f);return}
+  if(ev.target.id==='selEnv'){openEnv(x.t,x.t,null);rekeep();return}
   if(ev.target.id==='selFloat'){fbFloatOn=true;try{localStorage.setItem('fbFloat','1')}catch(e){};fbDragPos=null;renderFb();return}
   if(ev.target.id==='selMemo'){const fb=document.getElementById('fbBox');fb.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>document.getElementById('fbNote').focus({preventScroll:true}),400)}
   if(ev.target.id==='selClose'){trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()}});
@@ -639,6 +648,7 @@ document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!
 document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'missed');
 for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
 async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
+  if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
   if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
   if(armed==='hl'||armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
   if(armed&&armed.startsWith('rg_'))return rgClick(p);
@@ -832,7 +842,7 @@ document.getElementById('rgList').addEventListener('change',async ev=>{const k=e
   try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
 document.getElementById('optRg').addEventListener('change',()=>{});
 /* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
-const UNDER=[['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+const UNDER=[['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
 {const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
   for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
     const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
@@ -1035,7 +1045,101 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
       if(sel){g.globalAlpha=.10;g.fillRect(q[0],Math.min(q[1],xe[1]),xe[0]-q[0],Math.abs(xe[1]-q[1]));g.globalAlpha=1}}};
   for(const m of MS)if(m.d.year===year&&msShow(m.d))drawM(m.d,m.id===msSel);
   if(msDraft)drawM({...msDraft,side:msDraft.sl?(msDraft.sl.p<msDraft.p?1:-1):1},true);
+  try{drawEnv(g,W)}catch(e){}
   g.restore()}
+
+/* ---------- 環境チェック：ある時点の「自動の読み」に ○× を付ける（その足が確定した時点の情報だけを使う） ---------- */
+let ENV={},envCur=null,envTimer=0;
+const EDIR={up:'上昇',down:'下降',none:'判定前'};
+function eLast(a,T,L){let lo=-1,hi=a.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m][0]+L<=T)lo=m;else hi=m-1}return lo}
+let EATR={y:null};
+function eAtr(){const c=DATA.H1.candles;if(EATR.y===year&&EATR.n===c.length)return EATR.a;const a=new Array(c.length).fill(null);let s=0;
+  const tr=c.map((x,i)=>i?Math.max(x[2]-x[3],Math.abs(x[2]-c[i-1][4]),Math.abs(x[3]-c[i-1][4])):x[2]-x[3]);
+  for(let i=0;i<c.length;i++){s+=tr[i];if(i>=14)s-=tr[i-14];if(i>=13)a[i]=s/14}EATR={y:year,n:c.length,a};return a}
+const DIRO=[['up','上昇'],['down','下降'],['range','レンジ'],['unk','わからない']],PBO2=[['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目以降'],['bo','転換中・ブレイク'],['none','トレンドなし']];
+const EITEMS=[['dow_D1','D1 ダウ',DIRO],['dow_H4','H4 ダウ',DIRO],['dow_H1','H1 ダウ',DIRO],['dow_M15','M15 ダウ',DIRO],
+  ['pb_H4','H4 何回目の押し',PBO2],['pb_H1','H1 何回目の押し',PBO2],
+  ['wave','H1 の波',[['push','推進中'],['corr','調整中'],['corrend','調整の終わりかけ'],['range','レンジ']]],
+  ['yoko','横軸（調整の時間）',[['filled','埋まっている'],['short','まだ短い'],['na','関係ない']]],
+  ['ma','H1 の MA',[['up','上向き'],['down','下向き'],['flat','横ばい']]],
+  ['vol','値動きの大きさ',[['quiet','静か'],['normal','普通'],['wild','荒い']]],
+  ['res','近くの H4 抵抗',[['near','近い'],['room','余裕あり'],['none','ない']]]];
+const ETAGS=[['stage','相場の段階',[['early','トレンド序盤'],['mid','中盤'],['late','終盤'],['range','レンジ'],['turn','転換中']]],
+  ['me','自分なら',[['buy','買いたい'],['sell','売りたい'],['wait','様子見'],['skip','触らない']]]];
+const ETL=Object.fromEntries(ETAGS.map(([k,,o])=>[k,Object.fromEntries(o)]));
+function envAuto(T){const o={},F={};
+  for(const x of ['D1','H4','H1','M15']){const d=DATA[x];if(!d||!d.prot)continue;const L=TFLEN[x],i=eLast(d.prot,T,L),j=eLast(d.pprot,T,L);
+    const mj=(i>=0&&d.prot[i][2])||'none',pv=(j>=0&&d.pprot[j][2])||'none';F['dow_'+x]=mj;F['pdow_'+x]=pv;
+    o['dow_'+x]=EDIR[mj]+(pv!=='none'&&pv!==mj?'（仮ダウは'+EDIR[pv]+'）':'')+(mj!=='none'&&d.prot[i][1]!=null?'　'+(mj==='up'?'押し安値 ':'戻り高値 ')+d.prot[i][1]:'')}
+  for(const b of ['H4','H1'])if(PBC&&PBC[b]){const R=PBC[b];let lo=-1,hi=R.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(R[m][0]<=T)lo=m;else hi=m-1}
+    if(lo>=0){const sd=R[lo][1],n=R[lo][2];F['pb_'+b]=sd?String(Math.min(n+1,4)):'none';o['pb_'+b]=sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}の押し（MA基準）`:'トレンドなし（MA基準）'}}
+  const H=DATA.H1;if(!H)return {o,F};const k=eLast(H.candles,T,3600);if(k<20)return {o,F};
+  const c=H.candles,close=c[k][4],A=eAtr(),atr=A[k],s=F.dow_H1==='up'?1:F.dow_H1==='down'?-1:0;F.close=close;
+  if(s){const want=s===1?'hi':'lo',P=H.piv.filter(p=>p[4]<=T);let e=P.length-1;while(e>=0&&P[e][1]!==want)e--;let g=e-1;while(g>=0&&P[g][1]===want)g--;
+    if(e>=0&&g>=0){const ext=P[e],org=P[g],imp=s*(ext[2]-org[2]),ih=Math.max(1,(ext[0]-org[0])/3600),ch=Math.max(1,(T-ext[0])/3600),beyond=s*(close-ext[2])>0,depth=imp>0?s*(ext[2]-close)/imp:null;
+      F.wave=beyond?'push':'corr';F.t_ratio=+(ch/ih).toFixed(3);F.p_ratio=depth==null?null:+depth.toFixed(3);
+      o.wave=beyond?`推進中（直近の${s===1?'高値':'安値'}を超えている）`:`調整中（直前の${s===1?'上げ':'下げ'}の ${depth!=null?Math.round(depth*100)+'%':'-'} を戻している）`;
+      if(beyond){o.yoko='—（推進中）';F.yoko=null}else{F.yoko=ch/ih>=0.7?'filled':'short';o.yoko=`調整 ${Math.round(ch)} 時間 ÷ 直前の推進 ${Math.round(ih)} 時間 ＝ ${(ch/ih).toFixed(2)} → ${ch/ih>=0.7?'埋まっている':'まだ短い'}（0.7 が目安）`}}}
+  else{o.wave='H1 のダウが判定前';o.yoko='—'}
+  const m20=eLast(H.sma20,T,3600),m75=eLast(H.sma75,T,3600);
+  if(m75>=10&&H.sma75[m75][1]!=null&&H.sma75[m75-10][1]!=null&&atr){const sl=(H.sma75[m75][1]-H.sma75[m75-10][1])/atr,v20=m20>=0?H.sma20[m20][1]:null,v75=H.sma75[m75][1];
+    F.ma=sl>0.5?'up':sl<-0.5?'down':'flat';F.ma_slope=+sl.toFixed(2);
+    o.ma=`SMA75 ${F.ma==='up'?'上向き':F.ma==='down'?'下向き':'横ばい'}（10本で ${sl>=0?'+':''}${sl.toFixed(1)} ATR）、SMA20 は75の${v20!=null&&v20>v75?'上':'下'}、価格は75の${close>v75?'上':'下'}`}
+  if(atr){const w=A.slice(Math.max(0,k-999),k+1).filter(v=>v!=null).sort((a,b)=>a-b),med=w[w.length>>1],r=atr/med;F.vol=r<0.8?'quiet':r>1.25?'wild':'normal';F.vol_ratio=+r.toFixed(2);
+    o.vol=`${F.vol==='quiet'?'静か':F.vol==='wild'?'荒い':'普通'}（H1 の ATR が普段の ${r.toFixed(2)} 倍${w.length<500?'、比べる本数が少なめ':''}）`}
+  if(s&&atr&&DATA.H4){const P4=DATA.H4.piv.filter(p=>p[4]<=T).slice(-40),want=s===1?'hi':'lo';let best=null;
+    for(const p of P4)if(p[1]===want&&s*(p[2]-close)>0&&(best==null||s*(p[2]-best)<0))best=p[2];
+    if(best==null){F.res='none';o.res=`${s===1?'上':'下'}に H4 の${s===1?'高値':'安値'}なし（更新中）`}
+    else{const dist=s*(best-close)/atr;F.res=dist<1?'near':'room';F.res_atr=+dist.toFixed(2);o.res=`${s===1?'上の H4 高値':'下の H4 安値'} ${best} まで H1 ATR ${dist.toFixed(1)} 本分（${dist<1?'近い':'余裕あり'}）`}}
+  return {o,F}}
+function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F};envPlace(pt);envRender()}
+function envPlace(pt){const c=document.getElementById('envCard');c.hidden=false;const r=document.getElementById('chart').getBoundingClientRect(),W=c.offsetWidth||460;
+  let left=r.width-W-8,top=8;if(pt){left=pt.x>r.width/2?pt.x-W-18:pt.x+18;top=Math.max(8,pt.y-80)}left=Math.max(4,Math.min(left,r.width-W-4));
+  c.style.left=(r.left+scrollX+left)+'px';c.style.top=(r.top+scrollY+top)+'px'}
+function envRender(){const c=document.getElementById('envCard');if(!envCur){c.hidden=true;return}c.hidden=false;
+  if(document.activeElement&&document.activeElement.id==='envNote')return;
+  const e=ENV[envCur.id]||{},v=e.v||{},fx=e.fix||{},tg=e.tags||{};
+  document.getElementById('envTitle').textContent=`環境チェック ${fmtAll(envCur.T)} 時点`;
+  const b=(a,on,l)=>`<button ${a} aria-pressed="${on}">${l}</button>`;let h='<table class="envt">';
+  for(const [k,lab,opts] of EITEMS){const txt=envCur.o[k];if(txt==null)continue;const cur=v[k];
+    h+=`<tr><th>${lab}</th><td><div>${txt}</div><div class="pbtags">${b(`data-ek="${k}" data-ev="ok"`,cur==='ok','○ 合ってる')}${b(`data-ek="${k}" data-ev="ng"`,cur==='ng','× 違う')}${b(`data-ek="${k}" data-ev="q"`,cur==='q','？')}`+
+      (cur==='ng'?'<span class="lb">本当は</span>'+opts.map(([x,l])=>b(`data-ef="${k}" data-ev="${x}"`,fx[k]===x,l)).join(''):'')+'</div></td></tr>'}
+  for(const [k,lab,opts] of ETAGS)h+=`<tr><th>${lab}</th><td><div class="pbtags">${opts.map(([x,l])=>b(`data-et="${k}" data-ev="${x}"`,tg[k]===x,l)).join('')}</div></td></tr>`;
+  h+=`</table><textarea id="envNote" rows="2" placeholder="気づいたこと（例：H4 はレンジに見える／すぐ上に日足の高値）">${(e.note||'').replace(/</g,'&lt;')}</textarea>`+
+    `<div class="pbtags" style="margin-top:6px"><span class="lb">${ENV[envCur.id]?'保存済み（押すたびに自動で保存）':'まだ保存していません（どれかを押すと保存）'}</span>${ENV[envCur.id]?'<button id="envDel">このチェックを消す</button>':''}</div>`;
+  document.getElementById('envBody').innerHTML=h}
+async function envSave(upd){if(!db){status('この表示では保存できません');return}if(!envCur)return;const id=envCur.id;
+  const base=ENV[id]||{year,tf:envCur.tf,t:envCur.T,t0:envCur.t0,auto:envCur.o,raw:envCur.F,v:{},fix:{},tags:{},note:'',created:new Date().toISOString()};
+  const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ENV[id]=nx;envRender();renderEnvList();
+  try{await db.collection('envcheck').doc(id).set(nx)}catch(err){status('環境チェックを保存できませんでした')}}
+async function envDelete(id){delete ENV[id];if(envCur&&envCur.id===id)envCur=null;envRender();renderEnvList();rekeep();
+  try{await db.collection('envcheck').doc(id).delete();status('消しました')}catch(err){status('消せませんでした')}}
+function renderEnvList(){const el=document.getElementById('envList');if(!el)return;const L=Object.entries(ENV).filter(([,e])=>e.year===year).sort((a,b)=>a[1].t-b[1].t);
+  document.getElementById('envCount').textContent=`この年 ${L.length} 件／全部 ${Object.keys(ENV).length} 件`;
+  el.innerHTML=L.map(([id,e])=>{const ng=Object.entries(e.v||{}).filter(([,x])=>x==='ng').map(([k])=>(EITEMS.find(z=>z[0]===k)||[,k])[1]),tg=e.tags||{};
+    return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage?ETL.stage[tg.stage]:''}</td><td>${tg.me?ETL.me[tg.me]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
+function drawEnv(g,W){if(!DATA||!chart)return;const d=DV(),ts=chart.timeScale();
+  const mark=(t0,col,sel)=>{const i=fIdx(d,t0);if(i==null)return;const X=ts.logicalToCoordinate(i);if(X==null||X<-10||X>W+10)return;
+    g.fillStyle=g.strokeStyle=col;g.beginPath();g.moveTo(X,4);g.lineTo(X+6,11);g.lineTo(X,18);g.lineTo(X-6,11);g.closePath();g.fill();
+    if(sel){g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(X,18);g.lineTo(X,4000);g.stroke();g.setLineDash([])}};
+  for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
+  if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true)}
+document.getElementById('envBtn').onclick=()=>setArmed(armed==='env'?null:'env');
+document.getElementById('rpEnv').onclick=()=>{if(RT==null)return;openEnv(RT,RT-TFLEN[tf],null);rekeep()};
+document.getElementById('envClose').onclick=()=>{envCur=null;envRender();rekeep()};
+document.getElementById('envAllOk').onclick=()=>{if(!envCur)return;const e=ENV[envCur.id]||{},v={...(e.v||{})};for(const [k] of EITEMS)if(envCur.o[k]!=null&&!v[k])v[k]='ok';envSave({v})};
+document.getElementById('envBody').addEventListener('click',ev=>{if(!envCur)return;const bt=ev.target.closest('button');if(!bt)return;const e=ENV[envCur.id]||{};
+  if(bt.id==='envDel'){envDelete(envCur.id);return}
+  const k=bt.dataset.ek,f=bt.dataset.ef,t=bt.dataset.et,val=bt.dataset.ev;
+  if(k){const v={...(e.v||{})},fix={...(e.fix||{})};v[k]=v[k]===val?null:val;if(v[k]!=='ng')delete fix[k];envSave({v,fix});rekeep()}
+  else if(f){const fix={...(e.fix||{})};fix[f]=fix[f]===val?null:val;envSave({fix})}
+  else if(t){const tags={...(e.tags||{})};tags[t]=tags[t]===val?null:val;envSave({tags})}});
+document.getElementById('envBody').addEventListener('input',ev=>{if(ev.target.id!=='envNote')return;clearTimeout(envTimer);const val=ev.target.value;envTimer=setTimeout(()=>envSave({note:val}),800)});
+document.getElementById('envList').addEventListener('click',ev=>{const dl=ev.target.closest('[data-edel]');if(dl){ev.stopPropagation();envDelete(dl.dataset.edel);return}
+  const r=ev.target.closest('[data-eid]');if(!r)return;const e=ENV[r.dataset.eid];if(!e)return;jump(e.t0??e.t);setTimeout(()=>{openEnv(e.t,e.t0,null,r.dataset.eid);rekeep()},250)});
+{const hd=document.getElementById('envHead');let g=null;hd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const c=document.getElementById('envCard');g={x:e.pageX,y:e.pageY,l:parseFloat(c.style.left)||0,t:parseFloat(c.style.top)||0};hd.setPointerCapture(e.pointerId)});
+  hd.addEventListener('pointermove',e=>{if(!g)return;const c=document.getElementById('envCard');c.style.left=(g.l+e.pageX-g.x)+'px';c.style.top=(g.t+e.pageY-g.y)+'px'});
+  hd.addEventListener('pointerup',()=>{g=null})}
 (async()=>{db=window.claude?.use?await window.claude.use('db'):null;
   if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
   db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable();eaTable()},e=>status('評価を読み込めませんでした'));
@@ -1044,6 +1148,7 @@ function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=t
   db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
   db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
   db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync()},e=>status('線を読み込めませんでした'));
+  db.collection('envcheck').onSnapshot(s=>{ENV={};for(const d of s.docs)ENV[d.id]=JSON.parse(JSON.stringify(d.data()));renderEnvList();envRender()},e=>status('環境チェックを読み込めませんでした'));
   db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
 loadYear(year);
 </script>

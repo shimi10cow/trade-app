@@ -55,15 +55,15 @@ ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
 <div class="wrap">
 <div>
   <h1>EA目視レビュー手引き</h1>
-  <p class="lead">6銘柄のビューアで、EAの「入らない方がよかった場面」と「取れていない場面」を集めるための手引きです。1回30分、EAを1本と年を1つに絞って見ます。気づいた理由が5〜10件たまったら送ってください。前半（2005〜2015年）と後半（2016〜2026年）でその条件を確かめます。</p>
+  <p class="lead">6銘柄のビューアで、(1) チャートの状態の自動の読みが合っているか（環境チェック）と、(2) EAの「入らない方がよかった場面」「取れていない場面」を集めるための手引きです。1回30分、EAを1本と年を1つに絞って見ます。気づいた理由が5〜10件たまったら送ってください。前半（2005〜2015年）と後半（2016〜2026年）でその条件を確かめます。</p>
 </div>
 
 <section>
   <h2>ビューア</h2>
   <div class="links">
-    <a href="https://claude.ai/artifact/9UgQqtxyChS9z6nixkRAqn">ユーロドル<span>採用 R T L A C</span></a>
-    <a href="https://claude.ai/artifact/XcDiLWpWUtGR6r7eAyz8po">ドル円<span>採用 C J2 ／ 候補 P</span></a>
-    <a href="https://claude.ai/artifact/11GAe3HbAjEaLygNmySSgB">ゴールド<span>候補 L S</span></a>
+    <a href="https://claude.ai/artifact/9UgQqtxyChS9z6nixkRAqn">ユーロドル<span>採用 R T L A C ／ 候補 T2</span></a>
+    <a href="https://claude.ai/artifact/XcDiLWpWUtGR6r7eAyz8po">ドル円<span>採用 C J2 ／ 候補 P Q</span></a>
+    <a href="https://claude.ai/artifact/11GAe3HbAjEaLygNmySSgB">ゴールド<span>候補 L2 S Q</span></a>
     <a href="https://claude.ai/artifact/8aC8gj4YaAwQwG2UXoGyLG">ビットコイン<span>候補 S</span></a>
     <a href="https://claude.ai/artifact/T5RwADMZ5kzyFFPFkVtM3K">ユーロ円<span>採用なし</span></a>
     <a href="https://claude.ai/artifact/5us7ZwdAgthQ81CXHPshE7">ポンドドル<span>候補 J3</span></a>
@@ -71,8 +71,24 @@ ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
 </section>
 
 <section>
+  <h2>新機能：環境チェック（チャートの状態の読みが合っているか）</h2>
+  <p>「ここで入りたいか」とは別に、<b>その時点のチャートの状態</b>をこちらがどう読んでいるかを出すので、合っているかだけ押してください。1か所 30秒〜1分が目安です。</p>
+  <ul class="check">
+    <li>上の「<b>環境チェック</b>」を押して、チャートの足をクリック。その足が確定した時点で分かっていた情報だけで、自動の読みがカードに出ます（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」でも開けます）</li>
+    <li>出てくる項目：D1・H4・H1・M15 のダウ／H4・H1 の何回目の押し／H1 の波（推進中か調整中か、何%戻したか）／横軸（調整の時間 ÷ 直前の推進の時間）／H1 の MA の向き／値動きの大きさ（静か・普通・荒い）／近くの H4 抵抗までの距離</li>
+    <li>合っていれば <b>○</b>、違えば <b>×</b> を押して「本当は」を選ぶ。迷ったら <b>？</b>。全部見たら「残りを全部○」でまとめて○</li>
+    <li>最後に「相場の段階」（序盤・中盤・終盤・レンジ・転換中）と、あれば「自分なら」を 1 つずつ。気づいたことはメモへ</li>
+    <li>チャート上に ◆ が付きます（緑＝全部合っている、橙＝×あり）。一覧は「チャートのすぐ下に出す」→「環境チェック」</li>
+  </ul>
+  <p class="note">おすすめ：トレンドの途中・終盤・レンジ・転換の場面を混ぜて、1年で 20〜30 か所。<b>リプレイで先を見ずに</b>付けると、後付けのない答えになり一番役に立ちます。×が多い項目から、自動の読み（ダウ・押しの数え方など）を直していきます。</p>
+</section>
+
+<section>
   <h2>見る順番</h2>
   <ol class="order">
+    <li><div><b>環境チェックを 1 年分（どの銘柄でも）</b><br>まずはユーロドルかドル円で、リプレイしながら 20 か所ほど。自動の読みのズレを先に直すと、EAの改良が全部やりやすくなります。</div></li>
+    <li><div><b>ゴールド Q（静かな相場からのブレイク）</b><br>新しい候補です。「静かな所からの抜け」が自分の感覚と合うか、負けたエントリーが「だましの抜け」「抵抗の手前」のどちらに多いかを見ます。</div></li>
+    <li><div><b>ユーロドル T と T2 の切り替え</b><br>T2 で外れたトレード（伸びたトレンドで、調整の時間が短いまま入った所）が「入らなくてよかった」と思えるかを見ます。</div></li>
     <li><div><b>ゴールド S の負けトレード（2016〜2026年）</b><br>採用すると一番効く新しいEAです。買いだけで入るので、「上昇の途中なのに負けた所」と「もう天井圏だった所」を分けて見てください。</div></li>
     <li><div><b>ゴールド S の 2011〜2013年</b><br>ゴールドの下落相場で、買いだけのSが負け続けた時期です（一番長いマイナス期間）。「この時期は買わない」と判断できる目印があるかを見ます。</div></li>
     <li><div><b>ゴールド L（ラインの3〜4点目）</b><br>前半・後半とも安定している候補です。線の引き方が自分の感覚と合っているかを見ます。</div></li>
@@ -83,12 +99,13 @@ ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
 </section>
 
 <section class="inst">
-  <header><h2>ゴールド</h2><span class="tag cand">候補 L・S</span></header>
+  <header><h2>ゴールド</h2><span class="tag cand">候補 L2・S・Q</span></header>
   <div class="tbl"><table>
     <tr><th>EA</th><th>前半 2005-15</th><th>後半 2016-26</th><th>見どころ</th></tr>
     <tr><td><b>S</b> トレンド＋M15転換（買い）</td><td class="num">+94R PF1.60</td><td class="num">+84R PF1.39</td><td>勝率38%。小さく負けてたまに大きく取る型</td></tr>
     <tr><td><b>L</b> ライン3〜4点目</td><td class="num">+31R PF1.49</td><td class="num">+39R PF1.54</td><td>買いの方が強い（後半 +44R）</td></tr>
     <tr><td><b>L2</b> L＋H4抵抗の手前は入らない</td><td class="num">+34R PF1.64</td><td class="num">+44R PF1.72</td><td>「すぐ上にH4の抵抗」の指摘から。Lの14%を外す</td></tr>
+    <tr><td><b>Q</b> 静かな相場からのブレイク</td><td class="num">+181R PF2.08</td><td class="num">+94R PF1.43</td><td>新しい候補。22年中20年プラス。Sと半分ずつにすると組み合わせが改善</td></tr>
     <tr><td>C M15調整ライン</td><td class="num">+8R PF1.10</td><td class="num">+28R PF1.28</td><td>参考</td></tr>
     <tr><td>T・J2・J3・R</td><td colspan="2">前半は黒字、後半は赤字か±0</td><td>売りが後半で崩れる</td></tr>
   </table></div>
@@ -97,6 +114,7 @@ ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
     <li>S：勝ちトレードの決済が早すぎないか（H1のスイングで追いかける形が合っているか）</li>
     <li>L：自分なら引かない線で入っていないか</li>
     <li>L と L2 を切り替えて、L2 で外れたトレードが「入らなくてよかった」と思えるか</li>
+    <li>Q：抜ける前のレンジが「本当に静か」に見えるか。負けは「すぐ戻されたブレイク」か「抵抗の手前」か</li>
   </ul>
   <p class="note">ゴールドとビットコインの「pips」表示は 0.01% 単位です（価格が大きく変わるため割合で計算しています）。損切りの幅は値段ではなく％で見てください。また、ビューア下の「EAごとの成績」はコストを 0.012% で計算しています。この手引きの表はゴールド 0.025%・ビットコイン 0.08% の高めのコストで計算した値です。</p>
 </section>
@@ -115,16 +133,18 @@ ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
 </section>
 
 <section class="inst">
-  <header><h2>ユーロドル</h2><span class="tag use">採用 R・T・L・A・C</span></header>
+  <header><h2>ユーロドル</h2><span class="tag use">採用 R・T・L・A・C</span><span class="tag cand">候補 T2</span></header>
   <ul class="check">
+    <li>T2（T＋横軸）：前半 +68R PF1.52／後半 +81R PF1.89（T は +54R／+74R）。外れた 18% が「伸びきった所で、調整が短いまま入った」場面になっているか</li>
     <li>T：トレンド終盤のエントリー、転換後に旧方向へ入っているエントリーの日時</li>
     <li>入りたい点（印）なのに、どのEAも入っていない場面の型（ブレイク／1回目／2回目）</li>
   </ul>
 </section>
 
 <section class="inst">
-  <header><h2>ドル円</h2><span class="tag use">採用 C・J2</span><span class="tag cand">候補 P</span></header>
+  <header><h2>ドル円</h2><span class="tag use">採用 C・J2</span><span class="tag cand">候補 P・Q</span></header>
   <ul class="check">
+    <li>Q（静かな相場からのブレイク、H4 と同じ向きだけ）：前半 +42R PF2.47／後半 +35R PF1.58。回数は年 6 回ほど</li>
     <li>P：高値更新できずレンジに入った後のエントリーが、まだ残っていないか</li>
     <li>C：調整ラインの引き方が感覚と合っているか（「M15調整ライン」をオン）</li>
     <li>全EA：急上昇・急落の直後で危ないと感じた場面の日時（測り方を合わせて調べ直します）</li>
