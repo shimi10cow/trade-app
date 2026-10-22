@@ -1,7 +1,7 @@
 """Portfolio additions from the new instruments + unused EAs on existing ones (2026-10-22), XM costs.
 Selection uses the FIRST half only: an EA x instrument is a candidate if first-half PF >= 1.15 and n >= 40.
 Then: base (BASE9T2) + each candidate alone, + all candidates, + candidates grouped by EA, compared at same risk."""
-import sys, numpy as np, pandas as pd
+import sys, glob, numpy as np, pandas as pd
 import pfx, new_summary as N
 S = N.S
 T = pd.read_pickle(f'{S}/feat/all_trades_xm.pkl')
@@ -12,6 +12,17 @@ for sym in syms:
         x = N.load(sym, f)
         if x is None: continue
         x = x.copy(); x['ea'] = ea; x['pair'] = sym; x['key'] = f'{ea}@{sym}'; rows.append(x)
+    # families: if >= 10 settings pass the first-half bar, take the first-half best setting
+    for ea, pat in N.FAM.items():
+        st = []
+        for p in sorted(glob.glob(f'{S}/ws_{sym}/research/dow_strategy/results/{pat}')):
+            x = N.load(sym, p.split('/results/')[1])
+            if x is None: continue
+            a = x[x.half == 1].R
+            if len(a) >= 40 and N.pf(a) >= 1.15: st.append((N.pf(a), p, x))
+        if len(st) >= 10:
+            b = max(st, key=lambda z: z[0]); x = b[2].copy(); x['ea'] = ea; x['pair'] = sym; x['key'] = f'{ea}@{sym}'; rows.append(x)
+            print(f'{sym} {ea}: 前半で {len(st)} 設定 → {b[1].split("/")[-1]}')
 NEW = pd.concat(rows, ignore_index=True)
 ALL = pd.concat([T[~T.key.isin(pfx.BASE9T2) & (T.pair != 'BTCUSD')], NEW], ignore_index=True)
 pf = N.pf
