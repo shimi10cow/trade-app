@@ -632,3 +632,10 @@ H4 の高安更新・転換の「その後30本で何ATR進んだか」（平均
   | ＋ゴールド L＋ゴールド S＋BTC S | 0.85% | 33.5% | 61.7% | -24.1% | +4.9% | 168 | 39% | 513日／382日 |
   | ＋ゴールド L（買いだけ）＋ゴールド S＋BTC S | 0.91% | 34.6% | 68.3% | -25.5% | +5.3% | 165 | 39% | 513日／384日 |
   - 前半の最長マイナス期間 513 日は 2011-13 年（ゴールドの下落相場で買いだけの S が負ける時期）
+
+## 55. 全銘柄のビューアと目視ガイド（2026-10-22）
+- ビューア：ユーロドル https://claude.ai/artifact/9UgQqtxyChS9z6nixkRAqn ／ ドル円 https://claude.ai/artifact/XcDiLWpWUtGR6r7eAyz8po ／ ゴールド https://claude.ai/artifact/11GAe3HbAjEaLygNmySSgB ／ ビットコイン https://claude.ai/artifact/8aC8gj4YaAwQwG2UXoGyLG ／ ユーロ円 https://claude.ai/artifact/T5RwADMZ5kzyFFPFkVtM3K ／ ポンドドル https://claude.ai/artifact/5us7ZwdAgthQ81CXHPshE7
+- 目視ガイド：https://claude.ai/artifact/2jjtzc52H4x5eYErUL89QQ（docs/review_guide.html）
+- 作り方（build_viewer_any.sh）：各銘柄の計算用の作業フォルダ（円は÷100、ゴールド・BTC は対数）でチャート・補助線・三角・EA トレード・押し回数を作り、viewer_price_fix.py で価格を元に戻す（リストの中の小数＝価格、時刻・番号は整数。トレードは entry/sl/xp だけ）。ページは make_viewer_index.py でテンプレートから銘柄名を入れて作る
+- テンプレートに S（トレンド＋M15 転換、ゴールド・BTC 用）を追加。EA の成績表はデータにある EA だけ表示
+- ゴールド・BTC の「pips」は 0.01% 単位、ビューアの成績表はコスト 0.012%

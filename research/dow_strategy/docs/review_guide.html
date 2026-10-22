@@ -1,0 +1,158 @@
+<title>EA目視レビュー手引き</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; a priority strip on top, then one block per instrument, then how-to and what to send */
+:root{
+  --bg:#f5f6f4; --panel:#ffffff; --fg:#1d2321; --muted:#5f6b66; --line:#d6ddd9;
+  --accent:#1f6f5c; --accent-soft:#e2f0eb; --warn:#a2561a; --warn-soft:#f8ebde; --up:#1f7a45; --down:#b4372e;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a18; --panel:#1b2320; --fg:#e6ece9; --muted:#9aa8a2; --line:#2f3b37;
+  --accent:#5fc4a8; --accent-soft:#1d332c; --warn:#e3a066; --warn-soft:#3a2a1c; --up:#5fd08f; --down:#ee7b70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a18; --panel:#1b2320; --fg:#e6ece9; --muted:#9aa8a2; --line:#2f3b37;
+  --accent:#5fc4a8; --accent-soft:#1d332c; --warn:#e3a066; --warn-soft:#3a2a1c; --up:#5fd08f; --down:#ee7b70; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:28px}
+h1{font-size:1.7rem;line-height:1.3;margin:0;text-wrap:balance;letter-spacing:.02em}
+h2{font-size:1.2rem;margin:0 0 10px;text-wrap:balance}
+h3{font-size:1rem;margin:14px 0 6px}
+p{margin:0 0 8px}
+.lead{color:var(--muted);max-width:62ch}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+a{color:var(--accent);font-weight:700}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.order{counter-reset:o;list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.order li{counter-increment:o;display:grid;grid-template-columns:2.2em 1fr;gap:10px;align-items:start}
+.order li::before{content:counter(o);font-family:var(--f-mono);font-weight:600;background:var(--accent-soft);color:var(--accent);border-radius:6px;text-align:center;line-height:1.9}
+.order li > div{min-width:0}
+.tag{display:inline-block;font-size:.78rem;padding:0 8px;border-radius:999px;margin-right:6px;border:1px solid var(--line);color:var(--muted);letter-spacing:.03em}
+.tag.cand{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.tag.use{background:var(--accent);color:var(--bg);border-color:transparent}
+.tag.no{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.inst{display:grid;gap:8px}
+.inst header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.inst header h2{margin:0}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:500;white-space:nowrap}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+ul.check{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.note{background:var(--warn-soft);color:var(--fg);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.send{font-family:var(--f-mono);background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:10px 12px;font-size:.85rem;white-space:pre-wrap;overflow-x:auto}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.links a{display:block;border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-decoration:none;background:var(--bg)}
+.links a span{display:block;font-weight:400;color:var(--muted);font-size:.8rem}
+</style>
+
+<div class="wrap">
+<div>
+  <h1>EA目視レビュー手引き</h1>
+  <p class="lead">6銘柄のビューアで、EAの「入らない方がよかった場面」と「取れていない場面」を集めるための手引きです。1回30分、EAを1本と年を1つに絞って見ます。気づいた理由が5〜10件たまったら送ってください。前半（2005〜2015年）と後半（2016〜2026年）でその条件を確かめます。</p>
+</div>
+
+<section>
+  <h2>ビューア</h2>
+  <div class="links">
+    <a href="https://claude.ai/artifact/9UgQqtxyChS9z6nixkRAqn">ユーロドル<span>採用 R T L A C</span></a>
+    <a href="https://claude.ai/artifact/XcDiLWpWUtGR6r7eAyz8po">ドル円<span>採用 C J2 ／ 候補 P</span></a>
+    <a href="https://claude.ai/artifact/11GAe3HbAjEaLygNmySSgB">ゴールド<span>候補 L S</span></a>
+    <a href="https://claude.ai/artifact/8aC8gj4YaAwQwG2UXoGyLG">ビットコイン<span>候補 S</span></a>
+    <a href="https://claude.ai/artifact/T5RwADMZ5kzyFFPFkVtM3K">ユーロ円<span>採用なし</span></a>
+    <a href="https://claude.ai/artifact/5us7ZwdAgthQ81CXHPshE7">ポンドドル<span>候補 J3</span></a>
+  </div>
+</section>
+
+<section>
+  <h2>見る順番</h2>
+  <ol class="order">
+    <li><div><b>ゴールド S の負けトレード（2016〜2026年）</b><br>採用すると一番効く新しいEAです。買いだけで入るので、「上昇の途中なのに負けた所」と「もう天井圏だった所」を分けて見てください。</div></li>
+    <li><div><b>ゴールド S の 2011〜2013年</b><br>ゴールドの下落相場で、買いだけのSが負け続けた時期です（一番長いマイナス期間）。「この時期は買わない」と判断できる目印があるかを見ます。</div></li>
+    <li><div><b>ゴールド L（ラインの3〜4点目）</b><br>前半・後半とも安定している候補です。線の引き方が自分の感覚と合っているかを見ます。</div></li>
+    <li><div><b>ビットコイン S</b><br>成績は良いものの、データが2017年からしかありません。大きく勝った数回以外の、細かい負けが続く場面に共通点がないかを見ます。</div></li>
+    <li><div><b>ユーロドル T の負けトレード</b><br>以前の指摘（トレンド終盤で入る、転換後に旧方向へ入る）の続きです。</div></li>
+    <li><div><b>ドル円 C ／ P</b><br>P はレンジ中のエントリーを減らした版です。まだ入りすぎていないかを見ます。</div></li>
+  </ol>
+</section>
+
+<section class="inst">
+  <header><h2>ゴールド</h2><span class="tag cand">候補 L・S</span></header>
+  <div class="tbl"><table>
+    <tr><th>EA</th><th>前半 2005-15</th><th>後半 2016-26</th><th>見どころ</th></tr>
+    <tr><td><b>S</b> トレンド＋M15転換（買い）</td><td class="num">+94R PF1.60</td><td class="num">+84R PF1.39</td><td>勝率38%。小さく負けてたまに大きく取る型</td></tr>
+    <tr><td><b>L</b> ライン3〜4点目</td><td class="num">+31R PF1.49</td><td class="num">+39R PF1.54</td><td>買いの方が強い（後半 +44R）</td></tr>
+    <tr><td>C M15調整ライン</td><td class="num">+8R PF1.10</td><td class="num">+28R PF1.28</td><td>参考</td></tr>
+    <tr><td>T・J2・J3・R</td><td colspan="2">前半は黒字、後半は赤字か±0</td><td>売りが後半で崩れる</td></tr>
+  </table></div>
+  <ul class="check">
+    <li>S：負けたエントリーが「H4の高値圏」「レンジの中」「急騰の直後」のどれに多いか</li>
+    <li>S：勝ちトレードの決済が早すぎないか（H1のスイングで追いかける形が合っているか）</li>
+    <li>L：自分なら引かない線で入っていないか</li>
+  </ul>
+  <p class="note">ゴールドとビットコインの「pips」表示は 0.01% 単位です（価格が大きく変わるため割合で計算しています）。損切りの幅は値段ではなく％で見てください。また、ビューア下の「EAごとの成績」はコストを 0.012% で計算しています。この手引きの表はゴールド 0.025%・ビットコイン 0.08% の高めのコストで計算した値です。</p>
+</section>
+
+<section class="inst">
+  <header><h2>ビットコイン</h2><span class="tag cand">候補 S</span></header>
+  <div class="tbl"><table>
+    <tr><th>EA</th><th>前半 2017-21</th><th>後半 2022-26</th><th>見どころ</th></tr>
+    <tr><td><b>S</b> トレンド＋M15転換（買い）</td><td class="num">+156R PF2.35</td><td class="num">+81R PF1.67</td><td>勝率34%。+2RからH1で追いかける</td></tr>
+    <tr><td>T・A・J2・EV</td><td colspan="2">数字は大きいが、上位5回を除くと多くが±0以下</td><td>大勝ち頼み</td></tr>
+  </table></div>
+  <ul class="check">
+    <li>週末（土日）のエントリーの成績が平日と違って見えるか</li>
+    <li>大きく勝ったトレード以外で、負けが続く場面に共通の形があるか</li>
+  </ul>
+</section>
+
+<section class="inst">
+  <header><h2>ユーロドル</h2><span class="tag use">採用 R・T・L・A・C</span></header>
+  <ul class="check">
+    <li>T：トレンド終盤のエントリー、転換後に旧方向へ入っているエントリーの日時</li>
+    <li>入りたい点（印）なのに、どのEAも入っていない場面の型（ブレイク／1回目／2回目）</li>
+  </ul>
+</section>
+
+<section class="inst">
+  <header><h2>ドル円</h2><span class="tag use">採用 C・J2</span><span class="tag cand">候補 P</span></header>
+  <ul class="check">
+    <li>P：高値更新できずレンジに入った後のエントリーが、まだ残っていないか</li>
+    <li>C：調整ラインの引き方が感覚と合っているか（「M15調整ライン」をオン）</li>
+    <li>全EA：急上昇・急落の直後で危ないと感じた場面の日時（測り方を合わせて調べ直します）</li>
+  </ul>
+</section>
+
+<section class="inst">
+  <header><h2>ユーロ円・ポンドドル</h2><span class="tag no">採用なし</span><span class="tag cand">候補 J3（ポンドドル）</span></header>
+  <ul class="check">
+    <li>どのEAも前後半で安定していません。急ぎではないので、時間があれば「この通貨ならこう入る」という自分の型に印を付けてください</li>
+    <li>ポンドドル J3：損切りにすぐかかる負けが多い通貨です。入った方向そのものが逆だった場面が多いかを見ます</li>
+  </ul>
+</section>
+
+<section>
+  <h2>ビューアの使い方（要点だけ）</h2>
+  <ul class="check">
+    <li>上の「表示するEA」で1本を選ぶ。「チャートのすぐ下に出す」で「EAの条件」を選ぶと、そのEAのルールが見える</li>
+    <li>トレード一覧の行を押すとチャートが移動し、評価ボタン（良い／早い／遅い／いらない、決済早い／逃げ遅れ）で記録できる</li>
+    <li>「入りたい点：買い／売り」で印。吹き出しで押しの回数・水平線・トレンドラインを確認</li>
+    <li>「線：」で水平線・トレンドライン・ボックスを引ける。印の表示は足ごとに切り替えられる</li>
+    <li>記録はビューアごとに保存され、こちらからそのまま読めます</li>
+  </ul>
+</section>
+
+<section>
+  <h2>送ってほしいこと</h2>
+  <p>次の形で5〜10件たまったら、チャットに貼るか「見たよ」と一言ください。ビューアに付けた評価やメモは、こちらで直接読み取ります。</p>
+  <div class="send">銘柄・EA ／ 日時 ／ 一言の理由（下の2行は書き方の例）
+ゴールド S ／ 2019-08-13 15:00 ／ H4の高値圏、もう伸びない
+ゴールド S ／ 2012-03-02 ／ 日足が下向きなのに買っている</div>
+</section>
+</div>
