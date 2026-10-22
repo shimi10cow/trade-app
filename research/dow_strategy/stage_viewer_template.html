@@ -125,7 +125,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 </section>
 <section class="fb" aria-label="環境チェック" style="grid-column:1/-1" id="secEnv">
   <div class="fbrow"><b>環境チェック（チャートの状態の読みが合っているか）</b><span class="note" id="envCount" style="margin:0"></span></div>
-  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、自動の読みを出します。合っていれば○、違えば×を押して本当の状態を選ぶだけ。「残りを全部○」でまとめて○にできます。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かります。</span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、自動の読みを出します。合っていれば○、違えば×を押して本当の状態を選ぶだけ。「残りを全部○」でまとめて○にできます。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かり、◆をクリックするとカードが開いて直せます。</span></div>
   <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>違っていた項目</th><th>段階</th><th>自分なら</th><th>メモ</th><th></th></tr></thead><tbody id="envList"></tbody></table></div>
 </section>
 <section class="fb" aria-label="EAの条件" style="grid-column:1/-1" id="secEA">
@@ -1118,12 +1118,17 @@ function renderEnvList(){const el=document.getElementById('envList');if(!el)retu
   document.getElementById('envCount').textContent=`この年 ${L.length} 件／全部 ${Object.keys(ENV).length} 件`;
   el.innerHTML=L.map(([id,e])=>{const ng=Object.entries(e.v||{}).filter(([,x])=>x==='ng').map(([k])=>(EITEMS.find(z=>z[0]===k)||[,k])[1]),tg=e.tags||{};
     return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage?ETL.stage[tg.stage]:''}</td><td>${tg.me?ETL.me[tg.me]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
+function envAt(px,py){if(py>26||!chart)return null;const d=DV(),ts=chart.timeScale();let best=null,bd=10;
+  for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;const i=fIdx(d,e.t0??(e.t-TFLEN[e.tf]));if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;const dd=Math.abs(X-px);if(dd<bd){bd=dd;best=id}}
+  return best}
 function drawEnv(g,W){if(!DATA||!chart)return;const d=DV(),ts=chart.timeScale();
   const mark=(t0,col,sel)=>{const i=fIdx(d,t0);if(i==null)return;const X=ts.logicalToCoordinate(i);if(X==null||X<-10||X>W+10)return;
     g.fillStyle=g.strokeStyle=col;g.beginPath();g.moveTo(X,4);g.lineTo(X+6,11);g.lineTo(X,18);g.lineTo(X-6,11);g.closePath();g.fill();
     if(sel){g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(X,18);g.lineTo(X,4000);g.stroke();g.setLineDash([])}};
   for(const [id,e] of Object.entries(ENV)){if(e.year!==year)continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
   if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true)}
+document.getElementById('chart').addEventListener('click',e=>{if(armed||!DATA||!chart)return;const r=document.getElementById('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  const id=envAt(x,y);if(!id)return;e.stopPropagation();const m=ENV[id];openEnv(m.t,m.t0,{x,y:Math.max(y,40)},id);rekeep()},true);
 document.getElementById('envBtn').onclick=()=>setArmed(armed==='env'?null:'env');
 document.getElementById('rpEnv').onclick=()=>{if(RT==null)return;openEnv(RT,RT-TFLEN[tf],null);rekeep()};
 document.getElementById('envClose').onclick=()=>{envCur=null;envRender();rekeep()};
