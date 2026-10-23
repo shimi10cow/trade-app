@@ -135,6 +135,9 @@ def run(events, cfg):
                 p['exit'] = p['sl']; p['exit_t'] = M15T[i]; trades.append(p); continue
             fav = s * ((B.h[i] if s == 1 else B.l[i]) - p['entry'])
             p['mfe'] = max(p['mfe'], fav / p['risk'])
+            if cfg.get('tp_px') and p.get('tp_px') is not None and s * (p['tp_px'] - p['entry']) > 0 and \
+                    ((B.h[i] >= p['tp_px']) if s == 1 else (B.l[i] <= p['tp_px'])):     # price target given by the setup
+                p['exit'] = p['tp_px']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if cfg.get('tp') and fav >= cfg['tp'] * p['risk']:          # fixed target (stop is checked first)
                 p['exit'] = p['entry'] + s * cfg['tp'] * p['risk']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if not p['trail'] and fav >= act * p['risk']:
@@ -175,7 +178,7 @@ def run(events, cfg):
             if s * (entry - sl) < 10 * B.PIP:
                 sl = entry - s * 10 * B.PIP
             pos.append(dict(k=i + 1, t=M15T[i + 1], side=s, entry=entry, sl=sl, sl0=sl, risk=s * (entry - sl),
-                            trail=False, mfe=0.0, tag=ev.get('tag', ''), setup_t=ev['t']))
+                            trail=False, mfe=0.0, tag=ev.get('tag', ''), setup_t=ev['t'], tp_px=ev.get('tp_px')))
     for p in pos:
         p['exit'] = B.c[-1]; p['exit_t'] = M15T[N - 1]; trades.append(p)
     tr = pd.DataFrame(trades)
