@@ -26,11 +26,12 @@ def fixed(X, risk=0.005):
     y = pd.Series(r).groupby(d.et.dt.year.to_numpy()).apply(lambda g: np.prod(1 + g) - 1)
     yrs = 2026 - 2005 + 0.8
     return eq[-1] ** (1 / yrs) - 1, dd, y, len(d) / yrs
-Y = {}
-for lab, keys in P.items():
-    X = mk(keys); X['tt'] = pd.to_datetime(X.tt); X['et'] = pd.to_datetime(X.et)
-    print(f'\n### {lab}（{len(keys)}本）', flush=True)
-    pfx.ev(X, keys, label='  前後半/同じ危険度')
-    c, dd, y, n = fixed(X); Y[lab[:2]] = y
-    print(f'  1回0.5%固定 2005-26：年利 {c:.1%}  最大DD {dd:.1%}  最悪年 {y.min():.1%}({y.idxmin()})  マイナス年 {(y<0).sum()}/{len(y)}  年 {n:.0f} 回', flush=True)
-print('\n### 年ごと（1回0.5%固定）'); print((pd.DataFrame(Y) * 100).round(1).to_string())
+if __name__ == "__main__":
+    Y = {}
+    for lab, keys in P.items():
+        X = mk(keys); X['tt'] = pd.to_datetime(X.tt); X['et'] = pd.to_datetime(X.et)
+        print(f'\n### {lab}（{len(keys)}本）', flush=True)
+        pfx.ev(X, keys, label='  前後半/同じ危険度')
+        c, dd, y, n = fixed(X); Y[lab[:2]] = y
+        print(f'  1回0.5%固定 2005-26：年利 {c:.1%}  最大DD {dd:.1%}  最悪年 {y.min():.1%}({y.idxmin()})  マイナス年 {(y<0).sum()}/{len(y)}  年 {n:.0f} 回', flush=True)
+    print('\n### 年ごと（1回0.5%固定）'); print((pd.DataFrame(Y) * 100).round(1).to_string())
