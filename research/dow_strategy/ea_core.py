@@ -135,6 +135,8 @@ def run(events, cfg):
                 p['exit'] = p['sl']; p['exit_t'] = M15T[i]; trades.append(p); continue
             fav = s * ((B.h[i] if s == 1 else B.l[i]) - p['entry'])
             p['mfe'] = max(p['mfe'], fav / p['risk'])
+            if cfg.get('tp') and fav >= cfg['tp'] * p['risk']:          # fixed target (stop is checked first)
+                p['exit'] = p['entry'] + s * cfg['tp'] * p['risk']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if not p['trail'] and fav >= act * p['risk']:
                 p['trail'] = True
             if p['trail']:
