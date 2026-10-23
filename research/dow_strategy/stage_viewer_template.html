@@ -79,7 +79,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <label><input type="checkbox" id="optS200" checked> SMA200</label>
   <label><input type="checkbox" id="optBo"> ブレイク</label>
   <label><input type="checkbox" id="optTr"> EAのトレード</label>
-  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option><option value="pf_S">S トレンド＋M15転換（ゴールド・BTC）</option><option value="pf_L2">L2 ライン＋H4抵抗の手前は入らない（ゴールド）</option><option value="pf_T2">T2 トレンドの押し目＋横軸（ユーロドル）</option><option value="pf_Q">Q 静かな相場からのブレイク（ゴールド・ドル円）</option></select>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option><option value="pf_S">S トレンド＋M15転換（ゴールド・BTC）</option><option value="pf_L2">L2 ライン＋H4抵抗の手前は入らない（ゴールド）</option><option value="pf_T2">T2 トレンドの押し目＋横軸（ユーロドル）</option><option value="pf_Q">Q 静かな相場からのブレイク（ゴールド・ドル円）</option><option value="pf_DIP">DIP 押し目買い（D1上昇中・H4 SMA75タッチ）</option><option value="pf_U">U 日足ブレイク（20日高値）</option><option value="pf_K">K 買い増し（Sを最大2本）</option><option value="pf_M">M 日足RSI(2)の押し目買い</option></select>
   <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
   <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
   <label><input type="checkbox" id="optTri"> 三角（自動）</label>
@@ -578,7 +578,20 @@ const EAINFO=[
   trig:'ゴールド：すぐ次のM15足で入る／ドル円：12時間以内のM15の仮ダウ転換',
   stop:'抜けたレンジ（24本）の真ん中 ＋ H1 ATRの0.3倍',
   exit:'+1Rから、ゴールドはH1のスイング、ドル円はH4のスイングで追いかける',
-  res:'ゴールド 前半+181R PF2.08（357回）／後半+94R PF1.43（370回）、コスト0.025%込み。ドル円 前半+42R PF2.47／後半+35R PF1.58。静かな所で入ったトレードはトレンド型の銘柄でどのEAも成績が良い、という発見から作った。ユーロドル・ユーロ円（戻りやすい銘柄）では前半だけ良く後半は崩れる。ゴールドはSと半分ずつにすると組み合わせ全体が改善（後半 年41.2%→48.4%、DD-23.4%→-24.8%）'}];
+  res:'ゴールド 前半+181R PF2.08（357回）／後半+94R PF1.43（370回）、コスト0.025%込み。ドル円 前半+42R PF2.47／後半+35R PF1.58。静かな所で入ったトレードはトレンド型の銘柄でどのEAも成績が良い、という発見から作った。ユーロドル・ユーロ円（戻りやすい銘柄）では前半だけ良く後半は崩れる。ゴールドはSと半分ずつにすると組み合わせ全体が改善（後半 年41.2%→48.4%、DD-23.4%→-24.8%）'},
+ {c:'DIP',n:'押し目買い（ゴールド用）',use:'ゴールド（候補）',k:'押し目待ち型',
+  env:'日足の終値が上向きのSMA50より上（上昇トレンド中）',setup:'H1の安値がH4のSMA75に上からタッチ（終値はSMA75−1ATRより上）。24時間に1回まで',
+  trig:'24時間以内のM15の仮ダウ転換（上）',stop:'直近30本のH1の安値 − H1 ATRの0.3倍',exit:'+1RからH4のスイングで追いかける',
+  res:'ゴールド 前半+65R PF2.01（97回）／後半+24R PF1.30（118回）。36設定中26が前後半とも黒字（ゴールドは押し目買いが素直に効く）'},
+ {c:'U',n:'日足ブレイク（タートル型）',use:'ゴールド（候補）',k:'ブレイク型',
+  env:'なし',setup:'日足の終値が直前20日の最高値を上抜け（買いのみ）',trig:'その日足の終値で入る',stop:'日足ATR(20)の2倍',
+  exit:'日足の終値が直前10日の最安値を下抜けたら決済',res:'ゴールド 前半+19R PF2.14（46回）／後半+26R PF2.20（46回）。12設定すべて前後半とも黒字'},
+ {c:'K',n:'買い増し（Sを最大2本）',use:'ゴールド（候補）',k:'トレンド追随',
+  env:'Sと同じ',setup:'Sと同じ。持っているSがすべて+1Rを超えて損切りを引き上げ中なら、同じ向きにもう1本',trig:'M15の仮ダウ転換',
+  stop:'M15転換の外 ＋ 0.3ATR',exit:'+1RからH4のスイングで追いかける',res:'ゴールド 前半+116R PF1.56／後半+189R PF1.72（S単体は+94/+84）。ただし組み合わせでは改善せず'},
+ {c:'M',n:'日足RSI(2)の押し目買い',use:'US30・S&P500（候補）',k:'逆張り（上昇中の売られすぎ）',
+  env:'日足の終値がSMA200より上',setup:'日足RSI(2)が10未満',trig:'その日足の終値で入る',stop:'日足ATRの2.5倍',
+  exit:'日足の終値がSMA5を上回ったら決済',res:'勝率76〜79%。US30 前半+7.6R／後半+7.9R、S&P500 +2.1R／+10.4R（Rは2.5ATRの損切り幅で計算）。組み合わせに足すと同じ危険度で 47.2→52.6%（後半）'}];
 function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;const v=document.getElementById('trSet').value;const sel=v.startsWith('pf_')?v.slice(3):null;
   const row=(k,t)=>`<tr><th style="white-space:nowrap;text-align:left;padding:3px 8px">${k}</th><td style="padding:3px 8px;white-space:normal;word-break:break-word">${t}</td></tr>`;
   el.innerHTML=EAINFO.map(e=>`<div class="eacard" style="border:1px solid ${e.c===sel?'var(--accent)':'var(--line)'};${e.c===sel?'box-shadow:0 0 0 2px var(--accent);':''}border-radius:8px;padding:8px;margin:8px 0;${sel&&e.c!==sel?'opacity:.55':''}">
@@ -588,7 +601,7 @@ function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;c
 eaInfoSync();
 /* ---------- per-EA summary over all years ---------- */
 let PFALL=null;
-function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P','S','L2','T2','Q'];
+function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P','S','L2','T2','Q','DIP','U','K','M'];
   const fbOf=x=>FB[`t${x[4]}_${x[5]}_${x[1]}`];
   const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
     for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}

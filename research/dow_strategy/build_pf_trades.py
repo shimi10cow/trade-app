@@ -11,7 +11,9 @@ SRC = [('R', 'regime2_R2c.csv', 'レンジ型押し目'), ('T', 'regime2_T1t.csv
        ('S', os.environ.get('PF_S', 'st2/none.csv'), 'トレンド＋M15転換（ゴールド・BTC用）'),
        ('L2', os.environ.get('PF_L2', 'none.csv'), 'ライン3〜4点目＋H4抵抗の手前は入らない'),
        ('T2', os.environ.get('PF_T2', 'none.csv'), 'トレンド型押し目＋横軸（調整の時間）'),
-       ('Q', os.environ.get('PF_Q', 'none.csv'), '静かな相場からのブレイク')]
+       ('Q', os.environ.get('PF_Q', 'none.csv'), '静かな相場からのブレイク'),
+       ('DIP', os.environ.get('PF_DIP', 'none.csv'), '押し目買い（ゴールド用）'), ('U', os.environ.get('PF_U', 'none.csv'), '日足ブレイク'),
+       ('K', os.environ.get('PF_K', 'none.csv'), '買い増し（Sを最大2本）'), ('M', os.environ.get('PF_M', 'none.csv'), '日足RSI(2)の押し目買い')]
 sec = lambda ts: int((pd.Timestamp(ts) - pd.Timestamp('1970-01-01')) // pd.Timedelta(seconds=1))
 m = pd.read_csv(os.environ['EA_M15_CACHE']); MT = pd.to_datetime(m.time).to_numpy(); MH = m.high.to_numpy(); ML = m.low.to_numpy()
 MULT = float(os.environ.get('PRICE_MULT', '1'))
@@ -34,7 +36,7 @@ for code, f, lab in SRC:
         mfe = (hi - x.entry if s == 1 else x.entry - lo) / x.risk; mae = (lo - x.entry if s == 1 else x.entry - hi) / x.risk
         rows.append(dict(t=sec(t), side=s, p=0, entry=round(float(x.entry) * MULT, 5), sl=round(float(sl) * MULT, 5), xt=sec(xt),
                          xp=round(float(x.exit) * MULT, 5), R=round(float(R), 2), risk=round(float(x.risk) / 1e-4, 1),
-                         stg=['R', 'T', 'L', 'A', 'C', 'J2', 'J3', 'EV', 'P', 'S', 'L2', 'T2', 'Q'].index(code), nrev=0, trail='', d1=None, h4=None, h1=None, src=code, srcl=lab,
+                         stg=['R', 'T', 'L', 'A', 'C', 'J2', 'J3', 'EV', 'P', 'S', 'L2', 'T2', 'Q', 'DIP', 'U', 'K', 'M'].index(code), nrev=0, trail='', d1=None, h4=None, h1=None, src=code, srcl=lab,
                          mfe=round(float(mfe), 2), mae=round(float(mae), 2)))
 out = Path(sys.argv[1]); years = [int(y) for y in sys.argv[2:]]
 allc = []

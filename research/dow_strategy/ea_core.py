@@ -155,7 +155,11 @@ def run(events, cfg):
         k1 = bisect.bisect_right(B.C1, CL15[i]) - 1
         for ev in ent[i]:
             s = ev['side']
-            if cfg.get('one_per_side', True) and any(p['side'] == s for p in pos):
+            same = [p for p in pos if p['side'] == s]
+            if cfg.get('stack'):                    # pyramiding: add only while every open same-side position is past +act R
+                if len(same) >= cfg['stack'] or not all(p['trail'] for p in same):
+                    continue
+            elif cfg.get('one_per_side', True) and same:
                 continue
             if cfg.get('max_side') and sum(p['side'] == s for p in pos) >= cfg['max_side']:
                 continue
