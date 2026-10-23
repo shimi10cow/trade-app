@@ -27,7 +27,10 @@ for ia, pa, ib, pb, cr, en, kind, broken, ll, h4w in M.lines():
     ext = B.h if kind == 'hi' else B.l
     touch = int(sum(1 for j in range(ib + 1, en) if abs(ext[j] - line(j)) <= 0.15 * a))
     ev.append(dict(t=X.CL15[en], side=s, ref=ref, win=4, tag=f'{en - ia}|{npiv}|{touch}|{abs(sl) / a:.4f}'))
-tr = X.run(ev, dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0, dside=0, maxdev=4, notri='H4'))
+import os
+LOOSE = os.environ.get('C_LOOSE') == '1'      # gold: drop the environment filters to get more lines, keep the touch count
+cfg = dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0) if LOOSE else dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0, dside=0, maxdev=4, notri='H4')
+tr = X.run(ev, cfg)
 f = tr.tag.str.split('|', expand=True).astype(float); tr['dur'], tr['npiv'], tr['touch'], tr['slope'] = f[0], f[1], f[2], f[3]
-tr.to_csv(B.HERE / 'results' / 'step2' / 'C_feat.csv', index=False)
+tr.to_csv(B.HERE / 'results' / 'step2' / ('C_feat_loose.csv' if LOOSE else 'C_feat.csv'), index=False)
 print(len(ev), 'lines broken', len(tr), 'trades', round(tr.R.sum(), 1))
