@@ -140,6 +140,9 @@ def run(events, cfg):
                 p['exit'] = p['tp_px']; p['exit_t'] = M15T[i]; trades.append(p); continue
             if cfg.get('tp') and fav >= cfg['tp'] * p['risk']:          # fixed target (stop is checked first)
                 p['exit'] = p['entry'] + s * cfg['tp'] * p['risk']; p['exit_t'] = M15T[i]; trades.append(p); continue
+            if cfg.get('tmax') and not p['trail'] and (M15T[i] - p['t']) >= pd.Timedelta(hours=cfg['tmax']) and \
+                    max(p['mfe'], fav / p['risk']) < cfg.get('tmfe', 0.5):     # time stop: no progress after tmax hours -> exit at this close
+                p['exit'] = B.c[i]; p['exit_t'] = M15T[i]; trades.append(p); continue
             if not p['trail'] and fav >= act * p['risk']:
                 p['trail'] = True
             if p['trail']:

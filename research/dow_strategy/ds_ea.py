@@ -9,7 +9,9 @@ before H is exceeded -> sell the right shoulder. Stronger if H sits on an older 
 Tag (filtered later): tf | retr (shoulder high reached as share of H-L) | depth ((H-L)/ATR H4) | res (H within 0.5 ATR(H4)
 of an older confirmed H4 swing high, 20-500 H4 bars before the trend start) | bars from reversal to entry (H1)
 Stop: above the right shoulder high (shoulder) or above H (left); + 0.3 ATR(H1).
-Exit: tp2 / h1 trail from +1R / neck (target = L, else 3R).
+Exit: tp2 / h1 trail from +1R / neck (target = L, else 3R) / m15a<x> (M15 swing trail from +x R) / hyb<x> (M15 trail from +1R,
+H1 trail from +x R); suffix -t<h> = time stop: exit at the close after h hours if the trade never reached +0.5R
+(env DS_EXITS=comma list runs only those exits on the H1 / left-shoulder version).
 Run in a workspace; writes results/ds/DS_<tf>_<stop>_<exit>.csv"""
 import os, sys, bisect, itertools
 from multiprocessing import Pool
@@ -83,15 +85,23 @@ def run1(c):
     tf, stop, ex = c
     ev = [dict(e, ref=e['ref_sh'] if stop == 'shoulder' else e['ref_H'], tp_px=e['neck']) for e in EV[tf]]
     cfg = dict(trig='all', stop='ref', buf=0.3, win=0.3, one_per_side=True)
-    if ex == 'h1': cfg.update(exit='h1', act=1.0)
-    elif ex == 'neck': cfg.update(exit='h1', act=99, tp_px=True, tp=3.0)
+    base, _, tm = ex.partition('-t')                       # e.g. 'm15a1.5-t24' = M15 trail from +1.5R, time stop after 24h
+    if base == 'h1': cfg.update(exit='h1', act=1.0)
+    elif base == 'neck': cfg.update(exit='h1', act=99, tp_px=True, tp=3.0)
+    elif base.startswith('m15a'): cfg.update(exit='m15', act=float(base[4:]))
+    elif base.startswith('hyb'): cfg.update(exit='hyb', act=1.0, sw=float(base[3:]))
     else: cfg.update(exit='h1', act=99, tp=2.0)
+    if tm: cfg.update(tmax=float(tm), tmfe=0.5)
     tr = X.run(ev, cfg); name = f'DS_{tf}_{stop}_{ex}'
     if len(tr): tr.to_csv(OUT / f'{name}.csv', index=False)
     return name, len(ev), len(tr), round(tr.R.sum(), 1) if len(tr) else 0
 
 
 if __name__ == '__main__':
-    G = list(itertools.product(('H4', 'H1'), ('shoulder', 'left'), ('tp2', 'h1', 'neck')))
+    EXITS = os.environ.get('DS_EXITS')
+    if EXITS:      # exit study (2026-10-23): H1 version, stop above the left shoulder
+        G = list(itertools.product(('H1',), ('left',), EXITS.split(',')))
+    else:
+        G = list(itertools.product(('H4', 'H1'), ('shoulder', 'left'), ('tp2', 'h1', 'neck')))
     with Pool(int(os.environ.get('NPROC', '2'))) as p:
         for r in p.imap_unordered(run1, G): print(*r, flush=True)
