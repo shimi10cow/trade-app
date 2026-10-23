@@ -31,3 +31,9 @@ pfx.ev(base, keys4, pd.concat([CJ, M2]), label='候補（④ ドル円C絞る＋
 pfx.ev(base, keys4, pd.concat([CJ, M2, D7]), label='＋右肩 7銘柄（押し4ATR+）')
 pfx.ev(base, keys4, pd.concat([CJ, M2, D6]), label='＋右肩 7銘柄（押し6ATR+）')
 pfx.ev(base, keys4, pd.concat([CJ, M2, D3]), label='＋右肩 ドル円・金・日経だけ（後から選んだ＝参考）')
+# deep dive (2026-10-23): instruments chosen on the first half only, and one at a time
+D4 = pd.concat([ds(s) for s in ('JP225', 'US30', 'USDJPY', 'XAUUSD')])
+pfx.ev(base, keys4, pd.concat([CJ, M2, D4]), label='＋右肩 前半だけで選んだ4銘柄（日経・US30・ドル円・金）')
+for s in ('USDJPY', 'XAUUSD', 'JP225', 'US30'):
+    pfx.ev(base, keys4, pd.concat([CJ, M2, ds(s)]), label=f'＋右肩 {s} だけ')
+pfx.ev(base, keys4, pd.concat([CJ, M2, ds('XAUUSD'), ds('JP225')]), label='＋右肩 金・日経')
