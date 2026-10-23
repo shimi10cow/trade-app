@@ -18,7 +18,7 @@ A = np.asarray(B.A1, float)
 piv = sorted((e['available_idx'], e['idx'], e['kind'], e['price']) for e in B.R1['pivot_events'])
 out = []
 for mode in ('redraw', 'outer'):
-    lows, highs = [], []; pi = 0; done = set()
+    lows, highs = [], []; pi = 0; done = set(); st = {1: {}, -1: {}}
     for i in range(60, len(h1)):
         while pi < len(piv) and piv[pi][0] <= i:
             av, ix, kind, pr = piv[pi]; pi += 1
@@ -31,6 +31,9 @@ for mode in ('redraw', 'outer'):
                 (i1, p1), (i2, p2) = rec[-2], rec[-1]
                 if (side == 1 and p2 <= p1) or (side == -1 and p2 >= p1): continue
                 sl = (p2 - p1) / (i2 - i1)
+                o = st[side]
+                if o.get('key') != (i1, i2):                           # a new redraw: keep the slope of the line it replaced
+                    st[side] = dict(key=(i1, i2), sl=sl, prev=(o.get('sl') if o.get('key') and o['key'][1] == i1 else None))
             else:
                 k0 = int(np.argmin([p for _, p in rec])) if side == 1 else int(np.argmax([p for _, p in rec]))
                 i1, p1 = rec[k0]; later = rec[k0 + 1:]
@@ -51,12 +54,12 @@ for mode in ('redraw', 'outer'):
                     # still holds, a break of the steeper 2-3 line often resumes)
                     k0 = int(np.argmin([p for _, p in rec])) if side == 1 else int(np.argmax([p for _, p in rec]))
                     io, po = rec[k0]; lat = rec[k0 + 1:]
-                    outer_ok = None
+                    outer_ok = None; outer_v = np.nan
                     if lat:
                         so = [(p - po) / (ix - io) for ix, p in lat]; so = min(so) if side == 1 else max(so)
-                        vo = po + so * (i - io); outer_ok = bool((c[i] >= vo) if side == 1 else (c[i] <= vo))
+                        vo = po + so * (i - io); outer_ok = bool((c[i] >= vo) if side == 1 else (c[i] <= vo)); outer_v = vo
                         if abs(so - sl) < 1e-12: outer_ok = None          # the steep line IS the outer line
-                    out.append(dict(mode=mode, t=C1[i], side=side, ext=ext, slope=abs(sl) / a, run=run, outer_ok=outer_ok))
+                    out.append(dict(mode=mode, t=C1[i], side=side, ext=ext, slope=abs(sl) / a, run=run, outer_ok=outer_ok, outer_v=outer_v, ratio=((sl / st[side]['prev']) if mode == 'redraw' and st[side].get('prev') else np.nan), inner_low=(lo[i2:i + 1].min() if side == 1 else hi[i2:i + 1].max())))
 D = pd.DataFrame(out).drop_duplicates(['mode', 't', 'side'])
 # when is the old extreme regained (H1 close-time index)
 ends = []
