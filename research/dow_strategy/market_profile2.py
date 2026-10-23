@@ -8,6 +8,8 @@ SRC = {'EURUSD': '/home/user/trade-app/research/datasets/raw/m5/EURUSD_M5.csv.gz
        'EURJPY': f'{S}/ws_EURJPY/research/datasets/raw/m5/EURJPY_M5.csv.gz', 'GBPUSD': f'{S}/ws_GBPUSD/research/datasets/raw/m5/GBPUSD_M5.csv.gz'}
 for _s in ('XAUUSD', 'BTCUSD', 'GBPJPY', 'AUDJPY', 'CADJPY', 'CHFJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'XAGUSD', 'US30'):
     SRC[_s] = f'{S}/ws_{_s}/{_s}_M5_raw.csv.gz'
+for _s in ('US500', 'JP225', 'OIL', 'NGAS'):
+    SRC[_s] = f'{S}/ws_{_s}/{_s}_M15_raw.csv.gz'   # XM MT5 M15 (UTC), 2016/17-
 if len(sys.argv) > 1: SRC = {k: v for k, v in SRC.items() if k in sys.argv[1:]}
 rows = []
 for sym, f in SRC.items():
@@ -53,4 +55,4 @@ for sym, f in SRC.items():
 T = pd.DataFrame(rows).T
 pd.set_option('display.width', 200); pd.set_option('display.max_colwidth', 40)
 print(T.to_string(float_format=lambda v: f'{v:.3f}'))
-T.to_csv(f'{S}/market_profile_all.csv')
+T.to_csv(f'{S}/market_profile_all.csv' if len(sys.argv) == 1 else f'{S}/market_profile_' + '_'.join(sys.argv[1:]) + '.csv')
