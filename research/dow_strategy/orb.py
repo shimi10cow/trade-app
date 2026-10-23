@@ -2,15 +2,16 @@
 M15 bars (time zones converted properly). Range = first 30 or 60 min. Breakout = first later bar (within 6h) trading beyond
 the range high (buy) / low (sell) -> entry at the range edge (stop order), one trade a day.
 Side: 'both' or 'trend' (only in the direction of D1 close vs a rising/falling D1 SMA50). Stop: other side of the range ('far')
-or its middle ('mid'). Exit: 1R / 2R target, or the close of the 6h window ('eod'). Writes results/orb/O_<...>.csv"""
+or its middle ('mid'). Exit: 1R / 2R target, or the close of the 6h window ('eod'). Writes results/orb/O_<...>.csv
+NFP mode (env ORB_NFP=1): only US employment report days, range starts at the 08:30 NY release, files N_<...>.csv"""
 import sys, os, itertools
 from pathlib import Path
 import numpy as np, pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dow_turn_ea as B  # noqa: E402
 OUT = B.HERE / 'results' / 'orb'; OUT.mkdir(parents=True, exist_ok=True)
-SYM = os.environ.get('M5_SYM', 'US30')
-TZ, OPEN = ('Asia/Tokyo', (9, 0)) if SYM == 'JP225' else ('America/New_York', (9, 30))
+SYM = os.environ.get('M5_SYM', 'US30'); NFPM = os.environ.get('ORB_NFP') == '1'
+TZ, OPEN = ('Asia/Tokyo', (9, 0)) if SYM == 'JP225' else ('America/New_York', (8, 30) if NFPM else (9, 30))
 T = pd.DatetimeIndex(B.T15); o, h, l, c = B.o, B.h, B.l, B.c
 loc = T.tz_localize('Europe/Athens', ambiguous='NaT', nonexistent='NaT').tz_convert(TZ)
 day = pd.Series(loc.date, index=range(len(T))); mins = loc.hour * 60 + loc.minute
@@ -22,6 +23,10 @@ up = ((d1 > ma) & (ma > ma.shift(5))); dn = ((d1 < ma) & (ma < ma.shift(5))); up
 def run(orm, side, stop, ex):
     out = []
     starts = np.nonzero((mins == op) & (T >= B.START))[0]
+    if NFPM:
+        import nfp_study as NS
+        nd = set(d.date() for d in NS.NFP.tz_localize('Europe/Athens', ambiguous='NaT', nonexistent='NaT').tz_convert(TZ).dropna())
+        starts = np.array([s0 for s0 in starts if day.iloc[s0] in nd])
     for s0 in starts:
         n_or = orm // 15; s1 = s0 + n_or
         if s1 + 1 >= len(T) or (T[s1] - T[s0]) > pd.Timedelta(minutes=orm + 1): continue
@@ -43,10 +48,10 @@ def run(orm, side, stop, ex):
             out.append(dict(t=T[k], exit_t=T[xk], side=sd, entry=en, risk=risk, exit=xp, R=sd * (xp - en) / risk - B.COST / risk))
             break
     tr = pd.DataFrame(out)
-    if len(tr): tr.to_csv(OUT / f'O_{orm}_{side}_{stop}_{ex}.csv', index=False)
+    if len(tr): tr.to_csv(OUT / f'{"N" if NFPM else "O"}_{orm}_{side}_{stop}_{ex}.csv', index=False)
     return len(tr), round(tr.R.sum(), 1) if len(tr) else 0
 
 
 if __name__ == '__main__':
-    for c_ in itertools.product((30, 60), ('both', 'trend'), ('far', 'mid'), ('tp1', 'tp2', 'eod')):
+    for c_ in itertools.product((15, 30, 60) if NFPM else (30, 60), ('both', 'trend'), ('far', 'mid'), ('tp1', 'tp2', 'eod')):
         print(c_, *run(*c_), flush=True)
