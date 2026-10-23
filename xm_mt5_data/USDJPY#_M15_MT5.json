@@ -1,0 +1,14 @@
+{
+  "symbol": "USDJPY#",
+  "timeframe": "M15",
+  "requested_start_utc": "2023-10-23T17:58:07.027678+00:00",
+  "requested_end_utc": "2026-10-23T11:58:07.027678+00:00",
+  "first_bar_utc": "2023-10-23T18:00:00+00:00",
+  "last_bar_utc": "2026-10-23T11:45:00+00:00",
+  "bars": 74470,
+  "server": "XMTrading-MT5 2",
+  "point": 0.001,
+  "digits": 3,
+  "trade_contract_size": 100000.0,
+  "spread_unit": "MT5 broker points; zero may mean unavailable"
+}
