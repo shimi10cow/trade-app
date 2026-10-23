@@ -18,6 +18,11 @@ out = []
 for f in sorted(glob.glob(f'{S}/feat/h1blk_*.pkl')):
     sym = f.split('h1blk_')[1][:-4]; D = pd.read_pickle(f); g = X[X.pair == sym]
     if not len(g): continue
+    if 'outer_ok' not in D: continue
+    D = D[D['mode'] == 'redraw'].copy()
+    rg = ((D.until - D.t) < pd.Timedelta('71h'))
+    print(sym, '元の高安を72h以内に更新：', {k: f'{v:.0%}' for k, v in rg.groupby(D.outer_ok.map({True: '内側だけ', False: '外側も'}).fillna('1本')).mean().items()}, D.outer_ok.map({True: '内側だけ', False: '外側も'}).fillna('1本').value_counts().to_dict())
+    D['mode'] = D.outer_ok.map({True: '内側だけ割れ', False: '外側も割れ'}).fillna('線が1本')
     for mode, b in D.groupby('mode'):
         blk = np.zeros(len(g), bool)
         for sd in (1, -1):

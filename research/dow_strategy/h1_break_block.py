@@ -47,7 +47,16 @@ for mode in ('redraw', 'outer'):
                 seg = np.arange(i1, i); run = (side * ((hi[seg] if side == 1 else lo[seg]) - (p1 + sl * (seg - i1)))).max() / a
                 if run >= 2:
                     ext = hi[i1:i + 1].max() if side == 1 else lo[i1:i + 1].min()
-                    out.append(dict(mode=mode, t=C1[i], side=side, ext=ext, slope=abs(sl) / a, run=run))
+                    # is the outer (flatter) line from the move's origin still intact at this bar? (user: if the 1-2 line
+                    # still holds, a break of the steeper 2-3 line often resumes)
+                    k0 = int(np.argmin([p for _, p in rec])) if side == 1 else int(np.argmax([p for _, p in rec]))
+                    io, po = rec[k0]; lat = rec[k0 + 1:]
+                    outer_ok = None
+                    if lat:
+                        so = [(p - po) / (ix - io) for ix, p in lat]; so = min(so) if side == 1 else max(so)
+                        vo = po + so * (i - io); outer_ok = bool((c[i] >= vo) if side == 1 else (c[i] <= vo))
+                        if abs(so - sl) < 1e-12: outer_ok = None          # the steep line IS the outer line
+                    out.append(dict(mode=mode, t=C1[i], side=side, ext=ext, slope=abs(sl) / a, run=run, outer_ok=outer_ok))
 D = pd.DataFrame(out).drop_duplicates(['mode', 't', 'side'])
 # when is the old extreme regained (H1 close-time index)
 ends = []
