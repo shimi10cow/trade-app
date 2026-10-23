@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dow_turn_ea as B  # noqa: E402
 from env_recognition.pivots import atr  # noqa: E402
 S = '/tmp/claude-0/-home-user-trade-app/dde437f2-70a2-5a18-92f1-b264add5082b/scratchpad'
-SYM = os.environ.get('M5_SYM'); src = {'XAUUSD': 'tl_gold', 'USDJPY': 'tl_jpy'}[SYM]
+SYM = os.environ.get('M5_SYM'); src = os.environ.get('TL_SRC') or {'XAUUSD': 'tl_gold', 'USDJPY': 'tl_jpy'}[SYM]
 L = pd.DataFrame([json.load(open(f)) for f in glob.glob(f'{S}/{src}/drawings/*.json')])
-L = L[(L.kind == 'tl') & (L.created.str.startswith('2026-10-23'))].copy()
+L = L[(L.kind == 'tl') & (L.created.str.startswith('2026-10-2'))].copy()
 L['t1'] = pd.to_datetime(L.t1, unit='s'); L['t2'] = pd.to_datetime(L.t2, unit='s')
 sw = L.t1 > L.t2; L.loc[sw, ['t1', 't2', 'p1', 'p2']] = L.loc[sw, ['t2', 't1', 'p2', 'p1']].to_numpy()
 conv = (lambda v: np.log(v)) if SYM == 'XAUUSD' else (lambda v: v / 100 if B.c.mean() < 10 else v)
