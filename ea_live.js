@@ -293,7 +293,7 @@
     const sym = k.split('@')[1] || '';
     return card ? card.title + ' ' + sym : k;
   }
-  const allTrades = () => (S.dash && S.dash.trades) || [];
+  const allTrades = () => ((S.dash && S.dash.trades) || []).filter(t => !/^RES:/.test(String(t.EA)));   // reservations are recorded as 裁量 trades (Trades)
   const dirJa = d => String(d).toUpperCase() === 'BUY' ? '買い' : '売り';
   const jst = v => esc(String(v || '').replace(/\+09:00$/, '').slice(5, 16));
   function tradeRow(t, onclick) {

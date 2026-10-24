@@ -403,3 +403,47 @@ function fixOldTimestamps() {
   Logger.log(JSON.stringify(rep));
   return rep;
 }
+
+// ------------------------------------------------------------------ reservations = hand-written trades
+/** A filled reservation becomes a normal trade record (same as hand-written, Source 予約) so it is in every 裁量 view. */
+function resRecordOpen_(b, eaTradeId) {
+  const T = trRead_();
+  if (T.rows.some(function (t) { return String(t.EATradeID || '') === eaTradeId; })) return;
+  const en = impDT_(String(b.entry_time || tradesNow_()).replace('+09:00', ''));
+  const pair = String(b.symbol || '').toUpperCase(), dir = Number(b.side) === 1 ? 'Buy' : 'Sell';
+  const res = (ealRows_('res').filter(function (r) { return 'RES:' + r.ResID === String(b.ea); })[0]) || {};
+  const o = {EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '保有中', Source: '予約', EATradeID: eaTradeId,
+    'PairName（元）': pair, PairName: pair, Direction: dir, EntryDate: en.date, EntryTime: en.time, EntryPrice: b.fill, Lot: b.lots,
+    InitialSLPrice: b.sl, TakeProfitPrice: b.tp || '', RiskJPY: b.risk_jpy, Accounts: String(b.account || ''),
+    'エントリー時メモ': ['予約 ' + (res.Trigger || '') + ' エントリー', res.Note || ''].filter(String).join(' / ')};
+  trWrite_(T, o);
+}
+function resRecordClose_(eaRow, b) {
+  const T = trRead_(), id = String(eaRow.TradeID);
+  const t = T.rows.filter(function (x) { return String(x.EATradeID || '') === id; })[0];
+  if (!t) return;
+  const ex = impDT_(String(b.exit_time || '').replace('+09:00', ''));
+  const sym = String(eaRow.Symbol || ''), dir = String(eaRow.Direction || '').toUpperCase();
+  const pips = typeof mt5Pips_ === 'function' ? mt5Pips_(sym, dir, eaRow.EntryPrice, b.exit) : '';
+  Object.assign(t, {'ステータス': '決済', ExitPrice: b.exit, ExitDate: ex.date, ExitTime: ex.time, Profit: b.profit, '損益': b.profit, '実取得pips': pips});
+  trWrite_(T, t);
+}
+
+// ------------------------------------------------------------------ everything at once
+/** Run once from the editor: backup + Trades (stops here if the numbers do not match), switch the app to Trades,
+ *  old memos into Ideas, old Pairs EA columns removed, time stamps unified, unused sheets moved to "トレードアプリ_保管". */
+function upgradeSheetsOnce() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), log = [];
+  if (!ss.getSheetByName(TRADES_SHEET_)) {
+    const rep = migrateToTrades();
+    log.push('Trades: ' + rep.rowsTrades + ' 件、損益 ' + rep.profitTrades + '（Entries ' + rep.rowsEntries + ' 件、' + rep.profitEntries + '）バックアップ ' + rep.backup);
+    if (!rep.ok) { Logger.log(log.join('\n') + '\n数が合わないので、ここで止めました（アプリは Entries のまま）'); return {ok: false, log: log}; }
+  } else log.push('Trades はもうある（作り直しはしない）');
+  switchToTrades(); log.push('アプリは Trades を読む');
+  mergeMemosIntoIdeas(); log.push('古いメモを Ideas へ');
+  cleanPairsEAColumns(); log.push('Pairs の古い EA 列を削除');
+  log.push('時刻の書き方: ' + JSON.stringify(fixOldTimestamps()));
+  archiveOldSheets(); log.push('使っていない表を「トレードアプリ_保管」へ');
+  Logger.log(log.join('\n'));
+  return {ok: true, log: log};
+}

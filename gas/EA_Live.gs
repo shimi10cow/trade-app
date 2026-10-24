@@ -116,6 +116,7 @@ function ealTradeOpen_(b) {
     Ticket: b.ticket, SignalTime: b.signal_time, EntryTime: b.entry_time, EntryPrice: b.fill, SLPrice: b.sl, TPPrice: b.tp, Lot: b.lots,
     RiskJPY: b.risk_jpy, LotMult: b.mult, Weight: b.weight, Reason: b.reason, Note: b.note, Status: 'OPEN', CreatedAt: now, UpdatedAt: now,
     TargetPrice: b.price, Spread: b.spread, Slip: (b.price !== undefined && b.fill !== undefined && b.price !== '') ? Number(b.side) * (Number(b.fill) - Number(b.price)) : ''});
+  if (String(b.source) === 'RES' && typeof resRecordOpen_ === 'function') { try { resRecordOpen_(b, id); } catch (e) { ealLog_({account: b.account, level: 'error', ea: b.ea, message: 'record: ' + e}); } }
   return {success: true};
 }
 
@@ -123,6 +124,7 @@ function ealTradeClose_(b) {
   const id = String(b.account) + ':' + String(b.ticket), r = ealRows_('trades').find(x => String(x.TradeID) === id);
   if (!r) { ealLog_({account: b.account, level: 'warn', ea: b.ea, message: 'close for unknown ticket ' + b.ticket}); return {success: true, unknown: true}; }
   ealWriteRow_('trades', r._row, Object.assign({}, r, {ExitTime: b.exit_time, ExitPrice: b.exit, Profit: b.profit, R: b.R, Status: 'CLOSED', UpdatedAt: ealNow_()}));
+  if (/^RES:/.test(String(r.EA)) && typeof resRecordClose_ === 'function') { try { resRecordClose_(r, b); } catch (e) { ealLog_({account: b.account, level: 'error', ea: r.EA, message: 'record: ' + e}); } }
   return {success: true};
 }
 
