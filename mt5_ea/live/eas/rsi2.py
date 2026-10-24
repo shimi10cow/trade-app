@@ -34,7 +34,7 @@ def run(F: Frames, tr=200, lo=10, ex='ma5', st='st', every_day=False):
             i += 1; continue
         en = c.iloc[i]; risk = 2.5 * atr.iloc[i]; stp = en - risk; xp = None
         if i == n - 1:                     # signal on the last closed day: enter now (live only)
-            pending.append(dict(signal_t=idx[i], side=1, entry_ref=en, sl=stp, risk=risk)); break
+            pending.append(dict(signal_t=idx[i], t=idx[i] + pd.Timedelta('1D'), side=1, entry_ref=en, sl=stp, risk=risk)); break
         j = i
         for j in range(i + 1, min(i + 30, n)):
             if st == 'st' and D.l.iloc[j] <= stp: xp = min(stp, D.o.iloc[j]); break
