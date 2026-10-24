@@ -63,6 +63,12 @@ def main():
         else:
             telegram.send('error', t, dict(cfg, notifyError=True)) if k == 'info' and telegram.configured() else None
     R = Runner(b, notify=note, account_kind=kind)
+    from mt5_ea.live.registry import SYMBOLS
+    for s_ in SYMBOLS:                       # show the symbol mapping once; a missing symbol only skips that instrument
+        try:
+            logging.info('symbol %s -> %s', s_, b.name(s_))
+        except Exception as ex:
+            logging.warning('symbol %s not available: %s', s_, ex)
     logging.info('live EA started: account %s (%s) kind=%s, %d EAs, magic %s-%s', a['login'], a['server'], kind, len(MAGIC), min(MAGIC.values()), max(MAGIC.values()))
     note('info', f'EA 起動 {kind} 口座 {a["login"]}')
     last_hb = 0.0; last_slot = None

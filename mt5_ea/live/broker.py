@@ -17,6 +17,11 @@ from .sizing import SymbolSpec
 
 XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US500': 'US500Cash#', 'US30': 'US30Cash#',
               'EURUSD': 'EURUSD#', 'USDJPY': 'USDJPY#', 'BTCUSD': 'BTCUSD#', 'ETHUSD': 'ETHUSD#'}
+# Names differ between XM account types (KIWAMI '#', Standard none, Micro 'micro', demo servers ...): try these bases in order,
+# each with the suffixes below, then fall back to any symbol on the account whose name starts with a base.
+XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'],
+            'US30': ['US30Cash', 'US30'], 'BTCUSD': ['BTCUSD'], 'ETHUSD': ['ETHUSD']}
+SUFFIXES = ['#', '', '.', 'micro', '#.']
 
 
 @dataclass
@@ -44,11 +49,17 @@ class MT5Broker:
 
     # ---- symbols
     def name(self, sym):
+        import os
         if sym not in self._names:
-            cand = [XM_SYMBOLS.get(sym, sym + '#'), sym, sym + '#']
+            forced = os.getenv('EA_SYMBOL_' + sym, '').strip()          # manual override, e.g. EA_SYMBOL_XAUUSD=GOLDm
+            bases = XM_BASES.get(sym, [sym])
+            cand = ([forced] if forced else []) + [b + x for b in bases for x in SUFFIXES]
             found = next((c for c in cand if self.mt5.symbol_info(c) is not None), None)
             if not found:
-                raise RuntimeError(f'{sym}: no XM KIWAMI symbol ({cand})')
+                allnames = [s_.name for s_ in (self.mt5.symbols_get() or [])]
+                found = next((n for b in bases for n in sorted(allnames) if n.upper().startswith(b.upper())), None)
+            if not found:
+                raise RuntimeError(f'{sym}: symbol not found on this account (tried {cand[:6]}...)')
             self.mt5.symbol_select(found, True); self._names[sym] = found
         return self._names[sym]
 
