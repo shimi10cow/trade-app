@@ -25,7 +25,7 @@
 1. 最新のプログラムを入れる：https://github.com/shimi10cow/trade-app/archive/refs/heads/feature/env-recognition.zip を開いてダウンロード（約 150MB）→ 右クリック「すべて展開」→ できた `trade-app-feature-env-recognition` フォルダを使う（古い EA のフォルダとは別。置き場所は例 `C:\TradeEA\`。OneDrive が同期するフォルダは避ける）
 2. XM の MT5 を開き「ファイル」→「取引口座にログイン」で EA 用のデモ口座（極・円）にログイン
 3. 展開したフォルダの `mt5_ea` を開き、アドレス欄に `powershell` と入れて Enter → `py -m pip install -r requirements.txt`（1 回だけ）
-4. 同じ画面で `.\configure_live_ea.ps1` を実行して、GAS のアドレス・EA_KEY・デモ口座の番号・MT5 の場所を入れる（1 回だけ）
+4. `CONFIGURE_LIVE_EA.bat` をダブルクリック（PowerShell なら `powershell -ExecutionPolicy Bypass -File .\configure_live_ea.ps1`）して、GAS のアドレス・EA_KEY・デモ口座の番号・MT5 の場所を入れる（1 回だけ）
 5. `START_LIVE_EA_DEMO.bat` をダブルクリックで起動
    - 別の口座のときは起動しない（口座番号の確認あり）
    - アプリで「稼働」にするまで注文は出さない（最初は「全体停止」）
