@@ -1,12 +1,15 @@
 """MT5 import (2026-10-24, docs/EA_SYSTEM_PLAN.md "MT5 の取り込み").
 
 Reads the deals of the trader's own XM accounts (not the EA accounts) and sends them to the app backend in one call.
-One MT5 terminal copy per account, each logged in once with the read-only investor password (the terminal remembers it).
+One import MT5 (its own copy, not the EA terminals) in which every account was logged in once with its read-only investor
+password and "save password" on; the importer switches between the accounts with mt5.login (no password passed: the
+terminal uses the saved one). The terminal is closed once at the end (2026-10-25: one window instead of one per account).
 This runs as its own process (the MetaTrader5 package talks to one terminal per process), started by the EA PC when the
 app asks for an import, or by hand:  py -m mt5_ea.live.importer [--reread90]
 
 Accounts: %USERPROFILE%\\TradeEA_data\\import_accounts.json (not in git), e.g.
-  [{"login": 12345678, "path": "C:\\\\MT5\\\\acc1\\\\terminal64.exe", "label": "KIWAMI 1", "portable": true}, ...]
+  [{"login": 12345678, "server": "XMTrading-MT5 3", "path": "C:\\\\MT5_import\\\\terminal64.exe", "label": "KIWAMI 1"}, ...]
+  (every account the same path; "portable": true if that copy runs in portable mode)
 Per account only deals after the last import are read (first time / --reread90: the last 90 days).
 Positions (= MT5 position id) are merged into trades on the PC: same symbol and direction, entered within GROUP_HOURS of the
 trade's first entry or while the trade is still open; across accounts when merge_across is on. GAS only appends.
@@ -56,11 +59,15 @@ def read_account(acc, since_epoch):
     import MetaTrader5 as mt5
     ok = mt5.initialize(acc['path'], portable=True) if acc.get('portable') else mt5.initialize(acc['path'])
     if not ok:
-        raise RuntimeError(f"{acc.get('label') or acc['login']}: MT5 initialize failed {mt5.last_error()}")
+        raise RuntimeError(f"MT5 initialize failed {mt5.last_error()}")
     try:
         info = mt5.account_info()
-        if info is None or int(info.login) != int(acc['login']):
-            raise RuntimeError(f"{acc.get('label') or acc['login']}: terminal is logged in to {getattr(info, 'login', None)}")
+        if info is None or int(info.login) != int(acc['login']):          # switch accounts inside the one import MT5
+            mt5.login(int(acc['login']), server=acc.get('server'), timeout=20000)   # no password: the terminal's saved one
+            info = mt5.account_info()
+            if info is None or int(info.login) != int(acc['login']):
+                raise RuntimeError(f"取り込み用 MT5 でこの口座のパスワードが保存されていない"
+                                   f"（ログイン中 {getattr(info, 'login', None)}、{mt5.last_error()}）")
         frm = pd.Timestamp(since_epoch, unit='s').to_pydatetime(); to = (pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
         deals = mt5.history_deals_get(frm, to) or []
         orders = {o.ticket: o for o in (mt5.history_orders_get(frm, to) or [])}
@@ -165,8 +172,8 @@ def main(argv=None):
             acc_out.append(dict(login=key, label=acc.get('label', ''), deals=len(rs), last=max((r['_t'] for r in rs), default=state.get(key, since))))
         except Exception as ex:
             logging.exception('account %s', key); errors.append(f"{acc.get('label') or key}: {ex}")
-        finally:
-            close_terminal(acc['path'])
+    for path in dict.fromkeys(acc['path'] for acc in accounts):      # close each import MT5 once, after all accounts
+        close_terminal(path)
     trades = group_trades(rows, a.group_hours, a.merge_across not in ('0', 'false', 'off'))
     for r in rows:
         r.pop('_t', None)
