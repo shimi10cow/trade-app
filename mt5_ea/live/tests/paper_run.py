@@ -2,7 +2,7 @@
 exactly as the live loop would (orders at the price of the bar that just closed, stops checked on every new bar), and
 compare the executed trades with the simulated trades of the same EAs.
 
-Usage: python -m mt5_ea.live.tests.paper_run SYM DAYS [EA_KEY ...]
+Usage: python -m mt5_ea.live.tests.paper_run SYM START END [EA_KEY ...]   (dates, e.g. 2026-10-11 2026-10-17)
 """
 import logging
 import sys
@@ -31,7 +31,7 @@ def raw_bars(sym):
     return m
 
 
-def main(sym, days, keys):
+def main(sym, start, end, keys):
     m = raw_bars(sym)
     eas = [e for e in ADOPTED if e.symbol == sym and (not keys or e.key in keys)]
     b = PaperBroker(balance=1_000_000.0, specs={sym: SymbolSpec(0.01, 0.01, 100.0, 0.01 if m.c.iat[-1] > 50 else 1e-5, 1.0)})
@@ -41,8 +41,7 @@ def main(sym, days, keys):
     R.set_config(dict(running=True, base_risk=0.01, eas={e.key: dict(mode='auto', weight=e.weight) for e in eas}))
     import mt5_ea.live.gas as G
     G.enqueue = lambda *a, **k: None
-    t0 = m.t.iat[-1] - pd.Timedelta(days=days)
-    steps = m[m.t >= t0].reset_index(drop=True)
+    steps = m[(m.t >= pd.Timestamp(start)) & (m.t < pd.Timestamp(end))].reset_index(drop=True)
     log = []
     for i, bar in steps.iterrows():
         b.now = bar.t + pd.Timedelta(minutes=15)          # this bar just closed
@@ -50,10 +49,10 @@ def main(sym, days, keys):
         log += R.step()
         R.sweep_closed()
     print(f'{sym}: {len(steps)} bars, actions {len(log)}, closed trades {len(b.closed)}, still open {len(b.positions())}')
-    for line in log[:15]:
+    for line in log[:40]:
         print('  ', line)
     print(pd.DataFrame(b.closed)[['comment', 'side', 'open_t', 'open', 'close_t', 'close', 'why']].tail(10).to_string() if b.closed else 'no closed trades')
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], int(sys.argv[2]), sys.argv[3:])
+    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:])
