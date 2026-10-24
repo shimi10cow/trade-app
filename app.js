@@ -2004,6 +2004,25 @@ function openPendingReview() {
 }
 
 // ---- 週次レビューモーダル ----
+// 週のレビュー：EA の成績（EA_Trades、決済した週で数える）を裁量の下に口座ごとに出す
+function renderReviewEAStats_(weekStart) {
+  const box0 = document.getElementById('review-stats'); if (!box0) return;
+  let box = document.getElementById('review-ea-stats');
+  if (!box) { box = document.createElement('div'); box.id = 'review-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  const d = window.eaLive && window.eaLive.data && window.eaLive.data();
+  const from = fmtYmd(weekStart), endD = new Date(weekStart); endD.setDate(endD.getDate() + 7); const to = fmtYmd(endD);
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 10) >= from && String(t.ExitTime).slice(0, 10) < to);
+  const fmtYen = v => (v >= 0 ? '+' : '-') + '¥' + new Intl.NumberFormat('ja-JP').format(Math.round(Math.abs(v)));
+  const row = acc => {
+    const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
+    const R = g.reduce((s, t) => s + (Number(t.R) || 0), 0), P = g.reduce((s, t) => s + (Number(t.Profit) || 0), 0), w = g.filter(t => Number(t.R) > 0).length;
+    return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b"><span>${acc === 'live' ? '本番' : 'デモ'}口座</span>
+      <span>${g.length}回 · 勝率 ${Math.round(w / g.length * 100)}% · <b style="color:${R >= 0 ? '#4ade80' : '#f87171'}">${(R >= 0 ? '+' : '') + R.toFixed(1)}R</b> · ${fmtYen(P)}</span></div>`;
+  };
+  const body = row('demo') + row('live');
+  box.innerHTML = `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">🤖 EA（同じ週に決済した分）</div>` + (body || '<div style="font-size:12px;color:#64748b">この週の EA の決済はありません</div>');
+}
+
 function openReviewModal(weekKey) {
   // バックグラウンドで最新データを取得（土日のトレード入力反映）
   gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
@@ -2025,7 +2044,7 @@ function openReviewModal(weekKey) {
 
   // 対象週が今のカレンダー週なら「今週」、そうでなければ「先週」
   document.getElementById('review-modal-title').textContent = `📋 先週のレビュー`;
-  document.getElementById('review-stats-title').textContent = `先週の成績（自動集計）`;
+  document.getElementById('review-stats-title').textContent = `先週の成績（自動集計・裁量）`;
   document.getElementById('review-trades-title').textContent = `先週のトレード`;
 
   const endDate = new Date(weekStart);
@@ -2035,7 +2054,7 @@ function openReviewModal(weekKey) {
 
   // ── 成績自動集計（実トレードの決済のみ） ──
   const weekTrades = getWeekTrades(weekStart);
-  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済' && !/EA/i.test(String(t.Source || t.TradeType || '')));   // 裁量だけ
   let wins = 0, profit = 0, slSum = 0, slN = 0, entryOk = 0, exitOk = 0;
   closed.forEach(t => {
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -2062,6 +2081,7 @@ function openReviewModal(weekKey) {
     stat('ｴﾝﾄﾘｰ遵守', n ? Math.round(entryOk / n * 100) + '%' : '--') +
     stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
     stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
+  renderReviewEAStats_(weekStart);
 
   // ── トレード一覧（タップで該当トレードの詳細へ） ──
   document.getElementById('review-trades').innerHTML = weekTrades.length === 0
@@ -2187,7 +2207,7 @@ function _renderRetroReviewModal(retroKey) {
 
   // 成績集計
   const weekTrades = getWeekTrades(weekStart);
-  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済' && !/EA/i.test(String(t.Source || t.TradeType || '')));   // 裁量だけ
   let wins = 0, profit = 0;
   closed.forEach(t => {
     if ((parseFloat(t['実取得pips']) || 0) > 10) wins++;
@@ -2369,11 +2389,24 @@ function savePromiseFromSettings() {
 }
 
 // ---- 月次総括 ----
+function renderMonthlyEAStats_(ym) {
+  const box0 = document.getElementById('monthly-stats2'); if (!box0) return;
+  let box = document.getElementById('monthly-ea-stats');
+  if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  const d = window.eaLive && window.eaLive.data && window.eaLive.data();
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 7) === ym);
+  const line = acc => { const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
+    const R = g.reduce((s, t) => s + (Number(t.R) || 0), 0), P = g.reduce((s, t) => s + (Number(t.Profit) || 0), 0), w = g.filter(t => Number(t.R) > 0).length;
+    return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b"><span>${acc === 'live' ? '本番' : 'デモ'}口座</span><span>${g.length}回 · 勝率 ${Math.round(w / g.length * 100)}% · <b style="color:${R >= 0 ? '#4ade80' : '#f87171'}">${(R >= 0 ? '+' : '') + R.toFixed(1)}R</b> · ${P >= 0 ? '+' : '-'}¥${Math.round(Math.abs(P)).toLocaleString()}</span></div>`; };
+  const body = line('demo') + line('live');
+  box.innerHTML = `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">🤖 EA（この月に決済した分）</div>` + (body || '<div style="font-size:12px;color:#64748b">この月の EA の決済はありません</div>');
+}
+
 function maybeShowMonthlySummary() {
   const { last } = getDataMonthRange(); // 例: '2026-05'
   if (findReview('monthly', last)) return false; // 保存済み
   const monthTrades = App.data.entries.filter(t => {
-    if (t['ステータス'] !== '決済') return false;
+    if (t['ステータス'] !== '決済' || /EA/i.test(String(t.Source || t.TradeType || ''))) return false;   // 裁量だけ（EA は下に別で出す）
     const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     return d.startsWith(last);
   });
@@ -2423,6 +2456,7 @@ function maybeShowMonthlySummary() {
     stat('遵守損益', (ruleProfit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(ruleProfit)), ruleProfit >= 0 ? '#4ade80' : '#f87171') +
     stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
     stat('決済遵守', Math.round(exitOk / n * 100) + '%');
+  renderMonthlyEAStats_(last);
 
   // ── トレード一覧 ──
   const sorted = monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1);
