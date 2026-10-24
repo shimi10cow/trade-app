@@ -15,6 +15,7 @@
 ### GAS
 1. Apps Script に `gas/Trades.gs` を「EA_Trades」と同じ要領で追加（名前 `Trades`）。`Code.gs` と `EA_Live.gs` も貼り直す
 2. 新バージョンでデプロイ
+3. （まとめて行う場合）関数 `upgradeSheetsOnce` を 1 回実行すれば、下の 3〜5 と `fixOldTimestamps` を順に全部やる。数が合わない時は表の切り替えの前で止まる
 3. 関数 `migrateToTrades` を実行
    - スプレッドシートを丸ごとコピー（「トレードアプリ_backup_日時」）してから、表「Trades」を作る
    - 実行ログの `"ok": true` と、件数・損益・pips・画像の数が Entries と同じことを確認

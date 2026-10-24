@@ -1425,7 +1425,7 @@ function ensureEASheets() {
   ensureSheetWithHeaders_(EA_SIGNALS_SHEET, EA_SIGNALS_HEADERS);
   ensureSheetWithHeaders_(MT5_EXECUTIONS_SHEET, MT5_EXEC_HEADERS);
   ensureSheetWithHeaders_(APP_SETTINGS_SHEET, ['Key','Value','UpdatedAt']);
-  ensurePairColumns(EA_PAIR_HEADERS);
+  // Pairs no longer get the old EA columns (removed by cleanPairsEAColumns)
   return {success:true};
 }
 

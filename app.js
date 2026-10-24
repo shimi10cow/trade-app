@@ -755,7 +755,7 @@ function renderHistoryList() {
               ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
               <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
               ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
+              ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}${t.Source === '予約' ? '<span class="badge" style="background:rgba(34,211,238,0.12);color:#22d3ee;">予約</span>' : ''}
             </div>
             <div style="font-weight:700; font-size:15px; color:${pipsColor};">${pipsSign}${pips.toFixed(1)} <span style="font-size:10px;">pips</span></div>
           </div>
@@ -1374,7 +1374,7 @@ function renderPositions() {
             ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
             <span class="badge ${badgeClass}">${dirArrow} ${t.Direction || ''}</span>
             ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
-            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}
+            ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}${t.Source === '予約' ? '<span class="badge" style="background:rgba(34,211,238,0.12);color:#22d3ee;">予約</span>' : ''}
             ${t['計画エントリー'] === 'ON' ? '<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">📋 計画</span>' : ''}
           </div>
           <div style="font-size:11px; color:#94a3b8;">${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</div>
@@ -2011,7 +2011,7 @@ function renderReviewEAStats_(weekStart) {
   if (!box) { box = document.createElement('div'); box.id = 'review-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
   const d = window.eaLive && window.eaLive.data && window.eaLive.data();
   const from = fmtYmd(weekStart), endD = new Date(weekStart); endD.setDate(endD.getDate() + 7); const to = fmtYmd(endD);
-  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 10) >= from && String(t.ExitTime).slice(0, 10) < to);
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && !/^RES:/.test(String(t.EA)) && String(t.ExitTime).slice(0, 10) >= from && String(t.ExitTime).slice(0, 10) < to);
   const fmtYen = v => (v >= 0 ? '+' : '-') + '¥' + new Intl.NumberFormat('ja-JP').format(Math.round(Math.abs(v)));
   const row = acc => {
     const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
@@ -2394,7 +2394,7 @@ function renderMonthlyEAStats_(ym) {
   let box = document.getElementById('monthly-ea-stats');
   if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
   const d = window.eaLive && window.eaLive.data && window.eaLive.data();
-  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 7) === ym);
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && !/^RES:/.test(String(t.EA)) && String(t.ExitTime).slice(0, 7) === ym);
   const line = acc => { const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
     const R = g.reduce((s, t) => s + (Number(t.R) || 0), 0), P = g.reduce((s, t) => s + (Number(t.Profit) || 0), 0), w = g.filter(t => Number(t.R) > 0).length;
     return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b"><span>${acc === 'live' ? '本番' : 'デモ'}口座</span><span>${g.length}回 · 勝率 ${Math.round(w / g.length * 100)}% · <b style="color:${R >= 0 ? '#4ade80' : '#f87171'}">${(R >= 0 ? '+' : '') + R.toFixed(1)}R</b> · ${P >= 0 ? '+' : '-'}¥${Math.round(Math.abs(P)).toLocaleString()}</span></div>`; };
