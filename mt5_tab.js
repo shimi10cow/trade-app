@@ -43,6 +43,7 @@
       () => '取り込みを依頼しました。EA の PC が 5 分以内に受け取って読みます（数分かかります）');
     S.reread90 = false;
   };
+  window.mt5Cancel = () => act('取り消し中…', 'eaImportCancel', {}, () => '取り込みの依頼を取り消しました');
   window.mt5Toggle = function (k) { S.open[k] = !S.open[k]; try { localStorage.setItem(OPEN_LS, JSON.stringify(S.open)); } catch (e) {} render(); };
   window.mt5Set = function (k, v) { S.d = S.d || {}; S.d.settings = Object.assign({groupHours: 24, mergeAcross: true}, S.d.settings || {}, {[k]: v}); render(); };
   window.mt5Reread = function () { S.reread90 = !S.reread90; render(); };
@@ -88,9 +89,15 @@
     const d = S.d || {}, st = d.settings || {groupHours: 24, mergeAcross: true}, last = (d.status && d.status.last) || null, req = d.request;
     const accs = Object.entries((d.status && d.status.accounts) || {});
     const drafts = d.drafts || [];
-    const reqLine = req ? (req.taken ? `EA の PC が受け取りました（${esc(String(req.taken).slice(5, 16))}）。読み込み中…` : `依頼中（${esc(String(req.at).slice(5, 16))}）。EA の PC が 5 分以内に受け取ります`) : '';
-    const lastLine = last ? `前回 ${esc(String(last.at).slice(5, 16))}：新しい約定 ${last.executionsNew} · 更新 ${last.updated} · 紐付け ${last.linked} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
-    const errs = last && last.errors && last.errors.length ? `<div style="font-size:11px;color:#f87171;margin-top:4px">${last.errors.map(esc).join('<br>')}</div>` : '';
+    const ageMin = req ? (Date.now() - Date.parse(String(req.taken || req.at).replace(' ', 'T'))) / 60000 : 0;
+    const stale = req && (ageMin > (req.taken ? 30 : 15));
+    const reqLine = !req ? '' : stale
+      ? `<span style="color:#f87171">PC から返事がありません。PC 側の取り込みの準備（口座ごとの MT5）がまだの可能性があります</span>`
+      : (req.taken ? `EA の PC が受け取りました（${esc(String(req.taken).slice(5, 16))}）。読み込み中…` : `依頼中（${esc(String(req.at).slice(5, 16))}）。EA の PC が 5 分以内に受け取ります`);
+    const tile = (label, val, col) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:10px 6px;text-align:center"><div style="font-size:10px;color:#94a3b8">${label}</div><div style="font-size:16px;font-weight:800;margin-top:4px;color:${col || '#f8fafc'}">${val}</div></div>`;
+    const tiles = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${tile('前回', last ? esc(String(last.at).slice(5, 16)) : '—')}${tile('新しい約定', last ? last.executionsNew : '—')}${tile('確認待ち', drafts.length, drafts.length ? '#22d3ee' : '')}</div>`;
+    const lastLine = last ? `更新 ${last.updated} · 紐付け ${last.linked} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
+    const errs = last && last.errors && last.errors.length ? `<div style="font-size:11px;color:#f87171">${last.errors.map(esc).join('<br>')}</div>` : '';
     const settings = `<div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:#cbd5e1">
       <div style="display:flex;align-items:center;gap:8px"><span style="flex:1">まとめる時間（同じ銘柄・向き）</span>
         <input type="number" min="1" max="168" value="${esc(st.groupHours)}" onchange="mt5Set('groupHours',Number(this.value)||24)" class="ea-input" style="width:72px;text-align:center"> 時間</div>
@@ -104,19 +111,22 @@
       : '<div style="font-size:12px;color:#94a3b8">まだありません（PC の import_accounts.json に口座を書きます）</div>';
     const ea = d.eaStatus || {};
     root.innerHTML = `<div class="section" style="display:flex;flex-direction:column;gap:10px">
-      <div class="ea-card" style="padding:12px;display:flex;flex-direction:column;gap:8px">
-        <button onclick="mt5Import()" ${S.busy || req ? 'disabled' : ''} style="${btn};padding:13px;font-size:14px;${req ? off : neon('#4ade80', '74,222,128')}">${S.busy || (req ? '取り込み待ち' : '⬇️ まとめて取り込む')}</button>
-        ${reqLine ? `<div style="font-size:12px;color:#22d3ee">${reqLine}</div>` : ''}
-        <div style="font-size:11px;color:#94a3b8">${lastLine}</div>${errs}
+      <div class="ea-card" style="padding:16px;display:flex;flex-direction:column;gap:14px">
+        <div><div style="font-size:15px;font-weight:800">🖥️ MT5 の取り込み</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.6">裁量の口座の約定を読み、手入力のトレードに紐付けます。合わないものは下の「確認が必要なトレード」に出ます。</div></div>
+        ${tiles}
+        <button onclick="mt5Import()" ${S.busy || (req && !stale) ? 'disabled' : ''} style="${btn};padding:15px;font-size:15px;${req && !stale ? off : neon('#4ade80', '74,222,128')}">${S.busy || (req && !stale ? '取り込み待ち…' : '⬇️ まとめて取り込む')}</button>
+        ${reqLine ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#22d3ee"><span>${reqLine}</span><button onclick="mt5Cancel()" style="${btn};${off};flex:none;padding:6px 10px">取り消す</button></div>` : ''}
+        <div style="font-size:11px;color:#64748b">${lastLine}</div>${errs}
         ${S.msg ? `<div style="font-size:12px;color:${/でき|失敗|通信/.test(S.msg) ? '#f87171' : '#cbd5e1'}">${esc(S.msg)}</div>` : ''}
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:12px;font-weight:700;color:#94a3b8">確認が必要なトレード（${drafts.length}）</div>
         ${drafts.length > 1 ? `<button onclick="mt5Merge()" style="${btn};${off};padding:6px 10px">選んだものをまとめる</button>` : ''}</div>
-      ${drafts.length ? drafts.map(draftCard).join('') : '<div class="ea-card" style="font-size:12px;color:#94a3b8">ありません</div>'}
+      ${drafts.length ? drafts.map(draftCard).join('') : '<div class="ea-card" style="font-size:12px;color:#94a3b8;text-align:center;padding:18px">確認が必要なトレードはありません ✅</div>'}
       ${section('acc', '口座ごとの取り込み', accBody, accs.length + ' 口座')}
       ${section('set', '取り込みの設定', settings)}
       <div class="ea-card" style="padding:10px 12px;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between"><span>EA 口座の最後の記録</span>
-        <span>デモ ${esc(String(ea.demo || '—').slice(5, 16))} · 本番 ${esc(String(ea.live || '—').slice(5, 16))}</span></div>
+        <span>デモ ${ea.demo ? esc(String(ea.demo).slice(5, 16)) : '—'} · 本番 ${ea.live ? esc(String(ea.live).slice(5, 16)) : '—'}</span></div>
     </div>`;
   }
   window.renderMT5Import = function () { render(); load(); };

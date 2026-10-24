@@ -24,7 +24,7 @@ const EAL_ = {
            'TargetPrice', 'Spread', 'Slip'],   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
-  res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt']
+  res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode']
 };
 const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health'};
 
@@ -65,7 +65,7 @@ function ealAuth_(body, who) {
 }
 
 const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1};
-const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1};
+const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -78,7 +78,8 @@ function routeEALive_(action, body) {
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
                 eaImportAdopt: b2 => impAdopt_(b2), eaImportLink: b2 => impLink_(b2), eaImportSplit: b2 => impSplit_(b2),
-                eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2)}[action];
+                eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2),
+                eaImportCancel: () => { PropertiesService.getScriptProperties().deleteProperty('IMPORT_REQUEST'); return {success: true}; }}[action];
     if (/^eaImport/.test(action) && typeof impBatch_ !== 'function') throw new Error('add Trades.gs to the Apps Script project');
     const lock = LockService.getScriptLock();
     const write = !(action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus');
@@ -206,7 +207,8 @@ function ealResSave_(b) {
   const mode = ['pct', 'jpy', 'lot'].indexOf(b.lotMode) >= 0 ? b.lotMode : 'pct';
   const id = 'R' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
   const row = {ResID: id, Account: String(b.account || 'demo'), Symbol: sym, Direction: dir, Trigger: trig, SLPrice: b.sl || '', TPPrice: b.tp || '',
-               LotMode: mode, LotValue: Number(b.lotValue) || 0, Status: 'WAIT', TradeID: '', Note: String(b.note || '').slice(0, 300), CreatedAt: now, UpdatedAt: now};
+               LotMode: mode, LotValue: Number(b.lotValue) || 0, Status: 'WAIT', TradeID: '', Note: String(b.note || '').slice(0, 300), CreatedAt: now, UpdatedAt: now,
+               SLMode: ['stoch', 'm15ma200', 'h1ma75', 'h1ma200'].indexOf(b.slMode) >= 0 ? b.slMode : 'stoch'};
   ealWriteRow_('res', null, row);
   return {success: true, reservation: row};
 }

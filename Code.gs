@@ -127,12 +127,8 @@ function doPost(e) {
     result = uploadImage(body.base64Data, body.filename);
   } else if (action === 'getSimilarTrades') {
     result = getSimilarTrades(body.conditions);
-  } else if (action === 'getImgBBKey') {
-    const key = PropertiesService.getScriptProperties().getProperty('IMGBB_API_KEY') || '';
-    result = { success: true, key: key };
-  } else if (action === 'getGroqKey') {
-    const key = PropertiesService.getScriptProperties().getProperty('GROQ_API_KEY') || '';
-    result = { success: true, key: key };
+  } else if (action === 'getImgBBKey' || action === 'getGroqKey') {   // removed: keys are never handed out any more
+    result = { success: false, error: 'removed' };
   } else if (action === 'updatePair') {
     result = updatePair(body.pairName, body.data);
   } else if (action === 'resetPairFlags') {
