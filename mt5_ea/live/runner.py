@@ -89,7 +89,6 @@ class Runner:
         self.kind = account_kind; self.state_file = state_file; self.config_file = config_file
         self.state = load_json(state_file, dict(peak=0.0, tickets={}, done_signals=[], last_bar={}))
         self.config = load_json(config_file, DEFAULT_CONFIG)
-        self.import_request = None
 
     # ------------------------------------------------------------------ config / state
     def ea_cfg(self, key):
@@ -169,7 +168,6 @@ class Runner:
             r = gas.call('eaResList', dict(account=self.kind))
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
-            self.import_request = r.get('import_request') if isinstance(r, dict) else None
         except Exception as ex:
             logging.warning('reservation list failed: %s', ex)
 
@@ -367,7 +365,6 @@ class Runner:
                 self.set_config(r['config'])
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
-            self.import_request = r.get('import_request') if isinstance(r, dict) else None
         except Exception as ex:
             logging.warning('heartbeat failed: %s', ex)
         return x

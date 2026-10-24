@@ -228,7 +228,13 @@ function impFields_(a) {
 function impProps_() { return PropertiesService.getScriptProperties(); }
 function impGet_(k, d) { try { return JSON.parse(impProps_().getProperty(k) || 'null') || d; } catch (e) { return d; } }
 
-/** app: ask the EA PC to import. */
+/** app: save the import settings (the import itself is started on the PC with its desktop button). */
+function impSaveSettings_(b) {
+  const st = {groupHours: Number(b.groupHours) || 24, mergeAcross: b.mergeAcross !== false};
+  impProps_().setProperty('IMPORT_SETTINGS', JSON.stringify(st));
+  return {success: true, settings: st};
+}
+/** app: ask the EA PC to import (not used since 2026-10-25: the import runs from the PC's desktop button). */
 function impRequest_(b) {
   const st = {groupHours: Number(b.groupHours) || 24, mergeAcross: b.mergeAcross !== false, reread90: !!b.reread90};
   const req = {id: 'I' + Date.now(), at: tradesNow_(), settings: st, taken: ''};
