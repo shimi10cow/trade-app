@@ -61,8 +61,8 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1};
-const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1};
+const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1};
+const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -72,9 +72,13 @@ function routeEALive_(action, body) {
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
                 eaGetDashboard: ealDashboard_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
-                eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_}[action];
+                eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_,
+                eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
+                eaImportAdopt: b2 => impAdopt_(b2), eaImportLink: b2 => impLink_(b2), eaImportSplit: b2 => impSplit_(b2),
+                eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2)}[action];
+    if (/^eaImport/.test(action) && typeof impBatch_ !== 'function') throw new Error('add Trades.gs to the Apps Script project');
     const lock = LockService.getScriptLock();
-    const write = !(action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList');
+    const write = !(action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus');
     if (write) lock.waitLock(20000);
     try { return fn(body); } finally { if (write) lock.releaseLock(); }
   } catch (e) {
@@ -97,7 +101,8 @@ function ealHeartbeat_(b) {
   const today = d.find(x => String(x.Date).slice(0, 10) === day && String(x.Account) === acc);
   ealWriteRow_('daily', today ? today._row : null, {Date: day, Account: acc, Balance: b.balance, Equity: b.equity, Peak: b.peak, DD: b.dd});
   PropertiesService.getScriptProperties().setProperty('EA_LAST_HEARTBEAT_' + acc, String(Date.now()));
-  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc)};
+  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc),
+          import_request: typeof impTakeRequest_ === 'function' && acc === 'demo' ? impTakeRequest_() : null};
 }
 
 function ealTradeOpen_(b) {

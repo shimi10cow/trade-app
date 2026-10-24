@@ -62,6 +62,7 @@ class Runner:
         self.kind = account_kind; self.state_file = state_file; self.config_file = config_file
         self.state = load_json(state_file, dict(peak=0.0, tickets={}, done_signals=[], last_bar={}))
         self.config = load_json(config_file, DEFAULT_CONFIG)
+        self.import_request = None
 
     # ------------------------------------------------------------------ config / state
     def ea_cfg(self, key):
@@ -109,6 +110,7 @@ class Runner:
             r = gas.call('eaResList', dict(account=self.kind))
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
+            self.import_request = r.get('import_request') if isinstance(r, dict) else None
         except Exception as ex:
             logging.warning('reservation list failed: %s', ex)
 
@@ -181,6 +183,7 @@ class Runner:
             return []
         self.state['last_bar'][sym] = last_t
         m = bars[['t', 'o', 'h', 'l', 'c']].copy()
+        m['t'] = m.t.astype('datetime64[us]')               # one time unit everywhere (MT5 gives seconds)
         for z in 'ohlc':
             m[z] = to_space(sym, m[z].to_numpy())
         start = m.t.iat[0] + pd.Timedelta(days=warm)
@@ -298,6 +301,7 @@ class Runner:
                 self.set_config(r['config'])
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
+            self.import_request = r.get('import_request') if isinstance(r, dict) else None
         except Exception as ex:
             logging.warning('heartbeat failed: %s', ex)
         return x
