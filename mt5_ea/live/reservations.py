@@ -6,7 +6,8 @@ trigger fires. Same trigger as the old EA (Stochastic 14,5,3 on M15 or H1):
   sell: %K goes above 80 -> %K crosses below %D -> %K crosses back below 80
 Only bars after the reservation was made count, and only a trigger on the last closed bar is traded (no late entries after
 the PC was off; the state machine simply continues and waits for the next trigger).
-Stop: the price given in the app, or (none given) the extreme since %K entered the 20/80 zone -/+ 0.3 ATR(14) of that frame.
+Stop (chosen in the app): stoch = just outside the pullback extreme since %K entered the 20/80 zone (0.1 ATR(14) of that frame);
+m15ma200 / h1ma75 / h1ma200 = that moving average at entry (on the wrong side of the price -> stoch instead).
 Target: the price given in the app, or none (exit by stop or by hand in MT5).
 Lot: per reservation, 'pct' (% of equity at risk), 'jpy' (max loss in yen) or 'lot' (fixed lots).
 """
@@ -80,6 +81,26 @@ def trigger_on_last(bars, side, since):
                 return dict(extreme=float(ext), atr=float(a[i]) if not np.isnan(a[i]) else 0.0, t=bars.t.iat[i])
             state, ext = 0, None
     return None
+
+
+def mas(m15):
+    """Moving averages for the stop choices, from closed M15 bars."""
+    h1 = h1_bars(m15)
+    sma = lambda x, n: float(x.iloc[-n:].mean()) if len(x) >= n else None
+    return dict(m15ma200=sma(m15.c, 200), h1ma75=sma(h1.c, 75), h1ma200=sma(h1.c, 200))
+
+
+def stop_for(mode, side, price, hit, sl_price=None):
+    """Returns (stop price, note)."""
+    if str(sl_price or '').strip() and not mode:                # old reservations with a price
+        return float(sl_price), ''
+    stoch = hit['extreme'] - side * 0.1 * hit['atr']
+    if mode in ('m15ma200', 'h1ma75', 'h1ma200'):
+        v = (hit.get('mas') or {}).get(mode)
+        if v is not None and side * (price - v) > 0:
+            return float(v), ''
+        return stoch, ' / MA が逆側なのでストキャス直下'
+    return stoch, ''
 
 
 def lots_for_res(spec, equity, mode, value, stop_dist):

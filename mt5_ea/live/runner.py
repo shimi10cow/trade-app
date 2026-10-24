@@ -149,6 +149,7 @@ class Runner:
             last_seen[rid] = lt
             hit = RV.trigger_on_last(frame, side, RV.to_server(r.get('CreatedAt')))
             if hit:
+                hit['mas'] = RV.mas(m15)
                 out += self._enter_res(r, rid, sym, side, hit, eq)
         live_ids = {str(r.get('ResID')) for r in self.state.get('reservations') or []}
         self.state['res_last'] = {k: v for k, v in last_seen.items() if k in live_ids}
@@ -158,7 +159,7 @@ class Runner:
     def _enter_res(self, r, rid, sym, side, hit, eq):
         key = 'RES:' + rid; side_j = '買い' if side == 1 else '売り'
         bid, ask = self.b.quote(sym); px = ask if side == 1 else bid
-        sl = float(r['SLPrice']) if str(r.get('SLPrice') or '').strip() else hit['extreme'] - side * 0.3 * hit['atr']
+        sl, sl_note = RV.stop_for(str(r.get('SLMode') or ''), side, px, hit, r.get('SLPrice'))
         if side * (px - sl) <= 0:
             self.notify('error', f'予約 {sym} {side_j}: 損切り {sl:.5g} が今の値段 {px:.5g} の逆側なので見送り（予約は残す）')
             return [f'{key} skip: stop on the wrong side']
@@ -167,7 +168,7 @@ class Runner:
             tp = None
         lots, money, note = RV.lots_for_res(self.b.spec(sym), eq, str(r.get('LotMode') or 'pct'), r.get('LotValue') or 0.5, abs(px - sl))
         rec = dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
-                   lots=lots, risk_jpy=round(money), mult=1, weight=1, note=note, reason=f"予約 {r.get('Trigger')} ストキャス")
+                   lots=lots, risk_jpy=round(money), mult=1, weight=1, note=note + sl_note, reason=f"予約 {r.get('Trigger')} エントリー")
         if not self.config.get('running', False) or lots <= 0:
             why = '全体停止中' if not self.config.get('running', False) else note
             self.notify('signal', f'予約のシグナル {sym} {side_j} {px:.5g}（{why}・予約は残す）')
@@ -272,7 +273,8 @@ class Runner:
             tp = float(from_space(sym, [x + s * TP_R[key] * abs(x - sl_x)])[0])
         tdm = sizing.trading_day_of_month(days_list, p['signal_t'])
         mult = sizing.calendar_mult(sym, s, p['signal_t'], tdm)
-        lots, money, note = sizing.lots_for(self.b.spec(sym), eq, float(self.state['peak']), float(self.config.get('base_risk', 0.01)), mult, cfg['weight'], dist)
+        lots, money, note = sizing.lots_for(self.b.spec(sym), eq, float(self.state['peak']), float(self.config.get('base_risk', 0.01)), mult, cfg['weight'], dist,
+                                          dd_half=self.config.get('dd_half', True) is not False)
         side_j = '買い' if s == 1 else '売り'
         rec = dict(account=self.kind, ea=key, symbol=sym, side=s, signal_time=to_jst(p['signal_t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
                    lots=lots, risk_jpy=round(money), mult=mult, weight=cfg['weight'], note=note, reason=p.get('tag', ''))

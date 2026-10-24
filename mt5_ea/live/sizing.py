@@ -47,12 +47,13 @@ def trading_day_of_month(days, t):
     return len(month) if month else 1
 
 
-def lots_for(spec: SymbolSpec, equity, peak, base_risk, mult, weight, stop_dist):
+def lots_for(spec: SymbolSpec, equity, peak, base_risk, mult, weight, stop_dist, dd_half=True):
     """Returns (lots, risk_money, note). lots = 0 means skip."""
     if stop_dist <= 0 or equity <= 0:
         return 0.0, 0.0, 'bad stop'
     dd = 1 - equity / peak if peak > 0 else 0.0
-    risk = base_risk * mult * weight * (0.5 if dd >= DD_HALF_AT else 1.0)
+    half = dd_half and dd >= DD_HALF_AT                  # app switch 'DD10%で半分'
+    risk = base_risk * mult * weight * (0.5 if half else 1.0)
     money = equity * risk
     per_lot = spec.loss_per_lot(stop_dist)
     lots = math.floor(money / per_lot / spec.volume_step + 1e-9) * spec.volume_step
@@ -62,4 +63,4 @@ def lots_for(spec: SymbolSpec, equity, peak, base_risk, mult, weight, stop_dist)
             lots = spec.volume_min
             return round(lots, 8), lots * per_lot, f'min lot (risk {lots * per_lot / equity:.2%})'
         return 0.0, spec.volume_min * per_lot, f'skip: min lot risk {spec.volume_min * per_lot / equity:.2%} > {MAX_MINLOT_RISK:.1%}'
-    return round(lots, 8), lots * per_lot, f'risk {risk:.2%}' + (' (DD half)' if dd >= DD_HALF_AT else '')
+    return round(lots, 8), lots * per_lot, f'risk {risk:.2%}' + (' (DD half)' if half else '')
