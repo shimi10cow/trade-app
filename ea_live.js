@@ -44,7 +44,7 @@
       if (r && r.success === false) { S.err = r.error || '読み込みに失敗'; render(); return; }
       S.dash = r; S.err = ''; try { localStorage.setItem(CACHE_LS, JSON.stringify(r)); } catch (e) {}
     } catch (e) { S.err = '通信できません（前回の表示）'; }
-    render();
+    render(); refreshViews();
   }
   let saveTimer = null;
   function save() {
@@ -155,6 +155,116 @@
       <div class="ea-card" style="padding:4px 12px">${trades}</div>
     </div>${sheet}`;
   }
+
+
+  // ---------- EA trades outside the EA tab: home (open), history (closed), analysis (per EA vs backtest), detail
+  // Backtest per EA (research feat/final_trades.pkl, R after costs): trades, per year, win %, average R, PF, data from
+  const BT = {"A@EURUSD":{"n":153,"py":7.1,"wr":43.1,"avgR":0.202,"pf":1.38,"since":"2005"},"C@EURUSD":{"n":321,"py":14.8,"wr":45.2,"avgR":0.218,"pf":1.43,"since":"2005"},"C@USDJPY":{"n":274,"py":12.6,"wr":43.1,"avgR":0.319,"pf":1.63,"since":"2005"},"DS@JP225":{"n":111,"py":11.4,"wr":40.5,"avgR":0.179,"pf":1.29,"since":"2017"},"DS@US500":{"n":46,"py":4.8,"wr":50.0,"avgR":0.293,"pf":1.51,"since":"2017"},"DS@XAUUSD":{"n":189,"py":9.0,"wr":49.2,"avgR":0.27,"pf":1.58,"since":"2005"},"J2@USDJPY":{"n":239,"py":11.0,"wr":38.9,"avgR":0.491,"pf":1.8,"since":"2005"},"L2@XAUUSD":{"n":218,"py":10.3,"wr":43.1,"avgR":0.355,"pf":1.68,"since":"2005"},"L@EURUSD":{"n":297,"py":13.8,"wr":41.8,"avgR":0.279,"pf":1.53,"since":"2005"},"M@US30":{"n":107,"py":9.9,"wr":73.8,"avgR":0.116,"pf":1.73,"since":"2015"},"M@US500":{"n":88,"py":9.7,"wr":76.1,"avgR":0.119,"pf":1.76,"since":"2017"},"Q@US30":{"n":109,"py":9.4,"wr":43.1,"avgR":0.295,"pf":1.55,"since":"2015"},"Q@XAGUSD":{"n":112,"py":5.4,"wr":35.7,"avgR":0.913,"pf":2.49,"since":"2005"},"Q@XAUUSD":{"n":727,"py":33.4,"wr":44.2,"avgR":0.189,"pf":1.72,"since":"2005"},"R@EURUSD":{"n":133,"py":6.3,"wr":47.4,"avgR":0.71,"pf":2.26,"since":"2005"},"S@BTCUSD":{"n":280,"py":30.3,"wr":35.0,"avgR":0.686,"pf":2.0,"since":"2017"},"S@XAUUSD":{"n":626,"py":29.0,"wr":37.7,"avgR":0.143,"pf":1.48,"since":"2005"},"T2@EURUSD":{"n":377,"py":17.4,"wr":41.1,"avgR":0.397,"pf":1.67,"since":"2005"},"T@US30":{"n":237,"py":21.4,"wr":36.7,"avgR":0.127,"pf":1.2,"since":"2015"}};
+  const ACC_JA = {demo: 'デモ', live: '本番'};
+  let V = {histAcc: 'demo', anAcc: 'demo'};
+  function eaName(key) {
+    const k = String(key || ''), card = CARDS.find(c => c.keys.some(x => x[0] === k));
+    const sym = k.split('@')[1] || '';
+    return card ? card.title + ' ' + sym : k;
+  }
+  const allTrades = () => (S.dash && S.dash.trades) || [];
+  const dirJa = d => String(d).toUpperCase() === 'BUY' ? '買い' : '売り';
+  const jst = v => esc(String(v || '').replace(/\+09:00$/, '').slice(5, 16));
+  function tradeRow(t, onclick) {
+    const open = t.Status === 'OPEN', pr = Number(t.Profit), col = open ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
+    const R = t.R !== '' && t.R != null && !isNaN(t.R) ? (Number(t.R) > 0 ? '+' : '') + Number(t.R).toFixed(2) + 'R' : '';
+    return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${open ? '#22d3ee' : '#4ade80'}">
+      <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">${esc(t.Symbol)}
+          <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
+          <span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
+        <div style="font-weight:700;font-size:15px;color:${col}">${open ? '保有中' : R}</div></div>
+        <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
+      <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
+  }
+  window.eaLive = {
+    data: () => S.dash, load: load, name: eaName,
+    openTrades: () => allTrades().filter(t => t.Status === 'OPEN'),
+    homeHtml: () => allTrades().filter(t => t.Status === 'OPEN').slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join(''),
+    historyHtml: function (f) {
+      if (!appKey()) return '<div style="color:#94a3b8;text-align:center;padding:20px">EA 設定タブで合言葉を入れると、EA のトレードが出ます</div>';
+      const tab = a => `<button class="toggle-btn ${V.histAcc === a ? 'active' : ''}" onclick="eaLiveHistAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
+      let xs = allTrades().filter(t => String(t.Account) === V.histAcc && t.Status !== 'OPEN');
+      xs = xs.filter(t => { const d = String(t.EntryTime || '').slice(0, 10); if (f && f.fPeriod === 'custom') { if (f.dFrom && d < f.dFrom) return false; if (f.dTo && d > f.dTo) return false; } return true; });
+      const sumR = xs.reduce((a, t) => a + (Number(t.R) || 0), 0), sumP = xs.reduce((a, t) => a + (Number(t.Profit) || 0), 0), w = xs.filter(t => Number(t.R) > 0).length;
+      const head = `<div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>` + (xs.length ? `<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">${xs.length} 件 · 勝率 ${(w / xs.length * 100).toFixed(0)}% · 合計 ${(sumR > 0 ? '+' : '') + sumR.toFixed(1)}R · ${yen(sumP)}</div>` : '');
+      return head + (xs.slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('') || '<div style="color:#64748b;text-align:center;padding:20px">決済した EA のトレードはまだありません</div>');
+    },
+    analysisHtml: function () {
+      if (!appKey()) return '';
+      const tab = a => `<button class="toggle-btn ${V.anAcc === a ? 'active' : ''}" onclick="eaLiveAnAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
+      const xs = allTrades().filter(t => String(t.Account) === V.anAcc && t.Status === 'CLOSED');
+      const by = {}; xs.forEach(t => (by[t.EA] = by[t.EA] || []).push(t));
+      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on));
+      const num = (v, d) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d);
+      const rows = keys.map(k => {
+        const g = by[k] || [], R = g.map(t => Number(t.R) || 0), n = g.length, w = R.filter(r => r > 0).length;
+        const pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0), b = BT[k] || {};
+        const avg = n ? R.reduce((a, b) => a + b, 0) / n : null, low = n >= 10 && avg != null && b.avgR != null && avg < b.avgR - 0.5;
+        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left">${esc(eaName(k))}</td><td>${n}</td>
+          <td>${n ? (w / n * 100).toFixed(0) + '%' : '—'}<div style="color:#64748b">${num(b.wr, 0)}%</div></td>
+          <td style="color:${low ? '#f87171' : 'inherit'}">${num(avg, 2)}<div style="color:#64748b">${num(b.avgR, 2)}</div></td>
+          <td>${neg > 0 ? (pos / neg).toFixed(2) : n ? '∞' : '—'}<div style="color:#64748b">${num(b.pf, 2)}</div></td>
+          <td>${n ? (R.reduce((a, b) => a + b, 0) > 0 ? '+' : '') + R.reduce((a, b) => a + b, 0).toFixed(1) : '—'}<div style="color:#64748b">${num(b.py, 0)}回/年</div></td></tr>`;
+      }).join('');
+      const d = ((S.dash && S.dash.daily) || []).filter(r => String(r.Account) === V.anAcc);
+      let chart = '<div style="color:#64748b;font-size:12px;padding:8px 0">口座の記録はまだありません</div>';
+      if (d.length >= 2) {
+        const eq = d.map(r => Number(r.Equity) || 0), lo = Math.min(...eq), hi = Math.max(...eq), W = 320, H = 90, sp = hi - lo || 1;
+        const pts = eq.map((v, i) => (i / (eq.length - 1) * W).toFixed(1) + ',' + (H - (v - lo) / sp * (H - 10) - 5).toFixed(1)).join(' ');
+        const maxDD = Math.max(...d.map(r => Number(r.DD) || 0)) * 100, last = d[d.length - 1];
+        chart = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:90px"><polyline points="${pts}" fill="none" stroke="#4ade80" stroke-width="2"/></svg>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8"><span>${esc(String(d[0].Date).slice(0, 10))} 〜 ${esc(String(last.Date).slice(0, 10))}</span><span>有効証拠金 ${yen(last.Equity)} · 最大 DD <b style="color:#f87171">-${maxDD.toFixed(1)}%</b></span></div>`;
+      }
+      return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA の成績（実際 / <span style="color:#64748b">バックテスト</span>）</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>${chart}
+        <div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">
+          <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">EA</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th></tr>${rows}</table></div>
+        <div style="font-size:10px;color:#64748b;margin-top:6px">下の灰色がバックテスト。10 回以上で平均 R がバックテストより 0.5R 以上低いと赤</div></div>`;
+    }
+  };
+  function refreshViews() {
+    if (typeof renderPositions === 'function' && document.getElementById('positions-list')) try { renderPositions(); } catch (e) {}
+    const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml();
+    if (document.getElementById('modal-history')?.classList.contains('active') && typeof renderHistoryList === 'function') renderHistoryList();
+  }
+  window.eaLiveHistAcc = a => { V.histAcc = a; if (typeof renderHistoryList === 'function') renderHistoryList(); };
+  window.eaLiveAnAcc = a => { V.anAcc = a; const an = document.getElementById('eal-analysis'); if (an) an.innerHTML = window.eaLive.analysisHtml(); };
+  window.eaLiveTrade = function (id) {
+    const t = allTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
+    const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
+    const old = document.getElementById('eal-trade-modal'); if (old) old.remove();
+    const m = document.createElement('div'); m.id = 'eal-trade-modal'; m.className = 'modal-overlay active';
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">${esc(eaName(t.EA))}</div><div class="modal-close" onclick="document.getElementById('eal-trade-modal').remove()">✕</div></div><div class="modal-body">
+      ${row('口座', ACC_JA[t.Account] || esc(t.Account))}${row('銘柄・向き', esc(t.Symbol) + ' ' + dirJa(t.Direction))}${row('状態', t.Status === 'OPEN' ? '保有中' : '決済済み')}
+      ${row('シグナルの足', jst(t.SignalTime))}${row('エントリー', jst(t.EntryTime) + ' @ ' + esc(t.EntryPrice))}${row('損切り', esc(t.SLPrice))}${row('利確', esc(t.TPPrice))}
+      ${row('ロット', esc(t.Lot) + (t.LotMult && Number(t.LotMult) !== 1 ? '（倍率 ' + esc(t.LotMult) + '）' : '') + (t.Weight && Number(t.Weight) !== 1 ? '（重み ' + esc(t.Weight) + '）' : ''))}
+      ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
+      ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('メモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
+      <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
+    document.body.appendChild(m);
+  };
+  // analysis: show the EA panel when the analysis type "EA" is chosen (old ea.js owns the tabs)
+  function hookAnalysis() {
+    const prevType = window.eaAnalysisType;
+    if (!prevType || prevType._eal) return;
+    window.eaAnalysisType = function (b) {
+      prevType(b);
+      let an = document.getElementById('eal-analysis'); const tabs = document.getElementById('trade-type-tabs');
+      if (!an && tabs) { an = document.createElement('div'); an.id = 'eal-analysis'; tabs.parentNode.insertBefore(an, tabs.nextSibling); }
+      if (!an) return;
+      const on = b && b.dataset && b.dataset.v === 'ea'; an.style.display = on ? '' : 'none';
+      if (on) { an.innerHTML = window.eaLive.analysisHtml(); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } }
+    };
+    window.eaAnalysisType._eal = 1;
+  }
+  document.addEventListener('DOMContentLoaded', () => { hookAnalysis(); setTimeout(() => { hookAnalysis(); if (appKey()) { S._loadedAt = Date.now(); load(); } }, 1500); });
 
   const prev = window.renderEA;
   window.renderEA = function () { render(); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } };
