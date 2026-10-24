@@ -22,6 +22,9 @@
 4. 関数 `switchToTrades` を実行 → アプリが「Trades」を使う。戻すときは `switchBackToEntries`
 5. （後で、確認できてから）`mergeMemosIntoIdeas`（古い「メモ」をアプリのメモへ）、`cleanPairsEAColumns`（Pairs の古い EA 列を消す）、`archiveOldSheets`（使っていない表を別ファイル「トレードアプリ_保管」へ移す）
 
+6. （任意・1 回だけ）`fixOldTimestamps`：App_Settings・リマインダー・レビュー・Pairs・Trades の「書いた時刻」の列を日本時間＋時差（例 2026-10-24 21:15+09:00）に直す。EntryDate／EntryTime などの日付・時刻の列はアプリが使う形のまま（もともと日本時間）
+7. （毎日・自動）`eaWatchdog` のトリガーがあれば、1 日 1 回「EA_Health」に EA ごとの成績とバックテストの比較、注文のズレ（狙った値段との差・スプレッド）の平均を書く。アプリには出さない
+
 Trades で消した列：Pair（PAIR32 などの番号）・エントリー前チェックの ✅ 6 列・M15/H1 決済の 4 列・古い MT5 連携の列・見出しが空の列。画像の 9 列は EntryImages / ExitImages / PreImages の 3 列（1 行に 1 枚）。アプリからは今までどおり見える。
 
 ### PC（PC 側の Claude に頼む）

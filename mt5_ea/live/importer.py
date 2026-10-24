@@ -34,9 +34,9 @@ APP_PAIR = {'XAUUSD': 'GOLD', 'GOLD': 'GOLD', 'XAGUSD': 'SILVER', 'SILVER': 'SIL
 
 
 def jst(server_epoch):
-    """MT5 time (server time written as if UTC) -> 'yyyy-MM-dd HH:mm' Japan time."""
+    """MT5 time (server time written as if UTC) -> 'yyyy-MM-dd HH:mm+09:00' (Japan time with the offset)."""
     t = pd.to_datetime(int(server_epoch), unit='s').tz_localize(SERVER_TZ, ambiguous='NaT', nonexistent='shift_forward')
-    return t.tz_convert('Asia/Tokyo').strftime('%Y-%m-%d %H:%M')
+    return t.tz_convert('Asia/Tokyo').strftime('%Y-%m-%d %H:%M') + '+09:00'
 
 
 def logical(sym):
