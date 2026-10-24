@@ -11,8 +11,12 @@
 
 1. スプレッドシート「トレードアプリ」の Apps Script を開く
 2. 左のファイル一覧で「＋」→「スクリプト」→ 名前を `EA_Live` にして、`gas/EA_Live.gs` の中身を全部貼る
-3. `Code.gs` を、このブランチの `Code.gs` に置き換える（変わったのは doGet / doPost の先頭の 2 か所だけ）
-4. 上の関数の選択で `eaSetupKeys` を選んで実行 → 下の「実行ログ」に `EA_KEY = …` と `APP_KEY = …` が出る。2 つとも控える
+3. 今の `Code.gs` は置き換えず、2 か所だけ追記する（`ea` で始まる窓口を EA_Live に回すだけ）
+   - doGet の `const action = e.parameter.action;` の下：
+     `if (action && String(action).indexOf('ea') === 0 && typeof routeEALive_ === 'function') { const r = routeEALive_(action, e.parameter || {}); if (r) return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON); }`
+   - doPost の `const action = body.action;` の下：
+     `if (action && String(action).indexOf('ea') === 0 && typeof routeEALive_ === 'function') { const r = routeEALive_(action, body); if (r) return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON); }`
+4. 左で `EA_Live` を開き、上の関数の選択で `eaSetupKeys` を選んで実行（初回は権限の許可） → 下の「実行ログ」に `EA_KEY = …` と `APP_KEY = …` が出る。2 つとも控える
 5. 「デプロイ」→「デプロイを管理」→ 今のデプロイの鉛筆 →「バージョン：新バージョン」→「デプロイ」（アドレスは変わらない）
 6. （任意）「トリガー」→ `eaWatchdog` を 1 時間ごと。PC が 2 時間止まったら Telegram に 1 回だけ通知（スクリプトのプロパティに TELEGRAM_BOT_TOKEN と TELEGRAM_CHAT_ID が必要）
 
