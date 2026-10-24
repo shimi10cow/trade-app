@@ -4,8 +4,9 @@ Reads the deals of the trader's own XM accounts (not the EA accounts) and sends 
 One import MT5 (its own copy, not the EA terminals) in which every account was logged in once with its read-only investor
 password and "save password" on; the importer switches between the accounts with mt5.login (no password passed: the
 terminal uses the saved one). The terminal is closed once at the end (2026-10-25: one window instead of one per account).
-This runs as its own process (the MetaTrader5 package talks to one terminal per process), started by the EA PC when the
-app asks for an import, or by hand:  py -m mt5_ea.live.importer [--reread90]
+Started by hand on the PC (desktop button; 2026-10-25: the EA no longer starts it):  py -m mt5_ea.live.importer [--reread90]
+Its own process (the MetaTrader5 package talks to one terminal per process); the EA can keep running or be stopped.
+The merge settings come from the app's MT5 tab unless --group-hours / --merge-across are given.
 
 Accounts: %USERPROFILE%\\TradeEA_data\\import_accounts.json (not in git), e.g.
   [{"login": 12345678, "server": "XMTrading-MT5 3", "path": "C:\\\\MT5_import\\\\terminal64.exe", "label": "KIWAMI 1"}, ...]
@@ -153,11 +154,20 @@ def aggregate(rs):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--request', default='')
-    ap.add_argument('--group-hours', type=float, default=24)
-    ap.add_argument('--merge-across', default='1')
+    ap.add_argument('--group-hours', type=float, default=None)      # default: the app's MT5 tab settings (24 h)
+    ap.add_argument('--merge-across', default=None)
     ap.add_argument('--reread90', action='store_true')
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args(argv)
+    if a.group_hours is None or a.merge_across is None:                  # settings saved in the app's MT5 tab
+        try:
+            st = (gas.call('eaImportSettings', {}, timeout=20) or {}).get('settings') or {}
+        except Exception:
+            st = {}
+        if a.group_hours is None:
+            a.group_hours = float(st.get('groupHours') or 24)
+        if a.merge_across is None:
+            a.merge_across = '0' if st.get('mergeAcross') is False else '1'
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     accounts = json.loads(ACCOUNTS_F.read_text(encoding='utf-8'))
     state = json.loads(STATE_F.read_text(encoding='utf-8')) if STATE_F.exists() else {}

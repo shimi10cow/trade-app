@@ -11,7 +11,6 @@ New orders need the app setting 'running' = on AND the EA in mode 'auto'. Until 
 """
 import logging
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -40,21 +39,6 @@ def deal_reader(b):
         profit = sum(x.profit + x.swap + x.commission for x in b.deals_for(ticket))
         return d.price, profit, pd.to_datetime(d.time, unit='s')
     return read
-
-
-def start_import(req, started):
-    """The app asked for an MT5 import (heartbeat reply): run the importer as its own process (it uses other MT5 terminals)."""
-    rid = str(req.get('id') or '')
-    if not rid or rid in started:
-        return
-    started.add(rid)
-    st = req.get('settings') or {}
-    cmd = [sys.executable, '-m', 'mt5_ea.live.importer', '--request', rid, '--group-hours', str(st.get('groupHours', 24)),
-           '--merge-across', '1' if st.get('mergeAcross', True) else '0'] + (['--reread90'] if st.get('reread90') else [])
-    log = open(Path(os.getenv('EA_DATA_DIR') or (Path.home() / 'TradeEA_data')) / 'import.log', 'a', encoding='utf-8')
-    subprocess.Popen(cmd, cwd=str(Path(__file__).resolve().parents[2]), stdout=log, stderr=subprocess.STDOUT,
-                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    logging.info('MT5 import started (%s)', rid)
 
 
 def main():
@@ -87,7 +71,7 @@ def main():
             logging.warning('symbol %s not available: %s', s_, ex)
     logging.info('live EA started: account %s (%s) kind=%s, %d EAs, magic %s-%s', a['login'], a['server'], kind, len(MAGIC), min(MAGIC.values()), max(MAGIC.values()))
     note('info', f'EA 起動 {kind} 口座 {a["login"]}')
-    last_hb = 0.0; last_slot = None; imports_started = set()
+    last_hb = 0.0; last_slot = None
     relay = tg_stop.Relay(kind).start()           # one EA process reads Telegram (long polling), all read its local file
     while True:
         try:
@@ -102,8 +86,6 @@ def main():
                 last_slot = slot
             if time.time() - last_hb >= HEARTBEAT_SEC:
                 R.heartbeat(); last_hb = time.time()
-                if R.import_request and kind == 'demo':     # only one EA process runs imports
-                    start_import(R.import_request, imports_started)
             gas.flush()
             cmds = relay.pending(R.state)                    # Telegram emergency stop: commands arrive through the local file (tg_stop.Relay)
             if cmds:
