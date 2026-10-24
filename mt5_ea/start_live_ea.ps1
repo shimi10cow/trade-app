@@ -8,6 +8,13 @@ else { $env:EA_LIVE_LOGIN = $env:EA_DEMO_LOGIN; $env:EA_MT5_PATH = $env:EA_DEMO_
 # EA records live OUTSIDE the program folder, so replacing the program (new ZIP) never loses them
 $data = Join-Path $env:USERPROFILE "TradeEA_data"
 New-Item -ItemType Directory -Force -Path $data | Out-Null
+# Refuse a second copy for the same account kind (two copies would place every order twice)
+$pidFile = Join-Path $data ("live_{0}.pid" -f $Kind)
+if (Test-Path $pidFile) {
+    $old = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f ((Get-Content $pidFile -Raw).Trim())) -ErrorAction SilentlyContinue
+    if ($old -and $old.CommandLine -match 'start_live_ea\.ps1') { throw ("The {0} EA is already running (PID {1}). Stop it first." -f $Kind, $old.ProcessId) }
+}
+Set-Content -Path $pidFile -Value $PID
 $env:EA_STATE_FILE = Join-Path $data ("live_state_{0}.json" -f $Kind)
 $env:EA_CONFIG_FILE = Join-Path $data ("live_config_{0}.json" -f $Kind)
 $env:EA_OUTBOX_DB = Join-Path $data ("live_outbox_{0}.sqlite3" -f $Kind)
