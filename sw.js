@@ -26,6 +26,7 @@ self.addEventListener('fetch', event => {
     url.pathname.endsWith('/index.html') ||
     url.pathname.endsWith('/app.js') ||
     url.pathname.endsWith('/ea.js') ||
+    url.pathname.endsWith('/ea_live.js') ||
     url.pathname.endsWith('/mt5_import.js') ||
     url.pathname.endsWith('/style.css') ||
     url.pathname.endsWith('/ai_prompt.js');

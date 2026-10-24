@@ -65,7 +65,8 @@ class Runner:
     # ------------------------------------------------------------------ config / state
     def ea_cfg(self, key):
         c = self.config.get('eas', {}).get(key, {})
-        return dict(mode=c.get('mode', 'off'), weight=float(c.get('weight', BY_KEY[key].weight)))
+        mode = c.get('mode', 'off') if c.get('on', True) else 'off'          # app: symbol switched off = EA off for it
+        return dict(mode=mode, weight=float(c.get('weight', BY_KEY[key].weight)))
 
     def set_config(self, cfg):
         if cfg:
