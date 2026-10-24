@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261005historyswipe1">
+  <link rel="stylesheet" href="./style.css?v=20261024d">
 </head>
 <body>
 
@@ -333,10 +333,8 @@
               <option value="改善・検証">改善・検証</option>
               <option value="その他">その他</option>
             </select>
-            <select id="idea-sort" class="form-input" style="flex:1; min-width:0; font-size:12px; padding:7px 8px;" onchange="renderIdeas()">
-              <option value="date">新しい順</option>
-              <option value="fav">⭐ お気に入り優先</option>
-            </select>
+            <input type="hidden" id="idea-sort" value="date">
+            <button type="button" class="toggle-btn" id="idea-sort-btn" onclick="toggleIdeaSort()" style="flex:none; font-size:12px; padding:7px 10px; white-space:nowrap;">新しい順</button>
             <button class="btn-primary" onclick="openNewIdeaModal()" style="padding:6px 14px; font-size:13px; white-space:nowrap;">＋ 新規</button>
           </div>
           <div id="idea-list">
@@ -1003,8 +1001,10 @@
               <option value="決済（見逃し）">決済（見逃し）</option>
             </select>
           </div>
-          <button onclick="saveTradeDetail()" style="width:100%; padding:13px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:15px; cursor:pointer;">💾 変更内容を保存</button>
-          <button onclick="deleteEntry()" style="width:100%; padding:9px; background:transparent; color:#ef4444; border:1px solid #ef4444; border-radius:12px; font-weight:600; font-size:13px; margin-top:6px; cursor:pointer;">🗑️ このエントリーを削除</button>
+          <div class="td-save-row" style="display:flex; gap:8px; align-items:stretch;">
+            <button onclick="saveTradeDetail()" style="flex:1; min-width:0; padding:13px; background:linear-gradient(135deg, #38bdf8, #2563eb); color:white; border:none; border-radius:12px; font-weight:700; font-size:15px; cursor:pointer;">💾 変更内容を保存</button>
+            <button onclick="deleteEntry()" aria-label="このエントリーを削除" title="削除" style="flex:none; width:48px; background:transparent; color:#f87171; border:1px solid rgba(248,113,113,.5); border-radius:12px; font-size:16px; cursor:pointer;">🗑️</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1034,6 +1034,11 @@
               <option value="missed">見逃しのみ</option>
             </select>
           </div>
+          <div id="hist-sort" style="display:flex; gap:6px;">
+            <button class="toggle-btn active" data-v="new" onclick="setHistSort('new')" style="flex:1; font-size:12px;">新しい順</button>
+            <button class="toggle-btn" data-v="old" onclick="setHistSort('old')" style="flex:1; font-size:12px;">古い順</button>
+            <button class="toggle-btn" data-v="profit" onclick="setHistSort('profit')" style="flex:1; font-size:12px;">損益順</button>
+          </div>
           <div id="hist-custom-date" style="display:none; gap:4px; align-items:center;">
             <input type="date" id="hist-date-from" class="form-input" style="padding:6px; flex:1;" onchange="renderHistoryList()">
             <span style="color:#94a3b8;">〜</span>
@@ -1048,6 +1053,7 @@
   <!-- Global Loader (保存/削除用フルオーバーレイ) -->
   <div id="app-loader" class="loader-overlay">
     <div class="spinner"></div>
+    <div class="loader-caption">保存中…</div>
   </div>
   <!-- Background loading bar -->
   <div id="bg-load-bar"></div>
@@ -1357,7 +1363,7 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261024c" charset="utf-8"></script>
+  <script src="./app.js?v=20261024d" charset="utf-8"></script>
   <script src="./mt5_import.js?v=20261003bgpostsave" charset="utf-8"></script>
   <script src="./ea.js?v=20261005startfix1" charset="utf-8"></script>
   <script src="./ea_live.js?v=20261024eal3" charset="utf-8"></script>

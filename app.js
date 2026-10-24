@@ -65,7 +65,9 @@ function gasPost(payload) {
 const FAST_CACHE_KEY='tradeAppFastStart_v1';
 function readFastCache(){try{return JSON.parse(localStorage.getItem(FAST_CACHE_KEY)||'{}');}catch(e){return {};}}
 function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now()};localStorage.setItem(FAST_CACHE_KEY,JSON.stringify(x));}catch(e){}}
+const ENTRIES_CACHE_KEY='tradeAppEntries_v1';
 function hydrateFastCache(){
+  try{var ce=JSON.parse(localStorage.getItem(ENTRIES_CACHE_KEY)||'null');if(ce&&Array.isArray(ce.data)&&ce.data.length&&!(App.data.entries||[]).length){App.data.entries=ce.data;App.state.entriesFromCache=true;setTimeout(function(){try{renderPositions();renderAnalysis();renderGallery();}catch(e){}},0);}}catch(e){}
   var x=readFastCache();
   if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
   if(Array.isArray(x.calendar?.data?.events)&&x.calendar.data.events.length){App.data.calendar=x.calendar.data.events;App.data.calendarIsNextWeek=!!x.calendar.data.isNextWeek;App.state.calendarError='';}
@@ -655,6 +657,15 @@ function toggleCustomHistDate() {
   document.getElementById('hist-custom-date').style.display = period === 'custom' ? 'flex' : 'none';
 }
 
+function toggleIdeaSort() {
+  const el = document.getElementById('idea-sort'), b = document.getElementById('idea-sort-btn');
+  el.value = el.value === 'fav' ? 'date' : 'fav';
+  if (b) { b.textContent = el.value === 'fav' ? '⭐ お気に入り優先' : '新しい順'; b.classList.toggle('active', el.value === 'fav'); }
+  renderIdeas();
+}
+window.toggleIdeaSort = toggleIdeaSort;
+function setHistSort(v) { App.state.histSort = v; renderHistoryList(); }
+window.setHistSort = setHistSort;
 function setHistKind(v) { App.state.histKind = v; renderHistoryList(); }
 window.setHistKind = setHistKind;
 
@@ -666,6 +677,7 @@ function renderHistoryList() {
   const histKind = App.state.histKind || 'manual';
   document.querySelectorAll('#hist-kind button').forEach(b => b.classList.toggle('active', b.dataset.v === histKind));
   const hs = document.getElementById('hist-status'); if (hs) hs.style.display = histKind === 'ea' ? 'none' : '';
+  const hso = document.getElementById('hist-sort'); if (hso) hso.style.display = histKind === 'ea' ? 'none' : 'flex';
   if (histKind === 'ea') {
     container.innerHTML = window.eaLive ? window.eaLive.historyHtml({fPeriod, dFrom: document.getElementById('hist-date-from')?.value, dTo: document.getElementById('hist-date-to')?.value}) : '';
     return;
@@ -715,10 +727,13 @@ function renderHistoryList() {
     return;
   }
 
+  const histSort = App.state.histSort || 'new';
+  document.querySelectorAll('#hist-sort button').forEach(b => b.classList.toggle('active', b.dataset.v === histSort));
+  const dkey = t => String(t.EntryDate || '').split('T')[0].replace(/\//g, '-') + ' ' + String(t.EntryTime || '');
   container.innerHTML = filtered.slice().sort((a, b) => {
-    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
-    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
-    return db > da ? 1 : db < da ? -1 : 0;
+    if (histSort === 'profit') return (parseFloat(b['損益']) || 0) - (parseFloat(a['損益']) || 0);
+    const da = dkey(a), db = dkey(b);
+    return (db > da ? 1 : db < da ? -1 : 0) * (histSort === 'old' ? -1 : 1);
   }).map((t) => {
     const index = App.data.entries.indexOf(t);
     const isMissed = t['ステータス'] === '決済（見逃し）';
@@ -1147,6 +1162,8 @@ async function loadData() {
     // 全リクエスト同時開始・届いた順に即レンダリング（タイムアウト・リトライ付き）
     const entriesP = gasGet('getEntries').then(res => {
       App.data.entries = res.data || [];
+      App.state.entriesFromCache = false;
+      try { localStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({at: Date.now(), data: App.data.entries})); } catch (e) {}   // too big: just no cache
       renderPositions();   // ① ポジション（最優先）
     });
 
@@ -4077,12 +4094,13 @@ function renderGrowthChart(allTrades) {
     const color   = isPos ? '#10b981' : '#ef4444';
     const cx      = i * 10 + 5;
     let dispVal;
-    if (activeChartType === 'profit') dispVal = Math.round(val).toLocaleString('ja-JP');
+    if (activeChartType === 'profit') dispVal = Math.abs(val) >= 10000 ? (val / 10000).toFixed(Math.abs(val) >= 1e6 ? 0 : 1) + '万' : Math.round(val).toLocaleString('ja-JP');
     else if (activeChartType === 'rr') dispVal = val.toFixed(2);
     else dispVal = Math.round(val).toLocaleString('ja-JP');
 
     // 先頭ゼロなし: "01月" → "1月"
-    const label = parseInt(mk.substring(5,7)) + '月';
+    const mon = parseInt(mk.substring(5,7));
+    const label = (i === 0 || mon === 1) && allMonths.length > 1 && allMonths[0].slice(0,4) !== allMonths[allMonths.length-1].slice(0,4) ? mk.substring(2,4) + '/' + mon + '月' : mon + '月';
     barsHTML += `
       <g onclick="openHistoryForMonth('${mk}')" style="cursor:pointer;">
         <rect x="${cx-4.8}" y="8" width="9.6" height="89" fill="transparent" />
@@ -4223,7 +4241,8 @@ function renderEquityCurve() {
   points.forEach((p, i) => {
     const c = coords[i + 1];
     const col = (parseFloat(p.trade['損益']) || 0) >= 0 ? '#10b981' : '#ef4444';
-    circles += `<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="1.8" fill="${col}" stroke="#0f172a" stroke-width="0.4" style="cursor:pointer;" onclick="showEquityTooltip(event,${i})" />`;
+    const rr = points.length > 80 ? 0.7 : points.length > 40 ? 1.1 : 1.8;   // many trades: smaller dots so they do not pile up
+    circles += `<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${rr}" fill="${col}" stroke="#0f172a" stroke-width="${rr > 1 ? 0.4 : 0.15}" style="cursor:pointer;" onclick="showEquityTooltip(event,${i})" />`;
   });
 
   // Y軸ラベル

@@ -1578,3 +1578,10 @@ button[data-gf-quality]{
 #modal-trade-detail .modal-header:before{
   top:4px!important;
 }
+
+/* 2026-10-24 UI: trade detail footer row, heatmap category chips scroll in one line, loader caption */
+#modal-trade-detail .sticky-footer > .td-save-row { width: calc(100% - 12px); margin-left: auto; margin-right: auto; }
+#heatmap-cat-btns { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+#heatmap-cat-btns::-webkit-scrollbar { display: none; }
+#heatmap-cat-btns > .toggle-btn { flex: none !important; white-space: nowrap; writing-mode: horizontal-tb; }
+#app-loader .loader-caption { position: absolute; top: calc(50% + 34px); left: 0; right: 0; text-align: center; color: #cbd5e1; font-size: 13px; font-weight: 700; }
