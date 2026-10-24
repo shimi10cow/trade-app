@@ -84,7 +84,7 @@ class MT5Broker:
         if r is None or len(r) < 10:
             raise RuntimeError(f'{sym}: no M15 history ({mt5.last_error()})')
         d = pd.DataFrame(r)
-        d['t'] = pd.to_datetime(d.time, unit='s')        # MT5 encodes server time as if UTC -> naive broker time
+        d['t'] = pd.to_datetime(d.time, unit='s').astype('datetime64[us]')   # MT5 encodes server time as if UTC -> naive broker time; [us] like the research data (pandas 3 merges need equal units)
         d = d.rename(columns=dict(open='o', high='h', low='l', close='c'))[['t', 'o', 'h', 'l', 'c', 'spread']]
         return d.iloc[:-1].reset_index(drop=True)           # the last bar is still forming
 

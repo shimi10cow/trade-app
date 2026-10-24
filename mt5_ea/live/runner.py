@@ -181,6 +181,7 @@ class Runner:
             return []
         self.state['last_bar'][sym] = last_t
         m = bars[['t', 'o', 'h', 'l', 'c']].copy()
+        m['t'] = m.t.astype('datetime64[us]')               # one time unit everywhere (MT5 gives seconds)
         for z in 'ohlc':
             m[z] = to_space(sym, m[z].to_numpy())
         start = m.t.iat[0] + pd.Timedelta(days=warm)
