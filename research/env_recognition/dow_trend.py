@@ -56,6 +56,18 @@ class DowMachine:
     def reference(self):
         if not self.trend:
             return None
+        # cache: the answer only depends on the pivot set (version bumped by run()), the trend and the consumed swing
+        pver = getattr(self, 'pver', None)
+        if pver is not None:
+            key = (pver, self.trend, self.consumed['anchor'], self.consumed['price'])
+            if key == getattr(self, '_ref_key', None):
+                return None if self._ref_val is None else dict(self._ref_val)
+            val = self._reference()
+            self._ref_key, self._ref_val = key, val
+            return None if val is None else dict(val)
+        return self._reference()
+
+    def _reference(self):
         kind = 'hi' if self.trend == 'up' else 'lo'
         sgn = 1 if self.trend == 'up' else -1
         best = None
@@ -219,12 +231,15 @@ def run(df, tf, start=60, events=None):
     seq = []                 # confirmed pivot ids in anchor order (relocation keeps the id)
     major = DowMachine('major', h, l, c, piv)
     prov = DowMachine('prov', h, l, c, piv, provisional=True)
+    major.pver = prov.pver = 0
     wdet = WDetector(c, piv)
     pivlog = []
     last_hi = last_lo = None
     for i in range(len(df)):
         major.snapshot_ref(); prov.snapshot_ref()
         fresh = []
+        if i in by_bar:
+            major.pver += 1; prov.pver += 1
         for e in by_bar.get(i, []):
             first = e['id'] not in piv
             piv[e['id']] = dict(id=e['id'], kind=e['kind'], idx=e['idx'], price=e['price'],

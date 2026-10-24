@@ -1,0 +1,8 @@
+{
+ "R": "regime2_R1m.csv",
+ "T": "regime2_T2c.csv",
+ "L": "tl_S10.csv",
+ "A": "retest_R1.csv",
+ "C": "step2/cl15_md4tri.csv",
+ "J": "turn/jt_dside.csv"
+}

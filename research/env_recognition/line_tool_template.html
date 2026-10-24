@@ -5,18 +5,18 @@
 :root{
   --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
   --accent:#2457c5;--up:#1f8a4c;--down:#c8372d;--sel:#d97706;--piv-hi:#c8372d;--piv-lo:#1f8a4c;
-  --sma20:#0284c7;--sma75:#b45309;--warn-bg:#fff4e5;--warn-fg:#8a4b00;--replay:#7c3aed;--gone:#98a2b3;
+  --sma20:#0284c7;--sma75:#b45309;--warn-bg:#fff4e5;--warn-fg:#8a4b00;--replay:#7c3aed;--gone:#98a2b3;--eng:#2563eb;--engx:#a21caf;--miss:#ea580c;
   --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
   --accent:#6c9cff;--up:#3fbf75;--down:#ef5b4f;--sel:#f2a33a;--piv-hi:#ef5b4f;--piv-lo:#3fbf75;
-  --sma20:#38bdf8;--sma75:#f59e0b;--warn-bg:#3a2a12;--warn-fg:#ffcf8a;--replay:#b39dff;--gone:#5b6475;color-scheme:dark}}
+  --sma20:#38bdf8;--sma75:#f59e0b;--warn-bg:#3a2a12;--warn-fg:#ffcf8a;--replay:#b39dff;--gone:#5b6475;--eng:#60a5fa;--engx:#e879f9;--miss:#fb923c;color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
   --accent:#6c9cff;--up:#3fbf75;--down:#ef5b4f;--sel:#f2a33a;--piv-hi:#ef5b4f;--piv-lo:#3fbf75;
-  --sma20:#38bdf8;--sma75:#f59e0b;--warn-bg:#3a2a12;--warn-fg:#ffcf8a;--replay:#b39dff;--gone:#5b6475;color-scheme:dark}
+  --sma20:#38bdf8;--sma75:#f59e0b;--warn-bg:#3a2a12;--warn-fg:#ffcf8a;--replay:#b39dff;--gone:#5b6475;--eng:#60a5fa;--engx:#e879f9;--miss:#fb923c;color-scheme:dark}
 body{background:var(--bg);color:var(--fg);font-family:var(--font);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
 .bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:8px}
@@ -75,6 +75,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <button id="rpFwd10" class="mono" title="10本進める (Shift+→)">▶▶</button>
     <span class="rptime" id="rpTime"></span>
   </span>
+  <span class="grp"><span class="lbl">エンジンの線：</span>
+    <button id="engOff" class="mono" aria-pressed="true">なし</button><button id="engAll" class="mono" aria-pressed="false">表示</button></span>
+  <label><input type="checkbox" id="optOnlyEng"> 紫（エンジンだけの線）だけ表示</label>
+  <label><input type="checkbox" id="optEngCorr" checked> H1・M15はH4に対する調整の線だけ</label>
   <span class="grp"><span class="lbl">他の時間足の線：</span><span class="grp" id="ovl"></span></span>
 </div>
 <div class="warn" id="warn" hidden></div>
@@ -88,6 +92,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   <b>引き直し</b>：線をクリックして「選択した線を無効にする」→ その時点で無効になったと記録され、履歴は残ります（リプレイを戻すと再び表示）。
   間違えて引いた線だけ「完全に削除」（Deleteキー）してください。<br>
   <b>上位足のトレンド</b>：H1・M15 ではチャート上部に D1・H4 の主要トレンド（緑＝上昇、赤＝下降）を帯で表示。H4 と同じ向きの線（推進）は灰色で「推進」と表示します。<br>
+  <b>エンジンの線</b>：W1・D1・H4は「大枠を包む線（隣の高安同士、3点目が乗れば維持、加速したら引き直し）」、M15は「エントリー用：隣の高安同士・急な線も可・向きごとに最新の1本」。高安の飛ばしはなし。表示中は色が3種類だけになります：青＝あなたの線とエンジンが一致、オレンジ＝あなたの線だけ（エンジンが出せていない）、紫の点線＝エンジンの線だけ。線の右端の途切れはエンジンが線を消した足。<br>
   <b>他の時間足の線</b>：W1〜M15 のボタンで、その時間足で引いた線を重ねて表示（細い線＋時間足ラベル）。
 </div>
 <h2 id="listTitle">この時間足の線</h2>
@@ -150,6 +155,15 @@ const TFRANK={W1:5,D1:4,H4:3,H1:2,M15:1};
 // a line on a timeframe below H4 is "impulse" when it points the same way as the H4 trend when its 2nd point formed
 function lineCls(l){if(TFRANK[l.tf]>=TFRANK.H4)return null;const tr=ctxAt('H4',l.t2+TFSEC[l.tf]);
   if(!tr)return null;return tr===l.dir?'impulse':'correction'}
+
+// ---------- engine lines vs your lines ----------
+let engMode='off';
+const near=(t1,t2)=>Math.abs(idxF(t1)-idxF(t2))<=3;
+const ENG_TIERS={all:['main','near','skip']};
+function engList(){if(engMode==='off')return[];const corrOnly=$('optEngCorr').checked&&TFRANK[tf]<TFRANK.H4;
+  return DATA[tf].eng.filter(e=>ENG_TIERS[engMode].includes(e[5])&&(!corrOnly||e[9]))}
+const engAlive=e=>e[6]<=nowT()&&(e[7]==null||e[7]>nowT());
+const engMatch=(e,u)=>u.tf===tf&&u.removedAt==null&&(u.dir==='up')===(e[4]==='lo')&&near(u.t1,e[0])&&near(u.t2,e[2]);
 
 // ---------- time helpers ----------
 const ALL=()=>DATA[tf].c;
@@ -262,6 +276,18 @@ function loop(){raf=requestAnimationFrame(loop);
           const x0=ts.logicalToCoordinate(i-0.5),x1=ts.logicalToCoordinate(i+0.5);if(x0==null||x1==null)continue;
           g.fillStyle=tr==='up'?css('--up'):css('--down');g.globalAlpha=.55;g.fillRect(x0,y,x1-x0+0.5,6)}
         g.globalAlpha=1;g.fillStyle=css('--muted');g.fillText(k,4,y+6)});}}
+  // engine overlay: blue = your line also found by the engine, orange = only yours, purple dashed = engine only
+  const E=engList();const mine=lines.filter(x=>x.tf===tf&&x.removedAt==null);
+  for(const e of E){if(!engAlive(e)&&replayT!=null)continue;
+    if(mine.some(u=>engMatch(e,u)))continue;   // matched pairs are shown once, as your blue line
+    const until=e[7]!=null?chart.timeScale().logicalToCoordinate(idxF(e[7])):null;
+    seg({t:e[0],p:e[1]},{t:e[2],p:e[3]},css('--engx'),1.3,true,{main:'エンジン',near:'エンジン(隣接)',skip:'エンジン(飛ばし)'}[e[5]],true,until??W)}
+  const onlyEng=engMode!=='off'&&$('optOnlyEng').checked;
+  if(engMode!=='off'&&!onlyEng)for(const u of mine){if(!visible(u))continue;const ok=E.some(e=>engMatch(e,u));
+    const col=u.id===selId?css('--sel'):ok?css('--eng'):css('--miss');
+    drawL(u,col,u.id===selId?3:2.2);
+    const[x2,y2]=xy(u.t2,u.p2);if(x2!=null&&y2!=null){g.font='bold 11px '+css('--mono');g.fillStyle=col;
+      g.fillText(ok?'✓一致':'✗エンジン無し',x2+6,y2+(u.dir==='up'?14:-6));g.font='10px '+css('--mono')}}
   // other timeframes (thin, labelled)
   for(const k of overlay){if(k===tf)continue;
     for(const l of lines.filter(x=>x.tf===k&&visible(x)))
@@ -269,6 +295,7 @@ function loop(){raf=requestAnimationFrame(loop);
   // this timeframe
   for(const l of lines.filter(x=>x.tf===tf)){const sel=l.id===selId;
     const dim=$('optDim').checked&&lineCls(l)==='impulse';
+    if(visible(l)&&engMode!=='off'&&l.removedAt==null)continue;   // drawn above in blue/orange (or hidden)
     if(visible(l))drawL(l,sel?css('--sel'):dim?css('--gone'):(l.dir==='up'?css('--up'):css('--down')),sel?3:dim?1.5:2,dim?'推進':null);
     else if($('optGone').checked&&goneNow(l)){const xr=chart.timeScale().logicalToCoordinate(idxF(l.removedAt));
       drawL(l,sel?css('--sel'):css('--gone'),sel?2.5:1.5,'無効',false,xr??W)}}
@@ -282,6 +309,10 @@ function refresh(){
   for(const b of $('ovl').children){const k=b.dataset.tf;b.setAttribute('aria-pressed',overlay.has(k));b.disabled=k===tf}
   const all=lines.length,act=lines.filter(x=>x.removedAt==null).length;
   if(col||all)$('status').textContent=`保存済み：有効 ${act}本 / 履歴を含め ${all}本`;
+  if(engMode!=='off'){const E=engList(),mine=lines.filter(x=>x.tf===tf&&x.removedAt==null);
+    const hitU=mine.filter(u=>E.some(e=>engMatch(e,u))).length,hitE=E.filter(e=>mine.some(u=>engMatch(e,u))).length;
+    $('status').textContent=`${tf}：あなたの線 ${mine.length}本のうちエンジンと一致 ${hitU}本 ／ エンジンの線 ${E.length}本のうち一致 ${hitE}本`}
+  for(const[id,m]of[['engOff','off'],['engAll','all']])$(id).setAttribute('aria-pressed',engMode===m);
   $('rpTime').textContent=replayT!=null?'現在 '+fmtAny(replayT):'';
   const rows=lines.filter(x=>x.tf===tf).sort((a,b)=>(b.drawnAt??b.t2)-(a.drawnAt??a.t2));
   $('listTitle').textContent=`${tf} の線（有効 ${rows.filter(x=>x.removedAt==null).length}本・履歴 ${rows.length}本）`;
@@ -343,7 +374,8 @@ for(const x of TFS){
   b.onclick=()=>{tf=x;select(null);pA=pB=null;try{localStorage.setItem('ltool_tf',x)}catch(e){};build(false)};$('tfs').appendChild(b);
   const o=document.createElement('button');o.className='mono';o.dataset.tf=x;o.textContent=x;o.setAttribute('aria-pressed','false');
   o.onclick=()=>{overlay.has(x)?overlay.delete(x):overlay.add(x);refresh()};$('ovl').appendChild(o)}
-$('optCtx').onchange=$('optDim').onchange=refresh;
+for(const[id,m]of[['engOff','off'],['engAll','all']])$(id).onclick=()=>{engMode=m;refresh()};
+$('optCtx').onchange=$('optDim').onchange=$('optOnlyEng').onchange=$('optEngCorr').onchange=refresh;
 for(const id of ['optPiv','optSma'])$(id).addEventListener('change',()=>build(true));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>build(true));
 new MutationObserver(()=>build(true)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});

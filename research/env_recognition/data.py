@@ -44,6 +44,31 @@ def resample(df, rule):
     return out.reset_index()
 
 
+LONG_M15 = RESEARCH / 'datasets/derived/eurusd_m15/2026-10-19/EURUSD_M15_2003_2026.csv.gz'
+
+
+@lru_cache(maxsize=1)
+def load_long_m15():
+    """EURUSD M15 2003-05..2026-10 (Forex Tester, UTC) converted to broker time (Europe/Athens, EET/EEST),
+    which matches the chart/MT5 series (median |close diff| 0.4 pip, checked 2026-10-19)."""
+    d = pd.read_csv(LONG_M15, parse_dates=['time'])
+    d['time'] = d.time.dt.tz_localize('UTC').dt.tz_convert('Europe/Athens').dt.tz_localize(None)
+    d = d.drop_duplicates('time').sort_values('time')
+    return d.rename(columns=dict(time='t', open='o', high='h', low='l', close='c')).reset_index(drop=True)
+
+
+RAW_M5 = RESEARCH / 'datasets/raw/m5'
+
+
+def load_m5(sym='EURUSD'):
+    """M5 2003-05..2026-10 from the user's upload (<SYM>_m1_M5.csv.gz on main, built from M1; UTC like the long M15:
+    EURUSD M5 resampled to M15 matches LONG_M15 exactly on all 583,458 bars). Converted to broker time like load_long_m15."""
+    d = pd.read_csv(RAW_M5 / f'{sym}_M5.csv.gz', usecols=['time', 'open', 'high', 'low', 'close'], parse_dates=['time'])
+    d['time'] = d.time.dt.tz_localize('UTC').dt.tz_convert('Europe/Athens').dt.tz_localize(None)
+    d = d.drop_duplicates('time').sort_values('time')
+    return d.rename(columns=dict(time='t', open='o', high='h', low='l', close='c')).reset_index(drop=True)
+
+
 def load(tf, source='chart'):
     if source == 'chart':
         return load_chart_series(tf)
@@ -57,4 +82,11 @@ def load(tf, source='chart'):
             w = h4.set_index('t').resample('W-MON', label='left', closed='left').agg(
                 dict(o='first', h='max', l='min', c='last')).dropna()
             return w.reset_index()
+    if source == 'long':
+        m = load_long_m15()
+        if tf == 'M15':
+            return m.copy()
+        rule = {'H1': '1h', 'H4': '4h', 'D1': '1D', 'W1': 'W-MON'}[tf]
+        x = m.set_index('t').resample(rule, label='left', closed='left').agg(dict(o='first', h='max', l='min', c='last')).dropna()
+        return x.reset_index()
     raise ValueError(f'unsupported tf/source {tf}/{source}')

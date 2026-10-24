@@ -1,0 +1,1413 @@
+<title>トレンド段階ビューア</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: toolbar on top, full-width chart, event log below. Chart-desk look, quiet chrome. */
+:root{
+  --bg:#f6f7f9;--panel:#ffffff;--fg:#1b2230;--muted:#667085;--line:#d9dee7;
+  --up:#1f8a4c;--down:#c8372d;--prot-up:#1f8a4c;--prot-down:#c8372d;--accent:#2457c5;--piv:#d97706;--prov:#7c4dff;--w:#0e7490;--ok:#16a34a;--buy:#2563eb;--sell:#db2777;--hl:#ea580c;--miss:#ea580c;--extra:#c026d3;--sma20:#0284c7;--sma75:#b45309;--sma200:#475569;--s0:#0f766e;--s1:#ca8a04;--s2:#2563eb;--s3:#9333ea;--draw:#334155;--zone:rgba(110,90,200,.13);--zone-edge:rgba(110,90,200,.55);
+  --font:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--buy:#60a5fa;--sell:#f472b6;--hl:#fb923c;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--sma200:#a5b4c8;--s0:#2dd4bf;--s1:#facc15;--s2:#60a5fa;--s3:#c084fc;--draw:#e2e8f0;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151c;--panel:#171c25;--fg:#e4e8ef;--muted:#8b95a7;--line:#2a3140;
+  --up:#3fbf75;--down:#ef5b4f;--prot-up:#3fbf75;--prot-down:#ef5b4f;--accent:#6c9cff;--piv:#f2a33a;--prov:#b39dff;--w:#3ec4d8;--ok:#4ade80;--buy:#60a5fa;--sell:#f472b6;--hl:#fb923c;--miss:#fb923c;--extra:#e879f9;--sma20:#38bdf8;--sma75:#f59e0b;--sma200:#a5b4c8;--s0:#2dd4bf;--s1:#facc15;--s2:#60a5fa;--s3:#c084fc;--draw:#e2e8f0;--zone:rgba(170,150,255,.14);--zone-edge:rgba(170,150,255,.6);color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:10px}
+h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.02em}
+.tfs{display:flex;gap:4px}
+.yrs{display:flex;flex-wrap:wrap;gap:4px;font:600 12px var(--mono)}.yrs button,.seg button,.fb button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.yrs select{font:600 12px var(--mono);padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--fg)}
+.yrs button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.rp{display:inline-flex;flex-wrap:wrap;gap:4px}.rp[hidden]{display:none}.rp button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer;user-select:none;touch-action:none}
+.rp button.armed,.fb button.armed{background:var(--hl);border-color:var(--hl);color:#fff}
+.fbwrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin:10px 0 14px}
+.fb{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.fbrow{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.fbrow .lbl{min-width:5.5em}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.fb textarea,.fb input,.fb select{font:13px var(--font);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0}
+.fb textarea{flex:1 1 260px;resize:vertical}
+.done{display:inline-block;padding:1px 6px;border-radius:999px;background:var(--ok);color:#fff;font-weight:600}
+details.sum{margin:0 0 12px}details.sum summary{cursor:pointer;font-weight:600;font-size:14px;margin-bottom:6px}
+.trb button{font:600 12px var(--mono);padding:4px 9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.trb button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.stg{display:inline-block;min-width:3.2em;text-align:center;padding:1px 6px;border-radius:999px;font-weight:600;color:#fff}
+.tfs button{font:600 13px var(--mono);padding:5px 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.tfs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+label{font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center;cursor:pointer}
+.state{font:13px var(--mono);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel)}
+.state b.up{color:var(--up)} .state b.down{color:var(--down)}
+#chart{position:relative;height:min(68vh,640px);min-height:360px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.hover{font:12px var(--mono);color:var(--muted);min-height:18px;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--muted);margin:0 0 6px}
+#labPanel{margin-bottom:14px}
+.lbl{font-size:12px;color:var(--muted)}
+tr.sel{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:8px 0 14px}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+h2{font-size:14px;margin:0 0 6px}
+.log{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font:12px var(--mono);font-variant-numeric:tabular-nums}
+td,th{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+tr[data-t]{cursor:pointer} tr[data-t]:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.up{color:var(--up)} .down{color:var(--down)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.pbtags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.pbtags button{font:600 12px var(--mono);padding:3px 7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}.pbtags button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}.pbtags button.auto{border:2px dashed var(--accent)}.pbtags .lb{font-size:11px;color:var(--muted,#888)}.fbfloat{position:absolute;z-index:25;width:min(430px,92vw);max-height:min(62vh,560px);overflow:auto;background:var(--panel);border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,.28)}.fbfloat .fb{border:none;padding:6px 10px 10px}.fbfhead{display:flex;gap:6px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);cursor:move;position:sticky;top:0;background:var(--panel);z-index:1;font-size:13px}.fbfhead button{font:600 12px var(--mono);padding:2px 8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;cursor:pointer}
+.ptpop{max-width:min(440px,92vw);flex-wrap:wrap;position:absolute;z-index:20;display:flex;gap:6px;align-items:center;padding:4px 6px;background:var(--panel);border:1px solid var(--down);border-radius:6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}.ptpop #ptDel{color:#fff;background:var(--down);border-color:var(--down)}.selbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;margin:4px 0;border:1px solid var(--accent);border-radius:6px;font-size:13px}.qt{white-space:nowrap}@keyframes fl{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:none}}.flash{animation:fl 1.2s ease-out}.qb{font-size:11px;padding:1px 6px;margin:0 2px 0 0}.qb[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}.m15cfg{margin:10px 0}.m15cfg input[type=number]{width:60px}.m15cfg select,.m15cfg input{font:inherit}.m15cfg td{padding:3px 6px}.m15cfg input[type=color]{width:38px;height:24px;padding:0;border:1px solid var(--line);background:none}
+.htf{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 0;font:12px var(--mono);color:var(--muted)}.htf b{font-weight:600}.htf .up{color:var(--up)}.htf .down{color:var(--down)}
+.underpick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 0;font-size:13px}.underpick label{display:inline-flex;gap:4px;align-items:center}
+#under:empty{display:none}#under>*{grid-column:1/-1}
+.envt{width:100%;border-collapse:collapse;font-size:12.5px}.envt th{text-align:left;white-space:normal;width:7.2em;min-width:7.2em;padding:5px 6px;vertical-align:top;color:var(--muted);font-weight:500}.envt td{padding:5px 6px;border-bottom:1px solid var(--line);white-space:normal;word-break:break-word}.envt .pbtags{margin-top:3px}#envCard{width:min(500px,94vw);max-height:min(78vh,720px)}#envBody textarea{width:100%;box-sizing:border-box;font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
+</style>
+
+<div class="bar">
+  <h1>既存EAのエントリー（色＝H4ダウの段階）</h1><nav class="yrs" id="yrs" aria-label="年"></nav>
+  <div class="tfs" id="tfs"></div>
+  <label><input type="checkbox" id="optPiv"> 高値安値の点</label>
+  <label><input type="checkbox" id="optProt"> 押し安値/戻り高値</label>
+  <label><input type="checkbox" id="optProv"> 仮トレンド</label>
+  <label><input type="checkbox" id="optW"> Wトップ/ボトム</label>
+  <label><input type="checkbox" id="optZone"> 水平帯</label>
+  <label><input type="checkbox" id="optLab"> 手打ちの点と照合</label>
+  <label><input type="checkbox" id="optLine"> トレンドライン</label>
+  <label><input type="checkbox" id="optS20" checked> SMA20</label>
+  <label><input type="checkbox" id="optS75" checked> SMA75</label>
+  <label><input type="checkbox" id="optS200" checked> SMA200</label>
+  <label><input type="checkbox" id="optBo"> ブレイク</label>
+  <label><input type="checkbox" id="optTr"> EAのトレード</label>
+  <select id="trSet" title="表示するEA"><option value="ea">既存EA</option><option value="pf">全EA</option><option value="pf5">採用中5本（R/T/L/A/C）</option><option value="pf_R">R レンジの押し目</option><option value="pf_T">T トレンドの押し目</option><option value="pf_L">L ライン3〜4点目</option><option value="pf_A">A H4転換リターン</option><option value="pf_C">C M15調整ライン抜け</option><option value="pf_J2">J2 転換追随（東京時間）</option><option value="pf_J3">J3 H1本転換についていく</option><option value="pf_EV">EV 夜の転換追随</option><option value="pf_P">P 押し目・印から（ドル円の候補）</option><option value="pf_S">S トレンド＋M15転換（ゴールド・BTC）</option><option value="pf_L2">L2 ライン＋H4抵抗の手前は入らない（ゴールド）</option><option value="pf_T2">T2 トレンドの押し目＋横軸（ユーロドル）</option><option value="pf_Q">Q 静かな相場からのブレイク（ゴールド・ドル円）</option><option value="pf_DIP">DIP 押し目買い（D1上昇中・H4 SMA75タッチ）</option><option value="pf_U">U 日足ブレイク（20日高値）</option><option value="pf_K">K 買い増し（Sを最大2本）</option><option value="pf_M">M 日足RSI(2)の押し目買い</option></select>
+  <label><input type="checkbox" id="optUL"> 自動ライン（あなた式）</label>
+  <select id="ulSet" title="M15の自動ラインの種類"><option value="new">M15は調整ライン（新）</option><option value="old">M15も従来の線</option></select>
+  <label><input type="checkbox" id="optTri"> 三角（自動）</label>
+  <label class="m15tg"><input type="checkbox" id="optM15"> M15チェック表示</label>
+  <span class="rp" title="押してからチャートをタップすると「入りたい点」を1つ付けます。付けた点をタップすると消すボタンが出ます"><b style="font-size:12px">入りたい点：</b><button data-mp="1">買い</button><button data-mp="-1">売り</button></span>
+  <span class="rp" title="押すたびに1本引けます。水平線＝1回クリック、トレンドライン・ボックス＝2点クリック。線をクリックすると×（削除）が出て、掴むと動かせます"><b style="font-size:12px">線：</b><span class="seg" id="drawBtns"></span></span>
+  <span class="rp"><button id="zMode" title="ダウから作った水平帯（D1・H4・H1）だけを表示して、見る線か・幅・終わる所を直すモード">水平線</button><span id="zTools" class="rp" hidden><label style="font-size:12px"><input type="checkbox" id="zD1" checked> D1</label><label style="font-size:12px"><input type="checkbox" id="zH4" checked> H4</label><label style="font-size:12px"><input type="checkbox" id="zH1"> H1</label><label style="font-size:12px"><input type="checkbox" id="zDead" checked> 終わった線も出す</label><button data-a="zAdd" title="足りない線を足す：帯の上の端と下の端を順にクリック">線を足す</button><button id="zEnd">水平線を終わる</button><span class="note" id="zHint" style="margin:0"></span></span></span>
+  <span class="rp"><button id="pbMode" title="トレンドが出た足（B）と何回目の押しかをチャートに置くモード。他の表示は一時的に消えます">押し目カウント</button><span id="pbTools" class="rp" hidden><button data-a="pbB1" title="押してからトレンドが出た足をクリック。そのあとはチャートを押すたびに 1回目・2回目…">上昇 B</button><button data-a="pbB-1" title="押してからトレンドが出た足をクリック。そのあとはチャートを押すたびに 1回目・2回目…">下降 B</button><button data-a="pbN" title="押すたびに次の押し（番号は自動）">次の押し</button><button data-a="pbR" title="レンジに入った足。次の B まで数えない">R レンジ入り</button><label style="font-size:12px"><input type="checkbox" id="pbAuto"> 自動の数え方も出す</label><button id="pbEnd">押し目カウントを終わる</button><span class="note" id="pbHint" style="margin:0"></span></span></span>
+  <span class="rp" title="自分で付けた印・線・環境チェックの表示。足を選ぶと、その足で付けたものだけ出します"><b style="font-size:12px">表示：</b><label style="font-size:12px"><input type="checkbox" id="optMk" checked> 入りたい点</label><label style="font-size:12px"><input type="checkbox" id="optUser" checked> 線</label><label style="font-size:12px"><input type="checkbox" id="optEnvMk" checked> 環境チェック</label><select id="msTfSel" title="どの足で付けたものを表示するか"><option value="cur">今の足で付けたもの</option><option value="all">全部の足</option><option value="H4">H4で付けたもの</option><option value="H1">H1で付けたもの</option><option value="M15">M15で付けたもの</option></select></span>
+  <span class="rp"><button data-a="env" id="envBtn" title="押してからチャートの足をクリック。その足が確定した時点の「自動の読み」に ○× を付けます">環境チェック</button></span>
+  <span class="rp"><button id="rpStart" title="押してからチャートをクリック。その足まで巻き戻します">リプレイ</button><span id="rpCtl" class="rp" hidden><button id="rpBack">◀ 1本</button><button id="rpStep">▶ 1本</button><button id="rpFF">▶▶ 長押しで早送り</button><button id="rpEnv">この位置で環境チェック</button><button id="rpEnd">リプレイ終了</button></span></span>
+  <span class="state" id="state"></span>
+</div>
+<div class="hover" id="hover"></div>
+<div id="chart"></div>
+<div class="selbar" id="selBar" hidden></div>
+<div id="fbFloat" class="fbfloat" hidden><div class="fbfhead"><b>トレードの評価</b><span class="note" style="margin:0">ドラッグで移動できます</span><span style="flex:1"></span><button id="fbfHome" title="評価欄をチャートの下に戻す">下に戻す</button><button id="fbfClose" title="選択を外す">×</button></div></div>
+<div id="envCard" class="fbfloat" hidden><div class="fbfhead" id="envHead"><b id="envTitle">環境チェック</b><span style="flex:1"></span><button id="envNext" hidden title="次の質問の場所へ">次の質問 ▶</button><button id="envAllOk" title="①でまだ押していない項目を全部 ○ にする">①を全部○</button><button id="envClose">×</button></div><div id="envBody" style="padding:6px 10px 10px"></div></div>
+<div id="zPop" class="ptpop" hidden><span id="zTxt"></span><button data-zv="ok" title="自分も見る線">○ 見る線</button><button data-zv="ng" title="自分なら引かない">× 要らない</button><button data-zv="live" title="まだ効いている（自動の終わりが早すぎる）">まだ有効</button><button id="zEndPick" title="押してから、線が終わった足をチャートでクリック">終わりを指定</button><button id="zEndNone" title="終わりなし（今も有効）にする">終わりなし</button><button id="zReset" title="判定と直した幅・終わりを消す">元に戻す</button><button id="zDelU" hidden>× 消す</button><button id="zClose">閉じる</button><span class="note" style="margin:0;flex-basis:100%">選んでいる間は、帯の中を掴むと上下に移動、上か下の端を掴むと幅を変えられます。終わりは「終わりを指定」→ チャートの足をクリック。帯の外を押すと選択が外れて固定されます</span></div>
+<div id="pbPop" class="ptpop" hidden><span id="pbTxt"></span><button id="pbDel">× 消す</button><button id="pbClose">閉じる</button></div>
+<div id="ptPop" class="ptpop" hidden><span id="ptTxt"></span><span id="ptTags" class="pbtags"></span><button id="ptDel">× 消す</button><button id="ptNo">閉じる</button></div>
+<div class="htf" id="htfBar"></div>
+<div class="underpick"><b>チャートのすぐ下に出す：</b><span id="underPick"></span></div>
+<div class="fbwrap" id="under"></div>
+<section class="fb m15cfg" id="m15cfg" hidden aria-label="M15チェック表示の設定">
+  <div class="fbrow"><b>M15チェック表示：線の設定</b><span class="note" style="margin:0">変更はすぐチャートに反映され、この端末に保存されます。足＝どの時間足で計算するか（H1を選ぶとM15上に階段状で表示、その足が確定した時点の値）</span></div>
+  <div class="log" style="max-height:none"><table><thead><tr><th>表示</th><th>足</th><th>種類</th><th>期間</th><th>色</th><th>太さ</th><th>線</th><th></th></tr></thead><tbody id="clList"></tbody></table></div>
+  <div class="fbrow"><button id="clAdd">線を追加</button><button id="clReset">初期設定に戻す</button></div>
+  <div class="fbrow"><b>ストキャス</b>
+    <label><input type="checkbox" id="stOn"> 表示</label>
+    <label>%K期間 <input type="number" id="stN" min="2" max="200"></label><label>スムーズ <input type="number" id="stK" min="1" max="50"></label><label>%D <input type="number" id="stD" min="1" max="50"></label>
+    <label>下ライン <input type="number" id="stLo" min="0" max="100"></label><label>上ライン <input type="number" id="stHi" min="0" max="100"></label>
+    <label><input type="checkbox" id="stSig"> 既存EAのサイン（H1のSMA20/75の向きだけ）</label></div>
+  <div class="fbrow"><span class="note" style="margin:0">既存EAのサイン：買いは %K が下ラインより下 → %K が %D を上抜け → %K が下ラインを上抜けた足（売りは逆）。H1 SMA20＞SMA75 なら買いだけ、逆なら売りだけ。長期MAなどの絞り込み前の「候補」です</span></div>
+</section>
+<div class="fbwrap">
+<section class="fb" id="fbBox" aria-label="トレードの評価">
+  <div class="fbrow"><b id="fbTitle">チャートのトレードをタップするか、一覧から選ぶと、ここで評価できます</b><span class="note" id="fbStatus" style="margin:0"></span></div>
+  <div id="fbBody" hidden>
+    <div class="fbrow"><span class="lbl">エントリー</span><span class="seg" data-k="entry"></span></div>
+    <div class="fbrow"><span class="lbl">損切り</span><span class="seg" data-k="sl"></span></div>
+    <div class="fbrow"><span class="lbl">決済</span><span class="seg" data-k="exit"></span></div>
+    <div class="fbrow"><span class="lbl">理想の位置</span><span class="seg" id="idealBtns"></span></div>
+    <div class="fbrow"><span class="note" id="idealTxt" style="margin:0"></span></div>
+    <div class="fbrow"><label for="fbNote" class="lbl">理由・メモ</label><textarea id="fbNote" rows="2" placeholder="例：H4戻り高値の手前。M15ラインを抜けてからで良かった"></textarea></div>
+    <div class="fbrow"><button id="fbClear">このトレードの評価を消す</button></div>
+  </div>
+</section>
+<section class="fb" aria-label="水平線" style="grid-column:1/-1" id="secZ">
+  <div class="fbrow"><b>水平線（ダウから作った水平帯）の判定</b><span class="note" id="zCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「水平線」を押すと、D1・H4（・H1）の帯だけが出ます。帯を押して「○ 見る線／× 要らない／まだ有効」。上下の端を掴むと幅、右の端を掴むと終わる所を直せます。足りない線は「線を足す」で上の端→下の端をクリック。ルール：割れた押し安値・戻り高値／仮の押し安値・戻り高値／Wのネック。外側＝ヒゲ先、内側＝その波で一番ヒゲ寄りの実体。帯は元の高値・安値から終わりの足まで。終わり＝実体全体が反対側の端を越えた足。この年より前に終わった帯は出しません。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>できた所</th><th>足</th><th>種類</th><th>帯</th><th>終わり</th><th>判定</th></tr></thead><tbody id="zList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="押し目カウント" style="grid-column:1/-1" id="secPB">
+  <div class="fbrow"><b>押し目カウント（あなたのラベル）</b><span class="note" id="pbCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「押し目カウント」→「上昇 B／下降 B」を押してトレンドが出た足をクリック。そのあとはチャートを押すたびに 1回目・2回目…と番号が付きます。新しい B で数え直し、R（レンジ入り）で次の B まで数えません。ラベルは掴んで動かせ、押すと消せます。番号は時間の順に自動で付け直します。「自動の数え方も出す」にチェックすると、こちらの数え方（MA 基準、押しが 2ATR 以上で 1 回）を点線の枠で重ねます（今はかなり細かく数えていて、あなたの数え方とのズレを直すのが目的です）。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>ラベル</th><th>価格</th></tr></thead><tbody id="pbList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="質問リスト" style="grid-column:1/-1" id="secQ">
+  <div class="fbrow"><b>質問リスト（自動の読みが迷っている所）</b><span class="note" id="qCount" style="margin:0"></span><button id="qStart">最初の未回答から始める</button></div>
+  <div class="fbrow"><span class="note" style="margin:0">MA で数えた押しの回数とダウで数えた回数が食い違う所、本ダウと仮ダウが長く食い違う所、本ダウが転換した所から、この年の H4・H1 で最大 8 か所ずつ選びました。行を押すとその場所へ移動して環境チェックが開き、上に質問が出ます。答えたら「次の質問 ▶」。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>種類</th><th>質問</th><th>回答</th></tr></thead><tbody id="qList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="環境チェック" style="grid-column:1/-1" id="secEnv">
+  <div class="fbrow"><b>環境チェック（チャートの状態の読みが合っているか）</b><span class="note" id="envCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">上の「環境チェック」を押してチャートの足をクリック（リプレイ中は「この位置で環境チェック」、トレードを選んでいる時は「エントリー時の環境」）。その足が確定した時点で分かっていた情報だけで、ダウと近くの抵抗の自動の読みを出すので○×を押します。あとは H4・H1 それぞれの段階（何回目の押しか・レンジ・転換中）と、できれば「トレンドが出たと思う足」をチャートで指定してください。チャート上の◆（緑＝全部合っている、橙＝×あり）で付けた所が分かり、◆をクリックするとカードが開いて直せます。</span></div>
+  <div class="log" style="max-height:240px"><table><thead><tr><th>日時</th><th>足</th><th>違っていた項目</th><th>H4 の段階</th><th>H1 の段階</th><th>メモ</th><th></th></tr></thead><tbody id="envList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="EAの条件" style="grid-column:1/-1" id="secEA">
+  <div class="fbrow"><b>EAの条件</b><span class="note" style="margin:0">上の「表示するEA」で選んだEAが強調されます。成績は2005〜2026年、コスト1.2pips込み、PFの（ ）は前半2005-15／後半2016-26</span></div>
+  <div id="eaInfo"></div>
+</section>
+<section class="fb" aria-label="自動ラインの判定" style="grid-column:1/-1" id="secUL">
+  <div class="fbrow"><b>自動ライン（あなたの引き方を真似た線）の判定</b><span class="note" id="ulCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">今の時間足・今の年に作られた線。行をクリックで移動し、その線だけオレンジで太く表示（他の線は薄く）。同じ行をもう一度クリックで解除。選んだ線の始点・2点目はドラッグで動かせます（あなたならこう引く、として保存）。あなたも引く線なら○。違えば理由：×始点（始点が違う）、×角度（2点目・角度が違う）、×不要（そもそも引かない）</span></div>
+  <div class="log" style="max-height:220px"><table><thead><tr><th>線ができた足</th><th>向き</th><th>始点</th><th>2点目</th><th>終わり</th><th>判定</th></tr></thead><tbody id="ulList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="相場の状態の印付け" style="grid-column:1/-1" id="rgBox">
+  <div class="fbrow"><b>相場の状態の印付け</b><span class="note" id="rgCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">状態のボタンを押して、チャートで「始まりの足」→「終わりの足」をクリック。どの時間足で付けてもよく、全部の時間足に帯で表示されます。重ねて付けてもOK（例：上昇の推進の中の調整）。「買い／売りで入りたい」＝形がきれいになれば今すぐでも入りたいエリア、「買い／売りを検討中」＝もう少し形ができたら入ろうかなというエリア、「触りたくない」＝エントリーを全く考えていないエリア。状態とは別に重ねて付ける（下降トレンド中の買いでもOK。入りたい所だけ付けるのでもOK）。迷ったらメモに一言</span></div>
+  <div class="fbrow"><span class="seg" id="rgBtns"></span><label><input type="checkbox" id="optRg" checked> 帯を表示</label><span class="note" id="rgHint" style="margin:0"></span></div>
+  <div class="fbrow"><button id="rgDelYearState">この年の状態の印を消す</button><button id="rgDelYearZone">この年のエリアの印を消す</button><button id="rgDelAll">印を全部消す（全部の年）</button></div>
+  <div class="log" style="max-height:260px"><table><thead><tr><th>始まり</th><th>終わり</th><th>状態</th><th>付けた足</th><th>メモ</th><th></th></tr></thead><tbody id="rgList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="三角とウェッジの判定" style="grid-column:1/-1" id="secTri">
+  <div class="fbrow"><b>三角保ち合い・ウェッジの判定</b><span class="note" id="triCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">自動で見つけた三角・ウェッジ（今の時間足・今の年）。行をクリックでチャートが移動し、その三角だけオレンジで表示。4つの端の点（□）はドラッグで動かせます（あなたならこう引く、として保存。元の線は点線で残ります）。あなたも三角（ウェッジ）として見るなら○。違う時：×形＝三角に見えない（収束していない・山谷がはっきりしない等）、×位置＝形は良いがトレンドの調整の位置ではない、×不要＝そもそも見ない。微妙なら△。種類の絞り込みはボタンで</span></div>
+  <div class="fbrow"><span class="seg" id="triFilt"></span></div>
+  <div class="log" style="max-height:260px"><table><thead><tr><th>形ができた足</th><th>種類</th><th>始まりの幅</th><th>抜け</th><th>判定</th></tr></thead><tbody id="triList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="Wの判定" style="grid-column:1/-1" id="secW">
+  <div class="fbrow"><b>Wトップ／ボトムの判定</b><span class="note" id="wCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" style="margin:0">エンジンが見つけたW（今の時間足・今の年）。行をクリックでチャートが移動し、A・B（ネック）・Cを表示。あなたから見てWなら○。違う時は理由で選ぶ：×レンジ＝トレンドの終わりではない（レンジ内）、×形＝山が2つに見えない・ネックが認識できない、×他＝それ以外。微妙なら△</span></div>
+  <div class="log" style="max-height:220px"><table><thead><tr><th>確定した足</th><th>種類</th><th>A</th><th>B（ネック）</th><th>C</th><th>判定</th></tr></thead><tbody id="wList"></tbody></table></div>
+</section>
+<section class="fb" aria-label="線を引く" id="secDraw">
+  <div class="fbrow"><b>自分の線の一括削除</b><span class="note" style="margin:0">線を引くボタンはチャートの上（「線：」）に移しました</span></div>
+  <div class="fbrow"><button id="drDelYear">この年の自分の線を全部消す</button><button id="drDelAll">自分の線を全部消す（全部の年）</button><span class="note" id="drCount" style="margin:0"></span></div>
+  <div class="fbrow"><span class="note" id="drawTxt" style="margin:0">ボタンを押すたびに1本引けます。トレンドライン＝2点クリック（右へ延長）、ボックス＝対角の2点をクリック。線をクリックすると端の点と×（削除）が出ます。引いた線はカーソルを合わせて掴むと動かせます（トレンドラインは両端も）。色＝引いた時間足（週足 紫・日足 赤・4時間 緑・1時間 水色・15分 ピンク）</span></div>
+</section>
+<section class="fb" aria-label="入りたかった所" id="secMiss">
+  <div class="fbrow"><b>入りたかった所（お手本トレード・入りたい点）</b></div>
+  <div class="fbrow"><label for="msKind" class="lbl" style="min-width:0">種類</label><select id="msKind"><option value="real">裁量で取れる</option><option value="ideal">理想（裁量では難しい）</option></select>
+    <input id="msNote" placeholder="根拠メモ（音声入力OK・例：H4押し安値でM15転換＋調整ライン抜け）" style="flex:1 1 220px"><button id="msAdd">追加する</button></div>
+  <div class="fbrow"><span class="note" id="msTxt" style="margin:0">「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定。行を選ぶと、その間に引いた線がこのお手本に紐づきます</span></div>
+  <div class="fbrow"><label for="msSetup" class="lbl">パターン</label><select id="msSetup"></select><span class="note" style="margin:0">行を選ぶとそのお手本を変更、選ばずに設定すると次に追加するお手本に付きます</span></div>
+  <div class="fbrow"><span class="lbl">背にした所</span><span class="seg" id="msBack"></span></div>
+  <div class="fbrow"><span class="lbl">入り方</span><span class="seg" id="msTrig"></span></div>
+  <div class="fbrow" id="pbRow" hidden><span class="lbl">押し・線</span><span id="pbPanel" class="pbtags"></span></div>
+  <div class="fbrow" id="msEditRow" hidden><label for="msEdit" class="lbl">選択中のメモ</label><textarea id="msEdit" rows="3" placeholder="なぜここで入ったか（音声入力：Windowsは Win＋H、Macは Fnキー2回、スマホはキーボードのマイク）"></textarea></div>
+  <div class="log" style="max-height:200px"><table><thead><tr><th>エントリー</th><th>パターン</th><th>種類</th><th>方向</th><th>IN</th><th>損切り</th><th>決済</th><th>結果</th><th>メモ</th><th></th></tr></thead><tbody id="msList"></tbody></table></div>
+</section>
+</div>
+<p class="note" id="dbNote"></p>
+<div class="legend">
+  <span><i style="background:var(--prot-up)"></i>押し安値（上昇中）</span>
+  <span><i style="background:var(--prot-down)"></i>戻り高値（下降中）</span>
+  <span><i style="background:var(--down);width:8px;height:8px;border-radius:50%"></i>ダウの高値 <i style="background:var(--up);width:8px;height:8px;border-radius:50%"></i>ダウの安値（ヒゲ先の価格。確定するのは後の足）</span>
+  <span>■ 転換＝終値が押し安値/戻り高値を抜けた足</span>
+  <span><i style="background:repeating-linear-gradient(90deg,var(--prov) 0 4px,transparent 4px 7px)"></i>仮トレンドの押し安値/戻り高値（点線）・● 仮転換</span>
+  <span><i style="background:var(--up)"></i><i style="background:var(--down)"></i>トレンドライン（上昇/下降、点線＝認識前、×＝消えた足）</span>
+  <span>▲▼ エントリー（色＝H4段階：<b style="color:var(--s0)">段階0 転換直後</b>・<b style="color:var(--s1)">段階1</b>・<b style="color:var(--s2)">段階2</b>・<b style="color:var(--s3)">段階3以上</b>・<b style="color:var(--muted)">H4と逆</b>、文字＝番号/段階）・● 決済</span>
+  <span><i style="background:var(--sma20)"></i>SMA20</span><span><i style="background:var(--sma75)"></i>SMA75</span><span><i style="background:var(--sma200)"></i>SMA200</span>
+  <span><i style="background:var(--zone-edge);height:8px"></i>水平帯（ヒゲ先〜実体、点線部分は有効化前）</span>
+  <span>W＝Wトップ/ボトムのネックライン(B)を終値で抜けた足</span>
+</div>
+<div id="labPanel" hidden>
+<h2>照合：合っていない点（クリックで移動）</h2>
+<p class="note">◯ 緑＝あなたの点とエンジンが一致　◯ 橙＝あなたの点だがエンジンが取れていない　✕ 赤紫＝エンジンだけが取った点</p>
+<div class="log"><table><thead><tr><th>日時</th><th>種類</th><th>内容</th><th>価格</th></tr></thead><tbody id="labLog"></tbody></table></div>
+</div>
+<details class="sum" open><summary>EAごとの成績（ユーロドル・全年、コスト込み）</summary><div class="log" style="max-height:none"><table id="eaTbl"></table></div><p class="note" id="eaNote"></p></details>
+<details class="sum"><summary>年×段階の成績（全年・既存EA）</summary><div class="log" style="max-height:none"><table id="sumTbl"></table></div></details>
+<div id="secTr" style="grid-column:1/-1"><h2 id="trTitle">エントリー一覧（クリックでそのトレードへ移動）</h2>
+<div class="bar" style="margin-bottom:6px"><span class="lbl">表示：</span>
+  <span class="trb" id="trBtns"></span>
+  <span class="note" id="trSum" style="margin:0"></span></div>
+<div class="log" style="max-height:340px;margin-bottom:14px"><table><thead><tr><th>#</th><th>日時（エントリー足）</th><th>売買</th><th>EA/P</th><th>チェック（押すと保存・もう一度で解除）</th><th>最大含み益</th><th>H4段階</th><th>直近15日のH4転換</th><th>D1/H4/H1</th><th>エントリー</th><th>損切り(pips)</th><th>決済</th><th>結果R</th></tr></thead><tbody id="trList"></tbody></table></div></div>
+<h2>イベント一覧（クリックでその日付へ移動）</h2>
+<div class="log"><table><thead><tr><th>日時</th><th>内容</th><th>価格</th><th>基準の足</th></tr></thead><tbody id="log"></tbody></table></div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+let DATA=null;const ALLTR=/*ALLTR*/null;const YEARS=/*YEARS*/null;let year=YEARS[YEARS.length-1];
+try{const y=+localStorage.getItem('svYear');if(YEARS.includes(y))year=y}catch(e){}
+const TFS=['W1','D1','H4','H1','M15'];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const intraday=()=>tf!=='D1'&&tf!=='W1';
+const fmt=t=>{const s=new Date(t*1000).toISOString();return s.slice(0,10).replaceAll('-','/')+(intraday()?' '+s.slice(11,16):'')};
+const NAMES={rev:'トレンド転換',bo:'高値/安値更新',breakout_protect:'押し安値/戻り高値 移動',late_protect:'遅れ確定で移動',
+  reversal_protect:'転換後の起点を設定',reversal_protect_raw:'転換後の起点(仮:ヒゲ)',init_up:'初期化 上昇',init_down:'初期化 下降'};
+let tf='M15',chart,cs,ps,trSel=null,trMode='all';
+
+
+const TFLEN={W1:604800,D1:86400,H4:14400,H1:3600,M15:900};
+let RT=null;const VC={key:null,v:null};
+/* replay view: only bars closed by RT, plus the forming bar rebuilt from M15; overlays known by RT */
+function DV(){const d=DATA[tf];if(RT==null)return d;const key=year+':'+tf+':'+RT;if(VC.key===key)return VC.v;
+  const L=TFLEN[tf],c=d.candles;let lo=-1,hi=c.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(c[m][0]+L<=RT)lo=m;else hi=m-1}
+  const k=lo,off=Math.max(0,k-3000),candles=c.slice(off,k+1);  /* replay keeps the last ~3000 bars for speed */
+  if(tf!=='M15'&&k+1<c.length&&c[k+1][0]<RT){const M=DATA.M15.candles,t0=c[k+1][0];let a=0,b=M.length-1;while(a<b){const m=(a+b)>>1;if(M[m][0]<t0)a=m+1;else b=m}
+    let o=null,h=-1e9,l=1e9,cl=null;for(let i=a;i<M.length&&M[i][0]+900<=RT;i++){if(o==null)o=M[i][1];h=Math.max(h,M[i][2]);l=Math.min(l,M[i][3]);cl=M[i][4]}
+    if(o!=null)candles.push([t0,o,h,l,cl])}
+  const lastT=k>=0?c[k][0]:-1,firstT=c[off]?c[off][0]:0,kn=t=>t+L<=RT,upTo=a=>{let i=0,j=0;while(j<a.length&&a[j][0]<firstT)j++;i=j;while(i<a.length&&a[i][0]<=lastT)i++;return a.slice(j,i)};
+  const v={off,candles,prot:d.prot.slice(off,k+1),pprot:d.pprot.slice(off,k+1),sma20:upTo(d.sma20),sma75:upTo(d.sma75),sma200:d.sma200?upTo(d.sma200):null,
+    piv:d.piv.filter(p=>kn(p[4])&&p[0]>=firstT),ev:d.ev.filter(e=>kn(e[0])&&e[0]>=firstT),pev:d.pev.filter(e=>kn(e[0])&&e[0]>=firstT),wev:d.wev.filter(e=>kn(e[0])&&e[0]>=firstT),
+    zones:d.zones.filter(z=>kn(z[1])).map(z=>z[2]!=null&&!kn(z[2])?[z[0],z[1],null,z[3],z[4],z[5]]:z),
+    ulines:(d.ulines||[]).filter(u=>kn(u[4])).map(u=>u[5]!=null&&!kn(u[5])?[u[0],u[1],u[2],u[3],u[4],null,u[6],false]:u),
+    lines:d.lines.filter(x=>x[4]<=k&&(x[5]==null||x[5]>=off)).map(x=>[x[0]-off,x[1],x[2]-off,x[3],x[4]-off,x[5]!=null&&x[5]<=k?x[5]-off:null,x[6],x[7],x[8]]),ulab:[],extra:[]};
+  VC.key=key;VC.v=v;return v}
+const S={};let ZS=[];
+function build(){
+  if(!DATA)return;
+  const el=document.getElementById('chart');el.innerHTML='';
+  chart=LightweightCharts.createChart(el,{autoSize:true,
+    layout:{background:{color:css('--panel')},textColor:css('--muted'),fontFamily:css('--mono')},
+    grid:{vertLines:{color:css('--line')},horzLines:{color:css('--line')}},
+    rightPriceScale:{borderColor:css('--line')},
+    crosshair:{mode:0},
+    localization:{locale:'ja-JP',timeFormatter:t=>fmt(t)},
+    timeScale:{borderColor:css('--line'),timeVisible:intraday(),secondsVisible:false,rightOffset:8,
+      tickMarkFormatter:(t,type)=>{const d=new Date(t*1000),p=x=>String(x).padStart(2,'0');
+        return type===0?`${d.getUTCFullYear()}`:type===1?`${d.getUTCFullYear()}/${p(d.getUTCMonth()+1)}`:
+          type===2?`${p(d.getUTCMonth()+1)}/${p(d.getUTCDate())}`:`${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`}}});
+  chart.subscribeCrosshairMove(q=>{const el=document.getElementById('hover');
+    if(!q.time){el.textContent='';return}const b=q.seriesData.get(cs);
+    el.textContent=b?`${fmt(q.time)}  始${b.open} 高${b.high} 安${b.low} 終${b.close}`:fmt(q.time)});
+  cs=chart.addCandlestickSeries({upColor:'#ffffff00',borderUpColor:css('--fg'),wickUpColor:css('--fg'),
+    downColor:css('--fg'),borderDownColor:css('--fg'),wickDownColor:css('--fg'),priceLineVisible:false});
+  const ln=o=>chart.addLineSeries(Object.assign({priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false},o));
+  ps=ln({lineType:1,lineWidth:2});
+  S.pv=ln({lineType:1,lineWidth:2,lineStyle:2,color:css('--prov')});
+  S.ma={20:ln({color:css('--sma20'),lineWidth:1}),75:ln({color:css('--sma75'),lineWidth:1}),200:ln({color:css('--sma200'),lineWidth:2})};
+  S.piv={hi:ln({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:css('--down')}),
+         lo:ln({lineVisible:false,pointMarkersVisible:true,pointMarkersRadius:4,color:css('--up')})};
+  S.cl=CL.rows.map(r=>ln({color:r.color,lineWidth:+r.w,lineStyle:+r.style}));
+  S.stK=ln({color:css('--accent'),lineWidth:1,priceScaleId:'st'});S.stD=ln({color:css('--down'),lineWidth:1,lineStyle:2,priceScaleId:'st'});
+  const stShow=m15on()&&CL.st.on;
+  chart.priceScale('st').applyOptions({scaleMargins:{top:.78,bottom:.02},visible:stShow,borderColor:css('--line')});
+  chart.priceScale('right').applyOptions({scaleMargins:stShow?{top:.04,bottom:.26}:{top:.1,bottom:.1}});
+  if(stShow)for(const v of [CL.st.lo,CL.st.hi])S.stK.createPriceLine({price:+v,color:css('--muted'),lineWidth:1,lineStyle:2,axisLabelVisible:false});
+  setupZones(el);
+  const d=fillAll();
+  const n=d.candles.length;if(!build.keep)chart.timeScale().setVisibleLogicalRange({from:n-260,to:n+5});
+  chart.timeScale().subscribeVisibleLogicalRangeChange(()=>{if(typeof hidePt==='function'&&ptCur)hidePt();if(typeof fbPlace==='function'&&!fbDragPos)requestAnimationFrame(fbPlace);cancelAnimationFrame(updHTF.r);updHTF.r=requestAnimationFrame(updHTF)});setTimeout(updHTF);
+  const all=d.ev.filter(e=>e[1]!=='bo').concat(
+    d.pev.map(e=>[e[0],'prov',e[1],e[2],e[0]]),
+    d.wev.map(w=>[w[0],w[1],w[1]==='W_TOP'?'down':'up',w[3],w[5]])).sort((a,b)=>a[0]-b[0]);
+  const rows=all.slice().reverse().map(e=>{
+    const cls=e[2]==='up'?'up':e[2]==='down'?'down':'';
+    const txt=e[1]==='prov'?`仮トレンド → ${e[2]==='up'?'上昇':'下降'}`:e[1]==='W_TOP'?'Wトップ（ネック割れ）':e[1]==='W_BOTTOM'?'Wボトム（ネック抜け）':e[1]==='rev'?`${NAMES.rev} → ${e[2]==='up'?'上昇':'下降'}（${e[3]} を終値で抜け）`:NAMES[e[1]]||e[1];
+    return `<tr data-t="${e[0]}"><td>${fmt(e[0])}</td><td class="${cls}">${txt}</td><td>${e[3]}</td><td>${fmt(e[4])}</td></tr>`}).join('');
+  document.getElementById('log').innerHTML=rows;
+  labTable();
+}
+function fillAll(){const d=DV(),on=id=>document.getElementById(id).checked;
+  cs.setData(d.candles.map(c=>({time:c[0],open:c[1],high:c[2],low:c[3],close:c[4]})));
+  ps.setData(on('optProt')?d.prot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1],color:p[2]==='up'?css('--prot-up'):css('--prot-down')}):[]);
+  const showProv=on('optProv');
+  S.pv.setData(showProv?d.pprot.map(p=>p[1]==null?{time:p[0]}:{time:p[0],value:p[1]}):[]);
+  for(const p of [20,75,200])S.ma[p].setData(!m15on()&&on('optS'+p)&&d['sma'+p]?d['sma'+p].map(x=>({time:x[0],value:x[1]})):[]);
+  fillCustom(d);
+  for(const k of ['hi','lo'])S.piv[k].setData(on('optPiv')?d.piv.filter(p=>p[1]===k).map(p=>({time:p[0],value:p[2]})):[]);
+  ZS=d.zones.map(z=>({a:idxOf(d,z[0]),v:idxOf(d,z[1]),e:idxOf(d,z[2]),lo:z[3],hi:z[4],lab:z[5]}));
+  const m=[];
+  if(showProv) for(const e of d.pev) m.push({time:e[0],position:e[1]==='up'?'belowBar':'aboveBar',shape:'circle',color:css('--prov'),text:e[1]==='up'?'仮上昇':'仮下降'});
+  if(on('optW')) for(const w of d.wev) m.push({time:w[0],position:w[1]==='W_TOP'?'aboveBar':'belowBar',shape:w[1]==='W_TOP'?'arrowDown':'arrowUp',color:css('--w'),text:w[1]==='W_TOP'?'Wトップ':'Wボトム'});
+  for(const e of d.ev){
+    if(e[1]==='rev'&&!m15on()&&on('optProt'))m.push({time:e[0],position:e[2]==='up'?'belowBar':'aboveBar',shape:'square',color:e[2]==='up'?css('--up'):css('--down'),text:e[2]==='up'?'上昇転換':'下降転換'});
+    if(e[1]==='bo'&&on('optBo'))m.push({time:e[0],position:e[2]==='up'?'aboveBar':'belowBar',shape:'circle',color:css('--accent'),text:''});
+  }
+  const barT=t=>{let lo=0,hi=d.candles.length-1;if(!d.candles.length||t<d.candles[0][0])return null;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return d.candles[lo][0]};
+  for(const x of on('optTr')?trView():[]){if(RT!=null&&x.t+900>RT)continue;const bt=barT(x.t),xt=RT!=null&&x.xt+900>RT?null:barT(x.xt);const col=stgCol(x.stg);
+    if(bt!=null)m.push({time:bt,position:x.side===1?'belowBar':'aboveBar',shape:x.side===1?'arrowUp':'arrowDown',color:col,text:'#'+x.n+' '+lblTxt(x),size:x.n===trSel?2:1});
+    if(xt!=null)m.push({time:xt,position:x.side===1?'aboveBar':'belowBar',shape:'circle',color:col,text:(x.R>0?'+':'')+x.R+'R'})}
+  for(const x of SIG)m.push(x);
+  m.sort((a,b)=>a.time-b.time);cs.setMarkers(m);
+  const last=d.prot[d.prot.length-1]||[0,null,null],pl=d.pprot[d.pprot.length-1]||[0,null,null],jp=x=>x==='up'?'上昇':'下降';
+  document.getElementById('state').innerHTML=(RT!=null?`<b>リプレイ ${fmtAll(RT)}</b>　`:'')+(last[2]?`${RT!=null?'現在':'最新足'} 主要 <b class="${last[2]}">${jp(last[2])}</b> ${last[2]==='up'?'押し安値':'戻り高値'} ${last[1]}`:'判定前')+(pl[2]?` ／ 仮 <b class="${pl[2]}">${jp(pl[2])}</b> ${pl[1]}`:'');
+  return d}
+const fmtAll=t=>{const s=new Date(t*1000).toISOString();return s.slice(0,10).replaceAll('-','/')+' '+s.slice(11,16)};
+let zc=null,zraf=0;
+function idxOf(d,t){if(t==null)return d.candles.length+3;let lo=0,hi=d.candles.length-1;
+  if(t<=d.candles[0][0])return -0.5;while(lo<hi){const m=(lo+hi)>>1;if(d.candles[m][0]<t)lo=m+1;else hi=m}return lo}
+function setupZones(el){
+  cancelAnimationFrame(zraf);zc=document.createElement('canvas');
+  zc.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:3';el.appendChild(zc);
+  const draw=()=>{zraf=requestAnimationFrame(draw);
+    const on=document.getElementById('optZone').checked,lon=document.getElementById('optLine').checked,r=el.getBoundingClientRect(),dpr=devicePixelRatio||1;
+    if(zc.width!==Math.round(r.width*dpr)||zc.height!==Math.round(r.height*dpr)){zc.width=Math.round(r.width*dpr);zc.height=Math.round(r.height*dpr);zc.style.width=r.width+'px';zc.style.height=r.height+'px'}
+    const g=zc.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,r.width,r.height);
+    drawRegimes(g,r);drawTri(g,r);drawTrade(g,r);drawFeedback(g,r);if(lon)drawLines(g,r);if(document.getElementById('optLab').checked)drawLabels(g,r);if(!on)return;
+    const ts=chart.timeScale(),W=ts.width(),fill=css('--zone'),edge=css('--zone-edge'),fg=css('--muted');
+    g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='11px '+css('--mono');
+    for(const z of ZS){const x0=ts.logicalToCoordinate(z.a),xv=ts.logicalToCoordinate(z.v),x1=ts.logicalToCoordinate(z.e);
+      const y0=cs.priceToCoordinate(z.hi),y1=cs.priceToCoordinate(z.lo);if([x0,xv,x1,y0,y1].some(v=>v==null))continue;
+      const h=Math.max(2,y1-y0);
+      g.setLineDash([3,3]);g.strokeStyle=edge;g.strokeRect(x0,y0,xv-x0,h);g.setLineDash([]);
+      g.fillStyle=fill;g.fillRect(xv,y0,x1-xv,h);g.strokeStyle=edge;g.strokeRect(xv,y0,x1-xv,h);
+      if(x1-xv>60){g.fillStyle=fg;g.fillText(z.lab,xv+4,y0-3)}}
+    g.restore()};
+  draw();
+}
+function drawLabels(g,r){
+  const d=DV(),ts=chart.timeScale(),W=ts.width();
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=2;g.setLineDash([]);
+  const X=t=>ts.timeToCoordinate(t),Y=p=>cs.priceToCoordinate(p);
+  for(const[t,k,p,ok]of d.ulab){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=ok?css('--ok'):css('--miss');g.beginPath();g.arc(x,yy,ok?5:7,0,7);g.stroke()}
+  for(const[t,k,p]of d.extra){const x=X(t),y=Y(p);if(x==null||y==null)continue;
+    const yy=y+(k==='hi'?-9:9);g.strokeStyle=css('--extra');g.beginPath();g.moveTo(x-5,yy-5);g.lineTo(x+5,yy+5);g.moveTo(x-5,yy+5);g.lineTo(x+5,yy-5);g.stroke()}
+  g.restore()}
+function labTable(){const d=DV();const rows=[];
+  for(const[t,k,p,ok]of d.ulab)if(!ok)rows.push([t,k,'あなたの点（エンジン取れず）',p,'miss']);
+  for(const[t,k,p]of d.extra)rows.push([t,k,'エンジンだけ',p,'extra']);
+  rows.sort((a,b)=>b[0]-a[0]);
+  const ok=d.ulab.filter(x=>x[3]).length;
+  document.getElementById('labLog').innerHTML=`<tr><td colspan="4">一致 ${ok} / あなたの点 ${d.ulab.length}　・取れず ${d.ulab.length-ok}　・エンジンだけ ${d.extra.length}</td></tr>`+
+    rows.map(r=>`<tr data-t="${r[0]}"><td>${fmt(r[0])}</td><td>${r[1]==='hi'?'高値':'安値'}</td><td style="color:var(--${r[4]})">${r[2]}</td><td>${r[3]}</td></tr>`).join('');
+  document.getElementById('labPanel').hidden=!document.getElementById('optLab').checked}
+document.getElementById('labLog').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
+function drawLines(g,r){
+  const d=DV(),ts=chart.timeScale(),W=ts.width(),last=d.candles.length-1;
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.4;
+  for(const L of d.lines){const[a,ap,b,bp,cr,rt,kind]=L;const end=rt==null?last+3:rt;
+    const y=i=>cs.priceToCoordinate(ap+(bp-ap)*(i-a)/(b-a)),x=i=>ts.logicalToCoordinate(i);
+    const col=kind==='lo'?css('--up'):css('--down');g.strokeStyle=col;
+    const seg=(i0,i1,dash)=>{const X0=x(i0),X1=x(i1),Y0=y(i0),Y1=y(i1);if([X0,X1,Y0,Y1].some(v=>v==null))return;
+      g.setLineDash(dash);g.beginPath();g.moveTo(X0,Y0);g.lineTo(X1,Y1);g.stroke()};
+    seg(a,cr,[4,4]);seg(cr,end,[]);
+    if(rt!=null){const X=x(rt),Y=y(rt);if(X!=null&&Y!=null){g.setLineDash([]);g.beginPath();g.moveTo(X-4,Y-4);g.lineTo(X+4,Y+4);g.moveTo(X-4,Y+4);g.lineTo(X+4,Y-4);g.stroke()}}}
+  g.restore()}
+/* ---------- M15 check view: editable lines + stochastic ---------- */
+const CLDEF={rows:[
+  {on:1,tf:'M15',type:'SMA',n:20,color:'#0284c7',w:1,style:0},{on:1,tf:'M15',type:'SMA',n:75,color:'#b45309',w:1,style:0},
+  {on:1,tf:'M15',type:'SMA',n:200,color:'#64748b',w:2,style:0},{on:1,tf:'H1',type:'SMA',n:20,color:'#16a34a',w:1,style:2},
+  {on:1,tf:'H1',type:'SMA',n:75,color:'#dc2626',w:2,style:2},{on:1,tf:'H1',type:'SMA',n:200,color:'#7c3aed',w:2,style:2},
+  {on:0,tf:'H1',type:'SMA',n:480,color:'#a16207',w:2,style:2}],
+  st:{on:0,n:14,k:3,d:5,lo:20,hi:80,sig:0}};
+let CL=JSON.parse(JSON.stringify(CLDEF));try{const v=JSON.parse(localStorage.getItem('svM15cfg'));if(v&&Array.isArray(v.rows)&&v.st)CL=v}catch(e){}
+let SIG=[];
+const saveCL=()=>{try{localStorage.setItem('svM15cfg',JSON.stringify(CL))}catch(e){}};
+const m15on=()=>{const e=document.getElementById('optM15');return !!(e&&e.checked)};
+function maArr(c,type,n){const out=new Array(c.length).fill(null);n=Math.max(1,Math.round(n));
+  if(type==='EMA'){const a=2/(n+1);let e=null;for(let i=0;i<c.length;i++){e=e==null?c[i][4]:e+a*(c[i][4]-e);if(i>=n-1)out[i]=e}}
+  else{let s=0;for(let i=0;i<c.length;i++){s+=c[i][4];if(i>=n)s-=c[i-n][4];if(i>=n-1)out[i]=s/n}}return out}
+/* value for each chart bar = last source bar already closed (at the chart bar's close, or at its open with atOpen) */
+function mapTo(d,src,vals,atOpen){const L=TFLEN[tf],Ls=TFLEN[src],sc=DATA[src].candles,res=[];let j=-1;
+  for(const c of d.candles){const lim=Math.min(atOpen?c[0]:c[0]+L,RT!=null?RT:Infinity);while(j+1<sc.length&&sc[j+1][0]+Ls<=lim)j++;res.push(j>=0?vals[j]:null)}return res}
+function stochArr(c,n,k,dd){const raw=c.map((x,i)=>{if(i<n-1)return null;let hh=-1e9,ll=1e9;for(let j=i-n+1;j<=i;j++){if(c[j][2]>hh)hh=c[j][2];if(c[j][3]<ll)ll=c[j][3]}return hh>ll?100*(x[4]-ll)/(hh-ll):50});
+  const sm=(a,m)=>a.map((_,i)=>{if(i<m-1)return null;let s=0;for(let j=i-m+1;j<=i;j++){if(a[j]==null)return null;s+=a[j]}return s/m});const K=sm(raw,k);return [K,sm(K,dd)]}
+function fillCustom(d){SIG=[];const M=m15on();
+  CL.rows.forEach((r,i)=>{const sr=S.cl[i];if(!sr)return;if(!M||!r.on||!DATA[r.tf]){sr.setData([]);return}
+    const v=mapTo(d,r.tf,maArr(DATA[r.tf].candles,r.type,+r.n));sr.setData(d.candles.map((c,k)=>v[k]==null?{time:c[0]}:{time:c[0],value:+v[k].toFixed(5)}))});
+  if(!M||!CL.st.on){S.stK.setData([]);S.stD.setData([]);return}
+  const st=CL.st,[K,D]=stochArr(d.candles,+st.n,+st.k,+st.d);
+  S.stK.setData(d.candles.map((c,i)=>K[i]==null?{time:c[0]}:{time:c[0],value:+K[i].toFixed(1)}));
+  S.stD.setData(d.candles.map((c,i)=>D[i]==null?{time:c[0]}:{time:c[0],value:+D[i].toFixed(1)}));
+  if(!st.sig||!DATA.H1)return;
+  const H=DATA.H1.candles,a20=mapTo(d,'H1',maArr(H,'SMA',20),true),a75=mapTo(d,'H1',maArr(H,'SMA',75),true),lo=+st.lo,hi=+st.hi;
+  let reg=0,s1=0,s2=0,pK=null,pD=null;
+  for(let i=0;i<d.candles.length;i++){const t=d.candles[i][0];
+    if(RT!=null&&t+TFLEN[tf]>RT)break;
+    const rs=a20[i]!=null&&a75[i]!=null?Math.sign(a20[i]-a75[i]):0;if(rs!==0&&rs!==reg){reg=rs;s1=0;s2=0}
+    const k=K[i],dd=D[i];
+    if(k!=null&&dd!=null){let buy=false,sell=false;
+      if(s1===0&&k<lo)s1=1;else if(s1===1&&pK!=null&&pD!=null&&pK<=pD&&k>dd)s1=2;else if(s1===2&&pK!=null&&pK<=lo&&k>lo){s1=0;buy=true}
+      if(s2===0&&k>hi)s2=1;else if(s2===1&&pK!=null&&pD!=null&&pK>=pD&&k<dd)s2=2;else if(s2===2&&pK!=null&&pK>=hi&&k<hi){s2=0;sell=true}
+      if(buy&&reg===1)SIG.push({time:t,position:'belowBar',shape:'arrowUp',color:css('--buy'),text:'S買'});
+      if(sell&&reg===-1)SIG.push({time:t,position:'aboveBar',shape:'arrowDown',color:css('--sell'),text:'S売'})}
+    pK=k;pD=dd}}
+function rekeep(){if(!chart)return;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)}
+function renderCL(){const opt=(v,a)=>a.map(x=>`<option value="${x[0]}"${String(x[0])===String(v)?' selected':''}>${x[1]}</option>`).join('');
+  document.getElementById('clList').innerHTML=CL.rows.map((r,i)=>`<tr data-i="${i}"><td><input type="checkbox" data-f="on"${r.on?' checked':''}></td>
+    <td><select data-f="tf">${opt(r.tf,[['M15','M15'],['H1','H1'],['H4','H4'],['D1','D1']])}</select></td>
+    <td><select data-f="type">${opt(r.type,[['SMA','SMA'],['EMA','EMA']])}</select></td>
+    <td><input type="number" data-f="n" min="1" max="2000" value="${r.n}"></td><td><input type="color" data-f="color" value="${r.color}"></td>
+    <td><select data-f="w">${opt(r.w,[[1,'細'],[2,'中'],[3,'太']])}</select></td><td><select data-f="style">${opt(r.style,[[0,'実線'],[2,'点線'],[1,'細点線']])}</select></td>
+    <td><button data-del="${i}">削除</button></td></tr>`).join('');
+  const st=CL.st;for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).value=st[k];
+  document.getElementById('stOn').checked=!!st.on;document.getElementById('stSig').checked=!!st.sig}
+document.getElementById('clList').addEventListener('change',ev=>{const tr=ev.target.closest('tr[data-i]'),f=ev.target.dataset.f;if(!tr||!f)return;const r=CL.rows[+tr.dataset.i];
+  r[f]=f==='on'?(ev.target.checked?1:0):f==='n'?Math.max(1,+ev.target.value||1):f==='w'||f==='style'?+ev.target.value:ev.target.value;saveCL();rekeep()});
+document.getElementById('clList').addEventListener('click',ev=>{const b=ev.target.closest('button[data-del]');if(!b)return;CL.rows.splice(+b.dataset.del,1);saveCL();renderCL();rekeep()});
+document.getElementById('clAdd').onclick=()=>{CL.rows.push({on:1,tf:'M15',type:'SMA',n:50,color:'#0891b2',w:1,style:0});saveCL();renderCL();rekeep()};
+document.getElementById('clReset').onclick=()=>{CL=JSON.parse(JSON.stringify(CLDEF));saveCL();renderCL();rekeep()};
+for(const [id,k] of [['stN','n'],['stK','k'],['stD','d'],['stLo','lo'],['stHi','hi']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=Math.max(k==='lo'||k==='hi'?0:1,+ev.target.value||0);saveCL();rekeep()});
+for(const [id,k] of [['stOn','on'],['stSig','sig']])document.getElementById(id).addEventListener('change',ev=>{CL.st[k]=ev.target.checked?1:0;saveCL();rekeep()});
+renderCL();
+const MODES=[['all','全部',x=>true],['s0','段階0',x=>x.stg===0],['s1','段階1',x=>x.stg===1],['s2','段階2',x=>x.stg===2],['s3','段階3以上',x=>x.stg>=3],['rev','H4と逆',x=>x.stg<0],['win','勝ち',x=>x.R>0],['loss','負け',x=>x.R<=0],['m1','+1R→負け',x=>x.mfe>=1&&x.R<=0],['m05','+0.5R→負け',x=>x.mfe>=0.5&&x.R<=0],['quick','すぐ負け',x=>x.mfe!=null&&x.mfe<0.3&&x.R<=0],['big','+3R以上',x=>x.R>=3],['chk','チェック済み',x=>!!FB[fid(x)]],['bad','いらない',x=>{const f=FB[fid(x)];return !!f&&f.entry==='skip'}],['bx','決済早い/逃げ遅れ',x=>{const f=FB[fid(x)];return !!f&&!!f.exit&&f.exit!=='ok'}]];
+const stgCol=s=>s<0?css('--muted'):css('--s'+Math.min(3,s));const stgTxt=s=>s<0?'逆':s>=3?'3+':String(s);
+const lblTxt=x=>x.src||stgTxt(x.stg);const lblLong=x=>x.src?x.src+' '+x.srcl:(x.stg<0?'H4逆':'段階'+stgTxt(x.stg));
+function trView(){const f=MODES.find(m=>m[0]===trMode)[2];return DATA.trades.filter(f)}
+function drawTrade(g,r){if(!document.getElementById('optTr').checked)return;const x=DATA.trades.find(y=>y.n===trSel);if(!x)return;
+  if(RT!=null&&x.t+900>RT)return;const open=RT!=null&&x.xt+900>RT;
+  const d=DV(),ts=chart.timeScale(),W=ts.width();const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
+  const x0=ts.logicalToCoordinate(ix(x.t)),x1=ts.logicalToCoordinate(open?d.candles.length-1:ix(x.xt));if(x0==null||x1==null)return;
+  const ye=cs.priceToCoordinate(x.entry),ys=cs.priceToCoordinate(x.sl),yx=cs.priceToCoordinate(open?d.candles[d.candles.length-1][4]:x.xp);if([ye,ys,yx].some(v=>v==null))return;
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.lineWidth=1.5;g.font='bold 11px '+css('--mono');
+  g.fillStyle=open?'rgba(120,120,120,.10)':x.R>0?'rgba(34,197,94,.10)':'rgba(239,68,68,.10)';g.fillRect(x0,Math.min(ye,yx),Math.max(2,x1-x0),Math.abs(yx-ye));
+  g.strokeStyle=css('--accent');g.setLineDash([]);g.beginPath();g.moveTo(x0,ye);g.lineTo(x1,ye);g.stroke();
+  g.strokeStyle=css('--down');g.setLineDash([5,4]);g.beginPath();g.moveTo(x0,ys);g.lineTo(x1,ys);g.stroke();g.setLineDash([]);
+  g.fillStyle=css('--accent');g.fillText(`#${x.n} エントリー ${x.entry}`,x0+4,ye-5);g.fillStyle=css('--down');g.fillText(`損切り ${x.sl}`,x0+4,ys+(x.side===1?13:-5));
+  if(open){g.restore();return}g.fillStyle=x.R>0?css('--up'):css('--down');g.beginPath();g.arc(x1,yx,4,0,7);g.fill();g.fillText(`決済 ${x.xp} (${x.R>0?'+':''}${x.R}R)`,x1+6,yx-4);g.restore()}
+function qtCell(x){const f=FB[fid(x)]||{};return QT.map(([k,v,lab])=>`<button class="qb" data-qk="${k}" data-qv="${v}" aria-pressed="${f[k]===v}">${lab}</button>`).join('')+(f.note?' <span class="done" title="'+esc(f.note)+'">メモ</span>':'')}
+function trTable(){if(!DATA)return;const T=DATA.trades,V=trView();const jp=v=>v==='up'?'↑':v==='down'?'↓':'-';
+  const sum=a=>{const s=a.reduce((p,x)=>p+x.R,0),w=a.filter(x=>x.R>0),l=a.filter(x=>x.R<=0);const pf=w.reduce((p,x)=>p+x.R,0)/Math.max(1e-9,-l.reduce((p,x)=>p+x.R,0));return `${a.length}回・勝率${Math.round(w.length/Math.max(1,a.length)*100)}%・合計${s>=0?'+':''}${s.toFixed(1)}R・PF${pf.toFixed(2)}`};
+  document.getElementById('trSum').textContent='表示中：'+sum(V)+'（スプレッド1.2pips控除後）';
+  for(const b of document.getElementById('trBtns').children)b.setAttribute('aria-pressed',b.dataset.m===trMode);
+  document.getElementById('trList').innerHTML=V.map(x=>`<tr data-n="${x.n}" class="${x.n===trSel?'sel':''}"><td>${x.n}</td><td>${fmt(x.t)}</td>
+    <td class="${x.side===1?'up':'down'}">${x.side===1?'買い':'売り'}</td><td>${x.src||'P'+x.p}</td><td class="qt">${qtCell(x)}</td><td>${x.mfe==null?'':(x.mfe>=0?'+':'')+x.mfe+'R'}</td><td><span class="stg" style="background:${stgCol(x.stg)}">${lblLong(x)}</span></td><td>${x.nrev}回</td>
+    <td>${jp(x.d1)}${jp(x.h4)}${jp(x.h1)}</td><td>${x.entry}</td><td>${x.risk}</td><td>${fmt(x.xt)}${x.trail?' ('+x.trail+'後)':''}</td>
+    <td class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}</td></tr>`).join('')}
+document.getElementById('trList').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-n]');if(!r)return;
+  const q=ev.target.closest('[data-qk]');if(q){const x=DATA.trades.find(y=>y.n===+r.dataset.n);if(!x)return;const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;if(x.src)f.src=x.src;save(x,f);return}
+  trSel=+r.dataset.n;
+  const x=DATA.trades.find(y=>y.n===trSel);build.keep=true;build();build.keep=false;trTable();renderFb();
+  const c=DV().candles;let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=x.t)lo=k;else hi=k-1}
+  let j=lo;while(j<c.length-1&&c[j][0]<x.xt)j++;const span=Math.max(40,j-lo);chart.timeScale().setVisibleLogicalRange({from:lo-span*1.2,to:j+span*0.5})});
+for(const[m,lab]of MODES){const b=document.createElement('button');b.dataset.m=m;b.textContent=lab;b.onclick=()=>{trMode=m;trTable();const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)};document.getElementById('trBtns').appendChild(b)}
+function jump(t){const d=DV().candles;let i=d.findIndex(c=>c[0]>=t);if(i<0)i=d.length-1;
+  chart.timeScale().setVisibleLogicalRange({from:i-120,to:i+60});}
+document.getElementById('log').addEventListener('click',ev=>{const r=ev.target.closest('tr[data-t]');if(r)jump(+r.dataset.t)});
+const tfs=document.getElementById('tfs');
+const M15OFF=['optPiv','optProt','optProv','optW','optZone','optLab','optLine','optBo','optTr','optUL'];
+function m15Opts(on){/* M15 check view shows only the MA lines: turn the other overlays off, restore them when leaving */
+  if(on){const keep={};for(const id of M15OFF){const e=document.getElementById(id);keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svM15keep',JSON.stringify(keep))}catch(e){}}
+  else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svM15keep'))}catch(e){}if(keep)for(const id of M15OFF)if(id in keep)document.getElementById(id).checked=keep[id]}}
+function applyM15(){const on=m15on();m15Opts(on);document.getElementById('m15cfg').hidden=!on;try{localStorage.setItem('svM15',on?'1':'0')}catch(e){}
+  if(on&&tf!=='M15'){const b=[...tfs.children].find(y=>y.textContent==='M15');if(b){b.click();return}}rekeep()}
+document.getElementById('optM15').addEventListener('change',applyM15);
+try{if(localStorage.getItem('svM15')==='1'){document.getElementById('optM15').checked=true;document.getElementById('m15cfg').hidden=false;for(const id of M15OFF)document.getElementById(id).checked=false}}catch(e){}
+for(const x of TFS){const b=document.createElement('button');b.id='tf'+x;b.textContent=x;b.setAttribute('aria-pressed',x===tf);
+  b.onclick=()=>{const keep=visTimes();tf=x;wSel=null;triSel=null;setTimeout(()=>{renderW();renderUL();renderTri()});try{localStorage.setItem('envtf',x)}catch(e){};for(const y of tfs.children)y.setAttribute('aria-pressed',y.textContent===x);
+    build.keep=!!keep;build();build.keep=false;if(keep)showTimes(keep)};tfs.appendChild(b)}
+/* keep the same dates on screen when the timeframe changes */
+function visTimes(){if(!DATA||!chart)return null;const r=chart.timeScale().getVisibleLogicalRange();if(!r)return null;
+  const c=DV().candles,cl=i=>c[Math.max(0,Math.min(c.length-1,Math.round(i)))][0];return [cl(r.from),cl(r.to)]}
+function showTimes([a,b]){const c=DV().candles;const ix=t=>{const i=fIdx(DV(),t);return i==null?0:i};
+  let i0=ix(a),i1=ix(b);const mid=(i0+i1)/2;if(i1-i0<60){i0=mid-30;i1=mid+30}
+  chart.timeScale().setVisibleLogicalRange({from:i0,to:i1})}
+for(const id of ['optPiv','optProt','optProv','optW','optS20','optS75','optS200','optBo','optLab','optTr','optUL'])document.getElementById(id).addEventListener('change',()=>{const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)});
+const rebuild=()=>{if(DATA)build()};
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rebuild);
+new MutationObserver(rebuild).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+/* ---------- years ---------- */
+const yrsEl=document.getElementById('yrs');
+yrsEl.innerHTML='<button id="yPrev" title="前の年">◀</button><select id="ySel" title="年"></select><button id="yNext" title="次の年">▶</button>';
+{const sel=document.getElementById('ySel');for(const y of YEARS){const o=document.createElement('option');o.value=y;o.textContent=y+'年';sel.appendChild(o)}
+  sel.onchange=()=>loadYear(+sel.value);
+  const step=d=>{const i=YEARS.indexOf(year)+d;if(i>=0&&i<YEARS.length)loadYear(YEARS[i])};
+  document.getElementById('yPrev').onclick=()=>step(-1);document.getElementById('yNext').onclick=()=>step(1)}
+function applySet(){if(!DATA)return;const v=document.getElementById('trSet').value;
+  if(v.startsWith('pf')&&DATA.trPF){const c=v.split('_')[1];DATA.trades=v==='pf5'?DATA.trPF.filter(x=>'RTLAC'.includes(x.src)&&x.src.length===1):c?DATA.trPF.filter(x=>x.src===c):DATA.trPF}else DATA.trades=DATA.trEA;
+  if(typeof eaInfoSync==='function')eaInfoSync()}
+document.getElementById('trSet').addEventListener('change',()=>{try{localStorage.setItem('svSet',document.getElementById('trSet').value)}catch(e){}
+  applySet();trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()});
+try{const v=localStorage.getItem('svSet');if(v)document.getElementById('trSet').value=v}catch(e){}
+async function loadYear(y){year=y;try{localStorage.setItem('svYear',y)}catch(e){}
+  document.getElementById('ySel').value=y;
+  document.getElementById('state').textContent=y+'年を読み込み中…';
+  try{const r=await fetch('data/'+y+'.json');DATA=await r.json()}catch(e){document.getElementById('state').textContent='読み込めませんでした。ページを再読み込みしてください';return}
+  DATA.M15.ulNew=null;try{const r=await fetch('data/cl_'+y+'.json');if(r.ok)DATA.M15.ulNew=await r.json()}catch(e){}
+  applyUL();
+  DATA.tri=null;try{const r=await fetch('data/tri_'+y+'.json');if(r.ok)DATA.tri=await r.json()}catch(e){}
+  DATA.trEA=DATA.trades;DATA.trPF=null;try{const r=await fetch('data/pf_'+y+'.json');if(r.ok)DATA.trPF=await r.json()}catch(e){}
+  applySet();
+  rpStop();RT=null;VC.key=null;rpUI();trSel=null;wSel=null;ulSel=null;setArmed(null);build();renderW();renderUL();trTable();renderFb();renderMissed();renderRg();triSel=null;renderTri();envCur=null;QL=[];try{envRender();renderEnvList();renderQ();renderPB();pbHidePop();zHidePop();renderZ()}catch(e){}}
+/* ---------- summary ---------- */
+(function(){const G=[['全部',s=>true],['段階0',s=>s===0],['段階1',s=>s===1],['段階2',s=>s===2],['段階3以上',s=>s>=3],['H4と逆',s=>s<0]];
+  const st=a=>{if(!a.length)return '—';const w=a.filter(r=>r>0),l=a.filter(r=>r<=0),s=a.reduce((p,r)=>p+r,0),pf=w.reduce((p,r)=>p+r,0)/Math.max(1e-9,-l.reduce((p,r)=>p+r,0));return `${a.length}回 ${s>=0?'+':''}${s.toFixed(1)}R PF${pf.toFixed(2)}`};
+  const row=(lab,T)=>`<tr><th>${lab}</th>${G.map(g=>`<td>${st(T.filter(x=>g[1](x[1])).map(x=>x[2]))}</td>`).join('')}</tr>`;
+  document.getElementById('sumTbl').innerHTML=`<thead><tr><th>年</th>${G.map(g=>`<th>${g[0]}</th>`).join('')}</tr></thead><tbody>`+
+    YEARS.map(y=>row(y,ALLTR.filter(x=>x[0]===y))).join('')+row('合計',ALLTR)+'</tbody>'})();
+
+/* ---------- EA conditions ---------- */
+const EAINFO=[
+ {c:'R',n:'レンジの押し目・戻り',use:'ユーロドル（採用中）',k:'押し目待ち型',
+  env:'H4の「レンジ度スコア」が0.7より大きい（H4 SMA75からの離れ・SMA75の傾き・ER50が過去と比べて小さい＝レンジらしい）。H4 SMA200から3ATR以内。長期MAの条件（SMA200の傾き、SMA200と480の関係など）も満たす',
+  setup:'H1のSMA20とSMA75の並びと同じ向きだけ',trig:'M15ストキャス：%Kが20を下回る → %Kが%Dを上抜け → %Kが20を上抜けた足の終値で入る（売りは逆）。1回目・2回目の押し目まで',
+  stop:'M15 SMA200の外（最低10pips）',exit:'+2Rに届いたら（または240時間たったら）M15のスイング（ZigZag）で追いかける',
+  res:'ユーロドル PF2.26（1.90/2.57）+94R ／ ドル円 1.34 ／ ユーロ円 1.24 ／ ポンドドル 1.13。4通貨すべてプラスの一番共通性の高いEA'},
+ {c:'T',n:'トレンドの押し目',use:'ユーロドル（採用中）',k:'押し目待ち型',
+  env:'日足SMA200（H4 SMA1200）より有利な側、H4のER200が0.10より大きい（一方向に動いている）、H1のダウが同じ向き、H4の三角持ち合いの最中は入らない。長期MAの条件はなし',
+  setup:'H1のSMA20とSMA75の並びと同じ向きだけ',trig:'Rと同じM15ストキャスの手順',stop:'M15 SMA200の外（最低10pips）',exit:'Rと同じ（+2RからM15スイングで追いかける）',
+  res:'ユーロドル PF1.45（1.32/1.65）+128R ／ 他の3通貨はすべて負け（PF0.77〜0.84）。ユーロドル専用'},
+ {c:'L',n:'トレンドラインの3〜4点目',use:'ユーロドル（採用中）',k:'押し目待ち型',
+  env:'日足SMA200より有利な側、H4の三角持ち合いの最中は入らない',
+  setup:'H4・H1で、推進波の起点からダウのスイングに外側で接する線（角度が寝すぎず、2点目の押しが38〜85%、その足のダウの向きと同じ）。線への3回目・4回目のタッチ',
+  trig:'タッチした足の後、M15が線の方向へ仮転換したら次の足で入る',stop:'M15のスイングの外＋H1 ATR×1.0（最低10pips）',exit:'+1RからH1のスイングで追いかける',
+  res:'ユーロドル PF1.53（1.51/1.54）+83R ／ ドル円 1.01 ／ ユーロ円 1.19 ／ ポンドドル 0.85'},
+ {c:'A',n:'H4転換後のリターンムーブ',use:'ユーロドル（採用中）',k:'押し目待ち型',
+  env:'日足SMA200より有利な側、H4 SMA75から3ATR以内（伸びすぎていない）、H1のSMA20・SMA75の向きと価格の位置が同じ',
+  setup:'H4で本転換・仮転換・Wトップ/ボトムが出たら、抜けた水平線（転換したスイング／Wのネック）に72時間以内に戻ってくる（線から0.3ATR以内）',
+  trig:'戻った後、M15が転換の方向へ仮転換したら次の足で入る',stop:'M15の転換のスイングの外＋H1 ATR×1.0（最低10pips）',exit:'+1RからH1のスイングで追いかける',
+  res:'ユーロドル PF1.38（1.19/1.54）+31R ／ ドル円 1.20 ／ ユーロ円 0.99 ／ ポンドドル 0.91'},
+ {c:'C',n:'M15調整ラインの抜け',use:'ユーロドル・ドル円（採用中）',k:'転換追随型（両方で使える）',
+  env:'日足SMA200より有利な側、H4 SMA75から4ATR以内、H4の三角持ち合いの最中は入らない',
+  setup:'過去96本で6ATR以上の推進波の天井（A）から、調整の戻り高値（B：Aより0.6ATR以上低い、40本以内）を結んだM15の調整ラインを上抜け（売りは逆）',
+  trig:'抜けてから1時間以内に、M15がその方向へ仮転換したら次の足で入る',stop:'M15の転換のスイングの外＋H1 ATR×1.0',exit:'+1RからH1のスイングで追いかける',
+  res:'ユーロドル PF1.43（1.64/1.27）+70R ／ ドル円 1.26（1.16/1.37）+53R ／ ユーロ円 1.09 ／ ポンドドル 0.78'},
+ {c:'J2',n:'転換追随（H1同方向・東京時間）',use:'ドル円（採用中）',k:'転換追随型',
+  env:'H4の仮トレンドとH1の本トレンドが同じ向き。ブローカー時間0〜10時（日本時間で朝6〜7時〜夕方16〜17時、ほぼ東京時間）',
+  setup:'M15で、本転換より先に安値の切り上げ（仮転換）が出た所（戻り高値を抜けるのを待たない）',trig:'仮転換の足の次の足ですぐ入る',
+  stop:'切り上げた安値の外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
+  res:'ドル円 PF1.88（2.24/1.59）+126R ／ ユーロドル 1.29 ／ ユーロ円 0.89 ／ ポンドドル 0.67。ドル円の「転換したら続く」性格に合わせたEA'},
+ {c:'J3',n:'H1の本転換についていく',use:'ポンドドル（追加候補）',k:'転換追随型',
+  env:'H4の仮トレンドが同じ向き',setup:'H1でダウの本転換（戻り高値の上抜け）が出た所',trig:'その足の次のM15の足で入る',
+  stop:'H1の押し安値（本トレンドの基準の安値）の外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
+  res:'ポンドドル PF1.17（1.17/1.18）+44R ／ ドル円 1.23 ／ ユーロ円 1.07 ／ ユーロドル 0.83（負け）'},
+ {c:'EV',n:'夜の転換追随',use:'ユーロドル（追加候補）',k:'転換追随型（時間帯）',
+  env:'H4の仮トレンドが同じ向き。日本時間18〜21時と0〜3時の転換だけ（夜は転換がそのまま続きやすい、という時間帯の性格から）',
+  setup:'M15で、本転換より先に安値の切り上げ（仮転換）が出た所',trig:'次の足ですぐ入る',stop:'切り上げた安値の外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
+  res:'ユーロドル PF1.41（1.58/1.25）+38R ／ ポンドドル 1.22 ／ ユーロ円 1.14 ／ ドル円 1.15（前半0.78）'},
+ {c:'P',n:'押し目（ユーザーの印から作った候補）',use:'ドル円（不採用・目視確認用）',k:'押し目型',
+  env:'H1の仮ダウとSMA20/75がトレンド方向。価格がH1 SMA75からH1 ATR×2.5以上離れている（強いトレンドの押し）。H4のレンジ度が0.5未満（レンジ中は入らない）',
+  setup:'押しの回数が3回目まで（H1の仮ダウの向きが変わるかSMA75を逆に割ったら数え直し、ATR×2以上の戻りを1回と数える）。戻りがATR×2に達した所',
+  trig:'24時間以内にM15が押しの方向から仮転換したら次の足で入る',stop:'H1のスイングの外＋H1 ATR×0.3',exit:'+1RからH1のスイングで追いかける',
+  res:'ドル円 前半 +18R PF1.35 ／ 後半 +17R PF1.34、最大DD -14R（レンジ除外前は PF1.16/1.14・DD -21R）。7本に足すと年+2.5%、DDは-18%→-20%、最悪年は-3%→-10%。目視確認用の候補'},
+ {c:'S',n:'トレンド＋M15転換（ゴールド・BTC用）',use:'ゴールド・BTC（採用候補）',k:'トレンド追随型',
+  env:'H4のSMA20/75とH1のトレンドが上向き（ゴールド：H1は仮ダウ／BTC：H1もSMA20/75）。買いだけ',
+  setup:'上の条件がそろっている間ずっと',trig:'M15で仮転換（安値の切り上げ）が出たら次の足で入る',
+  stop:'M15の転換の安値の外＋H1 ATR×0.3',exit:'ゴールド：+1RからH1のスイングで追いかける／BTC：+2RからH1のスイングで追いかける',
+  res:'ゴールド 前半+94R PF1.60／後半+84R PF1.39、DD-32R、勝率38%（コスト0.025%）。BTC 前半(2017-21)+156R PF2.35／後半(2022-26)+81R PF1.67、DD-17R、勝率34%（コスト0.08%）。144通りの作り方のうちゴールド94%・BTC100%が前後半とも黒字。7本に足すと後半年利26%→37%（ゴールド）、BTCも足すと62%、DDは-18%→-23〜24%'},
+ {c:'L2',n:'ライン3〜4点目＋H4抵抗の手前は入らない',use:'ゴールド（採用候補、Lの改良版）',k:'ライン型',
+  env:'Lと同じ',setup:'Lと同じ。ただし、トレード方向の一番近いH4の高値（売りなら安値）までの余裕がH1 ATRの1倍未満なら入らない（ユーザーの「すぐ上にH4の抵抗」の指摘から）',
+  trig:'Lと同じ',stop:'Lと同じ',exit:'Lと同じ',
+  res:'ゴールド 前半+34R PF1.64／後半+44R PF1.72（L：+31R PF1.49／+39R PF1.54）。外れるのはLの14%。9本の組み合わせでは前半年利33.5%→34.8%、後半36.8%→38.6%、DDほぼ同じ'},
+ {c:'T2',n:'トレンドの押し目＋横軸（調整の時間）',use:'ユーロドル（採用候補、Tの改良版）',k:'押し目待ち型',
+  env:'Tと同じ',setup:'Tと同じ。ただし、H4の本トレンドがすでに3回以上更新している（伸びたトレンド）時は、H1の調整にかけた時間が直前の推進の0.7倍以上になるまで入らない（ユーザーの「横軸が埋まってから」の考え方）',
+  trig:'Tと同じ',stop:'Tと同じ',exit:'Tと同じ',
+  res:'ユーロドル 前半+68R PF1.52／後半+81R PF1.89（T：+54R PF1.32／+74R PF1.65）。外れるのはTの18%。採用候補9本の組み合わせで前半年利33.5%→36.5%、後半36.8%→39.2%、DD-22.8%→-23.4%。ほかの通貨では効かない（ユーロドルの戻りやすい性格に合う）'},
+ {c:'Q',n:'静かな相場からのブレイク',use:'ゴールド・ドル円（候補）',k:'ブレイク型',
+  env:'H1のATR（14本）が、過去1000本の中央値の0.8倍未満（ゴールド）／1.0倍未満（ドル円）＝値動きが小さく静かな時',
+  setup:'H1の終値が直前24本の最高値を上抜け（買い）／最安値を下抜け（売り）。ゴールドはH1のSMA75が上向き（売りは下向き）の時だけ、ドル円はH4の仮ダウが同じ向きの時だけ。同じ向きは24本に1回まで',
+  trig:'ゴールド：すぐ次のM15足で入る／ドル円：12時間以内のM15の仮ダウ転換',
+  stop:'抜けたレンジ（24本）の真ん中 ＋ H1 ATRの0.3倍',
+  exit:'+1Rから、ゴールドはH1のスイング、ドル円はH4のスイングで追いかける',
+  res:'ゴールド 前半+181R PF2.08（357回）／後半+94R PF1.43（370回）、コスト0.025%込み。ドル円 前半+42R PF2.47／後半+35R PF1.58。静かな所で入ったトレードはトレンド型の銘柄でどのEAも成績が良い、という発見から作った。ユーロドル・ユーロ円（戻りやすい銘柄）では前半だけ良く後半は崩れる。ゴールドはSと半分ずつにすると組み合わせ全体が改善（後半 年41.2%→48.4%、DD-23.4%→-24.8%）'},
+ {c:'DIP',n:'押し目買い（ゴールド用）',use:'ゴールド（候補）',k:'押し目待ち型',
+  env:'日足の終値が上向きのSMA50より上（上昇トレンド中）',setup:'H1の安値がH4のSMA75に上からタッチ（終値はSMA75−1ATRより上）。24時間に1回まで',
+  trig:'24時間以内のM15の仮ダウ転換（上）',stop:'直近30本のH1の安値 − H1 ATRの0.3倍',exit:'+1RからH4のスイングで追いかける',
+  res:'ゴールド 前半+65R PF2.01（97回）／後半+24R PF1.30（118回）。36設定中26が前後半とも黒字（ゴールドは押し目買いが素直に効く）'},
+ {c:'U',n:'日足ブレイク（タートル型）',use:'ゴールド（候補）',k:'ブレイク型',
+  env:'なし',setup:'日足の終値が直前20日の最高値を上抜け（買いのみ）',trig:'その日足の終値で入る',stop:'日足ATR(20)の2倍',
+  exit:'日足の終値が直前10日の最安値を下抜けたら決済',res:'ゴールド 前半+19R PF2.14（46回）／後半+26R PF2.20（46回）。12設定すべて前後半とも黒字'},
+ {c:'K',n:'買い増し（Sを最大2本）',use:'ゴールド（候補）',k:'トレンド追随',
+  env:'Sと同じ',setup:'Sと同じ。持っているSがすべて+1Rを超えて損切りを引き上げ中なら、同じ向きにもう1本',trig:'M15の仮ダウ転換',
+  stop:'M15転換の外 ＋ 0.3ATR',exit:'+1RからH4のスイングで追いかける',res:'ゴールド 前半+116R PF1.56／後半+189R PF1.72（S単体は+94/+84）。ただし組み合わせでは改善せず'},
+ {c:'M',n:'日足RSI(2)の押し目買い',use:'US30・S&P500（候補）',k:'逆張り（上昇中の売られすぎ）',
+  env:'日足の終値がSMA200より上',setup:'日足RSI(2)が10未満',trig:'その日足の終値で入る',stop:'日足ATRの2.5倍',
+  exit:'日足の終値がSMA5を上回ったら決済',res:'勝率76〜79%。US30 前半+7.6R／後半+7.9R、S&P500 +2.1R／+10.4R（Rは2.5ATRの損切り幅で計算）。組み合わせに足すと同じ危険度で 47.2→52.6%（後半）'}];
+function eaInfoSync(){const el=document.getElementById('eaInfo');if(!el)return;const v=document.getElementById('trSet').value;const sel=v.startsWith('pf_')?v.slice(3):null;
+  const row=(k,t)=>`<tr><th style="white-space:nowrap;text-align:left;padding:3px 8px">${k}</th><td style="padding:3px 8px;white-space:normal;word-break:break-word">${t}</td></tr>`;
+  el.innerHTML=EAINFO.map(e=>`<div class="eacard" style="border:1px solid ${e.c===sel?'var(--accent)':'var(--line)'};${e.c===sel?'box-shadow:0 0 0 2px var(--accent);':''}border-radius:8px;padding:8px;margin:8px 0;${sel&&e.c!==sel?'opacity:.55':''}">
+    <div style="font-weight:700">${e.c}　${e.n}<span class="note" style="margin-left:8px">${e.k}／${e.use}</span></div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse">${row('環境',e.env)}${row('場所',e.setup)}${row('入るきっかけ',e.trig)}${row('損切り',e.stop)}${row('決済',e.exit)}${row('成績',e.res)}</table></div>`).join('');
+  if(sel){const c=[...el.children].find((d,i)=>EAINFO[i].c===sel);if(c&&!eaInfoSync.init)el.prepend(c)}}
+eaInfoSync();
+/* ---------- per-EA summary over all years ---------- */
+let PFALL=null;
+function eaTable(){if(!PFALL)return;const T=PFALL.tr;const codes=['R','T','L','A','C','J2','J3','EV','P','S','L2','T2','Q','DIP','U','K','M'];
+  const fbOf=x=>FB[`t${x[4]}_${x[5]}_${x[1]}`];
+  const st=a=>{const r=a.map(x=>x[2]),w=r.filter(v=>v>0),l=r.filter(v=>v<=0),s=r.reduce((p,v)=>p+v,0);let eq=0,pk=0,dd=0;
+    for(const x of [...a].sort((p,q)=>p[4]-q[4])){eq+=x[2];pk=Math.max(pk,eq);dd=Math.min(dd,eq-pk)}
+    const yrs={};for(const x of a)yrs[x[0]]=(yrs[x[0]]||0)+x[2];const ny=Object.keys(yrs).length,ly=Object.values(yrs).filter(v=>v<0).length;
+    const m1=a.filter(x=>x[3]>=1&&x[2]<=0);const chk=a.filter(x=>fbOf(x)),bad=a.filter(x=>{const f=fbOf(x);return f&&f.entry==='skip'}),ex=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='hold'}),el=a.filter(x=>{const f=fbOf(x);return f&&f.exit==='earlier'});
+    return `<td>${a.length}</td><td>${w.length}勝${l.length}敗</td><td>${Math.round(w.length/Math.max(1,a.length)*100)}%</td><td>+${(w.reduce((p,v)=>p+v,0)/Math.max(1,w.length)).toFixed(2)} / ${(l.reduce((p,v)=>p+v,0)/Math.max(1,l.length)).toFixed(2)}</td><td>${(w.reduce((p,v)=>p+v,0)/Math.max(1e-9,-l.reduce((p,v)=>p+v,0))).toFixed(2)}</td><td>${s>=0?'+':''}${s.toFixed(1)}R</td><td>${dd.toFixed(1)}R</td><td>${ly}/${ny}</td><td>${m1.length}回 ${m1.reduce((p,x)=>p+x[2],0).toFixed(0)}R</td><td>${chk.length}（いらない ${bad.length}回 ${bad.reduce((p,x)=>p+x[2],0).toFixed(1)}R／決済早い ${ex.length}／逃げ遅れ ${el.length}）</td>`};
+  document.getElementById('eaTbl').innerHTML='<thead><tr><th>EA</th><th>回数</th><th>勝敗</th><th>勝率</th><th>平均 勝ち/負け</th><th>PF</th><th>合計</th><th>最大DD</th><th>負け年</th><th>+1R→負け</th><th>あなたのチェック</th></tr></thead><tbody>'+
+    codes.filter(c=>PFALL.names[c]).map(c=>`<tr><th>${c} ${PFALL.names[c]}</th>${st(T.filter(x=>x[1]===c))}</tr>`).join('')+`<tr><th>合計</th>${st(T)}</tr></tbody>`;
+  document.getElementById('eaNote').textContent='上の「表示するEA」でEAを選ぶと、そのEAの履歴だけがチャートと一覧に出ます。チャートのトレード（エントリーの矢印か、エントリー〜決済の枠）をタップすると、そのトレードが選ばれて評価できます。一覧のボタンでもワンクリック評価（良い／いらない／決済早い／逃げ遅れ）。理由は下の「トレードの評価」のメモへ。入ってほしかった所は「入りたかった所」へ'}
+fetch('data/pf_all.json').then(r=>r.ok?r.json():null).then(j=>{PFALL=j;eaTable()}).catch(()=>{});
+/* ---------- feedback (saved to the artifact database) ---------- */
+const OPTS={entry:[['good','良い'],['early','早い'],['late','遅い'],['skip','いらない']],
+  sl:[['ok','適切'],['tighter','もっと浅くできた'],['wider','もっと深く必要']],
+  exit:[['ok','適切'],['hold','決済が早い'],['earlier','逃げ遅れ']]};
+const QT=[['entry','good','良い'],['entry','skip','いらない'],['exit','hold','決済早い'],['exit','earlier','逃げ遅れ']];
+const IDEAL=[['entry','理想エントリー'],['sl','理想損切り'],['exit','理想決済']];
+let db=null,FB={},MS=[],DR=[],armed=null,tlFirst=null,msDraft=null,msSel=null;
+const fid=x=>`t${x.t}_${x.side}`+(x.src?`_${x.src}`:"");const curTrade=()=>DATA&&DATA.trades.find(y=>y.n===trSel);
+const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+for(const el of document.querySelectorAll('.seg[data-k]')){const k=el.dataset.k;
+  for(const[v,lab]of OPTS[k]){const b=document.createElement('button');b.textContent=lab;b.dataset.v=v;
+    b.onclick=()=>{const x=curTrade();if(!x)return;const f=draft(x);f[k]=f[k]===v?null:v;save(x,f)};el.appendChild(b)}}
+const ib=document.getElementById('idealBtns');
+for(const[k,lab]of IDEAL){const b=document.createElement('button');b.textContent=lab;b.dataset.a=k;b.onclick=()=>setArmed(armed===k?null:k);ib.appendChild(b)}
+{const b=document.createElement('button');b.textContent='置いた点を消す';b.onclick=()=>{const x=curTrade();if(!x)return;const f=draft(x);f.ideal={};save(x,f)};ib.appendChild(b)}
+function setArmed(a){armed=a;for(const b of document.querySelectorAll('[data-a]'))b.classList.toggle('armed',b.dataset.a===a);
+  document.getElementById('msAdd').classList.toggle('armed',a==='missed');if(a!=='missed')msDraft=null;msHint();
+  for(const b of document.querySelectorAll('[data-d]'))b.classList.toggle('armed',b.dataset.d===a);tlFirst=null;
+  for(const b of document.querySelectorAll('[data-rg]'))b.classList.toggle('armed','rg_'+b.dataset.rg===a);rgFirst=null;if(typeof rgHint==='function')rgHint();
+  document.getElementById('rpStart').classList.toggle('armed',a==='replay');
+  for(const b of document.querySelectorAll('[data-mp]'))b.classList.toggle('armed',a==='mp'+b.dataset.mp);
+  document.getElementById('chart').style.cursor=a?'crosshair':''}
+function draft(x){const o=FB[fid(x)];return o?JSON.parse(JSON.stringify(o)):{year,n:x.n,t:x.t,side:x.side,src:x.src||null,mfe:x.mfe??null,stg:x.stg,nrev:x.nrev,R:x.R,entry_px:x.entry,sl_px:x.sl,exit_t:x.xt,exit_px:x.xp,entry:null,sl:null,exit:null,ideal:{},note:''}}
+const pending={};
+async function save(x,f){if(!db){status('この表示では保存できません');return}
+  const id=fid(x);f.updated=new Date().toISOString();FB[id]=f;renderFb();trTable();eaTable();status('保存中…');
+  const p=(pending[id]||Promise.resolve()).then(()=>db.collection('feedback').doc(id).set(f));pending[id]=p.catch(()=>{});
+  try{await p;status('保存しました')}catch(e){status('保存できませんでした（'+(e.code||e.message||'エラー')+'）')}}
+function status(t){document.getElementById('fbStatus').textContent=t}
+function renderSel(){const el=document.getElementById('selBar');const x=curTrade();if(!x){el.hidden=true;return}el.hidden=false;
+  el.innerHTML=`<b>#${x.n} ${x.side===1?'買い':'売り'} ${x.src?x.src+' '+x.srcl:''}</b><span class="${x.R>0?'up':'down'}">${x.R>0?'+':''}${x.R}R</span>${x.mfe!=null?`<span>最大含み益 +${x.mfe}R</span>`:''}<span class="qt" data-n="${x.n}">${qtCell(x)}</span><button id="selMemo">メモを書く</button><button id="selEnv">エントリー時の環境</button>${fbFloatOn?'':'<button id="selFloat">評価をチャートの横に出す</button>'}<button id="selClose">選択を外す</button>`}
+document.getElementById('selBar').addEventListener('click',ev=>{const x=curTrade();if(!x)return;
+  const q=ev.target.closest('[data-qk]');if(q){const f=draft(x);f[q.dataset.qk]=f[q.dataset.qk]===q.dataset.qv?null:q.dataset.qv;save(x,f);return}
+  if(ev.target.id==='selEnv'){openEnv(x.t,x.t,null);rekeep();return}
+  if(ev.target.id==='selFloat'){fbFloatOn=true;try{localStorage.setItem('fbFloat','1')}catch(e){};fbDragPos=null;renderFb();return}
+  if(ev.target.id==='selMemo'){const fb=document.getElementById('fbBox');fb.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>document.getElementById('fbNote').focus({preventScroll:true}),400)}
+  if(ev.target.id==='selClose'){trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()}});
+function renderFb(){renderSel();const x=curTrade();const body=document.getElementById('fbBody');setTimeout(fbPlace);
+  if(!x){body.hidden=true;document.getElementById('fbTitle').textContent='チャートのトレードをタップするか、一覧から選ぶと、ここで評価できます';return}
+  body.hidden=false;document.getElementById('fbTitle').textContent=`${year}年 #${x.n}　${x.side===1?'買い':'売り'}　${x.src?x.src+' '+x.srcl:'段階'+(x.stg<0?'H4逆':x.stg)}　${x.R>0?'+':''}${x.R}R${x.mfe!=null?'（最大含み益 +'+x.mfe+'R）':''}`;
+  const f=FB[fid(x)]||{};
+  for(const el of document.querySelectorAll('.seg[data-k]'))for(const b of el.children)b.setAttribute('aria-pressed',f[el.dataset.k]===b.dataset.v);
+  const I=f.ideal||{};document.getElementById('idealTxt').textContent=IDEAL.filter(([k])=>I[k]).map(([k,lab])=>`${lab} ${I[k].p}（${fmt(I[k].t)}）`).join('　')||'ボタンを押してからチャートをクリックすると、理想の位置を置けます';
+  const n=document.getElementById('fbNote');if(document.activeElement!==n)n.value=f.note||''}
+/* evaluation panel floats beside the selected trade's entry on the chart (can be dragged, or sent back below) */
+var fbFloatOn=true;try{fbFloatOn=localStorage.getItem('fbFloat')!=='0'}catch(e){}
+var fbHome=null,fbDragPos=null,fbLastSel=null;
+function fbPlace(){const fb=document.getElementById('fbBox'),fl=document.getElementById('fbFloat');if(!fb||!fl)return;
+  if(!fbHome)fbHome={parent:fb.parentNode,next:fb.nextSibling};const x=curTrade();
+  if(!x||!fbFloatOn||!chart){if(fb.parentNode===fl)fbHome.parent.insertBefore(fb,fbHome.next);fl.hidden=true;return}
+  if(fb.parentNode!==fl)fl.appendChild(fb);fl.hidden=false;if(fbLastSel!==x.n+'_'+year){fbLastSel=x.n+'_'+year;fbDragPos=null}
+  const r=document.getElementById('chart').getBoundingClientRect(),W=fl.offsetWidth,H=fl.offsetHeight;
+  if(fbDragPos){fl.style.left=fbDragPos.x+'px';fl.style.top=fbDragPos.y+'px';return}
+  let px=null,py=null;try{const li=fIdx(DV(),x.t);if(li!=null){px=chart.timeScale().logicalToCoordinate(li);py=cs.priceToCoordinate(x.entry)}}catch(e){}
+  let left,top;if(px==null||py==null||px<0||px>r.width){left=r.width-W-8;top=8}else{left=px>r.width/2?px-W-18:px+18;top=py-40}
+  left=Math.max(4,Math.min(left,r.width-W-4));top=Math.max(4,Math.min(top,r.height-Math.min(H,r.height)-4));
+  fl.style.left=(r.left+scrollX+left)+'px';fl.style.top=(r.top+scrollY+top)+'px'}
+document.getElementById('fbfHome').onclick=()=>{fbFloatOn=false;try{localStorage.setItem('fbFloat','0')}catch(e){};fbPlace();renderSel();document.getElementById('fbBox').scrollIntoView({block:'center',behavior:'smooth'})};
+document.getElementById('fbfClose').onclick=()=>{trSel=null;const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);trTable();renderFb()};
+{const hd=document.querySelector('#fbFloat .fbfhead');let g=null;hd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const fl=document.getElementById('fbFloat');g={x:e.pageX,y:e.pageY,l:parseFloat(fl.style.left)||0,t:parseFloat(fl.style.top)||0};hd.setPointerCapture(e.pointerId)});
+  hd.addEventListener('pointermove',e=>{if(!g)return;const fl=document.getElementById('fbFloat');fbDragPos={x:g.l+e.pageX-g.x,y:g.t+e.pageY-g.y};fl.style.left=fbDragPos.x+'px';fl.style.top=fbDragPos.y+'px'});
+  hd.addEventListener('pointerup',()=>{g=null})}
+window.addEventListener('resize',()=>{fbDragPos=null;fbPlace()});
+let noteTimer=0;document.getElementById('fbNote').addEventListener('input',()=>{clearTimeout(noteTimer);noteTimer=setTimeout(()=>{const x=curTrade();if(!x)return;const f=draft(x);f.note=document.getElementById('fbNote').value;save(x,f)},800)});
+document.getElementById('fbClear').onclick=async()=>{const x=curTrade();if(!x||!db)return;const id=fid(x);delete FB[id];renderFb();trTable();
+  try{await db.collection('feedback').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
+document.getElementById('msAdd').onclick=()=>setArmed(armed==='missed'?null:'missed');
+for(const b of document.querySelectorAll('[data-mp]'))b.onclick=()=>{const a='mp'+b.dataset.mp;setArmed(armed===a?null:a)};
+async function onChartClick(p){if(!armed||!p.point||p.time==null)return;const price=+(+cs.coordinateToPrice(p.point.y)).toFixed(5);
+  if(armed==='zEndPick'){setArmed(null);status('');if(zPickId){zSel=zPickId;zSave(zPickId,{end:p.time});zPickId=null}return}
+  if(armed==='zAdd'){zAddClick(p,price);return}
+  if(armed&&armed.startsWith('pb')){pbPlace(p,price);return}
+  if(armed==='env'){setArmed(null);openEnv(p.time+TFLEN[tf],p.time,p.point);rekeep();return}
+  if(armed&&armed.startsWith('envp_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
+    envSave({fix:{...(e.fix||{}),['prot_'+k]:{t:p.time,p:price,tf}}});rekeep();return}
+  if(armed&&armed.startsWith('envs_')&&envCur){const k=armed.slice(5);setArmed(null);status('');const e=ENV[envCur.id]||{};
+    if(p.time>envCur.T){status('チェックした時点より後の足は選べません');return}envSave({tags:{...(e.tags||{}),['start_'+k]:p.time,['start_'+k+'_tf']:tf}});rekeep();return}
+  if(armed==='replay'){RT=p.time+TFLEN[tf];VC.key=null;setArmed(null);rpUI();build.keep=true;build();build.keep=false;rpFollow(true);return}
+  if(armed==='hl'||armed==='tl'||armed==='box'||armed==='del')return drawClick(p,price);
+  if(armed&&armed.startsWith('rg_'))return rgClick(p);
+  if(armed==='mp1'||armed==='mp-1'){if(!db){status('この表示では保存できません');return}
+    const m={year,t:p.time,p:price,side:armed==='mp1'?1:-1,kind:'point',setup:'',back:[],trig:[],note:'',tf,created:new Date().toISOString()};
+    m.pb_h1=pbAuto(m,'H1');m.pb_h4=pbAuto(m,'H4');m.pb_h1_dow=pbAuto(m,'H1',1);m.pb_h4_dow=pbAuto(m,'H4',1);
+    setArmed(null);try{const ref=await db.collection('missed').add(m);const it={id:ref.id,d:m};if(!MS.some(z=>z.id===ref.id))MS.push(it);showPt(it,p.point.x,p.point.y);msHint();status('入りたい点を付けました。押しの回数が自動と違えば押し直してください')}catch(e){status('保存できませんでした')}return}
+  if(armed==='missed'){if(!db){status('この表示では保存できません');return}
+    if(!msDraft){msDraft={t:p.time,p:price};msHint();return}
+    if(!msDraft.sl){if(price===msDraft.p)return;msDraft.sl={t:p.time,p:price};msHint();return}
+    const D=msDraft,side=D.sl.p<D.p?1:-1;
+    const m={year,t:D.t,p:D.p,side,sl:D.sl,exit:{t:p.time,p:price},kind:document.getElementById('msKind').value,setup:document.getElementById('msSetup').value,back:msDraftTags.back,trig:msDraftTags.trig,note:document.getElementById('msNote').value,tf,created:new Date().toISOString()};
+    setArmed(null);try{const ref=await db.collection('missed').add(m);msSel=ref.id;msDraftTags.back=[];msDraftTags.trig=[];document.getElementById('msNote').value='';renderMissed()}catch(e){status('保存できませんでした')}return}
+  const x=curTrade();if(!x)return;const f=draft(x);f.ideal=f.ideal||{};f.ideal[armed]={t:p.time,p:price,tf};setArmed(null);save(x,f)}
+const SETUPS=[['','（未分類）'],['A','A リターンムーブ（H4転換・W後の戻り）'],['B','B 押し目・戻り目（H4押し安値付近）'],['C','C H4の逆行が止まる所（日足方向へ）'],['D','D 逆張り（日足・H4と逆）'],['X','その他']],BACKS=[['prot','H4押し安値/戻り高値'],['w','ダブルトップ/ボトム（ネック）'],['d1','日足の抵抗帯'],['h1','H1のレジサポ'],['m15','M15の節目'],['tl','トレンドライン'],['none','明確な抵抗帯なし']],TRIGS=[['h1turn','H1転換'],['rm1','H1リターンムーブ'],['tri','M15三角持ち合い抜け'],['corr','調整ライン抜け'],['lh','切り下げ/切り上げ'],['ma','H1 MA'],['wpat','H4 W形成']];const msDraftTags={back:[],trig:[]};
+{const sel=document.getElementById('msSetup');for(const[v,l]of SETUPS){const o=document.createElement('option');o.value=v;o.textContent=l;sel.appendChild(o)}
+  sel.onchange=async()=>{const m=MS.find(z=>z.id===msSel);if(m&&db){m.d.setup=sel.value;renderMissed();try{await db.collection('missed').doc(m.id).update({setup:sel.value});status('パターンを保存しました')}catch(e){status('保存できませんでした')}}};
+  for(const[key,list,boxId]of[['back',BACKS,'msBack'],['trig',TRIGS,'msTrig']]){const box=document.getElementById(boxId);
+    for(const[v,l]of list){const b=document.createElement('button');b.textContent=l;b.dataset.v=v;
+      b.onclick=async()=>{const m=MS.find(z=>z.id===msSel);const cur=m?(m.d[key]||[]):msDraftTags[key];const nx=cur.includes(v)?cur.filter(x=>x!==v):[...cur,v];
+        if(m&&db){m.d[key]=nx;msEditSync();try{await db.collection('missed').doc(m.id).update({[key]:nx})}catch(e){status('保存できませんでした')}}else{msDraftTags[key]=nx;msEditSync()}};box.appendChild(b)}}}
+function msEditSync(){const row=document.getElementById('msEditRow'),ta=document.getElementById('msEdit');const m=MS.find(z=>z.id===msSel);
+  const sel=document.getElementById('msSetup');if(m&&document.activeElement!==sel)sel.value=m.d.setup||'';
+  for(const[key,boxId]of[['back','msBack'],['trig','msTrig']]){const tr=m?(m.d[key]||[]):msDraftTags[key];for(const b of document.getElementById(boxId).children)b.setAttribute('aria-pressed',tr.includes(b.dataset.v))}
+  row.hidden=!m;if(m&&document.activeElement!==ta)ta.value=m.d.note||'';if(typeof pbSync==='function')pbSync()}
+let msTimer=0;document.getElementById('msEdit').addEventListener('input',()=>{clearTimeout(msTimer);const id=msSel,v=document.getElementById('msEdit').value;
+  msTimer=setTimeout(async()=>{if(!db||!id)return;try{await db.collection('missed').doc(id).update({note:v});status('メモを保存しました')}catch(e){status('メモを保存できませんでした')}},800)});
+function msHint(){msEditSync();const el=document.getElementById('msTxt');if(!el)return;
+  el.textContent=armed!=='missed'?(msSel?'選択中のお手本に線が紐づきます（行をもう一度クリックで解除）':'「追加する」→ エントリー → 損切り → 決済 の順にチャートをクリック。方向は損切りの位置で自動判定'):
+    !msDraft?'① エントリーの位置をクリック':!msDraft.sl?'② 損切りの位置をクリック':'③ 決済の位置をクリック'}
+const msR=d=>d.sl&&d.exit?((d.exit.p-d.p)*d.side/Math.abs(d.p-d.sl.p)):null;
+
+/* ---------- pullback number (counted on the timeframe the point was marked on: H4 -> H4 waves, otherwise H1) + horizontal-line tag ---------- */
+let PBC=null;fetch('data/pbc.json').then(r=>r.ok?r.json():null).then(j=>{PBC=j;pbSync();try{QL=[];renderQ()}catch(e){}}).catch(()=>{});
+const PBO=[['bo','ブレイク'],['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目〜'],['?','？']],HLO=[['y','あり'],['n','なし']];
+const pbBase=tf=>(tf==='H4'||tf==='D1'||tf==='W1')?'H4':'H1';
+function pbAuto(d,base,dow){if(!PBC||!PBC[base])return null;const R=PBC[base],t=d.t+(TFLEN[d.tf]||3600);if(!R.length||R[0][0]>t)return null;
+  let lo=0,hi=R.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(R[k][0]<=t)lo=k;else hi=k-1}const o=dow?3:1,tr=R[lo][o],n=R[lo][o+1];return tr!==d.side?'bo':String(Math.min(n+1,4))}
+/* a line the user drew passes near the point (within 0.1% of price) -> auto 'あり' */
+function lineAuto(d,kind){const tol=Math.abs(d.p)*0.001;for(const it of DR){const r=it.d;if(r.kind!==kind)continue;
+  if(kind==='hl'){if(Math.abs(r.p1-d.p)<=tol)return 'y';continue}
+  if(r.t1===r.t2)continue;const a=r.t1<r.t2?[r.t1,r.p1,r.t2,r.p2]:[r.t2,r.p2,r.t1,r.p1];if(d.t<a[0])continue;
+  const v=a[1]+(a[3]-a[1])*(d.t-a[0])/(a[2]-a[0]);if(Math.abs(v-d.p)<=tol)return 'y'}return null}
+const pbCur=()=>MS.find(z=>z.id===msSel)||(ptCur&&ptCur.id===msSel?ptCur:null);
+function pbHTML(m){if(!m)return'';const d=m.d,base=pbBase(d.tf),au=pbAuto(d,base),v=d.pb==='rev'?'bo':(d.pb??au);
+  const ln=(k,lab)=>{const a=lineAuto(d,k),cur=d[k]??a;return `<span class="lb">${lab}${d[k]==null&&a?'（自動）':''}</span>`+HLO.map(([x,l])=>`<button data-lnk="${k}" data-lnv="${x}" aria-pressed="${cur===x}" class="${d[k]==null&&a===x?'auto':''}">${l}</button>`).join('')};
+  return `<span class="lb">${base}の押し${d.pb==null&&au?'（自動）':''}</span>`+PBO.map(([k,l])=>`<button data-pbv="${k}" aria-pressed="${v===k}" class="${d.pb==null&&au===k?'auto':''}">${l}</button>`).join('')+
+    ln('hl','水平線')+ln('tl','トレンドライン')}
+function pbSync(){try{pbSync0()}catch(e){}}
+function pbSync0(){const m=pbCur();const a=document.getElementById('ptTags');if(a)a.innerHTML=ptCur?pbHTML(ptCur.id===msSel&&m?m:ptCur):'';
+  const row=document.getElementById('pbRow'),pn=document.getElementById('pbPanel');if(row){row.hidden=!m;pn.innerHTML=pbHTML(m)}}
+document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-pbv],[data-lnv]');if(!b)return;ev.stopPropagation();const m=pbCur();if(!m||!db)return;
+  let upd;if(b.dataset.pbv!=null){const v=b.dataset.pbv;upd=m.d.pb===v?{pb:null}:{pb:v,pb_base:pbBase(m.d.tf),pb_h1:pbAuto(m.d,'H1'),pb_h4:pbAuto(m.d,'H4'),pb_h1_dow:pbAuto(m.d,'H1',1),pb_h4_dow:pbAuto(m.d,'H4',1)}}
+  else{const k=b.dataset.lnk,v=b.dataset.lnv;upd=m.d[k]===v?{[k]:null}:{[k]:v,[k+'_auto']:lineAuto(m.d,k)}}
+  Object.assign(m.d,upd);pbSync();try{await db.collection('missed').doc(m.id).update(upd);status('保存しました')}catch(e){status('保存できませんでした')}},true);
+/* which marks to show, by the timeframe they were made on (remembered per viewer) */
+let msTfMode='cur';try{msTfMode=localStorage.getItem('msTfMode')||'cur'}catch(e){}
+for(const id of ['optMk','optUser','optEnvMk']){const c=document.getElementById(id);try{const v=localStorage.getItem('sv_'+id);if(v!=null)c.checked=v==='1'}catch(e){}
+  c.addEventListener('change',()=>{try{localStorage.setItem('sv_'+id,c.checked?'1':'0')}catch(e){};hidePt();if(chart)rekeep()})}
+if(msTfMode==='none'){msTfMode='cur';document.getElementById('optMk').checked=false}
+function objShow(k){k=k||'H1';return msTfMode==='all'?true:msTfMode==='cur'?k===tf:k===msTfMode}
+{const sel=document.getElementById('msTfSel');sel.value=msTfMode;sel.onchange=()=>{msTfMode=sel.value;try{localStorage.setItem('msTfMode',msTfMode)}catch(e){};hidePt();if(chart)rekeep()}}
+function msShow(d){return document.getElementById('optMk').checked&&objShow(d.tf)}
+function renderMissed(){const L=MS.filter(m=>m.d.year===year).sort((a,b)=>a.d.t-b.d.t);
+  document.getElementById('msList').innerHTML=L.map(m=>{const d=m.d,r=msR(d);return `<tr data-t="${d.t}" data-id="${esc(m.id)}" class="${m.id===msSel?'sel':''}"><td>${fmt(d.t)}</td><td>${d.setup||'—'}</td><td>${d.kind==='ideal'?'理想':d.kind==='point'?'入りたい点':'裁量'}</td><td class="${d.side===1?'up':'down'}">${d.side===1?'買い':'売り'}</td><td>${d.p}</td>
+    <td>${d.sl?(Math.abs(d.p-d.sl.p)/1e-4).toFixed(1)+'pips':'—'}</td><td>${d.exit?fmt(d.exit.t):'—'}</td><td class="${r>0?'up':'down'}">${r==null?'—':(r>0?'+':'')+r.toFixed(2)+'R'}</td><td>${esc(d.note)}</td><td><button data-del="${esc(m.id)}">消す</button></td></tr>`}).join('')||'<tr><td colspan="10">まだありません</td></tr>'}
+document.getElementById('msList').addEventListener('click',async ev=>{const b=ev.target.closest('[data-del]');
+  if(b){ev.stopPropagation();try{await db.collection('missed').doc(b.dataset.del).delete()}catch(e){status('消せませんでした')}return}
+  const r=ev.target.closest('tr[data-t]');if(!r)return;msSel=msSel===r.dataset.id?null:r.dataset.id;renderMissed();msHint();
+  const m=MS.find(z=>z.id===msSel);if(m&&m.d.exit){const c=DV().candles,i0=fIdx(DV(),m.d.t)??0,i1=fIdx(DV(),m.d.exit.t)??i0,sp=Math.max(40,i1-i0);
+    chart.timeScale().setVisibleLogicalRange({from:i0-sp*1.2,to:i1+sp*0.5})}else jump(+r.dataset.t)});
+/* ---------- user drawings: trendline / box / (old) horizontal line; one-shot tools; select = handles + delete badge; drag ---------- */
+{const box=document.getElementById('drawBtns');
+  for(const[k,lab]of[['hl','水平線'],['tl','トレンドライン'],['box','ボックス'],['del','線を消す']]){const b=document.createElement('button');b.textContent=lab;b.dataset.d=k;b.onclick=()=>setArmed(armed===k?null:k);box.appendChild(b)}}
+const DCOL={W1:'#9333ea',D1:'#dc2626',H4:'#16a34a',H1:'#0ea5e9',M15:'#ec4899'};
+let selDr=null,xBadge=null,drag=null;
+function dP(t,p){const d=DV(),ts=chart.timeScale(),i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i),Y=cs.priceToCoordinate(p);return X==null||Y==null?null:[X,Y]}
+function lineXY(dr,P,W){const a=P(dr.t1,dr.p1);if(!a)return null;if(dr.kind==='hl')return [a[0],a[1],W,a[1]];
+  const b=P(dr.t2,dr.p2);if(!b)return null;if(dr.kind==='box')return [a[0],a[1],b[0],b[1]];if(b[0]===a[0])return [a[0],a[1],b[0],b[1]];
+  const k=(b[1]-a[1])/(b[0]-a[0]);return [a[0],a[1],W,a[1]+k*(W-a[0])]}
+function drawUser(g,P,W){xBadge=null;if(!document.getElementById('optUser').checked)return;g.save();g.lineWidth=1.6;g.setLineDash([]);
+  for(const it of DR){const dr=it.d;if(dr.year!==year||!objShow(dr.tf))continue;const L=lineXY(dr,P,W);if(!L)continue;const col=DCOL[dr.tf]||css('--draw');g.strokeStyle=g.fillStyle=col;
+    if(dr.kind==='box'){const x=Math.min(L[0],L[2]),y=Math.min(L[1],L[3]),w=Math.abs(L[2]-L[0]),h=Math.abs(L[3]-L[1]);
+      g.globalAlpha=.13;g.fillRect(x,y,w,h);g.globalAlpha=1;g.strokeRect(x,y,w,h);g.fillText(`${dr.tf} ${Math.min(dr.p1,dr.p2)}〜${Math.max(dr.p1,dr.p2)}`,x+4,y-4)}
+    else{g.beginPath();g.moveTo(L[0],L[1]);g.lineTo(L[2],L[3]);g.stroke();if(dr.kind==='hl')g.fillText(dr.tf+' '+dr.p1,L[0]+4,L[1]-4)}
+    if(it.id===selDr){const pts=dr.kind==='hl'?[[L[0],L[1]]]:[P(dr.t1,dr.p1),P(dr.t2,dr.p2)].filter(Boolean);
+      g.fillStyle=css('--panel');for(const q of pts){g.fillRect(q[0]-5,q[1]-5,10,10);g.strokeRect(q[0]-5,q[1]-5,10,10)}
+      const q=pts[pts.length-1];if(q){const bx=q[0]+16,by=q[1]-16;g.fillStyle=css('--down');g.beginPath();g.arc(bx,by,9,0,7);g.fill();
+        g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(bx-4,by-4);g.lineTo(bx+4,by+4);g.moveTo(bx-4,by+4);g.lineTo(bx+4,by-4);g.stroke();g.lineWidth=1.6;xBadge={x:bx,y:by,id:it.id}}}}
+  if(tlFirst){const a=P(tlFirst.t,tlFirst.p);if(a){g.fillStyle=DCOL[tf]||css('--draw');g.beginPath();g.arc(a[0],a[1],4,0,7);g.fill()}}
+  g.restore()}
+function hitLine(x,y){if(!DATA||!chart||!document.getElementById('optUser').checked)return null;const W=chart.timeScale().width();let best=null,bd=9;
+  for(const it of DR){const dr=it.d;if(dr.year!==year||!objShow(dr.tf))continue;
+    if(dr.kind!=='hl')for(const k of ['1','2']){const q=dP(dr['t'+k],dr['p'+k]);if(q){const dd=Math.hypot(q[0]-x,q[1]-y);if(dd<10&&dd<bd+2){bd=dd;best={it,part:k}}}}
+    const L=lineXY(dr,dP,W);if(!L)continue;let dd;
+    if(dr.kind==='box'){const x0=Math.min(L[0],L[2])-4,x1=Math.max(L[0],L[2])+4,y0=Math.min(L[1],L[3])-4,y1=Math.max(L[1],L[3])+4;dd=x>=x0&&x<=x1&&y>=y0&&y<=y1?bd-0.01:1e9}
+    else{const[x1,y1,x2,y2]=L,dx=x2-x1,dy=y2-y1,u=Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/((dx*dx+dy*dy)||1)));dd=Math.hypot(x1+u*dx-x,y1+u*dy-y)}
+    if(dd<bd&&!(best&&best.part!=='body'&&best.it===it)){bd=dd;best={it,part:'body'}}}
+  return best}
+async function delDrawing(id){if(selDr===id)selDr=null;try{await db.collection('drawings').doc(id).delete()}catch(e){status('消せませんでした')}}
+async function drawClick(p,price){if(!db){status('この表示では保存できません');return}
+  if(armed==='del'){const h=hitLine(p.point.x,p.point.y);setArmed(null);if(h)await delDrawing(h.it.id);return}
+  const x=curTrade(),base={year,tf,trade:msSel?'m:'+msSel:x?fid(x):null,env:envCur&&!document.getElementById('envCard').hidden?envCur.id:null,created:new Date().toISOString()};
+  if(armed==='hl'){setArmed(null);try{const ref=await db.collection('drawings').add({...base,kind:'hl',t1:p.time,p1:price,t2:p.time,p2:price});selDr=ref.id}catch(e){status('保存できませんでした')}return}
+  if(!tlFirst){tlFirst={t:p.time,p:price};return}
+  const a=tlFirst,kind=armed;tlFirst=null;if(a.t===p.time&&kind==='tl')return;setArmed(null);
+  try{const ref=await db.collection('drawings').add({...base,kind,t1:a.t,p1:a.p,t2:p.time,p2:price});selDr=ref.id}catch(e){status('保存できませんでした')}}
+function setCur(c){const el=document.getElementById('chart');el.style.cursor=c;for(const cv of el.querySelectorAll('canvas'))cv.style.cursor=c}
+{const el=document.getElementById('chart');
+  const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  el.addEventListener('pointermove',e=>{if(drag){e.stopPropagation();e.preventDefault();
+      const[x,y]=xy(e),ts=chart.timeScale(),li=ts.coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+      const dr=drag.it.d,o=drag.orig,r5=v=>+(+v).toFixed(5);
+      if(drag.part==='body'){const di=li-drag.li0,dp=pr-drag.p0;
+        dr.t1=tAt(o.i1+di);dr.p1=r5(o.p1+dp);if(dr.kind!=='hl'){dr.t2=tAt(o.i2+di);dr.p2=r5(o.p2+dp)}}
+      else{dr['t'+drag.part]=tAt(li);dr['p'+drag.part]=r5(pr)}
+      drag.moved=true;return}
+    if(armed)return;const[x,y]=xy(e);const onX=xBadge&&Math.hypot(xBadge.x-x,xBadge.y-y)<10;setCur(onX?'pointer':hitLine(x,y)?'grab':'')},true);
+  el.addEventListener('pointerdown',e=>{if(armed||!db||e.button!==0)return;const[x,y]=xy(e);
+    if(xBadge&&Math.hypot(xBadge.x-x,xBadge.y-y)<10){e.stopPropagation();e.preventDefault();delDrawing(xBadge.id);return}
+    const h=hitLine(x,y);if(!h){selDr=null;return}
+    e.stopPropagation();e.preventDefault();const d=DV(),dr=h.it.d,ts=chart.timeScale();
+    drag={it:h.it,part:h.part,li0:ts.coordinateToLogical(x),p0:cs.coordinateToPrice(y),moved:false,
+      orig:{i1:fIdx(d,dr.t1),p1:dr.p1,i2:dr.kind!=='hl'?fIdx(d,dr.t2):null,p2:dr.p2},before:{...dr}};
+    chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur('grabbing')},true);
+  const end=async e=>{if(!drag)return;e.stopPropagation();const g=drag;drag=null;chart.applyOptions({handleScroll:true,handleScale:true});setCur('grab');
+    selDr=g.it.id;if(!g.moved)return;const dr=g.it.d,upd={t1:dr.t1,p1:dr.p1,moved_tf:tf};if(dr.kind!=='hl'){upd.t2=dr.t2;upd.p2=dr.p2}
+    if(dr.kind==='tl'&&dr.t1===dr.t2){Object.assign(dr,g.before);return}
+    try{await db.collection('drawings').doc(g.it.id).update(upd)}catch(err){Object.assign(dr,g.before);status('線を動かせませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',e=>{if(drag){e.stopPropagation();return}
+    if(!armed&&DATA&&chart){const[x,y]=xy(e);const pt=pointAt(x,y);if(pt){showPt(pt,x,y);e.stopPropagation();return}hidePt();const n=tradeAt(x,y);if(n!=null){selectTrade(n);return}}
+    if(!armed||!DATA||!chart)return;const[x,y]=xy(e),li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+    e.stopPropagation();onChartClick({point:{x,y},time:tAt(li)})},true);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')setArmed(null);if((e.key==='Delete'||e.key==='Backspace')&&selDr&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))delDrawing(selDr)})}
+/* tap a 'want to enter' point (or a model trade's entry) on the chart -> small delete pop-up */
+function pointAt(px,py){const ts=chart.timeScale(),d=DV();let best=null,bd=13;
+  for(const m of MS){if(m.d.year!==year||!msShow(m.d))continue;const li=fIdx(d,m.d.t);if(li==null)continue;const x=ts.logicalToCoordinate(li),y=cs.priceToCoordinate(m.d.p);if(x==null||y==null)continue;
+    const dd=Math.hypot(x-px,y-py);if(dd<bd){bd=dd;best=m}}return best}
+var ptCur=null;
+function showPt(m,x,y){ptCur=m;msSel=m.id;renderMissed();const r=document.getElementById('chart').getBoundingClientRect(),el=document.getElementById('ptPop');
+  document.getElementById('ptTxt').textContent=(m.d.kind==='point'?'入りたい点 ':m.d.kind==='ideal'?'理想 ':'お手本 ')+(m.d.side===1?'買い':'売り')+' '+fmt(m.d.t);
+  pbSync();el.hidden=false;el.style.left=(r.left+scrollX+Math.max(0,Math.min(x+12,r.width-440)))+'px';el.style.top=(r.top+scrollY+Math.max(4,y-40))+'px'}
+function hidePt(){ptCur=null;document.getElementById('ptPop').hidden=true}
+document.getElementById('ptNo').onclick=hidePt;
+document.getElementById('ptDel').onclick=async()=>{const m=ptCur;hidePt();if(!m||!db)return;MS=MS.filter(z=>z.id!==m.id);if(msSel===m.id)msSel=null;renderMissed();
+  {const r=chart.timeScale().getVisibleLogicalRange();build.keep=true;build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r)}
+  try{await db.collection('missed').doc(m.id).delete();status('消しました')}catch(e){status('消せませんでした')}};
+/* tap a trade on the chart: entry arrow (nearest within 14px) or inside its entry-to-exit box */
+function tradeAt(px,py){if(!document.getElementById('optTr').checked)return null;const d=DV(),ts=chart.timeScale();
+  const ix=t=>{let lo=0,hi=d.candles.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(d.candles[k][0]<=t)lo=k;else hi=k-1}return lo};
+  let best=null,bd=14,box=null,bw=1e9;
+  for(const x of trView()){if(RT!=null&&x.t+900>RT)continue;const x0=ts.logicalToCoordinate(ix(x.t));if(x0==null)continue;
+    const dx=Math.abs(x0-px);if(dx<bd){bd=dx;best=x.n}
+    const x1=ts.logicalToCoordinate(ix(x.xt));const ya=cs.priceToCoordinate(x.entry),yb=cs.priceToCoordinate(x.R>0?x.xp:x.sl);
+    if(x1!=null&&ya!=null&&yb!=null&&px>=x0&&px<=x1&&py>=Math.min(ya,yb)-4&&py<=Math.max(ya,yb)+4&&x1-x0<bw){bw=x1-x0;box=x.n}}
+  return best!=null?best:box}
+function selectTrade(n){trSel=n;build.keep=true;const r=chart.timeScale().getVisibleLogicalRange();build();build.keep=false;if(r)chart.timeScale().setVisibleLogicalRange(r);
+  trTable();renderFb();const row=document.querySelector(`#trList tr[data-n="${n}"]`);if(row){const lg=row.closest('.log');if(lg)lg.scrollTop=row.offsetTop-lg.clientHeight/2}
+  const fb=document.getElementById('fbBox');fb.classList.remove('flash');void fb.offsetWidth;fb.classList.add('flash');setTimeout(fbPlace,30)}
+function tAt(i){const c=DV().candles,n=c.length-1;if(i>n)return c[n][0]+Math.round(i-n)*TFLEN[tf];return c[Math.max(0,Math.round(i))][0]}
+/* ---------- market state labels (user's environment view): time ranges tagged up/down impulse, correction, range ---------- */
+const RGK=[['up','上昇の推進','rgba(31,138,76,.16)','#1f8a4c'],['down','下降の推進','rgba(200,55,45,.15)','#c8372d'],['adj','調整','rgba(217,119,6,.18)','#d97706'],['range','レンジ','rgba(100,116,139,.20)','#64748b'],['enter_buy','買いで入りたい','rgba(22,163,74,.15)','#15803d'],['watch_buy','買いを検討中','rgba(22,163,74,.06)','#4d9b6b'],['enter_sell','売りで入りたい','rgba(219,39,119,.14)','#be185d'],['watch_sell','売りを検討中','rgba(219,39,119,.06)','#c06a95'],['avoid','触りたくない','rgba(120,120,120,.10)','#475569']];
+var RG=[],rgFirst=null,rgSel=null;
+{const box=document.getElementById('rgBtns');for(const[k,lab,,col]of RGK){const b=document.createElement('button');b.textContent=lab;b.dataset.rg=k;b.style.borderColor=col;b.onclick=()=>setArmed(armed==='rg_'+k?null:'rg_'+k);box.appendChild(b)}}
+function rgHint(){const el=document.getElementById('rgHint');if(!el)return;el.textContent=armed&&armed.startsWith('rg_')?(rgFirst?'終わりの足をクリック':'始まりの足をクリック'):''}
+async function rgClick(p){if(!db){status('この表示では保存できません');return}
+  if(!rgFirst){rgFirst={t:p.time};rgHint();return}
+  const kind=armed.slice(3),a=rgFirst.t,b=p.time;rgFirst=null;setArmed(null);if(a===b)return;
+  const t1=Math.min(a,b),t2=Math.max(a,b)+TFLEN[tf]-900;
+  try{const ref=await db.collection('regime').add({year:new Date(t1*1000).getUTCFullYear(),tf,kind,t1,t2,note:'',created:new Date().toISOString()});rgSel=ref.id}catch(e){status('保存できませんでした')}}
+function drawRegimes(g,r){if(!DATA||!chart||!document.getElementById('optRg').checked)return;const d=DV(),ts=chart.timeScale(),W=ts.width(),c=d.candles;if(!c.length)return;
+  const X=t=>{const i=t<c[0][0]?-1e4:fIdx(d,t);const x=ts.logicalToCoordinate(i);return x==null?null:x};
+  g.save();g.font='bold 11px '+css('--mono');
+  for(const it of RG){const v=it.d,K=RGK.find(k=>k[0]===v.kind);if(!K)continue;const x1=X(v.t1),x2=X(v.t2+900);if(x1==null||x2==null||x2<0||x1>W)continue;
+    const a=Math.max(0,x1),b=Math.min(W,x2);g.fillStyle=K[2];g.fillRect(a,0,Math.max(1,b-a),r.height);
+    if(it.id===rgSel){g.strokeStyle=K[3];g.lineWidth=2;g.strokeRect(a,1,Math.max(1,b-a),r.height-2)}
+    g.fillStyle=K[3];g.fillText(K[1]+(v.note?'：'+v.note:''),a+4,14+(['up','down'].includes(v.kind)?0:['enter_buy','enter_sell','watch_buy','watch_sell','avoid'].includes(v.kind)?28:14))}
+  if(rgFirst){const x=X(rgFirst.t);if(x!=null){g.strokeStyle=css('--hl');g.setLineDash([4,4]);g.beginPath();g.moveTo(x,0);g.lineTo(x,r.height);g.stroke()}}
+  g.restore()}
+function renderRg(){const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;
+  const L=RG.filter(it=>it.d.t2>=y0&&it.d.t1<y1).sort((a,b)=>a.d.t1-b.d.t1);
+  const cov=k=>{let s=0;for(const it of L)if(!k||it.d.kind===k)s+=Math.min(y1,it.d.t2)-Math.max(y0,it.d.t1);return Math.round(s/(y1-y0)*100)};
+  document.getElementById('rgCount').textContent=`${year}年：${L.length}件（年の${cov()}%に印。推進 ${cov('up')+cov('down')}% ／ 調整 ${cov('adj')}% ／ レンジ ${cov('range')}% ／ 買い 入りたい${cov('enter_buy')}%・検討中${cov('watch_buy')}% ／ 売り 入りたい${cov('enter_sell')}%・検討中${cov('watch_sell')}%）・全体 ${RG.length}件`;
+  const opt=v=>RGK.map(k=>`<option value="${k[0]}"${k[0]===v?' selected':''}>${k[1]}</option>`).join('');
+  const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
+  document.getElementById('rgList').innerHTML=L.map(it=>`<tr data-rid="${esc(it.id)}" class="${it.id===rgSel?'sel':''}"><td>${fa(it.d.t1)}</td><td>${fa(it.d.t2)}</td>
+    <td><select data-rk="${esc(it.id)}">${opt(it.d.kind)}</select></td><td>${esc(it.d.tf)}</td><td><input data-rn="${esc(it.id)}" value="${esc(it.d.note)}" placeholder="メモ" style="width:220px"></td>
+    <td><button data-rdel="${esc(it.id)}">消す</button></td></tr>`).join('')||'<tr><td colspan="6">この年はまだありません</td></tr>'}
+document.getElementById('rgList').addEventListener('click',async ev=>{const del=ev.target.closest('[data-rdel]');
+  if(del){ev.stopPropagation();try{await db.collection('regime').doc(del.dataset.rdel).delete()}catch(e){status('消せませんでした')}return}
+  if(ev.target.closest('select,input'))return;const r=ev.target.closest('tr[data-rid]');if(!r)return;rgSel=rgSel===r.dataset.rid?null:r.dataset.rid;renderRg();
+  const it=RG.find(z=>z.id===rgSel);if(it){const d=DV(),i0=fIdx(d,it.d.t1)??0,i1=fIdx(d,it.d.t2)??i0,sp=Math.max(40,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.3,to:i1+sp*0.3})}});
+document.getElementById('rgList').addEventListener('change',async ev=>{const k=ev.target.dataset.rk,n=ev.target.dataset.rn;
+  try{if(k)await db.collection('regime').doc(k).update({kind:ev.target.value});if(n)await db.collection('regime').doc(n).update({note:ev.target.value})}catch(e){status('保存できませんでした')}});
+document.getElementById('optRg').addEventListener('change',()=>{});
+/* ---------- panels shown right under the chart (moved, not copied; placeholders keep the original place) ---------- */
+const UNDER=[['secZ','水平線'],['secPB','押し目カウント'],['secQ','質問リスト'],['secEnv','環境チェック'],['secEA','EAの条件'],['secUL','線の判定'],['secTri','三角の判定'],['rgBox','状態の印付け'],['secW','Wの判定'],['fbBox','トレードの評価'],['secMiss','入りたかった所'],['secTr','エントリー一覧']];
+{const pick=document.getElementById('underPick'),und=document.getElementById('under');let on=[];try{on=JSON.parse(localStorage.getItem('svUnder'))||[]}catch(e){}
+  for(const[id,lab]of UNDER){const el=document.getElementById(id);if(!el)continue;const ph=document.createComment('ph-'+id);el.parentNode.insertBefore(ph,el);
+    const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=on.includes(id);l.append(c,lab);pick.appendChild(l);
+    const put=()=>{if(c.checked)und.appendChild(el);else ph.parentNode.insertBefore(el,ph.nextSibling)};
+    c.dataset.sec=id;c.addEventListener('change',()=>{put();const cur=[...pick.querySelectorAll('input:checked')].map(x=>x.dataset.sec);try{localStorage.setItem('svUnder',JSON.stringify(cur))}catch(e){}});
+    if(c.checked)put()}}
+/* ---------- higher-timeframe Dow state at the chart's right edge (or the replay time) ---------- */
+function updHTF(){const el=document.getElementById('htfBar');if(!el||!DATA||!chart)return;const d=DV(),c=d.candles;if(!c.length)return;
+  const r=chart.timeScale().getVisibleLogicalRange();let i=r?Math.min(c.length-1,Math.max(0,Math.floor(r.to))):c.length-1;
+  const ref=RT!=null?RT:c[i][0]+TFLEN[tf];
+  const out=[];for(const x of TFS){const P=(DATA[x]||{}).prot;if(!P||!P.length)continue;let lo=-1,hi=P.length-1;
+    while(lo<hi){const m=(lo+hi+1)>>1;if(P[m][0]+TFLEN[x]<=ref)lo=m;else hi=m-1}
+    const q=lo>=0?P[lo]:null;out.push(q&&q[2]?`<span>${x} <b class="${q[2]}">${q[2]==='up'?'上昇':'下降'}</b> ${q[2]==='up'?'押し安値':'戻り高値'} ${q[1]}</span>`:`<span>${x} 判定前</span>`)}
+  el.innerHTML='<span>ダウ（画面右端の時点'+(RT!=null?'＝リプレイ位置':'')+'）：</span>'+out.join('')}
+/* ---------- automatic triangles (v2: 3 highs + 3 lows, outer tangents, >=3 touches, converged) ---------- */
+const TRIN={sym:'三角',flat_top:'三角（上辺水平）',flat_bottom:'三角（下辺水平）',wedge_up:'上昇ウェッジ',wedge_down:'下降ウェッジ'};
+function drawTri(g,r){if(!DATA||!DATA.tri||!chart||!document.getElementById('optTri').checked)return;const L=DATA.tri[tf];if(!L)return;
+  const d=DV(),ts=chart.timeScale(),c=d.candles;if(!c.length)return;const lim=RT!=null?RT:Infinity;
+  g.save();g.font='bold 11px '+css('--mono');
+  for(const x of L){const [,,,,,,,,cr,en,bo,sh]=x;if(cr+TFLEN[tf]>lim)continue;const E=triEff(x);
+    const iu0=fIdx(d,E.u0t),iuk=fIdx(d,E.ukt),il0=fIdx(d,E.l0t),ilk=fIdx(d,E.lkt);if(iu0==null||iuk==null||il0==null||ilk==null||iuk===iu0||ilk===il0)continue;
+    const pu0=E.u0p,pl0=E.l0p,ik=iuk;
+    const done=en+TFLEN[tf]<=lim,te=done?en:Math.min(lim,c[c.length-1][0]),ie=fIdx(d,te);if(ie==null)continue;
+    const su=(E.ukp-pu0)/(iuk-iu0),sl=(E.lkp-pl0)/(ilk-il0),X=i=>ts.logicalToCoordinate(i),Y=p=>cs.priceToCoordinate(p);
+    const sel=triSel===cr,any=triSel!=null,wedge=sh.startsWith('wedge'),col=sel?css('--hl'):wedge?css('--muted'):css('--prov');g.strokeStyle=g.fillStyle=col;g.lineWidth=sel?3:wedge?1.2:1.8;g.globalAlpha=any&&!sel?.35:1;g.setLineDash(wedge&&!sel?[5,4]:[]);
+    const seg=(i0,p0,s)=>{const a=X(i0),b=X(ie),ya=Y(p0),yb=Y(p0+s*(ie-i0));if(a==null||b==null||ya==null||yb==null)return;g.beginPath();g.moveTo(a,ya);g.lineTo(b,yb);g.stroke()};
+    seg(iu0,pu0,su);seg(il0,pl0,sl);g.setLineDash([]);
+    if(sel){for(const[i,p]of[[iu0,pu0],[iuk,E.ukp],[il0,pl0],[ilk,E.lkp]]){const a=X(i),b=Y(p);if(a!=null&&b!=null){g.fillStyle=css('--panel');g.fillRect(a-5,b-5,10,10);g.strokeRect(a-5,b-5,10,10)}}g.fillStyle=col;
+      if(E.fixed){const O=triOrig(x),a=X(fIdx(d,O.u0t)),b=X(fIdx(d,O.ukt)),c2=X(fIdx(d,O.l0t)),e2=X(fIdx(d,O.lkt));g.save();g.globalAlpha=.5;g.strokeStyle=css('--muted');g.setLineDash([3,4]);g.lineWidth=1.2;
+        if(a!=null&&b!=null){g.beginPath();g.moveTo(a,Y(O.u0p));g.lineTo(b,Y(O.ukp));g.stroke()}if(c2!=null&&e2!=null){g.beginPath();g.moveTo(c2,Y(O.l0p));g.lineTo(e2,Y(O.lkp));g.stroke()}g.restore()}}
+    const xa=X(iu0),ya=Y(pu0);if(xa!=null&&ya!=null)g.fillText(TRIN[sh]||sh,xa,ya-6);
+    if(done&&bo){const xb=X(ie),yb=Y(bo===1?pu0+su*(ie-iu0):pl0+sl*(ie-il0));if(xb!=null&&yb!=null){g.fillStyle=bo===1?css('--up'):css('--down');g.fillText(bo===1?'↑抜け':'↓抜け',xb+4,yb+(bo===1?-6:14))}}}
+  g.globalAlpha=1;g.restore()}
+document.getElementById('optTri').addEventListener('change',()=>{});
+let TJ={},triSel=null,triF='all',triDrag=null;
+const triOrig=x=>({u0t:x[0],u0p:x[1],ukt:x[2],ukp:x[3],l0t:x[4],l0p:x[5],lkt:x[6],lkp:x[7]});
+function triEff(x){const o=triOrig(x),j=TJ[`${tf}_${x[8]}_${x[11]}`]||{};let fixed=false;
+  for(const k of ['u0','uk','l0','lk'])if(j['f'+k+'_t']!=null){o[k+'t']=j['f'+k+'_t'];o[k+'p']=j['f'+k+'_p'];fixed=true}o.fixed=fixed;return o}
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  const near=(x,y)=>{if(triSel==null||armed||!DATA||!DATA.tri||!chart||!document.getElementById('optTri').checked)return null;const t=(DATA.tri[tf]||[]).find(z=>z[8]===triSel);if(!t)return null;const E=triEff(t);
+    for(const k of ['uk','lk','u0','l0']){const q=dP(E[k+'t'],E[k+'p']);if(q&&Math.hypot(q[0]-x,q[1]-y)<11)return {t,part:k}}return null};
+  el.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const[x,y]=xy(ev);const h=near(x,y);if(!h)return;if(!db){status('この表示では保存できません');return}
+    ev.stopPropagation();ev.preventDefault();triDrag=h;chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(ev.pointerId);setCur('grabbing')},true);
+  el.addEventListener('pointermove',ev=>{const[x,y]=xy(ev);
+    if(triDrag){ev.stopPropagation();ev.preventDefault();const li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+      const t=triDrag.t,id=triId(t),j=TJ[id]||{tf,year,created:t[8],shape:t[11],bo:t[10],u0_t:t[0],u0_p:t[1],k_t:t[2],uk_p:t[3],l0_t:t[4],l0_p:t[5],lk_p:t[7],end:t[9]};
+      j['f'+triDrag.part+'_t']=tAt(li);j['f'+triDrag.part+'_p']=+(+pr).toFixed(5);TJ[id]=j;triDrag.moved=true;return}
+    if(near(x,y))setCur('grab')},true);
+  const end=async ev=>{if(!triDrag)return;ev.stopPropagation();const g=triDrag;triDrag=null;chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(!g.moved)return;const id=triId(g.t);renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id]);status('三角の修正を保存しました')}catch(e){status('保存できませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',ev=>{if(triDrag)ev.stopPropagation()},true)}
+const TRIF=[['all','全部'],['tri','三角だけ'],['wedge','ウェッジだけ'],['todo','未判定']];
+{const b=document.getElementById('triFilt');for(const[k,l]of TRIF){const x=document.createElement('button');x.textContent=l;x.dataset.tf=k;x.onclick=()=>{triF=k;renderTri()};b.appendChild(x)}}
+const triId=x=>`${tf}_${x[8]}_${x[11]}`;
+function triRows(){if(!DATA||!DATA.tri||!DATA.tri[tf])return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;
+  return DATA.tri[tf].filter(x=>x[8]>=y0&&x[8]<y1&&(triF==='all'||(triF==='tri'&&!x[11].startsWith('wedge'))||(triF==='wedge'&&x[11].startsWith('wedge'))||(triF==='todo'&&!TJ[triId(x)])))}
+function renderTri(){const el=document.getElementById('triList');if(!el)return;
+  for(const b of document.querySelectorAll('[data-tf]'))b.setAttribute('aria-pressed',b.dataset.tf===triF);
+  const all=(DATA&&DATA.tri&&DATA.tri[tf]||[]),y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000,yr=all.filter(x=>x[8]>=y0&&x[8]<y1);
+  document.getElementById('triCount').textContent=`${tf} ${year}年：${yr.length}個中 ${yr.filter(x=>TJ[triId(x)]).length}個判定済み（全体で${Object.keys(TJ).length}個）`;
+  const fa=t=>{const z=new Date(t*1000).toISOString();return z.slice(0,10).replaceAll('-','/')+' '+z.slice(11,16)};
+  el.innerHTML=triRows().map(x=>{const v=(TJ[triId(x)]||{}).v,b=(k,l)=>`<button data-trv="${k}" data-trc="${x[8]}" data-trs="${x[11]}" aria-pressed="${v===k}">${l}</button>`;
+    return `<tr data-trc="${x[8]}" data-trs="${x[11]}" class="${x[8]===triSel?'sel':''}"><td>${fa(x[8])}</td><td>${TRIN[x[11]]||x[11]}</td><td>${(Math.abs(x[1]-x[5])/1e-4).toFixed(0)}pips</td><td class="${x[10]===1?'up':x[10]===-1?'down':''}">${x[10]===1?'上':x[10]===-1?'下':'—'}</td>
+      <td><span class="seg">${b('ok','○')}${b('ng_shape','×形')}${b('ng_pos','×位置')}${b('ng_no','×不要')}${b('meh','△')}${triEff(x).fixed?`<button data-trreset="${x[8]}" data-trs="${x[11]}">修正を戻す</button>`:''}</span></td></tr>`}).join('')||'<tr><td colspan="5">この時間足・この年にはありません（H4・H1・M15のみ）</td></tr>'}
+document.getElementById('triList').addEventListener('click',async ev=>{const rs=ev.target.closest('[data-trreset]');
+  if(rs){ev.stopPropagation();const c=+rs.dataset.trreset,x=(DATA.tri[tf]||[]).find(z=>z[8]===c&&z[11]===rs.dataset.trs);if(!x||!db)return;const id=triId(x),j={...(TJ[id]||{})};
+    for(const k of ['u0','uk','l0','lk']){delete j['f'+k+'_t'];delete j['f'+k+'_p']}
+    if(j.v){TJ[id]=j;renderTri();try{await db.collection('trijudge').doc(id).set(j)}catch(e){}}else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}return}
+  const bt=ev.target.closest('[data-trv]');
+  if(bt){ev.stopPropagation();const c=+bt.dataset.trc,x=(DATA.tri[tf]||[]).find(z=>z[8]===c&&z[11]===bt.dataset.trs);if(!x||!db){status('この表示では保存できません');return}
+    const id=triId(x),cur=(TJ[id]||{}).v,v=cur===bt.dataset.trv?null:bt.dataset.trv;
+    if(v){TJ[id]={...(TJ[id]||{}),tf,year,v,created:x[8],shape:x[11],bo:x[10],u0_t:x[0],u0_p:x[1],k_t:x[2],uk_p:x[3],l0_t:x[4],l0_p:x[5],lk_p:x[7],end:x[9]};renderTri();try{await db.collection('trijudge').doc(id).set(TJ[id])}catch(e){status('保存できませんでした')}}
+    else{const j={...(TJ[id]||{})};delete j.v;const fx=['u0','uk','l0','lk'].some(k=>j['f'+k+'_t']!=null);
+      if(fx){TJ[id]=j;renderTri();try{await db.collection('trijudge').doc(id).set(j)}catch(e){}}else{delete TJ[id];renderTri();try{await db.collection('trijudge').doc(id).delete()}catch(e){}}}return}
+  const r=ev.target.closest('tr[data-trc]');if(!r)return;const c=+r.dataset.trc;triSel=triSel===c?null:c;
+  if(triSel!=null&&!document.getElementById('optTri').checked){document.getElementById('optTri').checked=true}renderTri();
+  const x=(DATA.tri[tf]||[]).find(z=>z[8]===c);if(x&&triSel!=null){const d=DV(),i0=fIdx(d,Math.min(x[0],x[4]))??0,i1=fIdx(d,x[9])??i0,sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.8,to:i1+sp*0.8})}});
+/* ---------- bulk delete of the user's own objects (asks first) ---------- */
+async function bulkDel(col,ids,what){if(!db){status('この表示では保存できません');return}if(!ids.length){status('消すものがありません');return}
+  if(!confirm(what+'（'+ids.length+'件）を消します。元に戻せません。よろしいですか？'))return;
+  let n=0;for(const id of ids){try{await db.collection(col).doc(id).delete();n++}catch(e){}}status(what+'を'+n+'件消しました')}
+const ZONEK=['enter_buy','enter_sell','watch_buy','watch_sell','avoid'];
+const inYear=(t1,t2)=>{const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return t2>=y0&&t1<y1};
+document.getElementById('drDelYear').onclick=()=>bulkDel('drawings',DR.filter(it=>it.d.year===year).map(it=>it.id),year+'年の自分の線');
+document.getElementById('drDelAll').onclick=()=>bulkDel('drawings',DR.map(it=>it.id),'自分の線（全部の年）');
+document.getElementById('rgDelYearState').onclick=()=>bulkDel('regime',RG.filter(it=>!ZONEK.includes(it.d.kind)&&inYear(it.d.t1,it.d.t2)).map(it=>it.id),year+'年の状態の印');
+document.getElementById('rgDelYearZone').onclick=()=>bulkDel('regime',RG.filter(it=>ZONEK.includes(it.d.kind)&&inYear(it.d.t1,it.d.t2)).map(it=>it.id),year+'年のエリアの印');
+document.getElementById('rgDelAll').onclick=()=>bulkDel('regime',RG.map(it=>it.id),'状態・エリアの印（全部の年）');
+document.getElementById('optUser').addEventListener('change',()=>{});
+setInterval(()=>{const el=document.getElementById('drCount');if(el)el.textContent=`${year}年 ${DR.filter(it=>it.d.year===year).length}本 ／ 全部 ${DR.length}本`},1500);
+/* ---------- replay ---------- */
+let rpTimer=null;
+function rpUI(){document.getElementById('rpCtl').hidden=RT==null;document.getElementById('rpStart').textContent=RT==null?'リプレイ':'リプレイ位置を選び直す'}
+function rpFollow(force){const n=DV().candles.length,ts=chart.timeScale(),r=ts.getVisibleLogicalRange();if(!r)return;const w=Math.max(60,r.to-r.from);
+  if(force||n-1>r.to-4||n-1<r.from)ts.setVisibleLogicalRange({from:n-w*0.85,to:n+w*0.15})}
+function rpStep(dir){if(RT==null||!DATA)return;const M=DATA.M15.candles,L=TFLEN[tf];
+  RT=Math.min(M[M.length-1][0]+900,Math.max(M[0][0]+900,RT+dir*L));
+  VC.key=null;fillAll();rpFollow(false);updHTF()}
+function rpStop(){clearInterval(rpTimer);rpTimer=null}
+document.getElementById('rpStart').onclick=()=>setArmed(armed==='replay'?null:'replay');
+document.getElementById('rpEnd').onclick=()=>{rpStop();const k=visTimes();RT=null;VC.key=null;rpUI();build.keep=!!k;build();build.keep=false;if(k)showTimes(k)};
+document.getElementById('rpStep').onclick=()=>rpStep(1);
+document.getElementById('rpBack').onclick=()=>rpStep(-1);
+{const ff=document.getElementById('rpFF');
+  ff.addEventListener('pointerdown',e=>{e.preventDefault();rpStop();rpStep(1);rpTimer=setInterval(()=>rpStep(1),70)});
+  for(const ev of ['pointerup','pointerleave','pointercancel'])ff.addEventListener(ev,rpStop)}
+/* ---------- W judgement ---------- */
+let WJ={},wSel=null;
+function wRows(){if(!DATA)return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return DATA[tf].wev.filter(w=>w[0]>=y0&&w[0]<y1)}
+const wid=w=>`${tf}_${w[0]}`;
+function renderW(){const L=wRows();const done=L.filter(w=>WJ[wid(w)]).length;
+  document.getElementById('wCount').textContent=`${tf} ${year}年：${L.length}件中 ${done}件判定済み（全体で${Object.keys(WJ).length}件）`;
+  document.getElementById('wList').innerHTML=L.map(w=>{const v=(WJ[wid(w)]||{}).v;const b=(k,l)=>`<button data-wv="${k}" data-wt="${w[0]}" aria-pressed="${v===k}">${l}</button>`;
+    return `<tr data-wt="${w[0]}" class="${w[0]===wSel?'sel':''}"><td>${fmt(w[0])}</td><td class="${w[1]==='W_TOP'?'down':'up'}">${w[1]==='W_TOP'?'Wトップ':'Wボトム'}</td><td>${w[2]}</td><td>${w[3]}</td><td>${w[4]}</td><td><span class="seg">${b('ok','○')}${b('ng_range','×レンジ')}${b('ng_shape','×形')}${b('ng','×他')}${b('meh','△')}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
+document.getElementById('wList').addEventListener('click',async ev=>{const bt=ev.target.closest('[data-wv]');
+  if(bt){ev.stopPropagation();const t=+bt.dataset.wt,w=wRows().find(x=>x[0]===t);if(!w||!db){status('この表示では保存できません');return}
+    const id=wid(w),cur=(WJ[id]||{}).v,v=cur===bt.dataset.wv?null:bt.dataset.wv;
+    if(v){WJ[id]={tf,t,action:w[1],a:w[2],b:w[3],c:w[4],b_anchor:w[5],v,year};renderW();try{await db.collection('wjudge').doc(id).set(WJ[id])}catch(e){status('保存できませんでした')}}
+    else{delete WJ[id];renderW();try{await db.collection('wjudge').doc(id).delete()}catch(e){}}return}
+  const r=ev.target.closest('tr[data-wt]');if(!r)return;wSel=+r.dataset.wt;renderW();const w=wRows().find(x=>x[0]===wSel);
+  const d=DV(),i1=fIdx(d,w[0])??0,i0=fIdx(d,w[5])??i1;const sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*1.5,to:i1+sp*0.8})});
+function drawW(g,P,W){if(wSel==null||!DATA)return;const w=DATA[tf].wev.find(x=>x[0]===wSel);if(!w)return;
+  const col=w[1]==='W_TOP'?css('--down'):css('--up');g.save();g.strokeStyle=g.fillStyle=col;g.lineWidth=2;g.setLineDash([6,4]);
+  const a=P(w[5],w[3]),e=P(w[0],w[3]);if(a&&e){g.beginPath();g.moveTo(a[0]-40,a[1]);g.lineTo(e[0]+60,e[1]);g.stroke();g.fillText('B ネック '+w[3],a[0]-40,a[1]-6)}
+  g.setLineDash([]);const lv=(p,lab)=>{const q=P(w[5],p),r=P(w[0],p);if(q&&r){g.globalAlpha=.5;g.beginPath();g.moveTo(q[0]-80,q[1]);g.lineTo(r[0],r[1]);g.stroke();g.globalAlpha=1;g.fillText(lab+' '+p,q[0]-80,q[1]-4)}};
+  lv(w[2],'A');lv(w[4],'C');if(e){g.beginPath();g.arc(e[0],e[1],6,0,7);g.stroke()}g.restore()}
+/* ---------- auto (user-style) trendlines + judgement ---------- */
+let ULJ={},ulSel=null;
+const ulNewOn=()=>document.getElementById('ulSet').value==='new';
+const ulid=u=>`${tf}${tf==='M15'&&ulNewOn()&&DATA&&DATA.M15.ulNew?'c':''}_${u[0]}_${u[6]}`;
+function applyUL(){if(!DATA||!DATA.M15)return;if(DATA.M15.ulOld===undefined)DATA.M15.ulOld=DATA.M15.ulines;
+  DATA.M15.ulines=ulNewOn()&&DATA.M15.ulNew?DATA.M15.ulNew:DATA.M15.ulOld;VC.key=null}
+try{const v=localStorage.getItem('svULSet');if(v)document.getElementById('ulSet').value=v}catch(e){}
+document.getElementById('ulSet').addEventListener('change',()=>{try{localStorage.setItem('svULSet',document.getElementById('ulSet').value)}catch(e){}
+  applyUL();ulSel=null;rekeep();renderUL()});
+function ulEff(u){const j=ULJ[ulid(u)]||{};return {a_t:j.fa_t??u[0],a_p:j.fa_p??u[1],b_t:j.fb_t??u[2],b_p:j.fb_p??u[3],fixed:j.fa_t!=null||j.fb_t!=null}}
+function ulRows(){if(!DATA)return[];const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000;return (DATA[tf].ulines||[]).filter(u=>u[4]>=y0&&u[4]<y1)}
+function drawUL(g,P,W){if(!DATA||!document.getElementById('optUL').checked)return;const d=DV();const L=d.ulines||[];if(!L.length)return;
+  const ts=chart.timeScale(),last=d.candles.length-1;g.save();
+  for(const u of L){const sel=u[0]===ulSel&&tf===ulSelTf;const E=ulEff(u);
+    if(E.fixed){const a0=P(u[0],u[1]),b0=P(u[2],u[3]);if(a0&&b0){g.save();g.globalAlpha=sel?.6:.12;g.strokeStyle=css('--muted');g.setLineDash([3,4]);g.lineWidth=1.5;g.beginPath();g.moveTo(a0[0],a0[1]);g.lineTo(b0[0],b0[1]);g.stroke();g.restore()}}
+    const a=P(E.a_t,E.a_p),b=P(E.b_t,E.b_p);if(!a||!b||b[0]===a[0])continue;
+    const endI=u[5]!=null?fIdx(d,u[5]):last+3;const xe=ts.logicalToCoordinate(endI);if(xe==null)continue;const k=(b[1]-a[1])/(b[0]-a[0]);const ye=a[1]+k*(xe-a[0]);
+    const any=ulSel!=null&&tf===ulSelTf;
+    g.strokeStyle=g.fillStyle=sel?css('--hl'):(u[6]==='hi'?'#b45309':'#0f766e');g.lineWidth=sel?4:1.5;g.globalAlpha=sel?1:(any?.12:.75);g.setLineDash(u[7]?[]:[6,3]);
+    g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(xe,ye);g.stroke();g.setLineDash([]);
+    if(sel){for(const q of [a,b]){g.beginPath();g.arc(q[0],q[1],6,0,7);g.fill()}
+      g.font='bold 12px '+css('--mono');const lab=(q,t)=>{const w=g.measureText(t).width+10;g.fillStyle=css('--hl');g.fillRect(q[0]+8,q[1]-22,w,18);g.fillStyle='#fff';g.fillText(t,q[0]+13,q[1]-9);g.fillStyle=css('--hl')};
+      lab(a,'選択中の線：始点（ドラッグで移動）');lab(b,E.fixed?'2点目（修正済み）':'2点目（ドラッグで移動）');if(u[7]){g.lineWidth=2;g.beginPath();g.moveTo(xe-5,ye-5);g.lineTo(xe+5,ye+5);g.moveTo(xe-5,ye+5);g.lineTo(xe+5,ye-5);g.stroke()}}}
+  g.restore()}
+let ulSelTf=null;
+function renderUL(){const L=ulRows();const done=L.filter(u=>ULJ[ulid(u)]).length;
+  document.getElementById('ulCount').textContent=`${tf}${tf==='M15'&&ulNewOn()&&DATA&&DATA.M15.ulNew?'（調整ライン・新）':''} ${year}年：${L.length}本中 ${done}本判定済み（全体で${Object.keys(ULJ).length}本）`;
+  document.getElementById('ulList').innerHTML=L.map(u=>{const v=(ULJ[ulid(u)]||{}).v;const b=(k,l)=>`<button data-uv="${k}" data-ua="${u[0]}" data-uk="${u[6]}" aria-pressed="${v===k}">${l}</button>`;
+    const end=u[5]==null?'継続中':(u[7]?'ブレイク '+fmt(u[5]):'始点を超えて無効 '+fmt(u[5]));
+    return `<tr data-ua="${u[0]}" data-uk="${u[6]}" class="${u[0]===ulSel&&tf===ulSelTf?'sel':''}"><td>${fmt(u[4])}</td><td class="${u[6]==='hi'?'down':'up'}">${u[6]==='hi'?'下降ライン':'上昇ライン'}</td><td>${fmt(u[0])} ${u[1]}</td><td>${fmt(u[2])} ${u[3]}</td><td>${end}</td><td><span class="seg">${b('ok','○')}${b('ng_start','×始点')}${b('ng_angle','×角度')}${b('ng_no','×不要')}${(ULJ[ulid(u)]||{}).fb_t!=null||(ULJ[ulid(u)]||{}).fa_t!=null?`<button data-ureset="${u[0]}" data-uk="${u[6]}">修正を戻す</button>`:''}</span></td></tr>`}).join('')||'<tr><td colspan="6">この時間足・この年にはありません</td></tr>'}
+document.getElementById('ulList').addEventListener('click',async ev=>{const rs=ev.target.closest('[data-ureset]');
+  if(rs){ev.stopPropagation();const u=ulRows().find(x=>x[0]===+rs.dataset.ureset&&x[6]===rs.dataset.uk);if(!u||!db)return;const id=ulid(u),j={...(ULJ[id]||{})};
+    delete j.fa_t;delete j.fa_p;delete j.fb_t;delete j.fb_p;ULJ[id]=j;renderUL();try{await db.collection('tljudge').doc(id).set(j)}catch(e){status('保存できませんでした')}return}
+  const bt=ev.target.closest('[data-uv]');
+  if(bt){ev.stopPropagation();const u=ulRows().find(x=>x[0]===+bt.dataset.ua&&x[6]===bt.dataset.uk);if(!u||!db){status('この表示では保存できません');return}
+    const id=ulid(u),cur=(ULJ[id]||{}).v,v=cur===bt.dataset.uv?null:bt.dataset.uv;
+    if(v){ULJ[id]={...(ULJ[id]||{}),tf,a_t:u[0],a_p:u[1],b_t:u[2],b_p:u[3],created:u[4],end:u[5],kind:u[6],broken:u[7],v,year};renderUL();try{await db.collection('tljudge').doc(id).set(ULJ[id])}catch(e){status('保存できませんでした')}}
+    else{delete ULJ[id];renderUL();try{await db.collection('tljudge').doc(id).delete()}catch(e){}}return}
+  const r=ev.target.closest('tr[data-ua]');if(!r)return;if(ulSel===+r.dataset.ua&&ulSelTf===tf){ulSel=null;renderUL();return}ulSel=+r.dataset.ua;ulSelTf=tf;renderUL();const u=ulRows().find(x=>x[0]===ulSel&&x[6]===r.dataset.uk);
+  const d=DV(),i0=fIdx(d,u[0])??0,i1=u[5]!=null?(fIdx(d,u[5])??i0):d.candles.length-1;const sp=Math.max(30,i1-i0);chart.timeScale().setVisibleLogicalRange({from:i0-sp*0.4,to:i1+sp*0.5})});
+/* drag the start point / 2nd point of the selected auto line -> saved as the user's correction */
+let ulDrag=null;
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+  const near=(x,y)=>{if(ulSel==null||tf!==ulSelTf||armed||!DATA||!chart)return null;const u=ulRows().find(z=>z[0]===ulSel);if(!u)return null;const E=ulEff(u);
+    const pa=dP(E.a_t,E.a_p),pb=dP(E.b_t,E.b_p);if(pb&&Math.hypot(pb[0]-x,pb[1]-y)<11)return {u,part:'b'};if(pa&&Math.hypot(pa[0]-x,pa[1]-y)<11)return {u,part:'a'};return null};
+  el.addEventListener('pointerdown',ev=>{if(ev.button!==0)return;const[x,y]=xy(ev);const h=near(x,y);if(!h)return;if(!db){status('この表示では保存できません');return}
+    ev.stopPropagation();ev.preventDefault();ulDrag=h;chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(ev.pointerId);setCur('grabbing')},true);
+  el.addEventListener('pointermove',ev=>{const[x,y]=xy(ev);
+    if(ulDrag){ev.stopPropagation();ev.preventDefault();const li=chart.timeScale().coordinateToLogical(x),pr=cs.coordinateToPrice(y);if(li==null||pr==null)return;
+      const u=ulDrag.u,id=ulid(u),j=ULJ[id]||{tf,a_t:u[0],a_p:u[1],b_t:u[2],b_p:u[3],created:u[4],end:u[5],kind:u[6],broken:u[7],year};
+      if(ulDrag.part==='b'){j.fb_t=tAt(li);j.fb_p=+(+pr).toFixed(5);if(!j.v||j.v==='ok')j.v='ng_angle'}else{j.fa_t=tAt(li);j.fa_p=+(+pr).toFixed(5);if(!j.v||j.v==='ok')j.v='ng_start'}
+      ULJ[id]=j;ulDrag.moved=true;return}
+    if(near(x,y))setCur('grab')},true);
+  const end=async ev=>{if(!ulDrag)return;ev.stopPropagation();const g=ulDrag;ulDrag=null;chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(!g.moved)return;const id=ulid(g.u);renderUL();try{await db.collection('tljudge').doc(id).set(ULJ[id]);status('線の修正を保存しました')}catch(e){status('保存できませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',ev=>{if(ulDrag)ev.stopPropagation()},true)}
+function fIdx(d,t){const c=d.candles;if(!c.length||t<c[0][0])return null;const n=c.length-1;if(t>c[n][0])return n+(t-c[n][0])/TFLEN[tf];let lo=0,hi=c.length-1;while(lo<hi){const k=(lo+hi+1)>>1;if(c[k][0]<=t)lo=k;else hi=k-1}return lo}
+function drawFeedback(g,r){if(!DATA)return;const d=DV(),ts=chart.timeScale(),W=ts.width();
+  g.save();g.beginPath();g.rect(0,0,W,r.height);g.clip();g.font='bold 11px '+css('--mono');g.lineWidth=2;g.setLineDash([]);
+  const P=(t,p)=>{const i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i),Y=cs.priceToCoordinate(p);return X==null||Y==null?null:[X,Y]};
+  const x=curTrade(),f=x&&FB[fid(x)];
+  if(f&&f.ideal){const I=f.ideal;g.strokeStyle=g.fillStyle=css('--hl');
+    for(const[k,lab]of[['entry','理想IN'],['exit','理想OUT']])if(I[k]){const q=P(I[k].t,I[k].p);if(q){g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.fillText(lab,q[0]+8,q[1]-6)}}
+    if(I.sl){const a=P(x.t,I.sl.p),b=P(x.xt,I.sl.p);if(a&&b){g.setLineDash([2,3]);g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();g.setLineDash([]);g.fillText('理想SL '+I.sl.p,a[0]+4,a[1]+(x.side===1?13:-5))}}}
+  drawUser(g,P,W);drawW(g,P,W);drawUL(g,P,W);
+  const drawM=(d,sel)=>{const q=P(d.t,d.p);if(!q)return;const up=d.side===1,col=d.kind==='ideal'?css('--s3'):d.kind==='point'?(up?css('--up'):css('--down')):css('--hl');
+    g.fillStyle=g.strokeStyle=col;g.beginPath();const s=7;if(up){g.moveTo(q[0],q[1]-s);g.lineTo(q[0]-s,q[1]+s);g.lineTo(q[0]+s,q[1]+s)}else{g.moveTo(q[0],q[1]+s);g.lineTo(q[0]-s,q[1]-s);g.lineTo(q[0]+s,q[1]-s)}g.closePath();g.fill();
+    g.fillText((d.kind==='ideal'?'理想':d.kind==='point'?(up?'入りたい 買い':'入りたい 売り'):'お手本')+(d.tf&&d.tf!==tf?' ('+d.tf+')':'')+(d.p&&d.kind!=='point'?' '+d.p:''),q[0]+9,q[1]+(up?14:-6));
+    const xe=d.exit?P(d.exit.t,d.exit.p):null;
+    if(d.sl){const a=P(d.t,d.sl.p),b=P(d.exit?d.exit.t:d.sl.t,d.sl.p);if(a&&b){g.setLineDash([5,4]);g.lineWidth=sel?2:1.2;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(Math.max(b[0],a[0]+20),b[1]);g.stroke();g.setLineDash([]);g.fillText('SL',a[0]-18,a[1]+4)}}
+    if(xe){g.beginPath();g.arc(xe[0],xe[1],5,0,7);g.fill();const r=msR(d);if(r!=null)g.fillText((r>0?'+':'')+r.toFixed(2)+'R',xe[0]+8,xe[1]-6);
+      if(sel){g.globalAlpha=.10;g.fillRect(q[0],Math.min(q[1],xe[1]),xe[0]-q[0],Math.abs(xe[1]-q[1]));g.globalAlpha=1}}};
+  for(const m of MS)if(m.d.year===year&&msShow(m.d))drawM(m.d,m.id===msSel);
+  if(msDraft)drawM({...msDraft,side:msDraft.sl?(msDraft.sl.p<msDraft.p?1:-1):1},true);
+  try{drawEnv(g,W)}catch(e){}
+  try{drawPB(g,W)}catch(e){}
+  try{drawZ(g,W,r)}catch(e){}
+  g.restore()}
+
+/* ---------- 環境チェック：ある時点の「自動の読み」に ○× を付ける（その足が確定した時点の情報だけを使う） ---------- */
+let ENV={},envCur=null,envTimer=0;
+const EDIR={up:'上昇',down:'下降',none:'判定前'};
+function eLast(a,T,L){let lo=-1,hi=a.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m][0]+L<=T)lo=m;else hi=m-1}return lo}
+let EATR={y:null};
+function eAtr(){const c=DATA.H1.candles;if(EATR.y===year&&EATR.n===c.length)return EATR.a;const a=new Array(c.length).fill(null);let s=0;
+  const tr=c.map((x,i)=>i?Math.max(x[2]-x[3],Math.abs(x[2]-c[i-1][4]),Math.abs(x[3]-c[i-1][4])):x[2]-x[3]);
+  for(let i=0;i<c.length;i++){s+=tr[i];if(i>=14)s-=tr[i-14];if(i>=13)a[i]=s/14}EATR={y:year,n:c.length,a};return a}
+const DIRO=[['up','上昇'],['down','下降'],['range','レンジ'],['unk','わからない']],PBO2=[['1','1回目'],['2','2回目'],['3','3回目'],['4','4回目以降'],['bo','転換中・ブレイク'],['none','トレンドなし']];
+const EITEMS=[['dow_D1','D1 ダウ',DIRO],['dow_H4','H4 ダウ',DIRO],['dow_H1','H1 ダウ',DIRO],['dow_M15','M15 ダウ',DIRO],
+  ['res','近くの H4 抵抗（橙の点線）',[['other','別の所が抵抗'],['notres','抵抗ではない'],['none','近くに抵抗なし']]]];
+/* your judgement (not a check of ours): the stage of the trend on each timeframe, and where you think the trend started */
+const STG=[['start','出始め（まだ押しなし）'],['1','1回目の押し'],['2','2回目'],['3','3回目'],['4','4回目以降'],['range','レンジ'],['turn','転換中']];
+const ETAGS=[['stage_H4','H4 の段階',STG],['stage_H1','H1 の段階',STG],['move','直前の動き（任意）',[['slow','ゆっくり'],['normal','普通'],['fast','一気に伸びた']]],
+  ['me','自分なら（任意）',[['buy','買いたい'],['sell','売りたい'],['wait','様子見'],['skip','触らない']]]];
+const ETL=Object.fromEntries(ETAGS.map(([k,,o])=>[k,Object.fromEntries(o)]));
+function envAuto(T){const o={},F={};
+  for(const x of ['D1','H4','H1','M15']){const d=DATA[x];if(!d||!d.prot)continue;const L=TFLEN[x],i=eLast(d.prot,T,L),j=eLast(d.pprot,T,L);
+    const mj=(i>=0&&d.prot[i][2])||'none',pv=(j>=0&&d.pprot[j][2])||'none';F['dow_'+x]=mj;F['pdow_'+x]=pv;
+    o['dow_'+x]=EDIR[mj]+(pv!=='none'&&pv!==mj?'（仮ダウは'+EDIR[pv]+'）':'')+(mj!=='none'&&d.prot[i][1]!=null?'　'+(mj==='up'?'押し安値 ':'戻り高値 ')+d.prot[i][1]:'')}
+  for(const b of ['H4','H1'])if(PBC&&PBC[b]){const R=PBC[b];let lo=-1,hi=R.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(R[m][0]<=T)lo=m;else hi=m-1}
+    if(lo>=0){const sd=R[lo][1],n=R[lo][2];F['pb_'+b]=sd?String(Math.min(n+1,4)):'none';F['side_'+b]=sd;o['pb_'+b]=sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}の押し（MA基準）`:'トレンドなし（MA基準）'}}
+  const H=DATA.H1;if(!H)return {o,F};const k=eLast(H.candles,T,3600);if(k<20)return {o,F};
+  const c=H.candles,close=c[k][4],A=eAtr(),atr=A[k],s=F.dow_H1==='up'?1:F.dow_H1==='down'?-1:0;F.close=close;
+  if(s){const want=s===1?'hi':'lo',P=H.piv.filter(p=>p[4]<=T);let e=P.length-1;while(e>=0&&P[e][1]!==want)e--;let g=e-1;while(g>=0&&P[g][1]===want)g--;
+    if(e>=0&&g>=0){const ext=P[e],org=P[g],imp=s*(ext[2]-org[2]),ih=Math.max(1,(ext[0]-org[0])/3600),ch=Math.max(1,(T-ext[0])/3600),beyond=s*(close-ext[2])>0,depth=imp>0?s*(ext[2]-close)/imp:null;
+      F.wave=beyond?'push':'corr';F.t_ratio=+(ch/ih).toFixed(3);F.p_ratio=depth==null?null:+depth.toFixed(3);
+      o.wave=beyond?`推進中（直近の${s===1?'高値':'安値'}を超えている）`:`調整中（直前の${s===1?'上げ':'下げ'}の ${depth!=null?Math.round(depth*100)+'%':'-'} を戻している）`;
+      if(beyond){o.yoko='—（推進中）';F.yoko=null}else{F.yoko=ch/ih>=0.7?'filled':'short';o.yoko=`調整 ${Math.round(ch)} 時間 ÷ 直前の推進 ${Math.round(ih)} 時間 ＝ ${(ch/ih).toFixed(2)} → ${ch/ih>=0.7?'埋まっている':'まだ短い'}（0.7 が目安）`}}}
+  else{o.wave='H1 のダウが判定前';o.yoko='—'}
+  const m20=eLast(H.sma20,T,3600),m75=eLast(H.sma75,T,3600);
+  if(m75>=10&&H.sma75[m75][1]!=null&&H.sma75[m75-10][1]!=null&&atr){const sl=(H.sma75[m75][1]-H.sma75[m75-10][1])/atr,v20=m20>=0?H.sma20[m20][1]:null,v75=H.sma75[m75][1];
+    F.ma=sl>0.5?'up':sl<-0.5?'down':'flat';F.ma_slope=+sl.toFixed(2);
+    o.ma=`SMA75 ${F.ma==='up'?'上向き':F.ma==='down'?'下向き':'横ばい'}（10本で ${sl>=0?'+':''}${sl.toFixed(1)} ATR）、SMA20 は75の${v20!=null&&v20>v75?'上':'下'}、価格は75の${close>v75?'上':'下'}`}
+  if(atr){const w=A.slice(Math.max(0,k-999),k+1).filter(v=>v!=null).sort((a,b)=>a-b),med=w[w.length>>1],r=atr/med;F.vol=r<0.8?'quiet':r>1.25?'wild':'normal';F.vol_ratio=+r.toFixed(2);
+    o.vol=`${F.vol==='quiet'?'静か':F.vol==='wild'?'荒い':'普通'}（H1 の ATR が普段の ${r.toFixed(2)} 倍${w.length<500?'、比べる本数が少なめ':''}）`}
+  if(s&&atr&&DATA.H4){const P4=DATA.H4.piv.filter(p=>p[4]<=T).slice(-40),want=s===1?'hi':'lo';let best=null;
+    for(const p of P4)if(p[1]===want&&s*(p[2]-close)>0&&(best==null||s*(p[2]-best)<0))best=p[2];
+    if(best==null){F.res='none';o.res=`${s===1?'上':'下'}に H4 の${s===1?'高値':'安値'}なし（更新中）`}
+    else{const dist=s*(best-close)/atr;F.res=dist<1?'near':'room';F.res_p=best;F.res_atr=+dist.toFixed(2);o.res=`${s===1?'上の H4 高値':'下の H4 安値'} ${best} まで H1 ATR ${dist.toFixed(1)} 本分（${dist<1?'近い':'余裕あり'}）`}}
+  return {o,F}}
+function openEnv(T,t0,pt,id){if(!DATA)return;id=id||(tf+'_'+T);const ex=ENV[id];const {o,F}=envAuto(T);envCur={id,T,t0,tf:ex?ex.tf:tf,o,F,q:ex&&ex.q||null,qkind:ex&&ex.qkind||null};F.res_p=F.res_p??null;envPlace(pt);envRender()}
+function envPlace(pt){const c=document.getElementById('envCard');c.hidden=false;const r=document.getElementById('chart').getBoundingClientRect(),W=c.offsetWidth||460;
+  let left=r.width-W-8,top=8;if(pt){left=pt.x>r.width/2?pt.x-W-18:pt.x+18;top=Math.max(8,pt.y-80)}left=Math.max(4,Math.min(left,r.width-W-4));
+  c.style.left=(r.left+scrollX+left)+'px';c.style.top=(r.top+scrollY+top)+'px'}
+function envRender(){const c=document.getElementById('envCard');if(!envCur){c.hidden=true;return}c.hidden=false;
+  if(document.activeElement&&document.activeElement.id==='envNote')return;
+  const e=ENV[envCur.id]||{},v=e.v||{},fx=e.fix||{},tg=e.tags||{};
+  document.getElementById('envTitle').textContent=`環境チェック ${fmtAll(envCur.T)} 時点`;
+  const b=(a,on,l,cls='')=>`<button ${a} aria-pressed="${on}" class="${cls}">${l}</button>`;
+  let h=envCur.q?`<div class="note" style="margin:0 0 8px;background:var(--warn-soft,rgba(234,88,12,.12));border-radius:6px;padding:6px 8px"><b>質問：</b>${envCur.q}</div>`:'';
+  h+='<div class="note" style="margin:0 0 4px">① 自動の読みが合っているか（○／×）</div><table class="envt">';
+  for(const [k,lab,opts] of EITEMS){const txt=envCur.o[k];if(txt==null)continue;const cur=v[k];
+    h+=`<tr><th>${lab}</th><td><div class="pbtags" style="margin:0"><span style="margin-right:6px">${txt}</span>${b(`data-ek="${k}" data-ev="ok"`,cur==='ok','○')}${b(`data-ek="${k}" data-ev="ng"`,cur==='ng','×')}${b(`data-ek="${k}" data-ev="q"`,cur==='q','？')}`+
+      (cur==='ng'?'<span class="lb">本当は</span>'+opts.map(([x,l])=>b(`data-ef="${k}" data-ev="${x}"`,fx[k]===x,l)).join('')+
+        (k.startsWith('dow_')?(()=>{const t2=k.slice(4),pf=fx['prot_'+t2];return `<span class="lb" style="flex-basis:100%">正しい押し安値／戻り高値：${pf?pf.p+'（'+fmtAll(pf.t)+'）':'未指定'}</span>`+b(`data-a="envp_${t2}" data-envp="${t2}"`,false,pf?'指定し直す':'チャートで指定')})():''):'')+'</div></td></tr>'}
+  h+='</table><div class="note" style="margin:8px 0 4px">② あなたの判断（点線の枠＝自動の数え方の答え。合っていればそれを押すだけ）</div><table class="envt">';
+  for(const [k,lab,opts] of ETAGS){const tfk=k.startsWith('stage_')?k.slice(6):null;let au=null;
+    if(tfk){const pb=envCur.F['pb_'+tfk],sd=envCur.F['side_'+tfk];au=pb==='none'?'range':pb||null;
+      if(au&&au!=='range'&&envCur.F['dow_'+tfk]&&sd&&((sd===1)!==(envCur.F['dow_'+tfk]==='up')))au='turn'}
+    let row=opts.map(([x,l])=>b(`data-et="${k}" data-ev="${x}"`,tg[k]===x,l,tg[k]==null&&au===x?'auto':'')).join('');
+    if(tfk){const st=tg['start_'+tfk];row+=`<span class="lb" style="flex-basis:100%">トレンドが出たと思う足：${st?fmtAll(st):'未指定'}</span>`+
+      b(`data-a="envs_${tfk}" data-envs="${tfk}"`,false,st?'指定し直す':'チャートで指定')+(st?b(`data-envsdel="${tfk}"`,false,'消す'):'')}
+    h+=`<tr><th>${lab}</th><td><div class="pbtags">${row}</div></td></tr>`}
+  const nl=DR.filter(it=>it.d.env===envCur.id).length;
+  h+=`</table><div class="pbtags" style="margin:6px 0"><button data-a="hl" id="envHl">今見ている水平線を引く</button><span class="lb">押してからチャートをクリック（1回で1本）。この時点で引いた線：${nl}本</span></div>`;
+  h+=`<textarea id="envNote" rows="3" placeholder="気づいたこと（音声入力OK：スマホはキーボードのマイク、Windows は Win+H、Mac は fn を2回）">${(e.note||'').replace(/</g,'&lt;')}</textarea>`+
+    `<div class="pbtags" style="margin-top:6px"><span class="lb">${ENV[envCur.id]?'保存済み（押すたびに自動で保存）':'まだ保存していません（どれかを押すと保存）'}</span>${ENV[envCur.id]?'<button id="envDel">このチェックを消す</button>':''}</div>`;
+  document.getElementById('envBody').innerHTML=h;if(armed&&(armed.startsWith('envs_')||armed.startsWith('envp_')||armed==='hl'))setArmed(armed);
+  const nx=document.getElementById('envNext');if(nx)nx.hidden=!envCur.q}
+async function envSave(upd){if(!db){status('この表示では保存できません');return}if(!envCur)return;const id=envCur.id;
+  const base=ENV[id]||{year,tf:envCur.tf,t:envCur.T,t0:envCur.t0,auto:envCur.o,raw:envCur.F,q:envCur.q||null,qkind:envCur.qkind||null,v:{},fix:{},tags:{},note:'',created:new Date().toISOString()};
+  const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ENV[id]=nx;envRender();renderEnvList();
+  try{await db.collection('envcheck').doc(id).set(nx)}catch(err){status('環境チェックを保存できませんでした')}}
+async function envDelete(id){delete ENV[id];if(envCur&&envCur.id===id)envCur=null;envRender();renderEnvList();rekeep();
+  try{await db.collection('envcheck').doc(id).delete();status('消しました')}catch(err){status('消せませんでした')}}
+function renderEnvList(){try{renderQ()}catch(e){}
+const el=document.getElementById('envList');if(!el)return;const L=Object.entries(ENV).filter(([,e])=>e.year===year).sort((a,b)=>a[1].t-b[1].t);
+  document.getElementById('envCount').textContent=`この年 ${L.length} 件／全部 ${Object.keys(ENV).length} 件`;
+  el.innerHTML=L.map(([id,e])=>{const ng=Object.entries(e.v||{}).filter(([,x])=>x==='ng').map(([k])=>(EITEMS.find(z=>z[0]===k)||[,k])[1]),tg=e.tags||{};
+    return `<tr data-eid="${id}" style="cursor:pointer"><td>${fmtAll(e.t)}</td><td>${e.tf}</td><td>${ng.length?ng.join('、'):'なし'}</td><td>${tg.stage_H4?ETL.stage_H4[tg.stage_H4]:''}</td><td>${tg.stage_H1?ETL.stage_H1[tg.stage_H1]:''}</td><td>${(e.note||'').replace(/</g,'&lt;').slice(0,40)}</td><td><button data-edel="${id}">消す</button></td></tr>`}).join('')||'<tr><td colspan="7" class="note">まだありません</td></tr>'}
+function envAt(px,py){if(py>26||!chart||!document.getElementById('optEnvMk').checked)return null;const d=DV(),ts=chart.timeScale();let best=null,bd=10;
+  for(const [id,e] of Object.entries(ENV)){if(e.year!==year||!objShow(e.tf))continue;const i=fIdx(d,e.t0??(e.t-TFLEN[e.tf]));if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;const dd=Math.abs(X-px);if(dd<bd){bd=dd;best=id}}
+  return best}
+function drawEnv(g,W){if(!DATA||!chart)return;const d=DV(),ts=chart.timeScale();
+  const mark=(t0,col,sel)=>{const i=fIdx(d,t0);if(i==null)return;const X=ts.logicalToCoordinate(i);if(X==null||X<-10||X>W+10)return;
+    g.fillStyle=g.strokeStyle=col;g.beginPath();g.moveTo(X,4);g.lineTo(X+6,11);g.lineTo(X,18);g.lineTo(X-6,11);g.closePath();g.fill();
+    if(sel){g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();g.moveTo(X,18);g.lineTo(X,4000);g.stroke();g.setLineDash([])}};
+  if(document.getElementById('optEnvMk').checked)for(const [id,e] of Object.entries(ENV)){if(e.year!==year||!objShow(e.tf))continue;mark(e.t0??(e.t-TFLEN[e.tf]),Object.values(e.v||{}).some(x=>x==='ng')?css('--hl'):css('--ok'),envCur&&envCur.id===id)}
+  if(envCur&&!ENV[envCur.id])mark(envCur.t0,css('--accent'),true);
+  if(envCur){const e=ENV[envCur.id]||{},tg=e.tags||{};
+    if(envCur.F.res_p!=null){const Y=cs.priceToCoordinate(envCur.F.res_p),i=fIdx(d,envCur.t0),X0=i==null?0:Math.max(0,ts.logicalToCoordinate(i)-260);
+      if(Y!=null){g.strokeStyle=g.fillStyle=css('--hl');g.lineWidth=1.5;g.setLineDash([6,4]);g.beginPath();g.moveTo(X0,Y);g.lineTo(W,Y);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText('自動の抵抗 '+envCur.F.res_p,X0+4,Y-4)}}
+    for(const [kk,pf] of Object.entries(e.fix||{})){if(!kk.startsWith('prot_')||!pf||pf.p==null)continue;const q=dP(pf.t,pf.p);if(!q)continue;
+      g.strokeStyle=g.fillStyle=css('--accent');g.lineWidth=2;g.beginPath();g.arc(q[0],q[1],6,0,7);g.stroke();g.font='bold 11px '+css('--mono');g.fillText('正しい'+kk.slice(5)+' '+pf.p,q[0]+8,q[1]-6)}
+    for(const k of ['H4','H1']){const st=tg['start_'+k];if(st==null)continue;const i=fIdx(d,st);if(i==null)continue;const X=ts.logicalToCoordinate(i);if(X==null)continue;
+      g.strokeStyle=g.fillStyle=k==='H4'?css('--s3'):css('--s2');g.lineWidth=1.5;g.setLineDash([2,3]);g.beginPath();g.moveTo(X,22);g.lineTo(X,4000);g.stroke();g.setLineDash([]);g.font='bold 11px '+css('--mono');g.fillText(k+' トレンド開始',X+4,34+(k==='H1'?14:0))}}}
+document.getElementById('chart').addEventListener('click',e=>{if(armed||!DATA||!chart)return;const r=document.getElementById('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  const id=envAt(x,y);if(!id)return;e.stopPropagation();const m=ENV[id];openEnv(m.t,m.t0,{x,y:Math.max(y,40)},id);rekeep()},true);
+document.getElementById('envBtn').onclick=()=>setArmed(armed==='env'?null:'env');
+document.getElementById('rpEnv').onclick=()=>{if(RT==null)return;openEnv(RT,RT-TFLEN[tf],null);rekeep()};
+document.getElementById('envClose').onclick=()=>{envCur=null;envRender();rekeep()};
+document.getElementById('envAllOk').onclick=()=>{if(!envCur)return;const e=ENV[envCur.id]||{},v={...(e.v||{})};for(const [k] of EITEMS)if(envCur.o[k]!=null&&!v[k])v[k]='ok';envSave({v})};
+document.getElementById('envBody').addEventListener('click',ev=>{if(!envCur)return;const bt=ev.target.closest('button');if(!bt)return;const e=ENV[envCur.id]||{};
+  if(bt.id==='envDel'){envDelete(envCur.id);return}
+  if(bt.id==='envHl'){setArmed(armed==='hl'?null:'hl');return}
+  if(bt.dataset.envp){const a='envp_'+bt.dataset.envp;setArmed(armed===a?null:a);status(armed?'正しい押し安値／戻り高値の位置をチャートでクリック':'');return}
+  if(bt.dataset.envs){const a='envs_'+bt.dataset.envs;setArmed(armed===a?null:a);status(armed?'トレンドが出たと思う足をチャートでクリック':'');return}
+  if(bt.dataset.envsdel){const tags={...(e.tags||{})};delete tags['start_'+bt.dataset.envsdel];envSave({tags});rekeep();return}
+  const k=bt.dataset.ek,f=bt.dataset.ef,t=bt.dataset.et,val=bt.dataset.ev;
+  if(k){const v={...(e.v||{})},fix={...(e.fix||{})};v[k]=v[k]===val?null:val;if(v[k]!=='ng')delete fix[k];envSave({v,fix});rekeep()}
+  else if(f){const fix={...(e.fix||{})};fix[f]=fix[f]===val?null:val;envSave({fix})}
+  else if(t){const tags={...(e.tags||{})};tags[t]=tags[t]===val?null:val;envSave({tags})}});
+document.getElementById('envBody').addEventListener('input',ev=>{if(ev.target.id!=='envNote')return;clearTimeout(envTimer);const val=ev.target.value;envTimer=setTimeout(()=>envSave({note:val}),800)});
+document.getElementById('envList').addEventListener('click',ev=>{const dl=ev.target.closest('[data-edel]');if(dl){ev.stopPropagation();envDelete(dl.dataset.edel);return}
+  const r=ev.target.closest('[data-eid]');if(!r)return;const e=ENV[r.dataset.eid];if(!e)return;jump(e.t0??e.t);setTimeout(()=>{openEnv(e.t,e.t0,null,r.dataset.eid);rekeep()},250)});
+{const hd=document.getElementById('envHead');let g=null;hd.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;const c=document.getElementById('envCard');g={x:e.pageX,y:e.pageY,l:parseFloat(c.style.left)||0,t:parseFloat(c.style.top)||0};hd.setPointerCapture(e.pointerId)});
+  hd.addEventListener('pointermove',e=>{if(!g)return;const c=document.getElementById('envCard');c.style.left=(g.l+e.pageX-g.x)+'px';c.style.top=(g.t+e.pageY-g.y)+'px'});
+  hd.addEventListener('pointerup',()=>{g=null})}
+
+/* ---------- 質問リスト：自動の読みが迷っている所をこちらから選んで聞く ---------- */
+let QL=[];const QK={count:'押しの数え方',prov:'本ダウと仮ダウ',turn:'本ダウの転換'};
+const sideTxt=(sd,n)=>sd?`${sd===1?'上昇':'下降'}の ${n+1>=4?'4回目以降':(n+1)+'回目'}`:'トレンドなし';
+function buildQs(){QL=[];if(!DATA)return;const y0=Date.UTC(year,0,1)/1000,y1=Date.UTC(year+1,0,1)/1000,out=[];
+  for(const x of ['H4','H1']){const L=TFLEN[x],d=DATA[x];
+    if(PBC&&PBC[x]){let prev=false;for(const r of PBC[x]){const dis=r[1]!==r[3]||(r[1]&&r[2]!==r[4]);
+      if(r[0]>=y0&&r[0]<y1&&dis&&!prev)out.push({tf:x,T:r[0],kind:'count',pri:1,q:`${x}：MA で数えると「${sideTxt(r[1],r[2])}」、ダウで数えると「${sideTxt(r[3],r[4])}」。あなたの見方は？　②の「${x} の段階」を選んでください（どちらでもなければ別のものを）`});prev=dis}}
+    if(d&&d.prot){let st=null;for(let i=0;i<=d.prot.length;i++){const a=d.prot[i],b=d.pprot[i],dis=!!(a&&b&&a[2]&&b[2]&&a[2]!==b[2]);
+      if(dis&&st==null)st=i;if(!dis&&st!=null){const t0=d.prot[st][0];if(i-st>=6&&t0>=y0&&t0<y1)out.push({tf:x,T:t0+L*4,kind:'prov',pri:2,q:`${x}：本ダウは${EDIR[d.prot[st][2]]}のまま、仮ダウは${EDIR[d.pprot[st][2]]}。転換が始まっている？それともただの調整？　①の「${x} ダウ」と②の「${x} の段階」で答えてください`});st=null}}}
+    if(d&&d.ev)for(const e of d.ev){if(e[1]!=='rev'||e[0]<y0||e[0]>=y1)continue;out.push({tf:x,T:e[0]+L,kind:'turn',pri:3,q:`${x}：ここで本ダウが${EDIR[e[2]]}に転換したと判定しました。あなたの見方でも転換？　①の「${x} ダウ」で答えてください。違う所が転換なら「正しい押し安値／戻り高値」で指定を`})}}
+  /* spread over the year: 8 windows per timeframe, one question each, rotating the kinds */
+  const pick=[],NW=8,span=(y1-y0)/NW;
+  for(const x of ['H4','H1']){const used={count:0,prov:0,turn:0};
+    for(let w=0;w<NW;w++){const c=out.filter(q=>q.tf===x&&q.T>=y0+w*span&&q.T<y0+(w+1)*span);if(!c.length)continue;
+      c.sort((a,b)=>used[a.kind]-used[b.kind]||a.pri-b.pri||Math.abs(a.T-(y0+(w+.5)*span))-Math.abs(b.T-(y0+(w+.5)*span)));used[c[0].kind]++;pick.push(c[0])}}
+  QL=pick.sort((a,b)=>a.T-b.T).map(q=>({...q,id:'q_'+q.tf+'_'+q.T}))}
+function renderQ(){const el=document.getElementById('qList');if(!el)return;if(!QL.length)buildQs();const done=QL.filter(q=>ENV[q.id]).length;
+  document.getElementById('qCount').textContent=`この年 ${QL.length} 問／回答済み ${done}`;
+  el.innerHTML=QL.map((q,i)=>`<tr data-qi="${i}" style="cursor:pointer"><td>${fmtAll(q.T)}</td><td>${q.tf}</td><td>${QK[q.kind]}</td><td style="white-space:normal">${q.q}</td><td>${ENV[q.id]?'済み':''}</td></tr>`).join('')||'<tr><td colspan="5" class="note">この年は質問がありません</td></tr>'}
+function openQ(i){const q=QL[i];if(!q)return;if(tf!==q.tf){const b=document.getElementById('tf'+q.tf);if(b)b.click()}
+  setTimeout(()=>{jump(q.T-TFLEN[q.tf]);setTimeout(()=>{openEnv(q.T,q.T-TFLEN[q.tf],null,q.id);envCur.q=q.q;envCur.qkind=q.kind;envCur.qi=i;envRender();rekeep()},250)},150)}
+document.getElementById('qList').addEventListener('click',ev=>{const r=ev.target.closest('[data-qi]');if(r)openQ(+r.dataset.qi)});
+document.getElementById('qStart').onclick=()=>{if(!QL.length)buildQs();const i=QL.findIndex(q=>!ENV[q.id]);openQ(i<0?0:i)};
+document.getElementById('envNext').onclick=()=>{if(!envCur||envCur.qi==null)return;let i=QL.findIndex((q,j)=>j>envCur.qi&&!ENV[q.id]);if(i<0)i=QL.findIndex(q=>!ENV[q.id]);if(i<0){status('この年の質問は全部答えました');return}openQ(i)};
+
+/* ---------- 押し目カウント：トレンドが出た足（B）と何回目の押しかをユーザーが置く ---------- */
+let PBM=[],pbOn=false,pbDrag=null,pbSelId=null,PBHIT=[];
+const PBOFF=['optPiv','optProt','optProv','optW','optZone','optLab','optLine','optBo','optTr','optUL','optTri','optRg','optMk','optUser','optEnvMk'];
+try{if(localStorage.getItem('svPB')==='1'){const keep=JSON.parse(localStorage.getItem('svPBkeep')||'null');if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}localStorage.setItem('svPB','0')}}catch(e){}
+function pbSetMode(on){if(on&&typeof zOn!=='undefined'&&zOn)zSetMode(false);pbOn=on;document.getElementById('pbMode').classList.toggle('armed',on);document.getElementById('pbTools').hidden=!on;
+  if(on){const keep={};for(const id of PBOFF){const e=document.getElementById(id);if(!e)continue;keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svPBkeep',JSON.stringify(keep));localStorage.setItem('svPB','1')}catch(e){}}
+  else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svPBkeep'))}catch(e){}if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}try{localStorage.setItem('svPB','0')}catch(e){}if(armed&&armed.startsWith('pb'))setArmed(null);pbHidePop()}
+  pbHint();if(chart)rekeep();renderPB()}
+function pbSeq(tfk){const L=PBM.filter(m=>m.d.tf===tfk).sort((a,b)=>a.d.t-b.d.t);let side=0,n=0,on=false;const out=[];
+  for(const m of L){const d=m.d;if(d.kind==='B'){side=d.side;n=0;on=true;out.push({m,lab:side===1?'B 上昇':'B 下降',cls:'B',side})}
+    else if(d.kind==='R'){on=false;out.push({m,lab:'R',cls:'R',side:0})}
+    else if(on){n++;out.push({m,lab:n+'回目',n,cls:'N',side})}else out.push({m,lab:'？',cls:'X',side:0})}
+  return out}
+function pbSideAt(t){let side=0,on=false;for(const x of pbSeq(tf)){if(x.m.d.t>t)break;if(x.cls==='B'){side=x.side;on=true}else if(x.cls==='R')on=false}return on?side:0}
+function pbNextN(){const q=pbSeq(tf);let n=0;for(const x of q){if(x.cls==='B')n=0;else if(x.cls==='N')n=x.n;else if(x.cls==='R')n=-1}return n<0?null:n+1}
+function pbHint(){const el=document.getElementById('pbHint');if(!el)return;if(!pbOn){el.textContent='';return}
+  const nx=pbNextN();el.textContent=armed==='pbB1'||armed==='pbB-1'?'トレンドが出た足をクリック':armed==='pbR'?'レンジに入った足をクリック':armed==='pbN'?(nx?`チャートを押すと ${nx}回目（${tf}）`:'先に B を置いてください'):'ボタンを押してからチャートをクリック。ラベルは掴んで動かせます'}
+async function pbPlace(p,price){if(!db){status('この表示では保存できません');return}const d=DV(),i=fIdx(d,p.time);const c=i!=null?d.candles[Math.round(i)]:null;
+  const kind=armed==='pbR'?'R':armed==='pbN'?'N':'B',side=armed==='pbB1'?1:armed==='pbB-1'?-1:kind==='N'?pbSideAt(p.time):0;
+  if(kind==='N'&&!side){status('この時点より前に B がありません。先に B を置いてください');return}
+  const snap=c?(kind==='R'?c[4]:side===1?c[3]:side===-1?c[2]:price):price;
+  const m={year,tf,t:p.time,p:+(+snap).toFixed(5),kind,side,created:new Date().toISOString()};
+  const tmp={id:'tmp'+Math.random(),d:m};PBM.push(tmp);renderPB();
+  if(kind==='B')setArmed('pbN');else if(kind==='R')setArmed(null);pbHint();
+  try{const ref=await db.collection('pbmarks').add(m);tmp.id=ref.id}catch(e){PBM=PBM.filter(x=>x!==tmp);renderPB();status('保存できませんでした')}}
+function pbAutoMarks(){if(!PBC||!PBC[tf]||!DATA)return[];const R=PBC[tf],y0=Date.UTC(year,0,1)/1000-86400*40,y1=Date.UTC(year+1,0,1)/1000,out=[];let ps=0,pn=0;
+  for(const r of R){const sd=r[1],n=r[2];if(r[0]>=y0&&r[0]<y1){if(sd&&sd!==ps)out.push({t:r[0]-TFLEN[tf],lab:'自 B',side:sd});else if(sd&&sd===ps&&n>pn)out.push({t:r[0]-TFLEN[tf],lab:'自 '+n,side:sd})}ps=sd;pn=n}return out}
+function drawPB(g,W){if(!DATA||!chart||!pbOn)return;const d=DV(),ts=chart.timeScale(),c=d.candles;PBHIT=[];g.font='bold 12px '+css('--mono');
+  const XY=(t)=>{const i=fIdx(d,t);if(i==null)return null;const X=ts.logicalToCoordinate(i);return X==null||X<-30||X>W+30?null:{X,i:Math.round(i)}};
+  const box=(X,Y,txt,col,fill,dash,below,small)=>{g.font=(small?'bold 10px ':'bold 12px ')+css('--mono');const w=g.measureText(txt).width+10,h=small?14:19,y=below?Y+5:Y-5-h;
+    g.setLineDash(dash?[4,3]:[]);g.lineWidth=1.6;g.fillStyle=fill?col:css('--panel');g.fillRect(X-w/2,y,w,h);g.strokeStyle=col;g.strokeRect(X-w/2,y,w,h);g.setLineDash([]);
+    g.fillStyle=fill?'#fff':col;g.fillText(txt,X-w/2+5,y+(small?11:14));return {x:X-w/2,y,w,h}};
+  if(document.getElementById('pbAuto').checked)for(const a of pbAutoMarks()){const q=XY(a.t);if(!q||!c[q.i])continue;const below=a.side===1,Y=cs.priceToCoordinate(below?c[q.i][3]:c[q.i][2]);if(Y==null)continue;
+    box(q.X,Y+(below?24:-24),a.lab,'#64748b',false,true,below,false)}
+  for(const tfk of ['H4','H1','M15']){const own=tfk===tf;for(const x of pbSeq(tfk)){const m=x.m;if(m.d.year!==year&&Math.abs(m.d.t-Date.UTC(year,6,1)/1000)>200*86400)continue;const q=XY(m.d.t);if(!q)continue;
+    const Y=cs.priceToCoordinate(m.d.p);if(Y==null)continue;const col=x.cls==='B'?'#7c3aed':x.cls==='R'?'#64748b':x.cls==='X'?'#c8372d':'#2457c5',below=x.side!==-1;
+    const r=box(q.X,Y,own?x.lab:tfk+':'+(x.cls==='N'?x.n:x.cls==='B'?'B':x.lab),col,own,false,below,!own);if(own)PBHIT.push({id:m.id,r});
+    if(own&&m.id===pbSelId){g.strokeStyle='#ea580c';g.lineWidth=2;g.strokeRect(r.x-2,r.y-2,r.w+4,r.h+4)}}}}
+function pbHit(x,y){for(const h of PBHIT){const r=h.r;if(x>=r.x-3&&x<=r.x+r.w+3&&y>=r.y-3&&y<=r.y+r.h+3)return h.id}return null}
+function pbHidePop(){pbSelId=null;const e=document.getElementById('pbPop');if(e)e.hidden=true}
+function pbShowPop(id,x,y){pbSelId=id;const m=PBM.find(z=>z.id===id);if(!m)return;const x2=pbSeq(m.d.tf).find(z=>z.m.id===id);const el=document.getElementById('pbPop'),r=document.getElementById('chart').getBoundingClientRect();
+  document.getElementById('pbTxt').textContent=`${m.d.tf} ${x2?x2.lab:''}（${fmtAll(m.d.t)}）`;el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-220))+'px';el.style.top=(r.top+scrollY+Math.max(4,y-40))+'px'}
+async function pbDelete(id){PBM=PBM.filter(z=>z.id!==id);pbHidePop();renderPB();try{await db.collection('pbmarks').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}}
+function renderPB(){const el=document.getElementById('pbList');if(!el)return;pbHint();const rows=[];
+  for(const tfk of ['H4','H1','M15'])for(const x of pbSeq(tfk))if(x.m.d.year===year)rows.push([x.m.d.t,tfk,x.lab,x.m.d.p,x.m.id]);rows.sort((a,b)=>a[0]-b[0]);
+  document.getElementById('pbCount').textContent=`この年 ${rows.length} 個／全部 ${PBM.length} 個`;
+  el.innerHTML=rows.map(r=>`<tr data-pbt="${r[0]}" data-pbtf="${r[1]}" style="cursor:pointer"><td>${fmtAll(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')||'<tr><td colspan="4" class="note">まだありません</td></tr>'}
+document.getElementById('pbMode').onclick=()=>pbSetMode(!pbOn);
+document.getElementById('pbEnd').onclick=()=>pbSetMode(false);
+for(const b of document.querySelectorAll('#pbTools [data-a]'))b.onclick=()=>{setArmed(armed===b.dataset.a?null:b.dataset.a);pbHint()};
+document.getElementById('pbAuto').addEventListener('change',()=>{});
+document.getElementById('pbDel').onclick=()=>{if(pbSelId)pbDelete(pbSelId)};
+document.getElementById('pbClose').onclick=()=>pbHidePop();
+document.getElementById('pbList').addEventListener('click',ev=>{const r=ev.target.closest('[data-pbt]');if(!r)return;if(!pbOn)pbSetMode(true);
+  if(tf!==r.dataset.pbtf){const b=document.getElementById('tf'+r.dataset.pbtf);if(b)b.click()}setTimeout(()=>jump(+r.dataset.pbt),200)});
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};let just=false;
+  el.addEventListener('pointerdown',e=>{if(!pbOn||e.button!==0||!DATA||!chart)return;const[x,y]=xy(e);const id=pbHit(x,y);if(!id)return;
+    e.stopPropagation();e.preventDefault();const m=PBM.find(z=>z.id===id);if(!m)return;pbDrag={id,m,x0:x,moved:false,before:{...m.d}};
+    chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur('grabbing')},true);
+  el.addEventListener('pointermove',e=>{if(!pbOn)return;const[x,y]=xy(e);
+    if(pbDrag){e.stopPropagation();e.preventDefault();if(Math.abs(x-pbDrag.x0)<4&&!pbDrag.moved)return;pbDrag.moved=true;
+      const li=chart.timeScale().coordinateToLogical(x);if(li==null)return;const d=DV(),i=Math.max(0,Math.min(d.candles.length-1,Math.round(li))),c=d.candles[i];const md=pbDrag.m.d;
+      md.t=c[0];md.p=md.kind==='R'?c[4]:md.side===1||(md.kind==='N'&&pbSideAt(c[0])===1)?c[3]:c[2];return}
+    if(!armed)setCur(pbHit(x,y)?'grab':'')},true);
+  const end=async e=>{if(!pbDrag)return;e.stopPropagation();const g=pbDrag;pbDrag=null;just=true;setTimeout(()=>just=false,50);chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(!g.moved){const[x,y]=xy(e);pbShowPop(g.id,x,y);return}
+    if(g.m.d.kind==='N'){const sd=pbSideAt(g.m.d.t);if(sd)g.m.d.side=sd}
+    renderPB();try{await db.collection('pbmarks').doc(g.id).update({t:g.m.d.t,p:+(+g.m.d.p).toFixed(5),side:g.m.d.side,year:new Date(g.m.d.t*1000).getUTCFullYear()})}catch(err){Object.assign(g.m.d,g.before);renderPB();status('動かせませんでした')}};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',e=>{if(just){e.stopPropagation();e.preventDefault()}},true)}
+
+/* ---------- 水平線モード：ダウから作った水平帯（D1・H4・H1）を判定・修正 ---------- */
+let zOn=false,ZJ={},ZU=[],zSel=null,zDrag=null,ZHIT=[],zFirst=null;
+const ZTF=['D1','H4','H1'],ZCOL={D1:'#9333ea',H4:'#22c55e',H1:'#06b6d4',U:'#ea580c'};
+const ZOFF=PBOFF;
+try{if(localStorage.getItem('svZ')==='1'){const keep=JSON.parse(localStorage.getItem('svZkeep')||'null');if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}localStorage.setItem('svZ','0')}}catch(e){}
+function zSetMode(on){if(on&&pbOn)pbSetMode(false);zOn=on;document.getElementById('zMode').classList.toggle('armed',on);document.getElementById('zTools').hidden=!on;
+  if(on){const keep={};for(const id of ZOFF){const e=document.getElementById(id);if(!e)continue;keep[id]=e.checked;e.checked=false}try{localStorage.setItem('svZkeep',JSON.stringify(keep));localStorage.setItem('svZ','1')}catch(e){}}
+  else{let keep=null;try{keep=JSON.parse(localStorage.getItem('svZkeep'))}catch(e){}if(keep)for(const id in keep){const e=document.getElementById(id);if(e)e.checked=keep[id]}try{localStorage.setItem('svZ','0')}catch(e){}if(armed==='zAdd')setArmed(null);zHidePop()}
+  zHint();if(chart)rekeep();renderZ()}
+function zHint(){const el=document.getElementById('zHint');if(el)el.textContent=!zOn?'':armed==='zAdd'?(zFirst?'帯の下（上）の端をクリック':'帯の上（下）の端をクリック'):'帯を押すと判定。端を掴むと直せます'}
+const zid=(x,z)=>`${x}_${z[0]}_${z[1]}`;  /* ASCII only: the database rejects other characters in ids */
+function zItems(){if(!DATA)return[];const out=[],now=RT;
+  for(const x of ZTF){if(!document.getElementById('z'+x).checked||!DATA[x]||!DATA[x].zones)continue;
+    for(const z of DATA[x].zones){if(now!=null&&z[1]+TFLEN[x]>now)continue;const id=zid(x,z),j=ZJ[id]||{};
+      let end=j.end!==undefined?j.end:(j.v==='live'?null:z[2]);if(now!=null&&end!=null&&end>now)end=null;
+      if(end!=null&&end<Date.UTC(year,0,1)/1000)continue;
+      if(!document.getElementById('zDead').checked&&end!=null&&j.v!=='ok')continue;
+      out.push({id,tf:x,a:z[0],act:z[1],end,top:j.top??z[4],bot:j.bot??z[3],lab:z[5],v:j.v||null,auto:z,edited:j.top!=null||j.end!==undefined})}}
+  for(const u of ZU){const d=u.d;if(now!=null&&d.t0>now)continue;if(d.end!=null&&d.end<Date.UTC(year,0,1)/1000)continue;out.push({id:u.id,tf:d.tf,a:d.t0,act:d.t0,end:d.end??null,top:d.top,bot:d.bot,lab:'あなたの線',v:'user',user:true})}
+  return out}
+function drawZ(g,W,r){if(!zOn||!DATA||!chart)return;const d=DV(),ts=chart.timeScale(),H=r.height,c=d.candles;ZHIT=[];
+  const X=t=>{if(t==null)return W;if(!c.length)return null;if(t<c[0][0])return -5;const i=fIdx(d,t);if(i==null)return W;const x=ts.logicalToCoordinate(i);return x==null?W:x};
+  g.font='11px '+css('--mono');
+  for(const z of zItems()){const x0=X(z.a),xa=X(z.act),x1=X(z.end),y0=cs.priceToCoordinate(z.top),y1=cs.priceToCoordinate(z.bot);
+    if([x0,xa,x1,y0,y1].some(v=>v==null)||x1<0||x0>W)continue;const col=z.user?ZCOL.U:ZCOL[z.tf],h=Math.max(3,y1-y0),ng=z.v==='ng',sel=z.id===zSel;
+    g.globalAlpha=ng?.35:1;g.strokeStyle=col;g.lineWidth=sel?2.2:(z.v==='ok'||z.v==='live'||z.user?1.8:1.1);
+    const xs=Math.max(x0,-5);
+    g.fillStyle=col;g.globalAlpha=ng?.05:(sel?.22:.12);g.fillRect(xs,y0,x1-xs,h);g.globalAlpha=ng?.35:.9;
+    g.setLineDash(ng?[2,4]:[]);g.strokeRect(xs,y0,x1-xs,h);g.setLineDash([]);
+    const tag=`${z.user?'あなた':z.tf} ${z.lab}${z.v==='ok'?' ○':z.v==='ng'?' ×':z.v==='live'?' 有効':''}${z.edited?' 修正':''}`;
+    g.fillStyle=col;g.fillText(tag,Math.max(2,xs)+3,y0-3);g.globalAlpha=1;
+    if(sel){g.fillStyle=col;for(const[hx,hy]of[[(Math.max(xs,0)+Math.min(x1,W))/2,y0],[(Math.max(xs,0)+Math.min(x1,W))/2,y0+h]])g.fillRect(hx-6,hy-3,12,6);if(x1<W)g.fillRect(x1-3,y0+h/2-8,6,16)}
+    ZHIT.push({id:z.id,z,x0:Math.max(xs,0),x1:Math.min(x1,W),y0,y1:y0+h})}
+  if(zFirst&&armed==='zAdd'){const y=cs.priceToCoordinate(zFirst.p);if(y!=null){g.strokeStyle=ZCOL.U;g.setLineDash([4,3]);g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();g.setLineDash([])}}}
+function zHit(x,y){let best=null,ba=1e9;for(const h of ZHIT){if(x>=h.x0-3&&x<=h.x1+6&&y>=h.y0-5&&y<=h.y1+5){const a=(h.y1-h.y0);if(a<ba){ba=a;best=h}}}return best}
+function zHandle(x,y){if(!zSel)return null;const h=ZHIT.find(q=>q.id===zSel);if(!h)return null;
+  if(Math.abs(x-h.x1)<=8&&y>=h.y0-6&&y<=h.y1+6&&h.x1<chart.timeScale().width()-2)return {h,part:'end'};
+  if(x>=h.x0-4&&x<=h.x1+4){const e=Math.min(8,Math.max(4,(h.y1-h.y0)/3));if(Math.abs(y-h.y0)<=e)return {h,part:'top'};if(Math.abs(y-h.y1)<=e)return {h,part:'bot'};if(y>h.y0&&y<h.y1)return {h,part:'body'}}return null}
+function zHidePop(){zSel=null;const e=document.getElementById('zPop');if(e)e.hidden=true}
+function zShowPop(h,x,y){zSel=h.id;const z=h.z,el=document.getElementById('zPop'),r=document.getElementById('chart').getBoundingClientRect();
+  document.getElementById('zTxt').textContent=`${z.user?'あなたの線':z.tf+' '+z.lab}　${(+z.bot).toFixed(z.top>50?3:5)}〜${(+z.top).toFixed(z.top>50?3:5)}　${fmtAll(z.a)}〜${z.end?fmtAll(z.end):'今も有効'}`;
+  for(const b of el.querySelectorAll('[data-zv]')){b.hidden=!!z.user;b.setAttribute('aria-pressed',z.v===b.dataset.zv)}
+  document.getElementById('zReset').hidden=!!z.user;document.getElementById('zDelU').hidden=!z.user;
+  el.hidden=false;el.style.left=(r.left+scrollX+Math.min(x+12,r.width-360))+'px';el.style.top=(r.top+scrollY+Math.max(4,y+12))+'px'}
+async function zSave(id,upd){if(!db){status('この表示では保存できません');return}const it=zItems().find(q=>q.id===id);if(!it)return;
+  if(it.user){const u=ZU.find(q=>q.id===id);if(u)Object.assign(u.d,upd);renderZ();try{await db.collection('zuser').doc(id).update(upd)}catch(e){status('保存できませんでした')}return}
+  const base={...(ZJ[id]||{}),tf:it.tf,anchor:it.a,act:it.act,auto_end:it.auto[2],auto_top:it.auto[4],auto_bot:it.auto[3],lab:it.lab,year:(ZJ[id]||{}).year||year};
+  const nx=JSON.parse(JSON.stringify({...base,...upd,updated:new Date().toISOString()}));ZJ[id]=nx;renderZ();try{await db.collection('zjudge').doc(id).set(nx)}catch(e){status('保存できませんでした')}}
+async function zAddClick(p,price){if(!zFirst){zFirst={t:p.time,p:price};zHint();return}
+  const a=zFirst;zFirst=null;setArmed(null);zHint();if(!db){status('この表示では保存できません');return}
+  const u={year,tf,t0:Math.min(a.t,p.time),top:Math.max(a.p,price),bot:Math.min(a.p,price),end:null,created:new Date().toISOString()};
+  const tmp={id:'tmp'+Math.random(),d:u};ZU.push(tmp);renderZ();try{const ref=await db.collection('zuser').add(u);tmp.id=ref.id}catch(e){ZU=ZU.filter(q=>q!==tmp);status('保存できませんでした')}}
+function renderZ(){const el=document.getElementById('zList');if(!el||!DATA)return;zHint();const L=zItems().filter(z=>z.a<Date.UTC(year+1,0,1)/1000&&(z.end==null||z.end>=Date.UTC(year,0,1)/1000)).sort((a,b)=>a.act-b.act);
+  const done=L.filter(z=>z.v).length;document.getElementById('zCount').textContent=`表示中 ${L.length} 本／判定済み ${done}`;
+  el.innerHTML=L.map(z=>`<tr data-zid="${z.id}" data-zt="${z.act}" style="cursor:pointer"><td>${fmtAll(z.act)}</td><td>${z.user?'あなた':z.tf}</td><td>${z.lab}</td><td>${(+z.bot).toFixed(z.top>50?3:5)}〜${(+z.top).toFixed(z.top>50?3:5)}</td><td>${z.end?fmtAll(z.end):'有効'}</td><td>${z.v==='ok'?'○':z.v==='ng'?'×':z.v==='live'?'まだ有効':z.user?'追加':''}${z.edited?' 修正':''}</td></tr>`).join('')||'<tr><td colspan="6" class="note">ありません</td></tr>'}
+document.getElementById('zMode').onclick=()=>zSetMode(!zOn);
+document.getElementById('zEnd').onclick=()=>zSetMode(false);
+for(const id of ['zD1','zH4','zH1','zDead'])document.getElementById(id).addEventListener('change',()=>{zHidePop();renderZ()});
+document.querySelector('#zTools [data-a="zAdd"]').onclick=()=>{zFirst=null;setArmed(armed==='zAdd'?null:'zAdd');zHint()};
+for(const b of document.querySelectorAll('#zPop [data-zv]'))b.onclick=()=>{if(!zSel)return;const id=zSel,j=ZJ[id]||{};const v=j.v===b.dataset.zv?null:b.dataset.zv;
+  const upd={v};if(v==='live')upd.end=null;else if(j.v==='live')upd.end=undefined;zSave(id,upd);document.getElementById('zPop').hidden=true};
+document.getElementById('zReset').onclick=async()=>{if(!zSel)return;const id=zSel;delete ZJ[id];zHidePop();renderZ();try{await db.collection('zjudge').doc(id).delete()}catch(e){}};
+document.getElementById('zDelU').onclick=async()=>{if(!zSel)return;const id=zSel;ZU=ZU.filter(q=>q.id!==id);zHidePop();renderZ();try{await db.collection('zuser').doc(id).delete();status('消しました')}catch(e){status('消せませんでした')}};
+document.getElementById('zClose').onclick=()=>zHidePop();
+let zPickId=null;
+document.getElementById('zEndPick').onclick=()=>{if(!zSel)return;zPickId=zSel;document.getElementById('zPop').hidden=true;setArmed('zEndPick');status('線が終わった足をチャートでクリック')};
+document.getElementById('zEndNone').onclick=()=>{if(!zSel)return;zSave(zSel,{end:null});document.getElementById('zPop').hidden=true};
+document.getElementById('zList').addEventListener('click',ev=>{const r=ev.target.closest('[data-zid]');if(!r)return;if(!zOn)zSetMode(true);jump(+r.dataset.zt);setTimeout(()=>{zSel=r.dataset.zid},300)});
+{const el=document.getElementById('chart');const xy=e=>{const r=el.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};let just=false;
+  el.addEventListener('pointerdown',e=>{if(!zOn||armed||e.button!==0||!DATA||!chart)return;const[x,y]=xy(e);const hd=zHandle(x,y);
+    if(hd){e.stopPropagation();e.preventDefault();zDrag={id:hd.h.id,part:hd.part,z:hd.h.z,moved:false,p0:cs.coordinateToPrice(y),top0:hd.h.z.top,bot0:hd.h.z.bot,x,y};chart.applyOptions({handleScroll:false,handleScale:false});el.setPointerCapture(e.pointerId);setCur(hd.part==='end'?'ew-resize':hd.part==='body'?'grabbing':'ns-resize');return}
+    const h=zHit(x,y);if(!h){if(zSel){zHidePop()}return}e.stopPropagation();e.preventDefault();zDrag={id:h.id,part:'tap',z:h.z,x,y,moved:false};el.setPointerCapture(e.pointerId)},true);
+  el.addEventListener('pointermove',e=>{if(!zOn)return;const[x,y]=xy(e);
+    if(zDrag){e.stopPropagation();e.preventDefault();if(zDrag.part==='tap')return;zDrag.moved=true;const z=zDrag.z;
+      if(zDrag.part==='end'){const li=chart.timeScale().coordinateToLogical(x);if(li==null)return;const d=DV(),i=Math.max(0,Math.min(d.candles.length-1,Math.round(li)));z.end=d.candles[i][0]}
+      else if(zDrag.part==='body'){const pr=cs.coordinateToPrice(y);if(pr==null||zDrag.p0==null)return;const dp=pr-zDrag.p0;z.top=zDrag.top0+dp;z.bot=zDrag.bot0+dp}
+      else{const pr=cs.coordinateToPrice(y);if(pr==null)return;if(zDrag.part==='top')z.top=Math.max(pr,z.bot);else z.bot=Math.min(pr,z.top)}
+      zDrag.tmp={top:z.top,bot:z.bot,end:z.end};const it=ZHIT.find(q=>q.id===z.id);if(it)Object.assign(it.z,z);
+      if(z.user){const u=ZU.find(q=>q.id===z.id);if(u)Object.assign(u.d,{top:z.top,bot:z.bot,end:z.end})}else ZJ[z.id]={...(ZJ[z.id]||{}),...(zDrag.part==='end'?{end:z.end}:{top:z.top,bot:z.bot})};return}
+    if(!armed){const hd=zHandle(x,y);setCur(hd?(hd.part==='end'?'ew-resize':hd.part==='body'?'grab':'ns-resize'):zHit(x,y)?'pointer':'')}},true);
+  const end=async e=>{if(!zDrag)return;e.stopPropagation();const g=zDrag;zDrag=null;just=true;setTimeout(()=>just=false,50);chart.applyOptions({handleScroll:true,handleScale:true});setCur('');
+    if(g.part==='tap'){const h=ZHIT.find(q=>q.id===g.id);if(h)zShowPop(h,g.x,g.y);return}
+    if(!g.moved){if(g.part==='body'){const h=ZHIT.find(q=>q.id===g.id);if(h)zShowPop(h,g.x,g.y)}return}const r5=v=>+(+v).toFixed(5);
+    await zSave(g.id,g.part==='end'?{end:g.z.end}:{top:r5(g.z.top),bot:r5(g.z.bot)})};
+  el.addEventListener('pointerup',end,true);el.addEventListener('pointercancel',end,true);
+  el.addEventListener('click',e=>{if(just){e.stopPropagation();e.preventDefault()}},true)}
+(async()=>{db=window.claude?.use?await window.claude.use('db'):null;
+  if(!db){document.getElementById('dbNote').textContent='評価の保存は、claude.ai にログインした状態でこのページを開くと使えます。';return}
+  db.collection('feedback').onSnapshot(s=>{FB={};for(const d of s.docs)FB[d.id]=JSON.parse(JSON.stringify(d.data()));renderFb();trTable();eaTable()},e=>status('評価を読み込めませんでした'));
+  db.collection('tljudge').onSnapshot(s=>{ULJ={};for(const d of s.docs)ULJ[d.id]={...d.data()};renderUL()},e=>status('ライン判定を読み込めませんでした'));
+  db.collection('wjudge').onSnapshot(s=>{WJ={};for(const d of s.docs)WJ[d.id]={...d.data()};renderW()},e=>status('判定を読み込めませんでした'));
+  db.collection('trijudge').onSnapshot(s=>{TJ={};for(const d of s.docs)TJ[d.id]={...d.data()};renderTri()},e=>status('三角の判定を読み込めませんでした'));
+  db.collection('regime').onSnapshot(s=>{RG=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderRg()},e=>status('状態の印を読み込めませんでした'));
+  db.collection('drawings').onSnapshot(s=>{DR=s.docs.map(d=>({id:d.id,d:{...d.data()}}));pbSync();if(envCur)envRender()},e=>status('線を読み込めませんでした'));
+  db.collection('zjudge').onSnapshot(s=>{if(zDrag)return;ZJ={};for(const d of s.docs)ZJ[d.id]={...d.data()};renderZ()},e=>status('水平線の判定を読み込めませんでした'));
+  db.collection('zuser').onSnapshot(s=>{if(zDrag)return;ZU=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderZ()},e=>status('足した水平線を読み込めませんでした'));
+  db.collection('pbmarks').onSnapshot(s=>{if(pbDrag)return;PBM=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderPB()},e=>status('押し目のラベルを読み込めませんでした'));
+  db.collection('envcheck').onSnapshot(s=>{ENV={};for(const d of s.docs)ENV[d.id]=JSON.parse(JSON.stringify(d.data()));renderEnvList();envRender();renderQ()},e=>status('環境チェックを読み込めませんでした'));
+  db.collection('missed').onSnapshot(s=>{MS=s.docs.map(d=>({id:d.id,d:{...d.data()}}));renderMissed();msEditSync()},e=>status('入りたかった所を読み込めませんでした'))})();
+loadYear(year);
+</script>

@@ -50,7 +50,13 @@ class Config:
     use_h4_levels:bool=False
     use_h4_rsi:bool=False
     use_inverse_trend:bool=False
+    use_long_ma:bool=True
+    trail_pivots:object=None   # optional DataFrame(kind 'L'/'H', price, confirm_time) replacing the M15 ATR14x1.5 ZigZag      # False: skip SMA200 slope, SMA200/480 relation, q75 and MA-ABCD (long-MA filters)
     max_entry_point:int=2
+    extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
+    tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
+    tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
+    sl_fn:object=None          # optional callable(time, side, entry, default_sl) -> stop price, or None to skip the trade
 CFG=Config()
 
 def load_m15(pair):
@@ -278,7 +284,9 @@ def metrics(tr):
     return dict(Trades=len(r),TotalR=r.sum(),AvgR=r.mean(),PF=gp/gl if gl else np.inf,MaxDD=dd.min(),WinRate=(r>0).mean()*100)
 
 def run_pair(pair,cfg=CFG):
-    m,h1,h4,h1p,m15p=build_features(pair,cfg); levels=load_levels(pair) if cfg.use_h4_levels else None
+    m,h1,h4,h1p,m15p=build_features(pair,cfg)
+    if cfg.trail_pivots is not None: m15p=cfg.trail_pivots
+    levels=load_levels(pair) if cfg.use_h4_levels else None
     pip=.01 if pair.endswith('JPY') else .0001; minrisk=10*pip
     # pivot confirmations indexed by M15 bar time; effective next bar handled via confirm_time < current time
     piv_by_t={}
@@ -303,7 +311,15 @@ def run_pair(pair,cfg=CFG):
                 hit=(r.low<=p['sl']) if p['side']==1 else (r.high>=p['sl'])
                 if hit:
                     ex=p['sl']; R=(ex-p['entry'])*p['side']/p['risk']
+                    if p.get('half_R') is not None: R=0.5*p['half_R']+0.5*R
                     p.update(exit=ex,ExitTime=t,R=R,exit_i=i);closed.append(p);continue
+                # optional take-profit (checked after SL: same-bar SL wins)
+                tp=p.get('tp')
+                if tp is not None and p.get('half_R') is None and ((r.high>=tp) if p['side']==1 else (r.low<=tp)):
+                    Rtp=(tp-p['entry'])*p['side']/p['risk']
+                    if cfg.tp_half: p['half_R']=Rtp
+                    else:
+                        p.update(exit=tp,ExitTime=t,R=Rtp,exit_i=i,tp_hit=True);closed.append(p);continue
             survivors.append(p)
         positions=survivors
 
@@ -363,10 +379,10 @@ def run_pair(pair,cfg=CFG):
             vals=[r.h1_atr,r.sma20,r.sma75,r.sma200,r.sma480,r.s200,r.s480]
             if not all(np.isfinite(x) for x in vals): continue
             # Trend: mandatory SMA200 slope + 200/480 relation (B may waive relation)
-            if side==1 and r.s200<cfg.s200_min: continue
-            if side==-1 and r.s200>-cfg.s200_min: continue
+            if cfg.use_long_ma and side==1 and r.s200<cfg.s200_min: continue
+            if cfg.use_long_ma and side==-1 and r.s200>-cfg.s200_min: continue
             rel=ma_relation_pass(r,side,cfg); exc=expansion_exception(r,side,cfg)
-            if not (rel or exc): continue
+            if cfg.use_long_ma and not (rel or exc): continue
 
             # q75 qualifying point: trend + stoch has now passed. Past only, then append current.
             strength=min(r.s200,r.s480) if side==1 else min(-r.s200,-r.s480)
@@ -374,10 +390,10 @@ def run_pair(pair,cfg=CFG):
             if len(hist)>=cfg.q75_warmup:
                 q=np.quantile(hist,.75); qrej=strength>q
             hist.append(float(strength))
-            if qrej: continue
+            if qrej and cfg.use_long_ma: continue
 
             # P-independent downstream filters
-            if ma_abcd_reject(r,side): continue
+            if cfg.use_long_ma and ma_abcd_reject(r,side): continue
             if cfg.use_h4_rsi and not h4_rsi_allowed(side,r.rsi,rsi_state): continue
             if cfg.use_h4_levels and structural_level_reject(levels,t,r.close,side,r.h4_atr,cfg): continue
 
@@ -404,19 +420,27 @@ def run_pair(pair,cfg=CFG):
                     return mfe/ea if np.isfinite(ea) and ea>0 else -np.inf
                 if mfe_atr(p1)<cfg.p3_mfe_atr or mfe_atr(p2)<cfg.p3_mfe_atr: continue
 
+            if cfg.extra_filter is not None and not cfg.extra_filter(t,side): continue
             if len(positions)>=cfg.max_positions: continue
             entry=float(r.close); base=float(r.sma200)+( -minrisk if side==1 else minrisk)
             if side==1: sl=min(base,entry-minrisk)
             else: sl=max(base,entry+minrisk)
+            if cfg.sl_fn is not None:
+                sl=cfg.sl_fn(t,side,entry,sl)
+                if sl is None: continue
+                sl=min(sl,entry-minrisk) if side==1 else max(sl,entry+minrisk)
             risk=abs(entry-sl)
             p={'pair':pair,'side':side,'point':point,'regime_id':regime_id,'entry_i':i,'time':t,'entry':entry,
                'initial_sl':sl,'sl':sl,'risk':risk,'trail_on':False,'trail_reason':'','entry_atr':float(r.atr),'B_exception':bool(exc and not rel)}
+            if cfg.tp_fn is not None: p['tp']=cfg.tp_fn(t,side,entry,risk)
             positions.append(p);regime_trades[point].append(p)
 
     # mark open at end using last close
     last=m.iloc[-1]
     for p in positions:
-        ex=float(last.close);R=(ex-p['entry'])*p['side']/p['risk'];p.update(exit=ex,ExitTime=last.time,R=R,exit_i=len(m)-1,open_end=True);closed.append(p)
+        ex=float(last.close);R=(ex-p['entry'])*p['side']/p['risk']
+        if p.get('half_R') is not None: R=0.5*p['half_R']+0.5*R
+        p.update(exit=ex,ExitTime=last.time,R=R,exit_i=len(m)-1,open_end=True);closed.append(p)
     return pd.DataFrame(closed)
 
 def run_all(cfg=CFG):

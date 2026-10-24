@@ -1,7 +1,7 @@
 """Causal trendline lifecycle (spec: chart_lab/TRENDLINE_RULES_REVIEW_20261018.md).
 
-Generation (2-point / 3-point, create / revise / construction-retire) comes unchanged from
-chart_lab/trendline_causal_engine.generate_lines. This module adds, bar by bar:
+Generation: default v2 = env_recognition/linegen.py (2-point, fitted to the user's lines);
+legacy chart_lab/trendline_causal_engine.generate_lines via generator='legacy'. This module adds, bar by bar:
 
   Stage 1  break + 2 pivots (both classes)
     ascending line (built from lows):  CLOSE below line -> count Dow HIGH pivots formed after the
@@ -28,15 +28,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'chart_lab'))
 from trendline_causal_engine import generate_lines  # noqa: E402
 
 
+# entry timeframes keep steep lines (user 2026-10-18)
+STEEP_TFS = ('M15',)
+
+
 def line_value(ln, i):
     a, b = ln['anchor_idx'], ln['end_idx']
     return ln['anchor_price'] + (ln['end_price'] - ln['anchor_price']) * (i - a) / (b - a)
 
 
-def run(df, tf, res, gen_events=None):
+# chosen per timeframe against the user's hand-drawn lines (labels/TRENDLINE_EVAL_20261018.md)
+# user review #3: no skipped pivots anywhere; W1/D1/H4(/H1) = big-picture v3, M15 = entry lines (adjacent pivots,
+# steep allowed, newest line per direction)
+AUTO = {'W1': ('v3', 'anchor'), 'D1': ('v3', 'anchor'), 'H4': ('v3', 'anchor'), 'H1': ('v3', 'anchor'),
+        'M15': ('v2noskip', 'kind')}
+
+
+def run(df, tf, res, gen_events=None, generator='auto', redraw=None):
+    if generator == 'auto':
+        generator, auto_redraw = AUTO.get(tf, ('v2', 'kind'))
+        redraw = redraw or auto_redraw
+    redraw = redraw or 'anchor'
     c = df.c.to_numpy(float)
     if gen_events is None:
-        gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
+        if generator in ('v2', 'v3', 'v2noskip'):
+            from .linegen import generate, generate_v3
+            if generator == 'v2noskip':
+                gen_events = generate(df, tf, pivot_stream=res['pivot_events'], max_skip=0)
+            elif generator == 'v3':
+                gen_events = generate_v3(df, tf, pivot_stream=res['pivot_events'], steep=tf in STEEP_TFS)
+            else:
+                gen_events = generate(df, tf, pivot_stream=res['pivot_events'])
+        else:
+            gen_events = generate_lines(df, tf, pivot_stream=res['pivot_events'])
     gby = {}
     for e in gen_events:
         gby.setdefault(e['available_idx'], []).append(e)
@@ -70,7 +94,7 @@ def run(df, tf, res, gen_events=None):
                 continue
             if e['action'] == 'retire':
                 if k in active:
-                    retire(i, k, 'construction')
+                    retire(i, k, e.get('reason', 'construction'))
                 continue
             geo = {x: e[x] for x in ('anchor_idx', 'end_idx', 'anchor_price', 'end_price')}
             direction = 'up' if e['kind'] == 'lo' else 'down'
@@ -79,7 +103,14 @@ def run(df, tf, res, gen_events=None):
                 active[k]['versions'].append((i, geo))
                 out.append(dict(idx=i, action='revise', key=k))
             else:
-                active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i,
+                # redraw: a newer line from the same anchor replaces the older live one
+                aid = e.get('anchor_id')
+                if aid is not None:
+                    for k2 in [x for x, v in active.items() if v['kind'] == e['kind'] and
+                               (redraw == 'kind' or v.get('anchor_id') == aid)]:
+                        retire(i, k2, 'redrawn')
+                active[k] = dict(key=k, type=e['type'], kind=e['kind'], direction=direction, created=i, anchor_id=aid,
+                                 tier=e.get('tier', 'main'), skip=e.get('skip', 0), a_ext=e.get('a_ext'),
                                  broken=None, count=set(), impulse_seen=False, versions=[(i, geo)], **geo)
                 out.append(dict(idx=i, action='create', key=k))
         # stage 2: major trend reversal on this bar

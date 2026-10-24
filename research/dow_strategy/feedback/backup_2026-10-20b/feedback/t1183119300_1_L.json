@@ -1,0 +1,21 @@
+{
+  "R": 5.05,
+  "entry": "good",
+  "entry_px": 1.34591,
+  "exit": null,
+  "exit_px": 1.36078,
+  "exit_t": 1183583700,
+  "ideal": {},
+  "mfe": 6.1,
+  "n": 32,
+  "note": "",
+  "nrev": 0,
+  "side": 1,
+  "sl": null,
+  "sl_px": 1.34299,
+  "src": "L",
+  "stg": 2,
+  "t": 1183119300,
+  "updated": "2026-10-20T17:19:21.030Z",
+  "year": 2007
+}
