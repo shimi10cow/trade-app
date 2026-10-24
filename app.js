@@ -3127,8 +3127,8 @@ function analysisValues(id){
 function analysisHas(vals,v){return !vals.length||vals.includes(String(v));}
 
 function initAnalysisMultiSelects(){
-  const labels={ 'flt-pair':'全ペア','flt-timezone':'全時間帯','flt-rule':'全DowRule','flt-score':'スコア指定なし','flt-entry-ref':'エントリー振り返り：全て','flt-exit-ref':'決済振り返り：全て','flt-ma':'MAルール' };
-  ['flt-pair','flt-timezone','flt-rule','flt-score','flt-entry-ref','flt-exit-ref','flt-ma'].forEach(id=>{
+  const labels={ 'flt-ea':'全EA','flt-ea-sym':'全ペア','flt-pair':'全ペア','flt-timezone':'全時間帯','flt-rule':'全DowRule','flt-score':'スコア指定なし','flt-entry-ref':'エントリー振り返り：全て','flt-exit-ref':'決済振り返り：全て','flt-ma':'MAルール' };
+  ['flt-ea','flt-ea-sym','flt-pair','flt-timezone','flt-rule','flt-score','flt-entry-ref','flt-exit-ref','flt-ma'].forEach(id=>{
     const sel=document.getElementById(id);if(!sel||sel.dataset.multiReady)return;sel.dataset.multiReady='1';
     sel.style.display='none';
     const wrap=document.createElement('div');wrap.className='analysis-multi-native';sel.parentNode.insertBefore(wrap,sel);wrap.appendChild(sel);
@@ -3178,8 +3178,10 @@ function applyAnalysisFilters() {
 
   // 1. Base filter: Closed trades only
   const eaType = window._eaAnalysisType || 'all';
-  let filtered = App.data.entries.filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
-  if (eaType === 'ea' && fStatus === 'signal') filtered = [];
+  // EA: the live EA trades (EA_Trades) in the same shape as hand-written records, per account
+  const eaRows = eaType === 'ea' && window.eaLive && window.eaLive.asEntries ? window.eaLive.asEntries(document.getElementById('flt-acc')?.value || 'demo') : null;
+  let filtered = (eaRows || App.data.entries).filter(t => t['ステータス'] === '決済' || t['ステータス'] === '決済（見逃し）');
+  const fEA = analysisValues('flt-ea'), fEaSym = analysisValues('flt-ea-sym');
   // 裁量 / EA 切替（既存データはSource未設定=裁量として扱う）
   if (eaType === 'manual') filtered = filtered.filter(t => !/EA/i.test(String(t['Source'] || t['TradeType'] || '')));
   if (eaType === 'ea') filtered = filtered.filter(t => /EA/i.test(String(t['Source'] || t['TradeType'] || '')));
@@ -3189,6 +3191,7 @@ function applyAnalysisFilters() {
 
   // 属性フィルター（期間を除く）→ エクイティカーブが独自期間で使用
   filtered = filtered.filter(t => {
+    if (eaType === 'ea') return analysisHas(fEA, t.EAKey) && analysisHas(fEaSym, t['PairName（元）']);   // EA: pair and EA only
     if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'signal') return false;
@@ -3203,7 +3206,6 @@ function applyAnalysisFilters() {
       const maMap={h4dev:'H4MA乖離',h4480:'H4MA480.1200',h1ma:'H1MA20.80',h4ma:'H4MA20.80'};
       if(!fMA.some(k=>String(t[maMap[k]]||'').includes('○')||String(t[maMap[k]]||'').includes('〇')||String(t[maMap[k]]||'').includes('◎')))return false;
     }
-    if (eaType === 'ea') { const rule=String(t['EAルール']||t.Rule||''); if(fEaTf!=='all'&&!rule.includes(fEaTf))return false; if(fEaP!=='all'&&!rule.includes(fEaP))return false; }
 
     return true;
   });
@@ -3260,11 +3262,12 @@ function applyAnalysisFilters() {
 
     // 勝敗判定: ±10pips閾値
     // 勝ち: pips > 10 / 負け: pips < -10 / 引き分け: -10 <= pips <= 10
-    if (pips > 10) {
+    const wl = eaType === 'ea' ? (Number(t.R) > 0.05 ? 1 : Number(t.R) < -0.05 ? -1 : 0) : (pips > 10 ? 1 : pips < -10 ? -1 : 0);   // EA: by R
+    if (wl === 1) {
       wins++;
       winPips += pips;
       winProfit += profit;
-    } else if (pips < -10) {
+    } else if (wl === -1) {
       losses++;
       lossPips += pips;
       lossProfit += profit;
@@ -3459,6 +3462,8 @@ function applyAnalysisFilters() {
   renderGrowthChart(filtered);
   renderEquityCurve();
   renderRRDistribution(filtered);
+  // EA: sections that only make sense for hand-written trades are hidden
+  document.querySelectorAll('[data-collapse-key="rules"],[data-collapse-key="theory"],[data-collapse-key="plan"]').forEach(el => { el.style.display = eaType === 'ea' ? 'none' : ''; });
 }
 
 // ==========================================

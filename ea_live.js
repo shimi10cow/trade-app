@@ -110,6 +110,25 @@
     'R@EURUSD': '本番の最初のうちは研究と判定が少しずれることがある（過去の分布の準備中）',
     'DS@US500': '買いだけ（左肩の上に損切り・2R で利確）', 'DS@XAUUSD': '買いだけ・右肩の上に損切り（最小ロットのリスクを小さく）', 'S@BTCUSD': '買いだけ・土日は入らない',
     'C@USDJPY': '調整が長く傾きが強い時だけ', 'L2@XAUUSD': '伸びる先に壁がある時は見送り'};
+  // portfolio combinations (RESEARCH_LOG §107 / §106: 1% risk, half at DD 10%, calendar x1.5, backtest as is)
+  const COMBOS = [
+    ['20 万円', '9 本', 'FX 7 本（ユーロドル R・T2・L・A・C、ドル円 C・J2）＋日経右肩＋BTC S', '+43%', '-18%', '約 100 回'],
+    ['30 万円', '10 本', '上の 9 本＋US500 右肩', '+45%', '-17%', '約 102 回'],
+    ['50 万円', '13 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2', '+55%', '-19%', ''],
+    ['60 万円', '16 本', '＋ゴールド右肩・銀 Q・US30 Q', '+69%', '-21%', ''],
+    ['100 万円', '18 本', '＋ゴールド S・Q（ロット半分）', '+79%', '-19%', ''],
+    ['300 万円', '19 本（全部）', '＋US30 短い押し目', '+80%', '-19%', ''],
+  ];
+  function comboTable() {
+    const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>
+      <tr><td colspan="4" style="text-align:left;padding:0 4px 6px;font-size:10px;color:#94a3b8">${c[2]}${c[5] ? ' · 年 ' + c[5] : ''}</td></tr>`;
+    return `<div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">組み合わせの結果（口座の大きさごと）</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
+        <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
+      <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
+        <b>合計（19 本すべて・ゴールド S と Q は半分）</b>：年利 +79%・最大 DD -19%<br>ゴールド S・Q を全量にすると年利 +90%・最大 DD -19%（リスク 0.75% なら +58%・-16% ／ 全量 +65%・-17%）</div>
+      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：リスク 1%・DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。本番の目減り（滑りなど）は入っていない</div>`;
+  }
   function btSection() {
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
       const x = BTX[k], weak = x[7] < 1.4;
@@ -120,7 +139,7 @@
     }).join('');
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>📊 検証結果（どれを外すかの目安）</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
-      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。口座全体（1%・DD10% で半分）：30 万円 10 本 年 +45%・最大 DD -17%／60 万円 16 本 +69%・-21%／100 万円 18 本 +79%・-19%</div>${rows}` : ''}</div>`;
+      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。</div>${rows}${comboTable()}` : ''}</div>`;
   }
   function resSection() {
     const mine = resAll().filter(r => String(r.Account) === S.acc);
@@ -308,7 +327,20 @@
         <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
   }
+  const EA_PIP = sym => /JPY/.test(sym) ? 0.01 : /XAU/.test(sym) ? 0.1 : /XAG/.test(sym) ? 0.01 : /BTC|ETH|US30|US500|JP225/.test(sym) ? 1 : 0.0001;
+  /** EA trades as records shaped like the hand-written ones, so the 裁量 analysis (stats, charts, Monte Carlo) works on them. */
+  function asEntries(acc) {
+    return allTrades().filter(t => String(t.Account) === acc && t.Status === 'CLOSED').map(t => {
+      const pip = EA_PIP(String(t.Symbol)), s = String(t.Direction).toUpperCase() === 'BUY' ? 1 : -1, en = String(t.EntryTime || '');
+      const pips = (Number(t.ExitPrice) && Number(t.EntryPrice)) ? Math.round(s * (Number(t.ExitPrice) - Number(t.EntryPrice)) / pip * 10) / 10 : '';
+      const slp = (Number(t.SLPrice) && Number(t.EntryPrice)) ? Math.abs(Number(t.EntryPrice) - Number(t.SLPrice)) / pip : '';
+      return {EntryID: 'ea-' + t.TradeID, EntryDate: en.slice(0, 10).replace(/-/g, '/'), EntryTime: en.slice(11, 16), 'PairName（元）': String(t.Symbol),
+        Direction: s === 1 ? 'Buy' : 'Sell', 'ステータス': '決済', '実取得pips': pips, StopLossPips: slp, '損益': t.Profit, Lot: t.Lot, R: t.R, '勝敗': Number(t.R) > 0.05 ? '勝ち' : Number(t.R) < -0.05 ? '負け' : '引き分け',
+        Source: 'EA', EAKey: String(t.EA), ExitDate: String(t.ExitTime || '').slice(0, 10).replace(/-/g, '/'), ExitTime: String(t.ExitTime || '').slice(11, 16)};
+    });
+  }
   window.eaLive = {
+    asEntries: asEntries,
     data: () => S.dash, load: load, name: eaName,
     openTrades: () => allTrades().filter(t => t.Status === 'OPEN'),
     homeHtml: function () {
@@ -334,11 +366,11 @@
     },
     analysisHtml: function (kind) {
       if (!appKey()) return '';
-      const tab = a => `<button class="toggle-btn ${V.anAcc === a ? 'active' : ''}" onclick="eaLiveAnAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
+      V.anAcc = (document.getElementById('flt-acc') || {}).value || V.anAcc;
       const xs = allTrades().filter(t => String(t.Account) === V.anAcc && t.Status === 'CLOSED');
       const by = {}; xs.forEach(t => (by[t.EA] = by[t.EA] || []).push(t));
       Object.keys(by).filter(k => /^RES:/.test(k)).forEach(k => delete by[k]);          // reservations have their own tab
-      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on));
+      const keys = ALL_KEYS.slice();
       const num = (v, d) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d);
       const rows = keys.map(k => {
         const g = by[k] || [], R = g.map(t => Number(t.R) || 0), n = g.length, w = R.filter(r => r > 0).length;
@@ -350,17 +382,7 @@
           <td>${neg > 0 ? (pos / neg).toFixed(2) : n ? '∞' : '—'}<div style="color:#64748b">${num(b.pf, 2)}</div></td>
           <td>${n ? (R.reduce((a, b) => a + b, 0) > 0 ? '+' : '') + R.reduce((a, b) => a + b, 0).toFixed(1) : '—'}<div style="color:#64748b">${num(b.py, 0)}回/年</div></td></tr>`;
       }).join('');
-      const d = ((S.dash && S.dash.daily) || []).filter(r => String(r.Account) === V.anAcc);
-      let chart = '<div style="color:#64748b;font-size:12px;padding:8px 0">口座の記録はまだありません</div>';
-      if (d.length >= 2) {
-        const eq = d.map(r => Number(r.Equity) || 0), lo = Math.min(...eq), hi = Math.max(...eq), W = 320, H = 90, sp = hi - lo || 1;
-        const pts = eq.map((v, i) => (i / (eq.length - 1) * W).toFixed(1) + ',' + (H - (v - lo) / sp * (H - 10) - 5).toFixed(1)).join(' ');
-        const maxDD = Math.max(...d.map(r => Number(r.DD) || 0)) * 100, last = d[d.length - 1];
-        chart = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:90px"><polyline points="${pts}" fill="none" stroke="#4ade80" stroke-width="2"/></svg>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8"><span>${esc(String(d[0].Date).slice(0, 10))} 〜 ${esc(String(last.Date).slice(0, 10))}</span><span>有効証拠金 ${yen(last.Equity)} · 最大 DD <b style="color:#f87171">-${maxDD.toFixed(1)}%</b></span></div>`;
-      }
-      return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA の成績（実際 / <span style="color:#64748b">バックテスト</span>）</div>
-        <div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>${chart}
+      return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA ごとの成績（${ACC_JA[V.anAcc]}口座 · 実際 / <span style="color:#64748b">バックテスト</span>）</div>
         <div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">
           <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">EA</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th></tr>${rows}</table></div>
         <div style="font-size:10px;color:#64748b;margin-top:6px">下の灰色がバックテスト。10 回以上で平均 R がバックテストより 0.5R 以上低いと赤</div></div>`;
@@ -368,7 +390,8 @@
   };
   function refreshViews() {
     if (typeof renderPositions === 'function' && document.getElementById('positions-list')) try { renderPositions(); } catch (e) {}
-    const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml(V.anKind);
+    const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml();
+    if (V.anKind === 'ea' && typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {}
     if (document.getElementById('modal-history')?.classList.contains('active') && typeof renderHistoryList === 'function') renderHistoryList();
   }
   window.eaLiveHistEA = id => { V.histEA = id; if (typeof renderHistoryList === 'function') renderHistoryList(); };
@@ -395,20 +418,32 @@
     if (!prevType || prevType._eal) return;
     window.eaAnalysisType = function (b) {
       prevType(b);
-      let an = document.getElementById('eal-analysis'); const tabs = document.getElementById('trade-type-tabs');
-      if (!an && tabs) { an = document.createElement('div'); an.id = 'eal-analysis'; tabs.parentNode.insertBefore(an, tabs.nextSibling); }
-      if (!an) return;
-      const v = b && b.dataset && b.dataset.v, on = v === 'ea'; an.style.display = on ? '' : 'none'; V.anKind = v;
-      // EA: only the EA panel (the hand-written analysis below would be empty)
-      let el = an.nextElementSibling;
-      while (el) {
-        if (on && el.dataset.ealHid !== '1') { el.dataset.ealPrev = el.style.display || ''; el.dataset.ealHid = '1'; el.style.display = 'none'; }
-        else if (!on && el.dataset.ealHid === '1') { el.style.display = el.dataset.ealPrev || ''; el.dataset.ealHid = ''; }
-        el = el.nextElementSibling;
-      }
-      if (on) { an.innerHTML = window.eaLive.analysisHtml(v); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } }
+      const v = b && b.dataset && b.dataset.v, on = v === 'ea';
+      V.anKind = v;
+      const screen = document.getElementById('screen-analysis');
+      let an = document.getElementById('eal-analysis');
+      if (!an && screen) { an = document.createElement('div'); an.id = 'eal-analysis'; an.style.marginTop = '16px'; screen.appendChild(an); }
+      // EA: period, account, pair (EA symbols) and EA; the hand-written filters are hidden
+      const box = document.getElementById('flt-ea-box'); if (box) box.style.display = on ? 'grid' : 'none';
+      ['flt-pair', 'flt-status', 'flt-timezone', 'flt-rule', 'flt-score', 'flt-entry-ref', 'flt-exit-ref', 'flt-manual-ma', 'flt-plan', 'flt-ea-extra'].forEach(id => {
+        const el = document.getElementById(id); if (!el) return;
+        const w = el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('analysis-multi-native') ? el.parentNode : el;
+        if (on) { if (w.dataset.ealHid !== '1') { w.dataset.ealPrev = w.style.display || ''; w.dataset.ealHid = '1'; } w.style.display = 'none'; }
+        else if (w.dataset.ealHid === '1') { w.style.display = w.dataset.ealPrev || ''; w.dataset.ealHid = ''; }
+      });
+      if (an) { an.style.display = on ? '' : 'none'; if (on) an.innerHTML = window.eaLive.analysisHtml(); }
+      if (typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {}
+      if (on && (!S._loadedAt || Date.now() - S._loadedAt > 60000)) { S._loadedAt = Date.now(); load(); }
     };
     window.eaAnalysisType._eal = 1;
+    // only 裁量 / EA (no すべて); EA filter options
+    const tabs = document.getElementById('trade-type-tabs');
+    const allBtn = tabs && tabs.querySelector('[data-v="all"]');
+    if (allBtn) { const wasOn = allBtn.classList.contains('on'); allBtn.remove(); if (wasOn || !window._eaAnalysisType || window._eaAnalysisType === 'all') { const m = tabs.querySelector('[data-v="manual"]'); if (m) window.eaAnalysisType(m); } }
+    const fe = document.getElementById('flt-ea'), fs = document.getElementById('flt-ea-sym');
+    if (fe && fe.options.length <= 1) ALL_KEYS.forEach(k => fe.add(new Option(eaName(k), k)));
+    if (fs && fs.options.length <= 1) [...new Set(ALL_KEYS.map(k => k.split('@')[1]))].sort().forEach(x => fs.add(new Option(x, x)));
+    const fa = document.getElementById('flt-acc'); if (fa && !fa._eal) { fa._eal = 1; fa.addEventListener('change', () => { const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml(); }); }
   }
   document.addEventListener('DOMContentLoaded', () => { hookAnalysis(); setTimeout(() => { hookAnalysis(); if (appKey()) { S._loadedAt = Date.now(); load(); } }, 1500); });
 

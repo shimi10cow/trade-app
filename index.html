@@ -142,6 +142,11 @@
           <span style="color:#94a3b8;">〜</span>
           <input type="date" id="flt-date-to" class="form-input" style="padding:6px; flex:1;">
         </div>
+        <div id="flt-ea-box" style="display:none;grid-column:1/-1;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))">
+          <select id="flt-acc" onchange="applyAnalysisFilters()"><option value="demo">デモ口座</option><option value="live">本番口座</option></select>
+          <select id="flt-ea-sym" multiple size="1" title="複数選択可"><option value="all">全ペア</option></select>
+          <select id="flt-ea" multiple size="1" title="複数選択可"><option value="all">全EA</option></select>
+        </div>
         <select id="flt-pair" multiple size="1" title="複数選択可">
           <option value="all">全ペア</option>
           <!-- populated dynamically -->
@@ -298,10 +303,6 @@
         Canvas Heatmap (Coming Soon)
       </div>
 
-      <!-- Score Config Button -->
-      <div style="margin-top:20px; padding-bottom:8px;">
-        <button onclick="openScoreConfigModal()" style="width:100%; padding:12px; background:transparent; border:1px solid #475569; color:#94a3b8; border-radius:10px; font-size:13px; cursor:pointer;">⚙️ エントリースコア設定</button>
-      </div>
 
     </div>
 
@@ -1363,10 +1364,10 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261025b" charset="utf-8"></script>
+  <script src="./app.js?v=20261025c" charset="utf-8"></script>
   <script src="./mt5_import.js?v=20261003bgpostsave" charset="utf-8"></script>
   <script src="./mt5_tab.js?v=20261025a" charset="utf-8"></script>
   <script src="./ea.js?v=20261005startfix1" charset="utf-8"></script>
-  <script src="./ea_live.js?v=20261025b" charset="utf-8"></script>
+  <script src="./ea_live.js?v=20261025c" charset="utf-8"></script>
 </body>
 </html>
