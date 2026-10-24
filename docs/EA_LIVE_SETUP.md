@@ -20,16 +20,18 @@
 5. 「デプロイ」→「デプロイを管理」→ 今のデプロイの鉛筆 →「バージョン：新バージョン」→「デプロイ」（アドレスは変わらない）
 6. （任意）「トリガー」→ `eaWatchdog` を 1 時間ごと。PC が 2 時間止まったら Telegram に 1 回だけ通知（スクリプトのプロパティに TELEGRAM_BOT_TOKEN と TELEGRAM_CHAT_ID が必要）
 
-## 2. 自宅 PC（EA 本体）
+## 2. 自宅 PC（EA 本体）— 最初の 1 回だけ
 
-1. 最新のプログラムを入れる：https://github.com/shimi10cow/trade-app/archive/refs/heads/feature/env-recognition.zip を開いてダウンロード（約 150MB）→ 右クリック「すべて展開」→ できた `trade-app-feature-env-recognition` フォルダを使う（古い EA のフォルダとは別。置き場所は例 `C:\TradeEA\`。OneDrive が同期するフォルダは避ける）
-2. XM の MT5 を開き「ファイル」→「取引口座にログイン」で EA 用のデモ口座（極・円）にログイン
-3. 展開したフォルダの `mt5_ea` を開き、アドレス欄に `powershell` と入れて Enter → `py -m pip install -r requirements.txt`（1 回だけ）
-4. `CONFIGURE_LIVE_EA.bat` をダブルクリック（PowerShell なら `powershell -ExecutionPolicy Bypass -File .\configure_live_ea.ps1`）して、GAS のアドレス・EA_KEY・デモ口座の番号・MT5 の場所を入れる（1 回だけ）
-5. `START_LIVE_EA_DEMO.bat` をダブルクリックで起動
-   - 別の口座のときは起動しない（口座番号の確認あり）
-   - アプリで「稼働」にするまで注文は出さない（最初は「全体停止」）
-   - 15 分足が確定するたびに計算する。EA の記録とログはプログラムとは別の `C:\Users\（名前）\TradeEA_data` に置く（プログラムを新しい ZIP に入れ替えても消えない）
+1. https://github.com/shimi10cow/trade-app/archive/refs/heads/main.zip をダウンロードして展開（入れる時だけ使う。後で消してよい）
+2. 展開したフォルダの `mt5_ea` で `CONFIGURE_LIVE_EA.bat`（GAS のアドレス・EA_KEY・口座番号。済んでいれば不要）
+3. 同じ所の `INSTALL_EA.bat` をダブルクリック → `C:\Users\（名前）\TradeEA` に自動更新つきの EA が入る
+4. 以後は `TradeEA` フォルダの `RUN_EA_DEMO.bat` だけで起動する（`CHECK_SYMBOLS.bat` で銘柄の確認）
+
+### 自動更新
+- 起動のたびと、動いている間 1 時間ごとに GitHub の main を確認し、新しければ EA に必要なファイルだけ（約 700KB）を入れ替えて自分で再起動する（数秒）
+- ロジックを直したら main に入れるだけで、PC は何もしなくてよい
+- 本番口座（`RUN_EA_REAL.bat`）は初期設定で自動更新しない（起動し直した時だけ更新）。本番も自動にするならユーザー環境変数 `EA_AUTO_UPDATE=1`
+- EA の記録とログは `C:\Users\（名前）\TradeEA_data`（更新しても消えない）。プログラムは `TradeEA\app`、1 つ前は `TradeEA\app_old`
 
 ## 3. アプリ
 
