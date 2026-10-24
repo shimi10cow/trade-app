@@ -90,3 +90,56 @@
 - 分けて入ったポジションの合算：同じ銘柄・同じ向き・近い時間のポジションを 1 トレードにまとめる（合計ロット、ロットの重み付き平均の建値・決済値、合計損益、合計リスクで割った R）。手で「まとめる・分ける」を直せる
   - 口座をまたいでもまとめる。決済までに追加した分も同じトレードに入れる
   - 時間の幅は初期値 24 時間（今の App_Settings の groupHours を引き継ぐ）、アプリの設定から変えられる
+
+## スプレッドシートの表（2026-10-24 決定）
+
+今の約 20 枚を約 10 枚にまとめる。中心は「全トレードの表（Trades）」と「MT5 の約定そのままの表（Executions）」。
+
+| 新しい表 | 今の表 | 扱い |
+|---|---|---|
+| Trades | Entries | 作り直す。裁量・MT5 取り込み・EA・予約を全部入れ、Source で区別 |
+| Executions | MT5_Executions | 1 行＝約定 1 回。列を約 20 に絞る |
+| EA_Config | EA_Settings（通貨ペアごと） | 1 行＝1 EA に作り直す |
+| Reservations | なし | 新規（予約エントリー） |
+| EA_Status | なし | 新規（生存確認は端末ごとに 1 行を上書き、口座の推移は 1 日 1 行） |
+| EA_Log | EA_Errors | 引き継ぐ。90 日より古い分は消す |
+| Pairs | Pairs | 残す。EA 用の列（EA許可BUY/SELL・TL推進環境・TL逆トレ環境・EA環境確認日時・EA許可方向）は消す |
+| Reviews | Reviews | そのまま |
+| Memos | メモ＋Ideas | 1 つにまとめる |
+| App_Settings | App_Settings | そのまま（groupHours・全体停止もここ） |
+| EA_Calendar_Reminders | 同じ | 使っていれば残す |
+| 保存用の別ファイルへ移す | EA_Signals・EA_Replay_Requests・MT5_Import_Requests・データ分析・集計・単利複利・パラメータ・手法 | アプリはこれらを読んでいない（成績はアプリ側で計算）。シートも直接は見ていない |
+
+### Trades の列
+
+- 基本：TradeID・Source（手入力／MT5 取り込み／EA／予約）・Status（下書き／保有中／決済済み）・Symbol（「EURUSD」などの名前で統一）・Direction・Accounts
+- 価格と時刻：EntryTime・EntryPrice・SLPrice・TPPrice・ExitTime・ExitPrice・Lot（合計）
+- 結果：Profit（円）・Swap・Pips・RiskJPY・R（損切り pips は価格から計算するので持たない）
+- EA：EAName・EAVersion・Magic・LotMult・Reason（入った理由の数値を 1 列にまとめる）
+- 裁量の記録：根拠のスコア・ダウルール・指標前エントリー・再エントリー・メモ（音声入力含む）などは今のまま
+- 画像：EntryImages・ExitImages・PreImages（ドライブのファイル ID をカンマ区切り。今の 9 列を 3 列に）
+- まとめ：MergeMode（自動／手動）・ExecCount（中身は Executions の TradeID で辿る）
+- 管理：CreatedAt・UpdatedAt
+- 消す：エントリー前のチェックリスト（✅ 列）・認識 OK の列・ルール準拠 pips／損益・PairName（元）と Pair の重複・損切りの重複列・空の列・古い MT5 連携用の列（MT5SyncKey など）
+
+### Executions の列
+
+ExecID（口座番号＋約定番号。あれば二重に書かない）・Account・PositionID・Deal・Symbol・Direction・In/Out・DealTime・DealPrice・Volume・Profit・Swap・Commission・SL・TP・Magic・Comment・TradeID・ImportedAt。
+分けて入った分や追加分も別の行で残るので、合算や手での「まとめる・分ける」をやり直せる。
+
+### EA まわり
+
+- EA_Config：EAID（例 DS@XAUUSD）・稼働モード（自動売買／通知のみ／停止）・リスク %・マジックナンバー・バージョン・UpdatedAt。EA は 1 分ごとにこの表を読む（アプリから EA への命令用の表は作らない）
+- Reservations：予約 ID・銘柄・向き・きっかけ（M15／H1 ストキャス）・SL・TP・ロットの決め方と値・状態（待機／約定／取消）・入ったトレードの TradeID
+
+### 重さ・長く使うための決まり
+
+- 1 枚の表で運用し、アプリは直近の行だけ読む（年ごとの分割はしない。行数はトレードで年千行規模）
+- 数式で集計するシートは置かない（書き込みのたびに再計算されて重くなる）
+- EA・取り込み係・アプリの同時書き込みは GAS 側で順番待ち（LockService）
+- 時刻は日本時間＋時差つき（例 2026-10-24 21:15+09:00）で統一
+- 表どうしは行番号ではなく文字の ID でつなぐ
+
+### 移し替え
+
+ファイルを丸ごとコピーして保管 → 新しい表を横に作りスクリプトで変換 → 件数と損益の合計が一致するか確認 → アプリを切り替え → 古い表は 1 か月残してから消す。
