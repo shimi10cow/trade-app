@@ -65,7 +65,9 @@ function gasPost(payload) {
 const FAST_CACHE_KEY='tradeAppFastStart_v1';
 function readFastCache(){try{return JSON.parse(localStorage.getItem(FAST_CACHE_KEY)||'{}');}catch(e){return {};}}
 function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now()};localStorage.setItem(FAST_CACHE_KEY,JSON.stringify(x));}catch(e){}}
+const ENTRIES_CACHE_KEY='tradeAppEntries_v1';
 function hydrateFastCache(){
+  try{var ce=JSON.parse(localStorage.getItem(ENTRIES_CACHE_KEY)||'null');if(ce&&Array.isArray(ce.data)&&ce.data.length&&!(App.data.entries||[]).length){App.data.entries=ce.data;App.state.entriesFromCache=true;setTimeout(function(){try{renderPositions();renderAnalysis();renderGallery();}catch(e){}},0);}}catch(e){}
   var x=readFastCache();
   if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
   if(Array.isArray(x.calendar?.data?.events)&&x.calendar.data.events.length){App.data.calendar=x.calendar.data.events;App.data.calendarIsNextWeek=!!x.calendar.data.isNextWeek;App.state.calendarError='';}
@@ -655,11 +657,31 @@ function toggleCustomHistDate() {
   document.getElementById('hist-custom-date').style.display = period === 'custom' ? 'flex' : 'none';
 }
 
+function toggleIdeaSort() {
+  const el = document.getElementById('idea-sort'), b = document.getElementById('idea-sort-btn');
+  el.value = el.value === 'fav' ? 'date' : 'fav';
+  if (b) { b.textContent = el.value === 'fav' ? '⭐ お気に入り優先' : '新しい順'; b.classList.toggle('active', el.value === 'fav'); }
+  renderIdeas();
+}
+window.toggleIdeaSort = toggleIdeaSort;
+function setHistSort(v) { App.state.histSort = v; renderHistoryList(); }
+window.setHistSort = setHistSort;
+function setHistKind(v) { App.state.histKind = v; renderHistoryList(); }
+window.setHistKind = setHistKind;
+
 function renderHistoryList() {
   const container = document.getElementById('history-list');
   if (!container) return;
   const fPeriod = document.getElementById('hist-period').value;
   const histStatus = document.getElementById('hist-status')?.value || 'all';
+  const histKind = App.state.histKind || 'manual';
+  document.querySelectorAll('#hist-kind button').forEach(b => b.classList.toggle('active', b.dataset.v === histKind));
+  const hs = document.getElementById('hist-status'); if (hs) hs.style.display = histKind === 'ea' ? 'none' : '';
+  const hso = document.getElementById('hist-sort'); if (hso) hso.style.display = histKind === 'ea' ? 'none' : 'flex';
+  if (histKind === 'ea') {
+    container.innerHTML = window.eaLive ? window.eaLive.historyHtml({fPeriod, dFrom: document.getElementById('hist-date-from')?.value, dTo: document.getElementById('hist-date-to')?.value}) : '';
+    return;
+  }
   const dFrom = document.getElementById('hist-date-from')?.value;
   const dTo = document.getElementById('hist-date-to')?.value;
 
@@ -705,10 +727,13 @@ function renderHistoryList() {
     return;
   }
 
+  const histSort = App.state.histSort || 'new';
+  document.querySelectorAll('#hist-sort button').forEach(b => b.classList.toggle('active', b.dataset.v === histSort));
+  const dkey = t => String(t.EntryDate || '').split('T')[0].replace(/\//g, '-') + ' ' + String(t.EntryTime || '');
   container.innerHTML = filtered.slice().sort((a, b) => {
-    const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
-    const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
-    return db > da ? 1 : db < da ? -1 : 0;
+    if (histSort === 'profit') return (parseFloat(b['損益']) || 0) - (parseFloat(a['損益']) || 0);
+    const da = dkey(a), db = dkey(b);
+    return (db > da ? 1 : db < da ? -1 : 0) * (histSort === 'old' ? -1 : 1);
   }).map((t) => {
     const index = App.data.entries.indexOf(t);
     const isMissed = t['ステータス'] === '決済（見逃し）';
@@ -912,10 +937,6 @@ function switchTab(tabId) {
 function renderAnalysis() {
   updateMonthlyStats();
   applyAnalysisFilters();
-  // AI分析期間タブ：初回のみデフォルト1ヶ月を設定
-  if (!document.getElementById('ai-date-from')?.value) {
-    setAiTab('1m');
-  }
 }
 
 // 新規エントリーモーダルの✓（要確認マーク）: 保存時にお気に入り列へ反映
@@ -932,48 +953,6 @@ function updateNeFavButton() {
   b.style.background = on ? 'rgba(16,185,129,0.15)' : '#1e293b';
 }
 
-
-function pickMT5Screenshot(scope) {
-  const f=document.getElementById(scope+'-mt5-ocr-file');
-  if(f){f.value='';f.click();}
-}
-function _mt5SetValue(id,val,onlyBlank=false){
-  const el=document.getElementById(id); if(!el||val===undefined||val===null||val==='')return false;
-  if(onlyBlank && String(el.value||'').trim())return false;
-  el.value=val; el.dispatchEvent(new Event('change',{bubbles:true})); el.dispatchEvent(new Event('input',{bubbles:true})); return true;
-}
-function _mt5SelectPair(id,pair,onlyBlank){
-  const el=document.getElementById(id);if(!el||!pair||(onlyBlank&&el.value))return false;
-  const clean=String(pair).replace(/[#._-]+$/,'').toUpperCase();
-  let opt=Array.from(el.options).find(o=>String(o.value).replace(/[#._-]+$/,'').toUpperCase()===clean);
-  if(!opt){opt=document.createElement('option');opt.value=clean;opt.textContent=clean;el.appendChild(opt);}
-  el.value=opt.value;el.dispatchEvent(new Event('change',{bubbles:true}));return true;
-}
-function _mt5Direction(scope,dir,onlyBlank){
-  const box=document.getElementById(scope+'-dir');if(!box||!dir)return false;
-  if(onlyBlank&&box.querySelector('.active'))return false;
-  box.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-  const b=box.querySelector(dir==='BUY'?'.dir-buy':'.dir-sell');if(b)b.classList.add('active');return !!b;
-}
-function _mt5Date(v){return v?String(v).replace(/[.\/]/g,'-'):'';}
-function _parseMT5OCR(raw){
-  const t=String(raw||'').replace(/[→➜➡]/g,' -> ').replace(/\s+/g,' ').trim();
-  let m=t.match(/\b([A-Z]{6,10})[#._-]?\s+(buy|sell)\s+([0-9]+(?:[.,][0-9]+)?)/i);
-  const out={};if(m){out.pair=m[1].toUpperCase();out.dir=m[2].toUpperCase();out.lot=m[3].replace(',','.');}
-  const prices=[...t.matchAll(/\b(\d{1,5}[.,]\d{2,6})\s*->\s*(\d{1,5}[.,]\d{2,6})\b/g)];
-  if(prices.length){const p=prices[prices.length-1];out.entryPrice=p[1].replace(',','.');out.exitPrice=p[2].replace(',','.');}
-  const dates=[...t.matchAll(/(20\d{2}[.\/-]\d{1,2}[.\/-]\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/g)];
-  if(dates.length>=2){out.entryDate=dates[dates.length-2][1];out.entryTime=dates[dates.length-2][2];out.exitDate=dates[dates.length-1][1];out.exitTime=dates[dates.length-1][2];}
-  else if(dates.length){out.entryDate=dates[0][1];out.entryTime=dates[0][2];}
-  let sl=t.match(/S\s*\/\s*L\s*[:：]\s*(-|\d+(?:[.,]\d+)?)/i),tp=t.match(/T\s*\/\s*P\s*[:：]\s*(-|\d+(?:[.,]\d+)?)/i);
-  if(sl&&sl[1]!=='-')out.sl=sl[1].replace(',','.');if(tp&&tp[1]!=='-')out.tp=tp[1].replace(',','.');
-  const delta=t.match(/[Δ△]\s*=\s*([+-]?\s*\d+)/);if(delta)out.pips=delta[1].replace(/\s/g,'');
-  // MT5 detail screenshots commonly show account-currency P/L as the last standalone signed integer before the date line.
-  const beforeDate=dates.length?t.slice(0,t.indexOf(dates[0][0])):t;
-  const nums=[...beforeDate.matchAll(/(?:^|\s)([-+]\s*\d{2,}(?:[.,]\d{3})*)(?=\s|$)/g)];
-  if(nums.length)out.profit=nums[nums.length-1][1].replace(/[\s,]/g,'');
-  return out;
-}
 
 function _mt5PipSize(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
@@ -992,35 +971,6 @@ function _mt5CalcDistancePips(pair,a,b){
   a=Number(a);b=Number(b);if(!isFinite(a)||!isFinite(b))return '';
   return (Math.abs(b-a)/_mt5PipSize(pair)).toFixed(1);
 }
-async function importMT5Screenshot(input,scope){
-  const file=input&&input.files&&input.files[0];if(!file)return;
-  if(!window.Tesseract){if(window.showToast)showToast('OCRの読み込みに失敗しました');return;}
-  const btn=input.previousElementSibling,old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='…';}
-  try{
-    if(window.showToast)showToast('MT5画像を読み取り中…');
-    const r=await Tesseract.recognize(file,'eng',{logger:function(){}});
-    const x=_parseMT5OCR(r.data&&r.data.text);const onlyBlank=scope==='td';let n=0;
-    n+=_mt5SelectPair(scope+'-pair',x.pair,onlyBlank)?1:0;
-    n+=_mt5Direction(scope,x.dir,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-date',_mt5Date(x.entryDate),onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-time',(x.entryTime||'').slice(0,5),onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-lot',x.lot,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-entry-price',x.entryPrice,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-sl-price',x.sl,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-tp-price',x.tp,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-exit-price',x.exitPrice,onlyBlank)?1:0;
-    n+=_mt5SetValue(scope+'-exit-time',(x.exitTime||'').slice(0,5),onlyBlank)?1:0;
-    const pair=x.pair||document.getElementById(scope+'-pair')?.value||'',dir=x.dir||(document.querySelector('#'+scope+'-dir .dir-sell.active')?'SELL':'BUY');
-    const calcPips=_mt5CalcPips(pair,dir,x.entryPrice,x.exitPrice);
-    if(scope==='td'){n+=_mt5SetValue('td-pips',calcPips||x.pips,true)?1:0;n+=_mt5SetValue('td-profit',x.profit,true)?1:0;}
-    else {n+=_mt5SetValue('ne-pips',calcPips||x.pips,false)?1:0;}
-    const slPips=_mt5CalcDistancePips(pair,x.entryPrice,x.sl),tpPips=_mt5CalcDistancePips(pair,x.entryPrice,x.tp);
-    n+=_mt5SetValue(scope+'-sl',slPips,onlyBlank)?1:0;n+=_mt5SetValue(scope+'-tp',tpPips,onlyBlank)?1:0;
-    if(window.showToast)showToast(n?'MT5画像から '+n+' 項目を入力しました ✅':'読み取れる項目がありませんでした');
-  }catch(e){console.error('MT5 OCR',e);if(window.showToast)showToast('画像の読み取りに失敗しました');}
-  finally{if(btn){btn.disabled=false;btn.textContent=old;}input.value='';}
-}
-
 function openEntryModal(isMissed = false) {
   App.state.isMissedEntry = isMissed;
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
@@ -1212,6 +1162,8 @@ async function loadData() {
     // 全リクエスト同時開始・届いた順に即レンダリング（タイムアウト・リトライ付き）
     const entriesP = gasGet('getEntries').then(res => {
       App.data.entries = res.data || [];
+      App.state.entriesFromCache = false;
+      try { localStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({at: Date.now(), data: App.data.entries})); } catch (e) {}   // too big: just no cache
       renderPositions();   // ① ポジション（最優先）
     });
 
@@ -1272,7 +1224,7 @@ async function loadData() {
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['M15決済', 'M15決済損益', 'H1決済', 'H1決済損益', 'ChartImage2', 'ChartImage3', 'ChartImage4', '決済チャート2', '決済チャート3', '決済チャート4', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
+      gasPost({ action: 'ensureColumns', columns: ['ChartImage2', 'ChartImage3', 'ChartImage4', '決済チャート2', '決済チャート3', '決済チャート4', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
       gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
     }
     // 既存データ移行（一回限り・localStorage管理）
@@ -1396,9 +1348,10 @@ function renderPositions() {
 
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
-  const liveSignals=(window._eaSignals||[]).filter(x=>/監視|open|active/i.test(String(x.Status||'')) || /SIGNAL_ONLY/i.test(String(x.Decision||'')) && !x.ExitTime);
+  const eaOpen = window.eaLive ? window.eaLive.openTrades() : [];
+  const resWait = window.eaLive && window.eaLive.waitingCount ? window.eaLive.waitingCount() : 0;
 
-  if (activeTrades.length === 0 && liveSignals.length === 0) {
+  if (activeTrades.length === 0 && eaOpen.length === 0 && resWait === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">現在保有中のポジションはありません</div>';
     return;
   }
@@ -1430,7 +1383,7 @@ function renderPositions() {
       </div>
     `;
   }).join('');
-  const signalHtml=liveSignals.map((s,i)=>`<div class="list-card" onclick="openSignalDetail(${i},'live')" style="cursor:pointer;border-left:4px solid #3b82f6"><div><div style="font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center">${s.Pair||'--'} <span class="badge ${String(s.Direction).toLowerCase()==='buy'?'buy':'sell'}">${s.Direction||''}</span><span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">Signal</span></div><div style="font-size:11px;color:#94a3b8;margin-top:4px">${s.SignalTime||''} · ${s.TF||s.Rule||''} ${s.Pattern||s.Pullback||''}</div></div><div style="color:#94a3b8">›</div></div>`).join('');
+  const signalHtml = window.eaLive ? window.eaLive.homeHtml() : '';
   container.innerHTML=tradeHtml+signalHtml;
 }
 
@@ -4141,12 +4094,13 @@ function renderGrowthChart(allTrades) {
     const color   = isPos ? '#10b981' : '#ef4444';
     const cx      = i * 10 + 5;
     let dispVal;
-    if (activeChartType === 'profit') dispVal = Math.round(val).toLocaleString('ja-JP');
+    if (activeChartType === 'profit') dispVal = Math.abs(val) >= 10000 ? (val / 10000).toFixed(Math.abs(val) >= 1e6 ? 0 : 1) + '万' : Math.round(val).toLocaleString('ja-JP');
     else if (activeChartType === 'rr') dispVal = val.toFixed(2);
     else dispVal = Math.round(val).toLocaleString('ja-JP');
 
     // 先頭ゼロなし: "01月" → "1月"
-    const label = parseInt(mk.substring(5,7)) + '月';
+    const mon = parseInt(mk.substring(5,7));
+    const label = (i === 0 || mon === 1) && allMonths.length > 1 && allMonths[0].slice(0,4) !== allMonths[allMonths.length-1].slice(0,4) ? mk.substring(2,4) + '/' + mon + '月' : mon + '月';
     barsHTML += `
       <g onclick="openHistoryForMonth('${mk}')" style="cursor:pointer;">
         <rect x="${cx-4.8}" y="8" width="9.6" height="89" fill="transparent" />
@@ -4287,7 +4241,8 @@ function renderEquityCurve() {
   points.forEach((p, i) => {
     const c = coords[i + 1];
     const col = (parseFloat(p.trade['損益']) || 0) >= 0 ? '#10b981' : '#ef4444';
-    circles += `<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="1.8" fill="${col}" stroke="#0f172a" stroke-width="0.4" style="cursor:pointer;" onclick="showEquityTooltip(event,${i})" />`;
+    const rr = points.length > 80 ? 0.7 : points.length > 40 ? 1.1 : 1.8;   // many trades: smaller dots so they do not pile up
+    circles += `<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${rr}" fill="${col}" stroke="#0f172a" stroke-width="${rr > 1 ? 0.4 : 0.15}" style="cursor:pointer;" onclick="showEquityTooltip(event,${i})" />`;
   });
 
   // Y軸ラベル
@@ -4570,10 +4525,6 @@ function openPairEdit(pairName) {
   setBtn('pe-ma-480', p['H4MA480.1200']);
   setBtn('pe-ma-h1-20', p['H1MA20.80']);
   setBtn('pe-ma-h4-20', p['H4MA20.80']);
-  setBtn('pe-ea-tlgo', p['TL推進環境'] || 'なし');
-  setBtn('pe-ea-tlrev', p['TL逆トレ環境'] || 'なし');
-  const peEaConfirmed = document.getElementById('pe-ea-confirmed');
-  if (peEaConfirmed) peEaConfirmed.textContent = p['EA環境確認日時'] ? '最終確認: ' + formatDateDisplay(p['EA環境確認日時']) : '最終確認: 未確認';
 
   // トレードプラン欄
   const planDir = (p['プラン方向'] || '').trim();
@@ -4642,9 +4593,6 @@ async function savePairEdit() {
       'H4MA480.1200':  getBtnVal('pe-ma-480'),
       'H1MA20.80':     getBtnVal('pe-ma-h1-20'),
       'H4MA20.80':     getBtnVal('pe-ma-h4-20'),
-      'TL推進環境':     getBtnVal('pe-ea-tlgo') === 'なし' ? '' : getBtnVal('pe-ea-tlgo'),
-      'TL逆トレ環境':   getBtnVal('pe-ea-tlrev') === 'なし' ? '' : getBtnVal('pe-ea-tlrev'),
-      'EA環境確認日時': new Date().toISOString(),
     };
 
     // トレードプラン（方向ボタンのテキスト「▲ Buy」→「Buy」に正規化）
@@ -5266,32 +5214,7 @@ function calculateRRTD() {
   }
 }
 
-function calculateExitMetrics() {
-  const pips = parseFloat(document.getElementById('td-pips').value);
-  const profit = parseFloat(document.getElementById('td-profit').value);
-  const m15El = document.getElementById('td-m15-profit');
-  const h1El = document.getElementById('td-h1-profit');
-  const m15Pips = parseFloat(document.getElementById('td-m15-exit').value);
-  const h1Pips = parseFloat(document.getElementById('td-h1-exit').value);
-
-  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(m15Pips)) {
-    const v = Math.round(profit * (m15Pips / pips));
-    m15El.textContent = '\xA5' + v.toLocaleString();
-    m15El.style.color = '#f8fafc';
-  } else {
-    m15El.textContent = '--';
-    m15El.style.color = '#94a3b8';
-  }
-
-  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(h1Pips)) {
-    const v = Math.round(profit * (h1Pips / pips));
-    h1El.textContent = '\xA5' + v.toLocaleString();
-    h1El.style.color = '#f8fafc';
-  } else {
-    h1El.textContent = '--';
-    h1El.style.color = '#94a3b8';
-  }
-}
+function calculateExitMetrics() {}
 
 function calculateRuleMetrics() {
   const pips = parseFloat(document.getElementById('td-pips').value);
@@ -5311,51 +5234,8 @@ function calculateRuleMetrics() {
   }
 }
 
-function openChecklistModal() {
-  const pair = document.getElementById('ne-pair').value;
-  if (!pair) {
-    alert("ペアを選択してください");
-    return;
-  }
-  // 見逃しエントリーはチェックリストをスキップして直接保存
-  if (App.state.isMissedEntry) {
-    submitEntryData();
-    return;
-  }
-  App.state.modalOpenedAt = Date.now();
-  document.getElementById('modal-checklist').classList.add('active');
-  const btn = document.getElementById('btn-final-execute');
-  btn.classList.add('disabled');
-  btn.style.pointerEvents = 'none';
-  // reset checks
-  document.querySelectorAll('.checklist-item').forEach(cb => cb.checked = false);
-}
-
-function closeChecklistModal() {
-  document.getElementById('modal-checklist').classList.remove('active');
-}
-
-function validateChecklist() {
-  const checkboxes = Array.from(document.querySelectorAll('.checklist-item'));
-  const allChecked = checkboxes.every(cb => cb.checked);
-  const btn = document.getElementById('btn-final-execute');
-  if (allChecked) {
-    btn.removeAttribute('disabled');
-    btn.classList.remove('disabled');
-    btn.style.pointerEvents = 'auto';
-    btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-    btn.style.color = '#fff';
-  } else {
-    btn.setAttribute('disabled', '');
-    btn.classList.add('disabled');
-    btn.style.pointerEvents = 'none';
-    btn.style.background = '#334155';
-    btn.style.color = '#64748b';
-  }
-}
-
-function executeEntrySubmit() {
-  closeChecklistModal();
+function startEntrySubmit() {
+  if (!document.getElementById('ne-pair').value) { alert("ペアを選択してください"); return; }
   submitEntryData();
 }
 
@@ -5708,8 +5588,6 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
-  document.getElementById('td-m15-exit').value = t['M15決済'] || '';
-  document.getElementById('td-h1-exit').value = t['H1決済'] || '';
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -6042,26 +5920,6 @@ async function saveTradeDetail() {
       })(),
       '損益': document.getElementById('td-profit').value,
       'ルール準拠pips': document.getElementById('td-rule-pips').value,
-      'M15決済': document.getElementById('td-m15-exit').value,
-      'M15決済損益': (() => {
-        const _pips = parseFloat(document.getElementById('td-pips').value);
-        const _profit = parseFloat(document.getElementById('td-profit').value);
-        const _m15 = parseFloat(document.getElementById('td-m15-exit').value);
-        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_m15)) {
-          return String(Math.round(_profit * (_m15 / _pips)));
-        }
-        return '';
-      })(),
-      'H1決済': document.getElementById('td-h1-exit').value,
-      'H1決済損益': (() => {
-        const _pips = parseFloat(document.getElementById('td-pips').value);
-        const _profit = parseFloat(document.getElementById('td-profit').value);
-        const _h1 = parseFloat(document.getElementById('td-h1-exit').value);
-        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_h1)) {
-          return String(Math.round(_profit * (_h1 / _pips)));
-        }
-        return '';
-      })(),
       'ルール準拠損益': (() => {
         const _pips = parseFloat(document.getElementById('td-pips').value);
         const _profit = parseFloat(document.getElementById('td-profit').value);
@@ -6316,162 +6174,6 @@ function showToast(msg) {
 // ════════════════════════════════════════
 // 🤖 AI トレード分析（Groq）
 // ════════════════════════════════════════
-
-function setAiTab(tab) {
-  ['1m','3m','custom'].forEach(t => {
-    const btn = document.getElementById('ai-tab-' + t);
-    if (btn) btn.classList.toggle('active', t === tab);
-  });
-  const customDiv = document.getElementById('ai-custom-date');
-  if (customDiv) customDiv.style.display = tab === 'custom' ? 'flex' : 'none';
-  const to = new Date();
-  const from = new Date();
-  if (tab === '1m') {
-    from.setMonth(from.getMonth() - 1);
-    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
-    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
-  } else if (tab === '3m') {
-    from.setMonth(from.getMonth() - 3);
-    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
-    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
-  } else if (tab === 'custom') {
-    // カスタム：デフォルトで1ヶ月
-    from.setMonth(from.getMonth() - 1);
-    document.getElementById('ai-date-from').value = from.toISOString().split('T')[0];
-    document.getElementById('ai-date-to').value = to.toISOString().split('T')[0];
-  }
-}
-
-async function runGeminiAnalysis() {
-  const btn = document.getElementById('ai-analyze-btn');
-  const resultDiv = document.getElementById('ai-result');
-
-  // 期間フィルター（デフォルト: 直近1ヶ月）
-  let fromVal = document.getElementById('ai-date-from').value;
-  let toVal = document.getElementById('ai-date-to').value;
-  if (!fromVal && !toVal) { setAiTab('1m'); fromVal = document.getElementById('ai-date-from').value; toVal = document.getElementById('ai-date-to').value; }
-
-  const fromDate = fromVal ? new Date(fromVal) : null;
-  const toDate = toVal ? new Date(toVal + 'T23:59:59') : null;
-
-  const sorted = App.data.entries
-    .filter(t => t['ステータス'] === '決済')
-    .filter(t => {
-      const d = new Date(String(t.EntryDate || '').split('T')[0].replace(/\//g, '-'));
-      if (fromDate && d < fromDate) return false;
-      if (toDate && d > toDate) return false;
-      return true;
-    })
-    .slice().sort((a, b) => {
-      const da = String(a.EntryDate || '').split('T')[0].replace(/\//g, '-');
-      const db = String(b.EntryDate || '').split('T')[0].replace(/\//g, '-');
-      return db > da ? 1 : db < da ? -1 : 0;
-    });
-
-  resultDiv.style.display = 'block';
-  if (sorted.length === 0) {
-    resultDiv.innerHTML = '<div style="color:#64748b;font-size:13px;">指定期間に決済済みトレードがありません。</div>';
-    return;
-  }
-
-  // 送信データを整形（感情・心理分析に必要なフィールドのみ）
-  const tradeData = sorted.map((t, i) => {
-    const date = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-');
-    const pips = parseFloat(t['実取得pips']) || 0;
-    const profit = parseFloat(t['損益']) || 0;
-    const entryScore = parseInt(t['エントリースコア']) || 0;
-    return {
-      no: i + 1,
-      日付: date,
-      結果: pips > 10 ? '勝ち' : (pips < -10 ? '負け' : '引き分け'),
-      pips: pips.toFixed(1),
-      損益: Math.round(profit),
-      スコア: entryScore,
-      エントリー前のメモ: t['エントリーメモ'] || '',
-      決済後のメモ: t['決済メモ'] || '',
-      エントリーのルール記録: t['エントリー振り返り'] || '',
-      決済のルール記録: t['決済振り返り'] || '',
-      ルール準拠pips: parseFloat(t['ルール準拠pips'] ?? t['ルール準拠Pips']) || 0
-    };
-  });
-
-  const wins = tradeData.filter(t => t['結果'] === '勝ち').length;
-  const losses = tradeData.filter(t => t['結果'] === '負け').length;
-
-  const prompt = buildAiUserPrompt(tradeData, fromVal, toVal, wins, losses);
-
-  // ローディング表示
-  btn.disabled = true;
-  btn.textContent = '分析中...';
-  resultDiv.style.display = 'block';
-  resultDiv.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;color:#38bdf8;font-size:13px;padding:8px 0;">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round">
-        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
-          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/>
-        </path>
-      </svg>
-      AIが${tradeData.length}件を分析中...
-    </div>`;
-
-  try {
-    // GASからGroq APIキーを取得
-    const keyRes = await gasPost({ action: 'getGroqKey' });
-    const apiKey = keyRes.key || '';
-    if (!apiKey) throw new Error('Groq APIキーがGASに設定されていません（Script PropertiesにGROQ_API_KEYを設定してください）');
-
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: AI_SYSTEM_PROMPT
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024
-      })
-    }).then(r => r.json());
-
-    if (groqRes.error) throw new Error(groqRes.error.message || 'Groq APIエラー');
-
-    const text = groqRes.choices?.[0]?.message?.content || '分析結果を取得できませんでした。';
-
-    // Markdown → 簡易HTML変換
-    const html = text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^(#{1,3}\s|[①②③④⑤⑥]【.+?】)/gm, m =>
-        `<div style="font-weight:700;color:#38bdf8;margin-top:14px;margin-bottom:6px;">${m}</div>`)
-      .replace(/^[\-\*・]\s*(.+)$/gm, '<div style="padding-left:14px;margin-bottom:4px;color:#cbd5e1;">• $1</div>')
-      .replace(/\n+/g, '<br>');
-
-    resultDiv.innerHTML = `
-      <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #334155;">
-        対象: 直近${tradeData.length}件（${wins}勝${losses}敗）／ ${new Date().toLocaleString('ja-JP')}
-      </div>
-      <div style="font-size:13px;line-height:1.8;">${html}</div>`;
-
-  } catch (e) {
-    resultDiv.innerHTML = `
-      <div style="color:#ef4444;font-size:12px;">
-        ❌ ${e.message}
-      </div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🤖 AI分析';
-  }
-}
-
-// ==========================================
-// Ideas (アイデアメモ)
-// ==========================================
 
 function renderIdeas() {
   const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';
