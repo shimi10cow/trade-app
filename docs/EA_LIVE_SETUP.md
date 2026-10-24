@@ -20,18 +20,21 @@
 5. 「デプロイ」→「デプロイを管理」→ 今のデプロイの鉛筆 →「バージョン：新バージョン」→「デプロイ」（アドレスは変わらない）
 6. （任意）「トリガー」→ `eaWatchdog` を 1 時間ごと。PC が 2 時間止まったら Telegram に 1 回だけ通知（スクリプトのプロパティに TELEGRAM_BOT_TOKEN と TELEGRAM_CHAT_ID が必要）
 
-## 2. 自宅 PC（EA 本体）— 最初の 1 回だけ
+## 2. 自宅 PC（EA 本体）
 
-1. https://github.com/shimi10cow/trade-app/archive/refs/heads/main.zip をダウンロードして展開（入れる時だけ使う。後で消してよい）
-2. 展開したフォルダの `mt5_ea` で `CONFIGURE_LIVE_EA.bat`（GAS のアドレス・EA_KEY・口座番号。済んでいれば不要）
-3. 同じ所の `INSTALL_EA.bat` をダブルクリック → `C:\Users\（名前）\TradeEA` に自動更新つきの EA が入る
-4. 以後は `TradeEA` フォルダの `RUN_EA_DEMO.bat` だけで起動する（`CHECK_SYMBOLS.bat` で銘柄の確認）
+1. https://github.com/shimi10cow/trade-app/archive/refs/heads/main.zip をダウンロードして展開（置き場所の例 `C:\TradeEA\`。OneDrive が同期するフォルダは避ける）
+2. XM の MT5 を開き「ファイル」→「取引口座にログイン」で EA 用のデモ口座にログイン
+3. `py -m pip install MetaTrader5 requests numpy pandas`（1 回だけ）
+4. 展開したフォルダの `mt5_ea` で `CONFIGURE_LIVE_EA.bat`（GAS のアドレス・EA_KEY・口座番号。1 回だけ）
+5. `CHECK_SYMBOLS.bat` で銘柄の対応を確認（注文は出ない）
+6. `START_LIVE_EA_DEMO.bat` で起動
+   - 別の口座のときは起動しない（口座番号の確認あり）
+   - アプリで「稼働」にするまで注文は出さない
+   - EA の記録とログは `C:\Users\（名前）\TradeEA_data`（プログラムを入れ替えても消えない）
 
-### 自動更新
-- 起動のたびと、動いている間 1 時間ごとに GitHub の main を確認し、新しければ EA に必要なファイルだけ（約 700KB）を入れ替えて自分で再起動する（数秒）
-- ロジックを直したら main に入れるだけで、PC は何もしなくてよい
-- 本番口座（`RUN_EA_REAL.bat`）は初期設定で自動更新しない（起動し直した時だけ更新）。本番も自動にするならユーザー環境変数 `EA_AUTO_UPDATE=1`
-- EA の記録とログは `C:\Users\（名前）\TradeEA_data`（更新しても消えない）。プログラムは `TradeEA\app`、1 つ前は `TradeEA\app_old`
+### プログラムの更新
+- ロジックを直して main に入れた後、必要な時だけ最新の ZIP を取って入れ替える（記録は別の場所なので消えない）
+- PC で Claude Code（デスクトップアプリ、またはそのフォルダで `claude remote-control`）を使えば、「main から最新を取ってきて」と頼むだけで入れ替えられる
 
 ## 3. アプリ
 

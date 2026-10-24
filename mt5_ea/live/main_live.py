@@ -27,9 +27,6 @@ LOG = Path(os.getenv('EA_LOG_FILE') or Path(__file__).with_name('live.log'))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
                     handlers=[logging.FileHandler(LOG, encoding='utf-8'), logging.StreamHandler()])
 HEARTBEAT_SEC = 300
-UPDATE_CHECK_SEC = 3600
-AUTO_UPDATE = os.getenv('EA_AUTO_UPDATE', '0') == '1'
-VERSION_F = Path(__file__).resolve().parents[2] / 'VERSION'      # written by updater.py in the install folder
 BAR_DELAY_SEC = 5          # wait a few seconds after the M15 close so the bar is final
 
 
@@ -74,8 +71,7 @@ def main():
             logging.warning('symbol %s not available: %s', s_, ex)
     logging.info('live EA started: account %s (%s) kind=%s, %d EAs, magic %s-%s', a['login'], a['server'], kind, len(MAGIC), min(MAGIC.values()), max(MAGIC.values()))
     note('info', f'EA 起動 {kind} 口座 {a["login"]}')
-    last_hb = 0.0; last_slot = None; last_upd = time.time()
-    logging.info('program version %s, auto update %s', VERSION_F.read_text().strip()[:7] if VERSION_F.exists() else '(manual copy)', 'on' if AUTO_UPDATE else 'off')
+    last_hb = 0.0; last_slot = None
     while True:
         try:
             now = b.server_now() or pd.Timestamp.utcnow().tz_localize(None)
@@ -89,17 +85,6 @@ def main():
             if time.time() - last_hb >= HEARTBEAT_SEC:
                 R.heartbeat(); last_hb = time.time()
             gas.flush()
-            if AUTO_UPDATE and VERSION_F.exists() and time.time() - last_upd >= UPDATE_CHECK_SEC and not daily_slot:
-                last_upd = time.time()
-                from mt5_ea.live import updater
-                try:
-                    new = updater.latest_sha()
-                except Exception as ex:
-                    new = None; logging.warning('update check failed: %s', ex)
-                if new and new != VERSION_F.read_text().strip():
-                    logging.info('new program version %s: restarting to update', new[:7])
-                    note('info', f'EA を更新して再起動します（{new[:7]}）')
-                    gas.flush(); sys.exit(3)                      # the launcher downloads the new files and starts again
         except Exception as ex:
             logging.exception('loop error')
             note('error', f'EA エラー: {ex}')
