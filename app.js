@@ -2004,6 +2004,25 @@ function openPendingReview() {
 }
 
 // ---- 週次レビューモーダル ----
+// 週のレビュー：EA の成績（EA_Trades、決済した週で数える）を裁量の下に口座ごとに出す
+function renderReviewEAStats_(weekStart) {
+  const box0 = document.getElementById('review-stats'); if (!box0) return;
+  let box = document.getElementById('review-ea-stats');
+  if (!box) { box = document.createElement('div'); box.id = 'review-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  const d = window.eaLive && window.eaLive.data && window.eaLive.data();
+  const from = fmtYmd(weekStart), endD = new Date(weekStart); endD.setDate(endD.getDate() + 7); const to = fmtYmd(endD);
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 10) >= from && String(t.ExitTime).slice(0, 10) < to);
+  const fmtYen = v => (v >= 0 ? '+' : '-') + '¥' + new Intl.NumberFormat('ja-JP').format(Math.round(Math.abs(v)));
+  const row = acc => {
+    const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
+    const R = g.reduce((s, t) => s + (Number(t.R) || 0), 0), P = g.reduce((s, t) => s + (Number(t.Profit) || 0), 0), w = g.filter(t => Number(t.R) > 0).length;
+    return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b"><span>${acc === 'live' ? '本番' : 'デモ'}口座</span>
+      <span>${g.length}回 · 勝率 ${Math.round(w / g.length * 100)}% · <b style="color:${R >= 0 ? '#4ade80' : '#f87171'}">${(R >= 0 ? '+' : '') + R.toFixed(1)}R</b> · ${fmtYen(P)}</span></div>`;
+  };
+  const body = row('demo') + row('live');
+  box.innerHTML = `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">🤖 EA（同じ週に決済した分）</div>` + (body || '<div style="font-size:12px;color:#64748b">この週の EA の決済はありません</div>');
+}
+
 function openReviewModal(weekKey) {
   // バックグラウンドで最新データを取得（土日のトレード入力反映）
   gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
@@ -2025,7 +2044,7 @@ function openReviewModal(weekKey) {
 
   // 対象週が今のカレンダー週なら「今週」、そうでなければ「先週」
   document.getElementById('review-modal-title').textContent = `📋 先週のレビュー`;
-  document.getElementById('review-stats-title').textContent = `先週の成績（自動集計）`;
+  document.getElementById('review-stats-title').textContent = `先週の成績（自動集計・裁量）`;
   document.getElementById('review-trades-title').textContent = `先週のトレード`;
 
   const endDate = new Date(weekStart);
@@ -2035,7 +2054,7 @@ function openReviewModal(weekKey) {
 
   // ── 成績自動集計（実トレードの決済のみ） ──
   const weekTrades = getWeekTrades(weekStart);
-  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済' && !/EA/i.test(String(t.Source || t.TradeType || '')));   // 裁量だけ
   let wins = 0, profit = 0, slSum = 0, slN = 0, entryOk = 0, exitOk = 0;
   closed.forEach(t => {
     const pips = parseFloat(t['実取得pips']) || 0;
@@ -2062,6 +2081,7 @@ function openReviewModal(weekKey) {
     stat('ｴﾝﾄﾘｰ遵守', n ? Math.round(entryOk / n * 100) + '%' : '--') +
     stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
     stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
+  renderReviewEAStats_(weekStart);
 
   // ── トレード一覧（タップで該当トレードの詳細へ） ──
   document.getElementById('review-trades').innerHTML = weekTrades.length === 0
@@ -2187,7 +2207,7 @@ function _renderRetroReviewModal(retroKey) {
 
   // 成績集計
   const weekTrades = getWeekTrades(weekStart);
-  const closed = weekTrades.filter(t => t['ステータス'] === '決済');
+  const closed = weekTrades.filter(t => t['ステータス'] === '決済' && !/EA/i.test(String(t.Source || t.TradeType || '')));   // 裁量だけ
   let wins = 0, profit = 0;
   closed.forEach(t => {
     if ((parseFloat(t['実取得pips']) || 0) > 10) wins++;
@@ -2369,11 +2389,24 @@ function savePromiseFromSettings() {
 }
 
 // ---- 月次総括 ----
+function renderMonthlyEAStats_(ym) {
+  const box0 = document.getElementById('monthly-stats2'); if (!box0) return;
+  let box = document.getElementById('monthly-ea-stats');
+  if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  const d = window.eaLive && window.eaLive.data && window.eaLive.data();
+  const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && String(t.ExitTime).slice(0, 7) === ym);
+  const line = acc => { const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';
+    const R = g.reduce((s, t) => s + (Number(t.R) || 0), 0), P = g.reduce((s, t) => s + (Number(t.Profit) || 0), 0), w = g.filter(t => Number(t.R) > 0).length;
+    return `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b"><span>${acc === 'live' ? '本番' : 'デモ'}口座</span><span>${g.length}回 · 勝率 ${Math.round(w / g.length * 100)}% · <b style="color:${R >= 0 ? '#4ade80' : '#f87171'}">${(R >= 0 ? '+' : '') + R.toFixed(1)}R</b> · ${P >= 0 ? '+' : '-'}¥${Math.round(Math.abs(P)).toLocaleString()}</span></div>`; };
+  const body = line('demo') + line('live');
+  box.innerHTML = `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">🤖 EA（この月に決済した分）</div>` + (body || '<div style="font-size:12px;color:#64748b">この月の EA の決済はありません</div>');
+}
+
 function maybeShowMonthlySummary() {
   const { last } = getDataMonthRange(); // 例: '2026-05'
   if (findReview('monthly', last)) return false; // 保存済み
   const monthTrades = App.data.entries.filter(t => {
-    if (t['ステータス'] !== '決済') return false;
+    if (t['ステータス'] !== '決済' || /EA/i.test(String(t.Source || t.TradeType || ''))) return false;   // 裁量だけ（EA は下に別で出す）
     const d = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     return d.startsWith(last);
   });
@@ -2423,6 +2456,7 @@ function maybeShowMonthlySummary() {
     stat('遵守損益', (ruleProfit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(ruleProfit)), ruleProfit >= 0 ? '#4ade80' : '#f87171') +
     stat('ｴﾝﾄﾘｰ遵守', Math.round(entryOk / n * 100) + '%') +
     stat('決済遵守', Math.round(exitOk / n * 100) + '%');
+  renderMonthlyEAStats_(last);
 
   // ── トレード一覧 ──
   const sorted = monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1);
@@ -2557,71 +2591,35 @@ async function compressForSpreadsheet(dataUrl) {
   return compressImageForUpload(dataUrl, 200, 0.50);
 }
 
-// ImgBB に直接アップロード（高画質・無圧縮）
-async function uploadToImgBB(dataUrl) {
-  // キーはGASスクリプトプロパティから取得（メモリキャッシュ）
-  if (!App.state.imgbbKey) {
-    try {
-      const res = await gasPost({ action: 'getImgBBKey' });
-      App.state.imgbbKey = res.key || '';
-    } catch(e) { App.state.imgbbKey = ''; }
-  }
-  const apiKey = App.state.imgbbKey;
-  if (!apiKey) return null;
-  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-  const formData = new FormData();
-  formData.append('key', apiKey);
-  formData.append('image', base64);
-  const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) return data.data.url;
-  throw new Error(data.error?.message || 'ImgBB upload failed');
+// 画像のアップロード：Google ドライブ（長い辺 1,600px に縮めてから）→ 失敗時は表に直接（低画質）
+// 一覧はドライブのサムネイル（drive.google.com/thumbnail）で直接表示する。古い ImgBB の画像はそのまま見られる
+function shrinkLongSide_(dataUrl, maxSide, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const r = Math.min(maxSide / Math.max(img.width, img.height), 1), c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); img.src = dataUrl;
+  });
 }
-
-// ImgBB優先アップロード：失敗時はDrive→base64の順でフォールバック
 async function uploadImageSmart(dataUrl, filename) {
-  // 0) オフライン時は即base64フォールバック（無駄なリトライ待ちを回避）
   if (!navigator.onLine) return compressForSpreadsheet(dataUrl);
-  // 1) ImgBB（高画質・ブラウザから直接）
   try {
-    const url = await uploadToImgBB(dataUrl);
-    if (url) { console.log('ImgBB upload OK:', url); return url; }
-  } catch (e) {
-    console.warn('ImgBB upload failed:', e.message);
-  }
-  // 2) Drive経由（GAS）
-  try {
-    const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
-    const res = await gasPost({ action: 'uploadImage', base64Data: compressed, filename });
-    if (res.success && res.fileId) {
-      return 'drive_images/' + res.fileId + '.jpg';
-    }
+    const small = await shrinkLongSide_(dataUrl, 1600, 0.85);
+    const res = await gasPost({ action: 'uploadImage', base64Data: small, filename: filename || ('img_' + Date.now() + '.jpg') });
+    if (res.success && res.fileId) return 'drive_images/' + res.fileId + '.jpg';
   } catch (e) {
     console.warn('Drive upload failed, fallback to base64:', e.message);
   }
-  // 3) 最終フォールバック：base64をスプシに直接保存（低画質）
   return compressForSpreadsheet(dataUrl);
 }
 
-async function updateImgBBStatusBar() {
-  const bar = document.getElementById('imgbb-status-bar');
-  if (!bar) return;
-  if (!App.state.imgbbKey) {
-    try {
-      const res = await gasPost({ action: 'getImgBBKey' });
-      App.state.imgbbKey = res.key || '';
-    } catch(e) { App.state.imgbbKey = ''; }
-  }
-  if (App.state.imgbbKey) {
-    bar.innerHTML = '✅ ImgBB 有効（高画質アップロード）';
-    bar.style.color = '#10b981';
-  } else {
-    bar.innerHTML = '⚠️ ImgBB未設定　GASスクリプトプロパティに IMGBB_API_KEY を設定してください';
-    bar.style.color = '#f59e0b';
-  }
+async function updateImgBBStatusBar() {   // ImgBB is no longer used
+  const bar = document.getElementById('imgbb-status-bar'); if (bar) bar.style.display = 'none';
 }
 
-// エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
 function findEntryImageField(t) {
   const entryKeys = ['ChartImage', 'EntryImage', 'エントリー画像', 'エントリーチャート', 'EntryChart', 'entry_image'];
   for (const k of entryKeys) {
@@ -2670,7 +2668,8 @@ function findImageField(t) {
   return '';
 }
 
-function getImageUrl(rawUrl) {
+function getImageUrl(rawUrl, size) {
+  const W = size || 1600;   // lists ask for small thumbnails, detail / lightbox for the large one
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
   if (!s || s === 'undefined' || s === 'null') return '';
@@ -2682,12 +2681,12 @@ function getImageUrl(rawUrl) {
   const m = s.match(/(?:id=|\/d\/|open\?id=)([a-zA-Z0-9_-]{15,})/);
   if (m) {
     const id = m[1].replace(/[^a-zA-Z0-9_-]/g, '');
-    return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+    return `https://drive.google.com/thumbnail?id=${id}&sz=w${W}`;
   }
   // drive_images/xxxxxx.jpg 形式 → Google Drive サムネイルURL に変換
   if (s.startsWith('drive_images/')) {
     const fileId = s.replace('drive_images/', '').replace(/\.jpg$/i, '');
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${W}`;
   }
   // AppSheet パス形式 (e.g. "Entries_Images/xxx.jpg")
   // キャッシュ済みなら返す
@@ -2936,7 +2935,7 @@ function renderGallery() {
     const index = App.data.entries.indexOf(t);
     const rawUrl = tradeExitImages(t)[0];
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
-    const imgUrl = getImageUrl(rawUrl);
+    const imgUrl = getImageUrl(rawUrl, 400);
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
@@ -6230,7 +6229,7 @@ function ideaCard(idea) {
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
   const isFav = idea['お気に入り'] === 'ON';
   const category = idea['カテゴリ'] || 'その他';
-  const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
+  const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean).map(u => getImageUrl(u, 600) || u);
   let imgHtml = '';
   if (urls.length === 1) {
     imgHtml = `<div style="margin-top:8px; background:#0f172a; border-radius:6px; overflow:hidden;">
@@ -6325,7 +6324,7 @@ function renderIdeaImageSlots(prefix) {
   let html = '';
   if (images.length) {
     html += '<div class="trade-image-carousel idea-image-carousel">' + images.map((url,i) =>
-      '<div class="trade-image-slide"><img src="'+String(url).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="ideaRemoveImage(\''+prefix+'\','+i+')">🗑️</button></div>'
+      '<div class="trade-image-slide"><img src="'+String(getImageUrl(url)||url).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="ideaRemoveImage(\''+prefix+'\','+i+')">🗑️</button></div>'
     ).join('') + '</div><div class="trade-image-dots"></div>';
   }
   if (images.length < 3) {
@@ -6350,20 +6349,10 @@ async function ideaOnImageSelected(event, prefix, idx) {
     images[idx] = e.target.result; // ローカルプレビュー
     uploading[idx] = true;
     renderIdeaImageSlots(prefix);
-    const base64 = e.target.result.split(',')[1];
     try {
-      const keyRes = await gasPost({ action: 'getImgBBKey' });
-      const apiKey = keyRes.key || '';
-      if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); uploading[idx] = false; renderIdeaImageSlots(prefix); return; }
-      const form = new FormData();
-      form.append('key', apiKey);
-      form.append('image', base64);
-      const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
-      if (res.success) {
-        images[idx] = res.data.url;
-      } else {
-        showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
-      }
+      const ref = await uploadImageSmart(e.target.result, 'memo_' + Date.now() + '.jpg');
+      if (ref && !String(ref).startsWith('data:')) images[idx] = ref;
+      else showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
     } catch(err) {
       showToast('⚠️ 画像アップロードエラー');
     }

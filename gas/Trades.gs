@@ -373,3 +373,33 @@ function impDiscard_(b) {
   T.sh.deleteRow(d._row); CacheService.getScriptCache().remove(CACHE_KEY);
   return {success: true};
 }
+
+// ------------------------------------------------------------------ time stamps
+/** One-off: rewrite old time stamps to Japan time with the offset (2026-10-24 21:15+09:00). Run once from the editor.
+ *  Only "when was this written" columns; EntryDate / EntryTime / ExitDate / ExitTime stay as the app uses them (already Japan time). */
+function fixOldTimestamps() {
+  const targets = {App_Settings: ['UpdatedAt'], EA_Calendar_Reminders: ['CreatedAt', 'UpdatedAt'], Reviews: ['作成日'], Pairs: ['確認日時'],
+                   Trades: ['CreatedAt', 'UpdatedAt']};
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), rep = {};
+  const conv = function (v) {
+    if (v === '' || v === null || v === undefined) return v;
+    if (v instanceof Date) return jstNow_(v);
+    const s = String(v).trim();
+    if (/\+09:00$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}T.*(Z|[+-]\d{2}:?\d{2})$/.test(s)) { const d = new Date(s); return isNaN(d) ? s : jstNow_(d); }   // ISO with zone (UTC)
+    const m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})[ T](\d{1,2}):(\d{2})/);                                              // already Japan time
+    return m ? m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2) + ' ' + ('0' + m[4]).slice(-2) + ':' + m[5] + '+09:00' : s;
+  };
+  Object.keys(targets).forEach(function (name) {
+    const sh = ss.getSheetByName(name); if (!sh || sh.getLastRow() < 2) return;
+    const h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    targets[name].forEach(function (col) {
+      const j = h.indexOf(col); if (j < 0) return;
+      const rg = sh.getRange(2, j + 1, sh.getLastRow() - 1, 1), vals = rg.getValues();
+      let n = 0; const out = vals.map(function (r) { const x = conv(r[0]); if (x !== r[0]) n++; return [x]; });
+      rg.setNumberFormat('@'); rg.setValues(out); rep[name + '.' + col] = n;
+    });
+  });
+  Logger.log(JSON.stringify(rep));
+  return rep;
+}

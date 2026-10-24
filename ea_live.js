@@ -288,13 +288,14 @@
       const head = `<div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>` + (xs.length ? `<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">${xs.length} 件 · 勝率 ${(w / xs.length * 100).toFixed(0)}% · 合計 ${(sumR > 0 ? '+' : '') + sumR.toFixed(1)}R · ${yen(sumP)}</div>` : '');
       return head + (xs.slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('') || '<div style="color:#64748b;text-align:center;padding:20px">決済した EA のトレードはまだありません</div>');
     },
-    analysisHtml: function () {
+    analysisHtml: function (kind) {
       if (!appKey()) return '';
+      if (kind === 'res') return resAnalysisHtml();
       const tab = a => `<button class="toggle-btn ${V.anAcc === a ? 'active' : ''}" onclick="eaLiveAnAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
       const xs = allTrades().filter(t => String(t.Account) === V.anAcc && t.Status === 'CLOSED');
       const by = {}; xs.forEach(t => (by[t.EA] = by[t.EA] || []).push(t));
-      Object.keys(by).filter(k => /^RES:/.test(k)).forEach(k => { (by['RES'] = by['RES'] || []).push(...by[k]); delete by[k]; });
-      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on)).concat(by['RES'] ? ['RES'] : []);
+      Object.keys(by).filter(k => /^RES:/.test(k)).forEach(k => delete by[k]);          // reservations have their own tab
+      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on));
       const num = (v, d) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d);
       const rows = keys.map(k => {
         const g = by[k] || [], R = g.map(t => Number(t.R) || 0), n = g.length, w = R.filter(r => r > 0).length;
@@ -324,11 +325,11 @@
   };
   function refreshViews() {
     if (typeof renderPositions === 'function' && document.getElementById('positions-list')) try { renderPositions(); } catch (e) {}
-    const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml();
+    const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml(V.anKind);
     if (document.getElementById('modal-history')?.classList.contains('active') && typeof renderHistoryList === 'function') renderHistoryList();
   }
   window.eaLiveHistAcc = a => { V.histAcc = a; if (typeof renderHistoryList === 'function') renderHistoryList(); };
-  window.eaLiveAnAcc = a => { V.anAcc = a; const an = document.getElementById('eal-analysis'); if (an) an.innerHTML = window.eaLive.analysisHtml(); };
+  window.eaLiveAnAcc = a => { V.anAcc = a; const an = document.getElementById('eal-analysis'); if (an) an.innerHTML = window.eaLive.analysisHtml(V.anKind); };
   window.eaLiveTrade = function (id) {
     const t = allTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
     const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
@@ -344,6 +345,21 @@
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
   };
+  function resAnalysisHtml() {
+    const tab = a => `<button class="toggle-btn ${V.anAcc === a ? 'active' : ''}" onclick="eaLiveAnAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
+    const xs = allTrades().filter(t => String(t.Account) === V.anAcc && /^RES:/.test(String(t.EA)) && t.Status === 'CLOSED');
+    const by = {}; xs.forEach(t => (by[t.Symbol] = by[t.Symbol] || []).push(t));
+    const stat = g => { const R = g.map(t => Number(t.R) || 0), n = R.length, w = R.filter(r => r > 0).length, pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0), sum = R.reduce((a, b) => a + b, 0);
+      return `<td>${n}</td><td>${n ? Math.round(w / n * 100) + '%' : '—'}</td><td>${n ? (sum / n).toFixed(2) : '—'}</td><td>${neg ? (pos / neg).toFixed(2) : n ? '∞' : '—'}</td><td>${(sum > 0 ? '+' : '') + sum.toFixed(1)}</td><td>${yen(g.reduce((a, t) => a + (Number(t.Profit) || 0), 0))}</td>`; };
+    const rows = Object.keys(by).sort().map(k => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">${esc(k)}</td>${stat(by[k])}</tr>`).join('');
+    const wait = resAll().filter(r => String(r.Account) === V.anAcc && r.Status === 'WAIT').length;
+    return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">📌 予約エントリーの成績</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>
+      ${xs.length ? `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">
+        <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">銘柄</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th><th>損益</th></tr>${rows}
+        <tr style="font-weight:700"><td style="text-align:left;padding:6px 4px">合計</td>${stat(xs)}</tr></table></div>` : '<div style="font-size:12px;color:#94a3b8">決済した予約エントリーはまだありません</div>'}
+      <div style="font-size:11px;color:#64748b;margin-top:6px">待機中の予約 ${wait} 件</div></div>`;
+  }
   // analysis: show the EA panel when the analysis type "EA" is chosen (old ea.js owns the tabs)
   function hookAnalysis() {
     const prevType = window.eaAnalysisType;
@@ -353,10 +369,13 @@
       let an = document.getElementById('eal-analysis'); const tabs = document.getElementById('trade-type-tabs');
       if (!an && tabs) { an = document.createElement('div'); an.id = 'eal-analysis'; tabs.parentNode.insertBefore(an, tabs.nextSibling); }
       if (!an) return;
-      const on = b && b.dataset && b.dataset.v === 'ea'; an.style.display = on ? '' : 'none';
-      if (on) { an.innerHTML = window.eaLive.analysisHtml(); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } }
+      const v = b && b.dataset && b.dataset.v, on = v === 'ea' || v === 'res'; an.style.display = on ? '' : 'none'; V.anKind = v;
+      if (v === 'res') { window._eaAnalysisType = 'ea'; if (typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {} }   // hand-written sections show nothing for 予約
+      if (on) { an.innerHTML = window.eaLive.analysisHtml(v); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } }
     };
     window.eaAnalysisType._eal = 1;
+    const tabs = document.getElementById('trade-type-tabs');
+    if (tabs && !tabs.querySelector('[data-v="res"]')) { const bt = document.createElement('button'); bt.className = 'ea-btn'; bt.dataset.v = 'res'; bt.textContent = '予約'; bt.setAttribute('onclick', 'eaAnalysisType(this)'); tabs.appendChild(bt); }
   }
   document.addEventListener('DOMContentLoaded', () => { hookAnalysis(); setTimeout(() => { hookAnalysis(); if (appKey()) { S._loadedAt = Date.now(); load(); } }, 1500); });
 

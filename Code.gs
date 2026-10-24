@@ -17,6 +17,8 @@ const EA_REPLAY_SHEET = 'EA_Replay_Requests';
 const MT5_IMPORT_REQUESTS_SHEET = 'MT5_Import_Requests';
 
 // "Trades" (Trades.gs) replaces "Entries" after switchToTrades(); without Trades.gs everything stays on "Entries"
+// time stamps: Japan time with the offset, e.g. 2026-10-24 21:15+09:00 (docs/EA_SYSTEM_PLAN.md)
+function jstNow_(d) { return Utilities.formatDate(d || new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm') + '+09:00'; }
 function entriesSheetName_() { return typeof tradesSheetName_ === 'function' ? tradesSheetName_() : ENTRIES_SHEET; }
 
 // =============================================
@@ -918,7 +920,7 @@ function getCalendarReminders(){
 function saveCalendarReminder(data){
   ensureCalendarReminderSheet_();data=data||{};if(!data.EventKey||!data.EventTimeJST)return {success:false,error:'EventKey/EventTimeJST required'};
   const rows=sheetObjects_(CALENDAR_REMINDER_SHEET),old=rows.find(function(x){return String(x.EventKey)===String(data.EventKey);});
-  data.ReminderID=old&&old.ReminderID?old.ReminderID:Utilities.getUuid();data.NotifyMinutes=Number(data.NotifyMinutes||5);data.Enabled=data.Enabled===false||String(data.Enabled).toUpperCase()==='OFF'?'OFF':'ON';data.Sent=data.Enabled==='ON'?'NO':String(old&&old.Sent||'NO');data.CreatedAt=old&&old.CreatedAt?old.CreatedAt:new Date().toISOString();data.UpdatedAt=new Date().toISOString();
+  data.ReminderID=old&&old.ReminderID?old.ReminderID:Utilities.getUuid();data.NotifyMinutes=Number(data.NotifyMinutes||5);data.Enabled=data.Enabled===false||String(data.Enabled).toUpperCase()==='OFF'?'OFF':'ON';data.Sent=data.Enabled==='ON'?'NO':String(old&&old.Sent||'NO');data.CreatedAt=old&&old.CreatedAt?old.CreatedAt:jstNow_();data.UpdatedAt=jstNow_();
   upsertByKey_(CALENDAR_REMINDER_SHEET,CALENDAR_REMINDER_HEADERS,'ReminderID',data);try{CacheService.getScriptCache().remove('calendar_reminders_v1');}catch(e){}return {success:true,reminderId:data.ReminderID};
 }
 
@@ -992,7 +994,7 @@ function getReviews() {
       約束:      String(r[4] || ''),
       約束判定:  String(r[5] || ''),
       作成日:    r[6] instanceof Date
-                   ? Utilities.formatDate(r[6], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm')
+                   ? jstNow_(r[6])
                    : String(r[6] || ''),
     }));
 }
@@ -1009,7 +1011,7 @@ function saveReview(data) {
     data['メモ'] || '',
     data['約束'] || '',
     data['約束判定'] || '',
-    Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+    jstNow_(),
   ]]);
   return { success: true, id: id };
 }
@@ -1564,7 +1566,7 @@ function saveEAError(data){
 }
 function saveAppSettings(data){
   ensureEASheets(); data=data||{};
-  Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss')}));
+  Object.keys(data).forEach(k=>upsertByKey_(APP_SETTINGS_SHEET,['Key','Value','UpdatedAt'],'Key',{Key:k,Value:data[k],UpdatedAt:jstNow_()}));
   syncEAControlProperty_(data);
   clearAppSettingsCaches_();
   return {success:true};
