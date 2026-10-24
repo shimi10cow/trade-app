@@ -49,4 +49,5 @@
 
 - （main にあって、まだデプロイしていない分）取り込みの設定の読み出し `eaImportSettings`、予約の損切り 4 択、Telegram 停止の書き込み `eaStop` ほか（`OPEN_ITEMS.md` の A1）
 - 起動の重さの直し（`Code.gs` のトレード・通貨ペアの一時保存、`gas/Trades.gs` の `cleanPairsEAColumns`）。貼るのは `Code.gs` と `Trades.gs`
+- 取り込みで自動の紐付けをやめ、全部を下書きにする／候補は 3 時間以内・過去の履歴も（`gas/Trades.gs`。B3 の決定 2026-10-25）
 - G4（古いコードの削除）で GAS を直したら、ここに足す
