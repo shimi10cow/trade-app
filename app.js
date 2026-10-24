@@ -2557,71 +2557,35 @@ async function compressForSpreadsheet(dataUrl) {
   return compressImageForUpload(dataUrl, 200, 0.50);
 }
 
-// ImgBB に直接アップロード（高画質・無圧縮）
-async function uploadToImgBB(dataUrl) {
-  // キーはGASスクリプトプロパティから取得（メモリキャッシュ）
-  if (!App.state.imgbbKey) {
-    try {
-      const res = await gasPost({ action: 'getImgBBKey' });
-      App.state.imgbbKey = res.key || '';
-    } catch(e) { App.state.imgbbKey = ''; }
-  }
-  const apiKey = App.state.imgbbKey;
-  if (!apiKey) return null;
-  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-  const formData = new FormData();
-  formData.append('key', apiKey);
-  formData.append('image', base64);
-  const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (data.success) return data.data.url;
-  throw new Error(data.error?.message || 'ImgBB upload failed');
+// 画像のアップロード：Google ドライブ（長い辺 1,600px に縮めてから）→ 失敗時は表に直接（低画質）
+// 一覧はドライブのサムネイル（drive.google.com/thumbnail）で直接表示する。古い ImgBB の画像はそのまま見られる
+function shrinkLongSide_(dataUrl, maxSide, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const r = Math.min(maxSide / Math.max(img.width, img.height), 1), c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); img.src = dataUrl;
+  });
 }
-
-// ImgBB優先アップロード：失敗時はDrive→base64の順でフォールバック
 async function uploadImageSmart(dataUrl, filename) {
-  // 0) オフライン時は即base64フォールバック（無駄なリトライ待ちを回避）
   if (!navigator.onLine) return compressForSpreadsheet(dataUrl);
-  // 1) ImgBB（高画質・ブラウザから直接）
   try {
-    const url = await uploadToImgBB(dataUrl);
-    if (url) { console.log('ImgBB upload OK:', url); return url; }
-  } catch (e) {
-    console.warn('ImgBB upload failed:', e.message);
-  }
-  // 2) Drive経由（GAS）
-  try {
-    const compressed = await compressImageForUpload(dataUrl, 1200, 0.88);
-    const res = await gasPost({ action: 'uploadImage', base64Data: compressed, filename });
-    if (res.success && res.fileId) {
-      return 'drive_images/' + res.fileId + '.jpg';
-    }
+    const small = await shrinkLongSide_(dataUrl, 1600, 0.85);
+    const res = await gasPost({ action: 'uploadImage', base64Data: small, filename: filename || ('img_' + Date.now() + '.jpg') });
+    if (res.success && res.fileId) return 'drive_images/' + res.fileId + '.jpg';
   } catch (e) {
     console.warn('Drive upload failed, fallback to base64:', e.message);
   }
-  // 3) 最終フォールバック：base64をスプシに直接保存（低画質）
   return compressForSpreadsheet(dataUrl);
 }
 
-async function updateImgBBStatusBar() {
-  const bar = document.getElementById('imgbb-status-bar');
-  if (!bar) return;
-  if (!App.state.imgbbKey) {
-    try {
-      const res = await gasPost({ action: 'getImgBBKey' });
-      App.state.imgbbKey = res.key || '';
-    } catch(e) { App.state.imgbbKey = ''; }
-  }
-  if (App.state.imgbbKey) {
-    bar.innerHTML = '✅ ImgBB 有効（高画質アップロード）';
-    bar.style.color = '#10b981';
-  } else {
-    bar.innerHTML = '⚠️ ImgBB未設定　GASスクリプトプロパティに IMGBB_API_KEY を設定してください';
-    bar.style.color = '#f59e0b';
-  }
+async function updateImgBBStatusBar() {   // ImgBB is no longer used
+  const bar = document.getElementById('imgbb-status-bar'); if (bar) bar.style.display = 'none';
 }
 
-// エントリー写真専用（アプリアップロード or AppSheetエントリーチャート）
 function findEntryImageField(t) {
   const entryKeys = ['ChartImage', 'EntryImage', 'エントリー画像', 'エントリーチャート', 'EntryChart', 'entry_image'];
   for (const k of entryKeys) {
@@ -2670,7 +2634,8 @@ function findImageField(t) {
   return '';
 }
 
-function getImageUrl(rawUrl) {
+function getImageUrl(rawUrl, size) {
+  const W = size || 1600;   // lists ask for small thumbnails, detail / lightbox for the large one
   if (!rawUrl) return '';
   const s = String(rawUrl).trim();
   if (!s || s === 'undefined' || s === 'null') return '';
@@ -2682,12 +2647,12 @@ function getImageUrl(rawUrl) {
   const m = s.match(/(?:id=|\/d\/|open\?id=)([a-zA-Z0-9_-]{15,})/);
   if (m) {
     const id = m[1].replace(/[^a-zA-Z0-9_-]/g, '');
-    return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+    return `https://drive.google.com/thumbnail?id=${id}&sz=w${W}`;
   }
   // drive_images/xxxxxx.jpg 形式 → Google Drive サムネイルURL に変換
   if (s.startsWith('drive_images/')) {
     const fileId = s.replace('drive_images/', '').replace(/\.jpg$/i, '');
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${W}`;
   }
   // AppSheet パス形式 (e.g. "Entries_Images/xxx.jpg")
   // キャッシュ済みなら返す
@@ -2936,7 +2901,7 @@ function renderGallery() {
     const index = App.data.entries.indexOf(t);
     const rawUrl = tradeExitImages(t)[0];
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
-    const imgUrl = getImageUrl(rawUrl);
+    const imgUrl = getImageUrl(rawUrl, 400);
     const pips = parseFloat(t['実取得pips']) || 0;
     const isWin = pips > 10;
     const isEven = pips >= -5 && pips <= 10;
@@ -6230,7 +6195,7 @@ function ideaCard(idea) {
   const dateStr = (idea['日付'] || '').replace(/-/g, '/');
   const isFav = idea['お気に入り'] === 'ON';
   const category = idea['カテゴリ'] || 'その他';
-  const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean);
+  const urls = [idea['画像URL'], idea['画像URL2'], idea['画像URL3']].filter(Boolean).map(u => getImageUrl(u, 600) || u);
   let imgHtml = '';
   if (urls.length === 1) {
     imgHtml = `<div style="margin-top:8px; background:#0f172a; border-radius:6px; overflow:hidden;">
@@ -6325,7 +6290,7 @@ function renderIdeaImageSlots(prefix) {
   let html = '';
   if (images.length) {
     html += '<div class="trade-image-carousel idea-image-carousel">' + images.map((url,i) =>
-      '<div class="trade-image-slide"><img src="'+String(url).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="ideaRemoveImage(\''+prefix+'\','+i+')">🗑️</button></div>'
+      '<div class="trade-image-slide"><img src="'+String(getImageUrl(url)||url).replace(/"/g,'&quot;')+'" referrerpolicy="no-referrer"><button type="button" class="trade-image-delete" onclick="ideaRemoveImage(\''+prefix+'\','+i+')">🗑️</button></div>'
     ).join('') + '</div><div class="trade-image-dots"></div>';
   }
   if (images.length < 3) {
@@ -6350,20 +6315,10 @@ async function ideaOnImageSelected(event, prefix, idx) {
     images[idx] = e.target.result; // ローカルプレビュー
     uploading[idx] = true;
     renderIdeaImageSlots(prefix);
-    const base64 = e.target.result.split(',')[1];
     try {
-      const keyRes = await gasPost({ action: 'getImgBBKey' });
-      const apiKey = keyRes.key || '';
-      if (!apiKey) { showToast('⚠️ ImgBB APIキー未設定'); uploading[idx] = false; renderIdeaImageSlots(prefix); return; }
-      const form = new FormData();
-      form.append('key', apiKey);
-      form.append('image', base64);
-      const res = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form }).then(r => r.json());
-      if (res.success) {
-        images[idx] = res.data.url;
-      } else {
-        showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
-      }
+      const ref = await uploadImageSmart(e.target.result, 'memo_' + Date.now() + '.jpg');
+      if (ref && !String(ref).startsWith('data:')) images[idx] = ref;
+      else showToast('⚠️ 画像アップロード失敗（プレビューのみ表示）');
     } catch(err) {
       showToast('⚠️ 画像アップロードエラー');
     }
