@@ -64,7 +64,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1};
+const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1};
 const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -75,7 +75,7 @@ function routeEALive_(action, body) {
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
                 eaGetDashboard: ealDashboard_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
-                eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_,
+                eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
                 eaImportAdopt: b2 => impAdopt_(b2), eaImportLink: b2 => impLink_(b2), eaImportSplit: b2 => impSplit_(b2),
                 eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2)}[action];
@@ -163,6 +163,16 @@ function ealSaveConfig_(b) {
   if (!b.config || typeof b.config !== 'object') throw new Error('config required');
   const r = ealRows_('config').find(x => String(x.Account) === acc);
   ealWriteRow_('config', r ? r._row : null, {Account: acc, ConfigJSON: JSON.stringify(b.config), UpdatedAt: ealNow_()});
+  return {success: true};
+}
+
+/** EA PC: Telegram emergency stop -> the app shows 全体停止 too. */
+function ealStop_(b) {
+  const acc = String(b.account || 'demo'), cfg = ealConfigFor_(acc) || {};
+  cfg.running = false;
+  const r = ealRows_('config').find(x => String(x.Account) === acc);
+  ealWriteRow_('config', r ? r._row : null, {Account: acc, ConfigJSON: JSON.stringify(cfg), UpdatedAt: ealNow_()});
+  ealLog_({account: acc, level: 'warn', message: 'Telegram で停止'});
   return {success: true};
 }
 

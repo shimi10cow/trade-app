@@ -20,7 +20,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from mt5_ea import telegram_notify as telegram  # noqa: E402
-from mt5_ea.live import gas  # noqa: E402
+from mt5_ea.live import gas, tg_stop  # noqa: E402
 from mt5_ea.live.broker import MT5Broker  # noqa: E402
 from mt5_ea.live.runner import MAGIC, Runner  # noqa: E402
 
@@ -87,7 +87,7 @@ def main():
             logging.warning('symbol %s not available: %s', s_, ex)
     logging.info('live EA started: account %s (%s) kind=%s, %d EAs, magic %s-%s', a['login'], a['server'], kind, len(MAGIC), min(MAGIC.values()), max(MAGIC.values()))
     note('info', f'EA 起動 {kind} 口座 {a["login"]}')
-    last_hb = 0.0; last_slot = None; imports_started = set()
+    last_hb = 0.0; last_slot = None; imports_started = set(); last_tg = 0.0
     while True:
         try:
             now = b.server_now() or pd.Timestamp.utcnow().tz_localize(None)
@@ -104,6 +104,15 @@ def main():
                 if R.import_request and kind == 'demo':     # only one EA process runs imports
                     start_import(R.import_request, imports_started)
             gas.flush()
+            if time.time() - last_tg >= 30:                 # Telegram emergency stop (/stop, /stop demo, /stop live, /status)
+                last_tg = time.time()
+                for cmd in tg_stop.poll(R.state, kind):
+                    if cmd == 'stop':
+                        R.emergency_stop()
+                        telegram.send('error', f'EA（{kind}）を停止しました。新しい注文は出しません（保有中の損切りはそのまま）。再開はアプリで「稼働」', dict(notifyError=True))
+                    elif cmd == 'status':
+                        telegram.send('error', f'EA（{kind}）{"稼働中" if R.config.get("running") else "停止中"} 口座 {a["login"]}', dict(notifyError=True))
+                R.save()
         except Exception as ex:
             logging.exception('loop error')
             note('error', f'EA エラー: {ex}')
