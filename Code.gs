@@ -76,6 +76,10 @@ const GAS_ACTIONS = {
 
 function doGet(e) {
   const action = e.parameter.action;
+  if (action && String(action).indexOf('ea') === 0 && typeof routeEALive_ === 'function') {   // new live EA backend (EA_Live.gs)
+    const r = routeEALive_(action, e.parameter || {});
+    if (r) return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+  }
 
   // 画像URL解決（Entries_Images/xxx.jpg のようなパスからDrive URLを返す）
   if (action === 'getImageUrl') {
@@ -102,6 +106,10 @@ function doGet(e) {
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
   const action = body.action;
+  if (action && String(action).indexOf('ea') === 0 && typeof routeEALive_ === 'function') {   // new live EA backend (EA_Live.gs)
+    const r = routeEALive_(action, body);
+    if (r) return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+  }
 
   let result;
   if (action === 'saveEntry') {
