@@ -18,7 +18,8 @@ class EA:
     key: str
     symbol: str
     run: Callable                      # run(F, env) -> dict(trades, open, pending)
-    weight: float = 1.0                # lot weight (half lot for gold S / Q)
+    weight: float = 1.0                # default lot weight (half lot for gold S / Q)
+    weight_choices: tuple = (1.0,)     # weights the app may switch to (gold S / Q: half or full)
     window_days: int = 600             # M15 history the live run needs
     warm_days: int = 250               # part of the window only used to build the state
     entry_ok: Callable = field(default=lambda t: True)   # extra check on a new entry's signal time
@@ -36,9 +37,9 @@ ADOPTED = [
     EA('C@EURUSD', 'EURUSD', lambda F, env: C_.run(F, env=env)),
     EA('C@USDJPY', 'USDJPY', lambda F, env: C_.run(F, strength=True, env=env)),
     EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY'])),
-    EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight=0.5),
+    EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
     EA('S@BTCUSD', 'BTCUSD', lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD']), entry_ok=weekdays),
-    EA('Q@XAUUSD', 'XAUUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD']), weight=0.5),
+    EA('Q@XAUUSD', 'XAUUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
     EA('Q@XAGUSD', 'XAGUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAGUSD'])),
     EA('Q@US30', 'US30', lambda F, env: Q.run(F, *Q.ADOPTED['US30'])),
     EA('M@US30', 'US30', lambda F, env: M.run(F, **M.ADOPTED['US30'])),
