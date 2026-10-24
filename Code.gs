@@ -8,7 +8,8 @@ const ENTRIES_SHEET  = 'Entries';
 const PAIRS_SHEET    = 'Pairs';
 const DRIVE_FOLDER   = 'TradeImages';
 const CACHE_KEY      = 'entries_cache';
-const CACHE_TTL      = 300; // 5分
+const CACHE_TTL      = 21600; // 6 時間（書き込みのたびに消すので、長くても古い表示にはならない）
+const PAIRS_CACHE_KEY = 'pairs_cache_v2';
 const EA_SETTINGS_SHEET = 'EA_Settings';
 const EA_SIGNALS_SHEET = 'EA_Signals';
 const MT5_EXECUTIONS_SHEET = 'MT5_Executions';
@@ -229,13 +230,47 @@ function doPost(e) {
 // =============================================
 // データ読み込み
 // =============================================
+// 大きいデータの一時保存（CacheService は 1 件 100KB までなので小分けにする）。
+// key には目次（何個に分けたか）だけを置き、中身は key#0, key#1 … に置く。
+// 書き込み側は今までどおり remove(key) するだけで、目次が消えて一時保存は使われなくなる。
+const BIG_CACHE_CHUNK_ = 25000;   // 文字数（日本語は 1 文字 3 バイトなので 75KB 以下）
+function cacheGetBig_(key) {
+  try {
+    const c = CacheService.getScriptCache(), head = c.get(key);
+    if (!head) return null;
+    const h = JSON.parse(head);
+    if (Array.isArray(h)) return h;                       // 古い形（1 件にそのまま入れた分）
+    if (!h || !h.chunks) return null;
+    const keys = []; for (let i = 0; i < h.chunks; i++) keys.push(key + '#' + i);
+    const got = c.getAll(keys);
+    if (keys.some(k => got[k] == null)) return null;
+    return JSON.parse(keys.map(k => got[k]).join(''));
+  } catch (e) { return null; }
+}
+// 読み始める前に予約札を目次の場所に置く。読んでいる間に書き込みがあると札が消えるので、
+// その時は古い中身を一時保存しない（読み込み中の保存と重なっても、古い一覧が 6 時間残らないように）。
+function cacheReserve_(key) {
+  const token = Utilities.getUuid();
+  try { CacheService.getScriptCache().put(key, JSON.stringify({pending: token}), 120); } catch (e) {}
+  return token;
+}
+function cachePutBig_(key, obj, token) {
+  try {
+    const c = CacheService.getScriptCache();
+    const head = c.get(key);
+    if (!head || (JSON.parse(head) || {}).pending !== token) return;   // 読んでいる間に書き込みがあった
+    const s = JSON.stringify(obj), parts = {};
+    let n = 0; for (let i = 0; i < s.length; i += BIG_CACHE_CHUNK_) parts[key + '#' + (n++)] = s.slice(i, i + BIG_CACHE_CHUNK_);
+    c.putAll(parts, CACHE_TTL);
+    c.put(key, JSON.stringify({chunks: n}), CACHE_TTL);   // 目次は最後に置く
+  } catch (e) {}                                           // 一時保存に失敗しても読み込みは続ける
+}
+function pairsCacheClear_() { try { CacheService.getScriptCache().remove(PAIRS_CACHE_KEY); } catch (e) {} }
+
 function getEntries() {
-  // キャッシュ確認
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(CACHE_KEY);
-  if (cached) {
-    return JSON.parse(cached);
-  }
+  const cached = cacheGetBig_(CACHE_KEY);
+  if (cached) return cached;
+  const token = cacheReserve_(CACHE_KEY);
 
   const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   const data = sheet.getDataRange().getValues();
@@ -261,21 +296,20 @@ function getEntries() {
       return typeof tradesExpand_ === 'function' ? tradesExpand_(obj) : obj;
     });
 
-  try {
-    cache.put(CACHE_KEY, JSON.stringify(entries), CACHE_TTL);
-  } catch(e) {
-    // キャッシュサイズ超過は無視
-  }
+  cachePutBig_(CACHE_KEY, entries, token);
   return entries;
 }
 
 function getPairs() {
+  const cached = cacheGetBig_(PAIRS_CACHE_KEY);
+  if (cached) return cached;
+  const token = cacheReserve_(PAIRS_CACHE_KEY);
   const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) return [];
 
   const headers = data[0].map(h => String(h).trim());
-  return data.slice(1)
+  const pairs = data.slice(1)
     .filter(row => row[0])
     .map(row => {
       const obj = {};
@@ -292,6 +326,8 @@ function getPairs() {
       });
       return typeof tradesExpand_ === 'function' ? tradesExpand_(obj) : obj;
     });
+  cachePutBig_(PAIRS_CACHE_KEY, pairs, token);
+  return pairs;
 }
 
 function updatePair(pairName, data) {
@@ -312,6 +348,7 @@ function updatePair(pairName, data) {
     }
   });
   try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
+  pairsCacheClear_();
   return { success: true };
 }
 
@@ -329,6 +366,7 @@ function resetPairFlags() {
     if (flagCol < 0) return { success: false, error: 'フラグ列が見つかりません' };
     const values = data.slice(1).map(row => [String(row[pairCol] || '').trim() ? '様子見' : row[flagCol]]);
     sheet.getRange(2, flagCol + 1, values.length, 1).setValues(values);
+    pairsCacheClear_();
     return { success: true, updated: values.filter(v => v[0] === '様子見').length };
   } catch (e) {
     return { success: false, error: e.message };
@@ -1194,6 +1232,7 @@ function ensurePairColumns(columns) {
       added++;
     }
   });
+  if (added) pairsCacheClear_();
   return { success: true, added };
 }
 

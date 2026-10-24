@@ -139,6 +139,7 @@ function cleanPairsEAColumns() {
   const h = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   ['EA許可BUY', 'EA許可SELL', 'TL推進環境', 'TL逆トレ環境', 'EA環境確認日時', 'EA許可方向'].map(function (n) { return h.indexOf(n); })
     .filter(function (i) { return i >= 0; }).sort(function (a, b) { return b - a; }).forEach(function (i) { sh.deleteColumn(i + 1); });
+  if (typeof pairsCacheClear_ === 'function') pairsCacheClear_();
   Logger.log('Pairs EA columns removed');
 }
 
