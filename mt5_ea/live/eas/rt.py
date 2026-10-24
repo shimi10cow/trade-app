@@ -37,6 +37,26 @@ def _run_engine(m15, cfg):
         EM.load_m15 = old
 
 
+_SEED = None
+
+
+def q75_seed(before):
+    """R2c (EURUSD) q75 strengths of the research run that happened before `before` (mt5_ea/live/data). The live window
+    (1,100 days) is shorter than the research history, so without this the q75 limit would come from fewer points."""
+    global _SEED
+    if _SEED is None:
+        import json
+        from pathlib import Path
+        f = Path(__file__).resolve().parents[1] / 'data' / 'q75_R2c_EURUSD.json'
+        _SEED = json.loads(f.read_text())['points'] if f.exists() else []
+    b = str(pd.Timestamp(before))
+    out = {1: [], -1: []}
+    for t, sd, v in _SEED:
+        if t < b:
+            out[int(sd)].append(v)
+    return out
+
+
 def gates(F: Frames, env: Env):
     """regime_ea.gate_R / gate_T and regime_ea2 env(...) as callables (t = M15 bar open time, like the engine passes)."""
     R1bars = [b[0] for b in F.R1['bars']]; C1 = F.C1
@@ -57,12 +77,15 @@ def gates(F: Frames, env: Env):
     )
 
 
-def run(F: Frames, key, env=None, m15=None):
+def run(F: Frames, key, env=None, m15=None, seed=True):
     """key: 'R2c' or 'T1t'. Uses every M15 bar of F (m15_all) like the research engine run.
     Returns dict(trades, open, pending) in the common format (t = entry bar time, entry at that bar's close)."""
     env = env or Env(F.m15_all)
     src = F.m15_all if m15 is None else m15
-    tr, d = _run_engine(src, gates(F, env)[key]())
+    cfg = gates(F, env)[key]()
+    if key == 'R2c' and seed:
+        cfg.q75_seed = q75_seed(src.t.iat[0])        # live: the research q75 history from before this window
+    tr, d = _run_engine(src, cfg)
     if not len(tr):
         return dict(trades=pd.DataFrame(), open=[], pending=[])
     tr = tr.rename(columns=dict(time='t', ExitTime='exit_t', initial_sl='sl0'))
