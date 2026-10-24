@@ -51,7 +51,7 @@ def setups(F: Frames, tf='H1'):
     TURN = {d: sorted(e['idx'] for e in F.R15['prov_events'] if e['action'] in ('REVERSAL', 'PROV_START') and e['to'] == d) for d in ('up', 'down')}
     ev = []
     for e in _events(F, tf):
-        s, Hx = e['side'], e['H']; i0 = CL15.searchsorted(e['te']); iend = min(CL15.searchsorted(e['te'] + pd.Timedelta('120h')), len(Mc) - 1)
+        s, Hx = e['side'], e['H']; i0 = CL15.searchsorted(e['te']); iend = min(CL15.searchsorted(e['te'] + pd.Timedelta('120h')), len(Mc))
         Lx = None; rally = None
         for i in range(i0, iend):
             if (Mh[i] > Hx) if s == -1 else (Ml[i] < Hx):
