@@ -72,7 +72,23 @@ class Runner:
 
     def set_config(self, cfg):
         if cfg:
+            if self.state.get('tg_stop'):                       # Telegram stop not yet written to the app: keep it stopped
+                cfg = dict(cfg, running=False)
             self.config = cfg; save_json(self.config_file, cfg)
+
+    def emergency_stop(self):
+        """Telegram /stop: no new orders from now on (positions keep their server-side stops). Also written to the app."""
+        self.config = dict(self.config, running=False); save_json(self.config_file, self.config)
+        self.state['tg_stop'] = True; self.save()
+        self._push_stop()
+
+    def _push_stop(self):
+        try:
+            r = gas.call('eaStop', dict(account=self.kind))
+            if isinstance(r, dict) and r.get('success'):
+                self.state['tg_stop'] = False; self.save()
+        except Exception as ex:
+            logging.warning('eaStop failed (will retry): %s', ex)
 
     def save(self):
         self.state['done_signals'] = self.state['done_signals'][-500:]
@@ -295,6 +311,8 @@ class Runner:
         x = dict(account=self.kind, login=a.get('login'), balance=a['balance'], equity=a['equity'], peak=self.state.get('peak'),
                  dd=(1 - a['equity'] / self.state['peak']) if self.state.get('peak') else 0, positions=len(self.b.positions(set(MAGIC.values()) | {RV.RES_MAGIC})),
                  outbox=gas.pending_count(), time=to_jst(self.b.server_now() or pd.Timestamp.now()))
+        if self.state.get('tg_stop'):
+            self._push_stop()
         try:
             r = gas.call('eaHeartbeat', x)
             if isinstance(r, dict) and r.get('config'):
