@@ -150,7 +150,7 @@ class Runner:
         if tp is not None and side * (tp - px) <= 0:
             tp = None
         lots, money, note = RV.lots_for_res(self.b.spec(sym), eq, str(r.get('LotMode') or 'pct'), r.get('LotValue') or 0.5, abs(px - sl))
-        rec = dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px, sl=sl, tp=tp or '',
+        rec = dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
                    lots=lots, risk_jpy=round(money), mult=1, weight=1, note=note, reason=f"予約 {r.get('Trigger')} ストキャス")
         if not self.config.get('running', False) or lots <= 0:
             why = '全体停止中' if not self.config.get('running', False) else note
@@ -258,7 +258,7 @@ class Runner:
         mult = sizing.calendar_mult(sym, s, p['signal_t'], tdm)
         lots, money, note = sizing.lots_for(self.b.spec(sym), eq, float(self.state['peak']), float(self.config.get('base_risk', 0.01)), mult, cfg['weight'], dist)
         side_j = '買い' if s == 1 else '売り'
-        rec = dict(account=self.kind, ea=key, symbol=sym, side=s, signal_time=to_jst(p['signal_t']), price=px, sl=sl, tp=tp or '',
+        rec = dict(account=self.kind, ea=key, symbol=sym, side=s, signal_time=to_jst(p['signal_t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
                    lots=lots, risk_jpy=round(money), mult=mult, weight=cfg['weight'], note=note, reason=p.get('tag', ''))
         if cfg['mode'] == 'signal' or not self.config.get('running', False) or lots <= 0:
             why = 'シグナルのみ' if cfg['mode'] == 'signal' else ('全体停止中' if not self.config.get('running') else note)

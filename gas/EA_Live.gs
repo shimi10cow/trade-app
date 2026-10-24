@@ -20,11 +20,13 @@ const EAL_ = {
   status: ['Account', 'Login', 'Balance', 'Equity', 'Peak', 'DD', 'Positions', 'Outbox', 'EATime', 'UpdatedAt'],
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
-           'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt'],
+           'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
+           'TargetPrice', 'Spread', 'Slip'],   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
+  health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt']
 };
-const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations'};
+const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health'};
 
 function eaSetupKeys() {
   const p = PropertiesService.getScriptProperties();
@@ -40,6 +42,7 @@ function ealSheet_(kind) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID), name = EAL_SHEETS_[kind];
   let sh = ss.getSheetByName(name);
   if (!sh) { sh = ss.insertSheet(name); sh.getRange(1, 1, 1, EAL_[kind].length).setValues([EAL_[kind]]); sh.setFrozenRows(1); }
+  else if (sh.getLastColumn() < EAL_[kind].length) sh.getRange(1, 1, 1, EAL_[kind].length).setValues([EAL_[kind]]);   // columns added later
   return sh;
 }
 
@@ -110,7 +113,8 @@ function ealTradeOpen_(b) {
   if (ealRows_('trades').some(x => String(x.TradeID) === id)) return {success: true, duplicate: true};
   ealWriteRow_('trades', null, {TradeID: id, Account: b.account, Source: b.source || 'EA', EA: b.ea, Symbol: b.symbol, Direction: Number(b.side) === 1 ? 'BUY' : 'SELL',
     Ticket: b.ticket, SignalTime: b.signal_time, EntryTime: b.entry_time, EntryPrice: b.fill, SLPrice: b.sl, TPPrice: b.tp, Lot: b.lots,
-    RiskJPY: b.risk_jpy, LotMult: b.mult, Weight: b.weight, Reason: b.reason, Note: b.note, Status: 'OPEN', CreatedAt: now, UpdatedAt: now});
+    RiskJPY: b.risk_jpy, LotMult: b.mult, Weight: b.weight, Reason: b.reason, Note: b.note, Status: 'OPEN', CreatedAt: now, UpdatedAt: now,
+    TargetPrice: b.price, Spread: b.spread, Slip: (b.price !== undefined && b.fill !== undefined && b.price !== '') ? Number(b.side) * (Number(b.fill) - Number(b.price)) : ''});
   return {success: true};
 }
 
@@ -199,7 +203,32 @@ function ealResSave_(b) {
 
 /** Hourly time trigger (add in the editor: Triggers > eaWatchdog, every hour). Telegram once when an EA PC stopped
  * sending heartbeats for over 2 hours, and once when it comes back. Needs Script properties TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
+// Backtest per EA (research, R after costs): win %, average R, PF. Same numbers as the app (ea_live.js BT).
+const EAL_BT_ = {"A@EURUSD":[43.1,0.202,1.38],"C@EURUSD":[45.2,0.218,1.43],"C@USDJPY":[43.1,0.319,1.63],"DS@JP225":[40.5,0.179,1.29],"DS@US500":[50.0,0.293,1.51],
+  "DS@XAUUSD":[49.2,0.27,1.58],"J2@USDJPY":[38.9,0.491,1.8],"L2@XAUUSD":[43.1,0.355,1.68],"L@EURUSD":[41.8,0.279,1.53],"M@US30":[73.8,0.116,1.73],"M@US500":[76.1,0.119,1.76],
+  "Q@US30":[43.1,0.295,1.55],"Q@XAGUSD":[35.7,0.913,2.49],"Q@XAUUSD":[44.2,0.189,1.72],"R@EURUSD":[47.4,0.71,2.26],"S@BTCUSD":[35.0,0.686,2.0],"S@XAUUSD":[37.7,0.143,1.48],
+  "T2@EURUSD":[41.1,0.397,1.67],"T@US30":[36.7,0.127,1.2]};
+
+/** Once a day (from eaWatchdog): per account and EA, live results next to the backtest + order quality. Kept in EA_Health only (not in the app). */
+function ealHealth_() {
+  const today = ealNow_().slice(0, 10), sh = ealSheet_('health');
+  if (ealRows_('health').some(r => String(r.Date).slice(0, 10) === today)) return;
+  const by = {}; ealRows_('trades').filter(t => t.Status === 'CLOSED' || t.Status === 'OPEN').forEach(t => { const k = t.Account + '|' + t.EA; (by[k] = by[k] || []).push(t); });
+  const out = Object.keys(by).sort().map(k => {
+    const [acc, ea] = k.split('|'), xs = by[k], closed = xs.filter(t => t.Status === 'CLOSED'), R = closed.map(t => Number(t.R) || 0);
+    const n = R.length, w = R.filter(r => r > 0).length, pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0);
+    const avg = n ? R.reduce((a, b) => a + b, 0) / n : '', bt = EAL_BT_[ea] || ['', '', ''];
+    const judge = n < 10 ? '少ない' : (bt[1] !== '' && avg < bt[1] - 0.5 ? '要確認' : '範囲内');
+    const sl = xs.map(t => Number(t.Slip)).filter(v => !isNaN(v) && String(v) !== ''), sp = xs.map(t => Number(t.Spread)).filter(v => !isNaN(v));
+    const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : '';
+    return [today, acc, ea, n, n ? Math.round(w / n * 1000) / 10 : '', avg === '' ? '' : Math.round(avg * 1000) / 1000, neg ? Math.round(pos / neg * 100) / 100 : '',
+            Math.round(R.reduce((a, b) => a + b, 0) * 100) / 100, bt[0], bt[1], bt[2], judge, mean(sl), mean(sp)];
+  });
+  if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, EAL_.health.length).setValues(out);
+}
+
 function eaWatchdog() {
+  try { ealHealth_(); } catch (e) { ealLog_({level: 'error', message: 'health: ' + e}); }
   const p = PropertiesService.getScriptProperties();
   ['demo', 'live'].forEach(acc => {
     const last = Number(p.getProperty('EA_LAST_HEARTBEAT_' + acc) || 0); if (!last) return;
