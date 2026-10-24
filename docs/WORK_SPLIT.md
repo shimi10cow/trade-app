@@ -13,11 +13,12 @@ EA を PC で動かす・止める・確かめるためのファイル。
 
 - `mt5_ea/START_LIVE_EA_DEMO.bat` / `mt5_ea/START_LIVE_EA_REAL.bat`
 - `mt5_ea/STOP_LIVE_EA_DEMO.bat`（本番用 `STOP_LIVE_EA_REAL.bat` も作るなら PC）
+- `mt5_ea/UPDATE_LIVE_EA_DEMO.bat` / `mt5_ea/SETUP_LIVE_EA_AUTOSTART.bat`
 - `mt5_ea/CONFIGURE_LIVE_EA.bat` / `mt5_ea/CHECK_SYMBOLS.bat`
-- `mt5_ea/start_live_ea.ps1` / `mt5_ea/stop_live_ea.ps1` / `mt5_ea/configure_live_ea.ps1`
-- `mt5_ea/setup_live_ea_desktop.ps1`（デスクトップのボタン作り）
+- `mt5_ea/start_live_ea.ps1`（見張り役：自動の再起動・MT5 の立ち上げ直し・スリープ防止）/ `mt5_ea/stop_live_ea.ps1` / `mt5_ea/update_live_ea.ps1` / `mt5_ea/configure_live_ea.ps1`
+- `mt5_ea/setup_live_ea_desktop.ps1`（デスクトップのボタン作り）/ `mt5_ea/setup_live_ea_autostart.ps1`（ログオン時の自動起動）
 - `mt5_ea/live/check_symbols.py`（銘柄の確認だけ。注文しない）
-- `docs/EA_PC_OPERATION.md`（PC での動かし方の記録。必要になったら PC が作る）
+- `docs/EA_PC_OPERATION.md`（PC での動かし方）
 
 ## クラウドの担当（クラウドだけが書き換える）
 
