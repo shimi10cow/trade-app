@@ -67,6 +67,7 @@ class Frames:
         m15['t'] = pd.to_datetime(m15.t)
         m15 = m15.drop_duplicates('t').sort_values('t').reset_index(drop=True)
         self.START = pd.Timestamp(start)
+        self.m15_all = m15                      # every bar given (env filters use the whole window, like research env_ctx)
         cut_h = self.START - pd.Timedelta(days=h_days)
         self.h4 = resample(m15, 'H4'); self.h4 = self.h4[self.h4.t >= cut_h].reset_index(drop=True)
         self.h1 = resample(m15, 'H1'); self.h1 = self.h1[self.h1.t >= cut_h].reset_index(drop=True)

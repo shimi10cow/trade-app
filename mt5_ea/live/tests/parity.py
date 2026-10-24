@@ -21,6 +21,14 @@ WS = Path(os.environ.get('WS_ROOT', '/tmp/claude-0/-home-user-trade-app/dde437f2
 
 
 def ws_data(sym):
+    if sym == 'EURUSD':       # EURUSD research ran in the repo itself on the long broker-time M15 from 2005
+        m = pd.read_csv(WS / 'EURUSD_M15_long_broker.csv', parse_dates=['time']).rename(columns=dict(time='t', open='o', high='h', low='l', close='c'))
+        return m, pd.Timestamp('2005-01-01'), ROOT / 'research/dow_strategy/results'
+    if sym == 'USDJPY100':    # USDJPY research in the repo (results/usdjpy): prices / 100 so 1 pip = 0.0001
+        m = pd.read_csv(WS / 'ws_USDJPY/M15_broker.csv', parse_dates=['time']).rename(columns=dict(time='t', open='o', high='h', low='l', close='c'))
+        for z in 'ohlc':
+            m[z] = m[z] / 100.0
+        return m, pd.Timestamp('2005-01-01'), ROOT / 'research/dow_strategy/results/usdjpy'
     w = WS / f'ws_{sym}'
     start = [f for f in os.listdir(w / 'cache') if f.startswith('dowruns_')][0][8:18]
     m = pd.read_csv(w / 'M15_broker.csv', parse_dates=['time']).rename(columns=dict(time='t', open='o', high='h', low='l', close='c'))
@@ -161,6 +169,97 @@ def run_s(syms):
         print(f'[test2] S {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=fn(F), detail=True)), flush=True)
 
 
+def run_c(syms):
+    from mt5_ea.live.eas import c as C_
+    from mt5_ea.live.env import Env
+    for sym in syms:
+        m, start, res = ws_data(sym)
+        a = C_.ADOPTED[sym]
+        F = full_frames(sym, m, start)
+        r = C_.run(F, entry_bar=False, env=Env(m))
+        ref = pd.read_csv(res / 'step2' / ('C_feat.csv' if a['strength'] else 'cl15_md4tri.csv'))
+        if a['strength']:
+            r = dict(r, trades=r['trades'][[C_.strong(t) for t in r['trades'].tag]])
+            ref = ref[(ref.dur > 24) & (ref.slope > 0.03)]
+        n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1])
+        print(f'[test1] C {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        fn = lambda F_: C_.run(F_, strength=a['strength'])
+        print(f'[test2] C {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=fn(F) if False else C_.run(F, strength=a['strength'], env=Env(m)), detail=True)), flush=True)
+
+
+def run_j2(syms):
+    from mt5_ea.live.eas import j2
+    for sym in syms:
+        m, start, res = ws_data(sym)
+        a = j2.ADOPTED['USDJPY']
+        F = full_frames(sym, m, start)
+        r = j2.run(F, **a, entry_bar=False)
+        ref = pd.read_csv(res / 'turn' / 'jt2_h1major+hour0_10.csv')
+        n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1])
+        print(f'[test1] J2 {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        fn = lambda F_: j2.run(F_, **a)
+        print(f'[test2] J2 {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=fn(F), detail=True)), flush=True)
+
+
+def run_l(syms):
+    from mt5_ea.live.eas import l as L_
+    from mt5_ea.live.env import Env
+    for sym in syms:
+        m, start, res = ws_data(sym)
+        a = L_.ADOPTED[sym]
+        F = full_frames(sym, m, start); env = Env(m)
+        r = L_.run(F, entry_bar=False, env=env)
+        ref = pd.read_csv(res / 'tl_N2.csv')
+        n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1], cols=('t', 'side', 'entry', 'exit', 'exit_t'))
+        print(f'[test1] L {sym} N2: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        if a['room']:
+            r2 = L_.room_filter(F, r, a['room']); ref2 = pd.read_csv(res / 'tl_N2_room1.csv')
+            n_ok, bad, n_ref = compare(r2['trades'], ref2, F.M15T.iat[-1], cols=('t', 'side', 'entry', 'exit', 'exit_t'))
+            print(f'[test1] L2 {sym} room1: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        fn = lambda F_: L_.run(F_, room=a['room'])
+        print(f'[test2] L {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=L_.run(F, room=a['room'], env=env), detail=True)), flush=True)
+
+
+def run_a(syms):
+    from mt5_ea.live.eas import a as A_
+    from mt5_ea.live.env import Env
+    for sym in syms:
+        m, start, res = ws_data(sym)
+        F = full_frames(sym, m, start); env = Env(m)
+        r = A_.run(F, entry_bar=False, env=env)
+        ref = pd.read_csv(res / 'retest_N1.csv')
+        n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1], cols=('t', 'side', 'entry', 'exit', 'exit_t'))
+        print(f'[test1] A {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        fn = lambda F_: A_.run(F_)
+        print(f'[test2] A {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=A_.run(F, env=env), detail=True)), flush=True)
+
+
+def run_rt(args):
+    """args: SYM:KEY ... e.g. EURUSD:R2c EURUSD:T1t US30:T1t"""
+    from mt5_ea.live.eas import rt
+    from mt5_ea.live.env import Env
+    for a in args:
+        sym, key = a.split(':')
+        m, start, res = ws_data(sym)
+        F = full_frames(sym, m, start); env = Env(m)
+        r = rt.run(F, key, env=env)
+        ref = pd.read_csv(res / f'regime2_{key}.csv').rename(columns=dict(time='t', ExitTime='exit_t', initial_sl='sl0'))
+        if 'open_end' in ref:
+            ref = ref[~ref.open_end.fillna(False).astype(bool)]
+        ref = ref[pd.to_datetime(ref.t) >= start]
+        n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1])
+        print(f'[test1] {key} {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        if sym == 'EURUSD' and key == 'T1t':      # T2 = T1t + axis filter
+            from mt5_ea.live.eas.wave import axis_filter
+            r2 = axis_filter(F, r)
+            ref2 = pd.read_csv(res / 'regime2_T1t_axis.csv').rename(columns=dict(time='t', ExitTime='exit_t', initial_sl='sl0'))
+            ref2 = ref2[pd.to_datetime(ref2.t) >= start]
+            n_ok, bad, n_ref = compare(r2['trades'], ref2, F.M15T.iat[-1])
+            print(f'[test1] T2(axis) {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
+        fn = lambda F_: rt.run(F_, key)
+        print(f'[test2] {key} {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start, n=6), full=r, detail=True)), flush=True)
+
+
 if __name__ == '__main__':
     which = sys.argv[1]; syms = sys.argv[2:]
-    {'ds': run_ds, 'm': run_m, 'q': run_q, 's': run_s}[which](syms)
+    {'ds': run_ds, 'm': run_m, 'q': run_q, 's': run_s, 'c': run_c, 'j2': run_j2, 'l': run_l, 'a': run_a, 'rt': run_rt}[which](syms)
