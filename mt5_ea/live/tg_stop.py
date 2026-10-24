@@ -27,12 +27,17 @@ def poll(state, kind):
         return []
     try:
         r = requests.get(f'https://api.telegram.org/bot{tok}/getUpdates', params=dict(timeout=0, limit=100, allowed_updates='["message"]'), timeout=8)
-        ups = r.json().get('result', []) if r.ok else []
+        if not r.ok:                              # e.g. 409: a webhook or another program is reading this bot's messages
+            if not state.get('tg_warned'):
+                logging.warning('Telegram commands unavailable: %s %s', r.status_code, r.text[:200]); state['tg_warned'] = True
+            return []
+        ups = r.json().get('result', [])
     except Exception as ex:
         logging.debug('telegram poll failed: %s', ex)
         return []
     last = int(state.get('tg_last_update') or 0)
-    first_run = not last
+    first_run = not state.get('tg_init')        # very first poll of this account: skip commands sent before the EA ever ran
+    state['tg_init'] = True
     out = []
     for u in ups:
         uid = int(u.get('update_id', 0))
