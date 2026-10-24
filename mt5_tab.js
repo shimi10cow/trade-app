@@ -61,7 +61,11 @@
   function draftCard(x) {
     const t = x.trade, buy = String(t.Direction) === 'Buy', id = esc(t.EntryID), pr = Number(t['損益']);
     const accs = String(t.Accounts || '').split(',').filter(String);
-    const cands = (x.candidates || []).map(c => `<button onclick="mt5Link('${id}','${esc(c.EntryID)}')" style="${btn};${neon('#22d3ee', '34,211,238')};padding:6px 9px;font-size:11px">${esc(String(c.EntryDate).slice(5))} ${esc(String(c.EntryTime).slice(0, 5))} ${c.Lot ? esc(c.Lot) + 'lot' : ''} に紐付け</button>`).join('');
+    const cands = (x.candidates || []).map(c => {
+      const cp = Number(c['損益']), money = c['損益'] !== '' && c['損益'] != null && !isNaN(cp) ? ` ${yen(cp)}` : '';
+      const st = c['ステータス'] === '保有中' ? ' 保有中' : '';
+      return `<button onclick="mt5Link('${id}','${esc(c.EntryID)}')" style="${btn};${neon('#22d3ee', '34,211,238')};padding:6px 9px;font-size:11px">${esc(String(c.EntryDate).slice(5))} ${esc(String(c.EntryTime).slice(0, 5))} ${c.Lot ? esc(c.Lot) + 'lot' : ''}${esc(money)}${st} に紐付け</button>`;
+    }).join('');
     return `<div style="border:1px solid ${S.sel[t.EntryID] ? '#22d3ee' : '#26364f'};border-radius:12px;padding:10px;background:#0f172a;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <label style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px"><input type="checkbox" ${S.sel[t.EntryID] ? 'checked' : ''} onchange="mt5Sel('${id}')">
@@ -69,7 +73,8 @@
         <div style="text-align:right;font-weight:800;color:${t.ExitDate ? (pr >= 0 ? '#4ade80' : '#f87171') : '#22d3ee'}">${t.ExitDate ? yen(pr) : '保有中'}<div style="font-size:11px;color:#94a3b8;font-weight:600">${t['実取得pips'] !== '' ? esc(t['実取得pips']) + ' pips' : ''}</div></div></div>
       <div style="font-size:11px;color:#94a3b8;line-height:1.6">${esc(String(t.EntryDate).slice(5))} ${esc(t.EntryTime)} @ ${esc(Number(t.EntryPrice).toPrecision(6))}${t.ExitDate ? ` → ${esc(String(t.ExitDate).slice(5))} ${esc(t.ExitTime)} @ ${esc(Number(t.ExitPrice).toPrecision(6))}` : ''}
         <br>${esc(t.Lot)} lot · ${accs.length} 口座 · ${x.positions} ポジション${String(t.MergeMode) === 'manual' ? ' · 手で直した' : ''}</div>
-      ${cands ? `<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11px;color:#94a3b8;align-self:center">手入力の候補:</span>${cands}</div>` : ''}
+      ${cands ? `<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11px;color:#94a3b8;align-self:center">手入力の候補（3 時間以内）:</span>${cands}</div>`
+              : `<div style="font-size:11px;color:#64748b">3 時間以内の手入力のトレードはありません</div>`}
       <div style="display:flex;gap:6px;justify-content:flex-end">
         ${x.positions > 1 ? `<button onclick="mt5Split('${id}')" style="${btn};${off}">分ける</button>` : ''}
         <button onclick="mt5Discard('${id}')" aria-label="消す" style="${btn};border:1px solid rgba(248,113,113,.5);background:transparent;color:#f87171;padding:9px">🗑️</button>
@@ -86,7 +91,7 @@
     const drafts = d.drafts || [];
     const tile = (label, val, col) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:10px 6px;text-align:center"><div style="font-size:10px;color:#94a3b8">${label}</div><div style="font-size:16px;font-weight:800;margin-top:4px;color:${col || '#f8fafc'}">${val}</div></div>`;
     const tiles = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${tile('前回', last ? esc(String(last.at).slice(5, 16)) : '—')}${tile('新しい約定', last ? last.executionsNew : '—')}${tile('確認待ち', drafts.length, drafts.length ? '#22d3ee' : '')}</div>`;
-    const lastLine = last ? `更新 ${last.updated} · 紐付け ${last.linked} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
+    const lastLine = last ? `更新 ${last.updated} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
     const errs = last && last.errors && last.errors.length ? `<div style="font-size:11px;color:#f87171">${last.errors.map(esc).join('<br>')}</div>` : '';
     const settings = `<div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:#cbd5e1">
       <div style="display:flex;align-items:center;gap:8px"><span style="flex:1">まとめる時間（同じ銘柄・向き）</span>
@@ -101,7 +106,7 @@
     root.innerHTML = `<div class="section" style="display:flex;flex-direction:column;gap:10px">
       <div class="ea-card" style="padding:16px;display:flex;flex-direction:column;gap:14px">
         <div><div style="font-size:15px;font-weight:800">🖥️ MT5 の取り込み</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.6">裁量の口座の約定を読み、手入力のトレードに紐付けます。合わないものは下の「確認が必要なトレード」で確認します。</div></div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.6">裁量の口座の約定を読みます。取り込んだトレードは全部、下の「確認が必要なトレード」に入ります。同じペア・向きでエントリーが 3 時間以内の手入力のトレード（保有中・決済済みとも）が候補に出るので、紐付けるか、そのまま記録にします。</div></div>
         ${tiles}
         <div style="font-size:12px;color:#cbd5e1;background:#0f172a;border:1px solid #26364f;border-radius:10px;padding:10px 12px;line-height:1.6">
           取り込みは <b>PC のデスクトップの「取り込み」ボタン</b>で動かします（EA を止めていても動きます）。終わったらこの画面を開き直すと結果が出ます。</div>

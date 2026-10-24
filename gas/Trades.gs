@@ -286,19 +286,9 @@ function impBatch_(b) {
       if (!agg.open && row['ステータス'] === '保有中') row['ステータス'] = '決済';
       trWrite_(T, row); execSetTradeId_(E2, ids, tid); updated++; return;
     }
-    const f = impFields_(a), ms = impDT_(a.entry_time).ms;
-    const cands = T.rows.filter(function (t) {
-      return !t.Accounts && t['ステータス'] !== '下書き' && String(t['PairName（元）'] || t.PairName || '').toUpperCase() === String(f['PairName（元）']).toUpperCase()
-        && String(t.Direction) === f.Direction && Math.abs(impEntryMs_(t) - ms) <= 3 * 3600e3;
-    });
-    if (cands.length === 1) {
-      const t = cands[0]; Object.assign(t, {EntryPrice: f.EntryPrice, Lot: f.Lot, ExitPrice: f.ExitPrice, ExitDate: f.ExitDate, ExitTime: f.ExitTime,
-        Profit: f.Profit, Swap: f.Swap, Accounts: f.Accounts, ExecCount: f.ExecCount, MergeMode: 'auto'});
-      if (!t['損益'] && f['損益'] !== '') t['損益'] = f['損益'];
-      if (!t['実取得pips'] && f['実取得pips'] !== '') t['実取得pips'] = f['実取得pips'];
-      if (!a.open && t['ステータス'] === '保有中') t['ステータス'] = '決済';
-      trWrite_(T, t); execSetTradeId_(E2, ids, String(t.EntryID)); linked++; return;
-    }
+    // new trades are never linked automatically (user 2026-10-25): every one becomes a draft to check in the MT5 tab,
+    // which lists the hand-written candidates (impStatus_)
+    const f = impFields_(a);
     const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, f);
     trWrite_(T, d); T.rows.push(d); byId[d.EntryID] = d; execSetTradeId_(E2, ids, d.EntryID); drafts++;
   });
@@ -311,16 +301,22 @@ function impBatch_(b) {
   return {success: true, executionsNew: add.length, updated: updated, linked: linked, drafts: drafts};
 }
 
+const IMP_LINK_HOURS_ = 3;    // a draft's link candidates: hand-written entries within this many hours
+
 /** app: MT5 tab data. */
 function impStatus_() {
   const T = trRead_(), E = execRead_();
   const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き'; }).map(function (t) {
     const ex = E.rows.filter(function (r) { return String(r.TradeID) === String(t.EntryID); }).map(function (r) { const o = Object.assign({}, r); delete o._row; return o; });
+    // link candidates: hand-written trades (open or closed, the whole history) with the same pair and direction whose
+    // entry is within 3 hours; not drafts, not missed entries, not reservations, not trades already linked to MT5
     const ms = impEntryMs_(t);
     const cands = T.rows.filter(function (c) {
-      return c !== t && !c.Accounts && c['ステータス'] !== '下書き' && String(c['PairName（元）'] || '').toUpperCase() === String(t['PairName（元）'] || '').toUpperCase()
-        && String(c.Direction) === String(t.Direction) && Math.abs(impEntryMs_(c) - ms) <= 24 * 3600e3;
-    }).map(function (c) { return {EntryID: c.EntryID, EntryDate: c.EntryDate, EntryTime: c.EntryTime, Lot: c.Lot, '損益': c['損益']}; });
+      return c !== t && !c.Accounts && ['下書き', '決済（見逃し）'].indexOf(String(c['ステータス'])) < 0 && String(c.Source || '') !== '予約'
+        && String(c['PairName（元）'] || c.PairName || '').toUpperCase() === String(t['PairName（元）'] || t.PairName || '').toUpperCase()
+        && String(c.Direction) === String(t.Direction) && Math.abs(impEntryMs_(c) - ms) <= IMP_LINK_HOURS_ * 3600e3;
+    }).sort(function (x, y) { return Math.abs(impEntryMs_(x) - ms) - Math.abs(impEntryMs_(y) - ms); })     // closest first
+      .map(function (c) { return {EntryID: c.EntryID, EntryDate: c.EntryDate, EntryTime: c.EntryTime, Lot: c.Lot, '損益': c['損益'], 'ステータス': c['ステータス']}; });
     const o = tradesExpand_(Object.assign({}, t)); delete o._row;
     return {trade: o, executions: ex, positions: Object.keys(ex.reduce(function (a, r) { a[r.Account + ':' + r.PositionID] = 1; return a; }, {})).length, candidates: cands};
   });
