@@ -14,6 +14,7 @@ EA を PC で動かす・止める・確かめるためのファイル。
 - `mt5_ea/START_LIVE_EA_DEMO.bat` / `mt5_ea/START_LIVE_EA_REAL.bat`
 - `mt5_ea/STOP_LIVE_EA_DEMO.bat` / `mt5_ea/STOP_LIVE_EA_REAL.bat`
 - `mt5_ea/UPDATE_LIVE_EA.bat`
+- `mt5_ea/IMPORT_MT5.bat` / `mt5_ea/IMPORT_MT5_REREAD90.bat` / `mt5_ea/run_import.ps1`（取り込みのボタン。中で動かす `mt5_ea/live/importer.py` はクラウド）
 - `mt5_ea/CONFIGURE_LIVE_EA.bat` / `mt5_ea/CHECK_SYMBOLS.bat`
 - `mt5_ea/start_live_ea.ps1`（見張り役：自動の再起動・MT5 の立ち上げ直し・スリープ防止）/ `mt5_ea/stop_live_ea.ps1` / `mt5_ea/update_live_ea.ps1` / `mt5_ea/configure_live_ea.ps1`
 - `mt5_ea/setup_live_ea_desktop.ps1`（デスクトップのボタン作り）

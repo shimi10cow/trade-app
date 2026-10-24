@@ -9,7 +9,10 @@ $here = $PSScriptRoot
   @{Name="新EA リアル START"; Target=(Join-Path $here "START_LIVE_EA_REAL.bat"); Icon="%SystemRoot%\System32\shell32.dll,77"},
   @{Name="新EA リアル STOP";  Target=(Join-Path $here "STOP_LIVE_EA_REAL.bat");  Icon="%SystemRoot%\System32\shell32.dll,131"},
   @{Name="新EA 更新";  Target=(Join-Path $here "UPDATE_LIVE_EA.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
-  @{Name="EA用 MT5 リアル";  Target=[Environment]::GetEnvironmentVariable("EA_REAL_MT5_PATH","User"); Icon=""}
+  @{Name="EA用 MT5 リアル";  Target=[Environment]::GetEnvironmentVariable("EA_REAL_MT5_PATH","User"); Icon=""},
+  @{Name="MT5 取り込み";  Target=(Join-Path $here "IMPORT_MT5.bat"); Icon="%SystemRoot%\System32\shell32.dll,122"},
+  @{Name="MT5 取り込み 90日読み直し";  Target=(Join-Path $here "IMPORT_MT5_REREAD90.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
+  @{Name="取り込み用 MT5";  Target=$(if (Test-Path "$env:USERPROFILE\TradeEA\MT5_import\terminal64.exe") { "$env:USERPROFILE\TradeEA\MT5_import\terminal64.exe" } else { "" }); Icon=""}
 ) | Where-Object { $_.Target } | ForEach-Object {
   $lnk = $ws.CreateShortcut((Join-Path $desktop ($_.Name + ".lnk")))
   $lnk.TargetPath = $_.Target
