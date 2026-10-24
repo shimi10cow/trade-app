@@ -108,7 +108,8 @@ class Runner:
         now = self.b.server_now(sym) or (bars.t.iat[-1] + pd.Timedelta(minutes=15))
         in_daily_slot = now.hour == 23 and 45 <= now.minute <= 55
         new_bar = self.state['last_bar'].get(sym) != last_t
-        if not new_bar and not (in_daily_slot and any(e.key in DAILY for e in eas)):
+        daily_todo = in_daily_slot and any(e.key in DAILY and self.state.get('daily_done', {}).get(e.key) != str(now.date()) for e in eas)
+        if not new_bar and not daily_todo:
             return []
         self.state['last_bar'][sym] = last_t
         m = bars[['t', 'o', 'h', 'l', 'c']].copy()
@@ -156,8 +157,8 @@ class Runner:
             new_sl = float(from_space(sym, sp['sl']))
             if (pos.side == 1 and new_sl > pos.sl + 1e-12) or (pos.side == -1 and (pos.sl == 0 or new_sl < pos.sl - 1e-12)):
                 self.b.modify(pos, sl=new_sl); out.append(f'{key} sl {pos.ticket} -> {new_sl:.5g}')
-        # new entries
-        for p in res['pending']:
+        # new entries (never for an EA in mode 'off': it is only computed to keep managing its open positions)
+        for p in ([] if cfg['mode'] == 'off' else res['pending']):
             sig = f"{key}|{p['signal_t']}|{p['side']}"
             if sig in self.state['done_signals'] or not e.entry_ok(p['signal_t']):
                 continue

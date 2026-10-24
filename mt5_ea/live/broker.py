@@ -35,9 +35,11 @@ class Position:
 
 class MT5Broker:
     def __init__(self, deviation=20):
+        import os
         import MetaTrader5 as mt5
         self.mt5 = mt5; self.deviation = deviation; self._names = {}
-        if not mt5.initialize():
+        path = os.getenv('EA_MT5_PATH', '').strip()          # which terminal (demo / live copies) this process uses
+        if not (mt5.initialize(path) if path else mt5.initialize()):
             raise RuntimeError(f'MT5 initialize failed: {mt5.last_error()}')
 
     # ---- symbols
