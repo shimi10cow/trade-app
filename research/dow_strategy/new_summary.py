@@ -5,8 +5,8 @@ import sys, glob, os, numpy as np, pandas as pd
 S = '/tmp/claude-0/-home-user-trade-app/dde437f2-70a2-5a18-92f1-b264add5082b/scratchpad'
 COST = {'GBPJPY': ('pip', 3.3, 0.01), 'AUDJPY': ('pip', 1.5, 0.01), 'CHFJPY': ('pip', 1.5, 0.01), 'CADJPY': ('pip', 2.5, 0.01),
         'AUDUSD': ('pip', 1.5, 1e-4), 'USDCAD': ('pip', 2.0, 1e-4), 'USDCHF': ('pip', 2.0, 1e-4), 'XAGUSD': ('pct', 0.05), 'US30': ('pct', 0.01),
-        'US500': ('pip', 0.8, 1.0), 'JP225': ('pip', 10, 1.0), 'OIL': ('pip', 4, 0.01), 'NGAS': ('pip', 24, 0.001)}   # MT5 spread (recent median) x ~1.5, absolute
-SPLIT = {'US30': ((2015, 2020), (2021, 2026)), 'US500': ((2017, 2021), (2022, 2026)), 'JP225': ((2017, 2021), (2022, 2026)), 'OIL': ((2017, 2021), (2022, 2026)), 'NGAS': ((2018, 2022), (2023, 2026)), 'AUDUSD': ((2010, 2015), (2016, 2026)), 'CADJPY': ((2006, 2015), (2016, 2026))}
+        'US500': ('pip', 0.8, 1.0), 'JP225': ('pip', 10, 1.0), 'OIL': ('pip', 4, 0.01), 'NGAS': ('pip', 24, 0.001), 'BTCUSD': ('pct', 0.08)}   # MT5 spread (recent median) x ~1.5, absolute
+SPLIT = {'US30': ((2015, 2020), (2021, 2026)), 'US500': ((2017, 2021), (2022, 2026)), 'JP225': ((2017, 2021), (2022, 2026)), 'OIL': ((2017, 2021), (2022, 2026)), 'NGAS': ((2018, 2022), (2023, 2026)), 'AUDUSD': ((2010, 2015), (2016, 2026)), 'CADJPY': ((2006, 2015), (2016, 2026)), 'BTCUSD': ((2017, 2021), (2022, 2026))}
 CORE = [('R', 'regime2_R2c.csv'), ('T', 'regime2_T1t.csv'), ('L', 'tl_N2.csv'), ('A', 'retest_N1.csv'), ('C', 'step2/cl15_md4tri.csv'),
         ('J2', 'turn/jt2_h1major+hour0_10.csv'), ('J3', 'turn/j3_h41_s0_h1prot.csv'), ('EV', 'session/ev_18-21+0-3.csv'), ('P', 'pb/P4_maj0_rs0.5.csv')]
 FAM = {'Q': 'q/Q_*.csv', 'PB2': 'pb2/PB2_*.csv', 'S': 'st2/S_*.csv'}

@@ -11,7 +11,7 @@ import dow_turn_ea as B  # noqa: E402
 OUT = B.HERE / 'results' / 'rsi2'; OUT.mkdir(parents=True, exist_ok=True)
 m = pd.DataFrame(dict(o=B.o, h=B.h, l=B.l, c=B.c), index=pd.DatetimeIndex(B.T15))
 D = m.resample('1D').agg(dict(o='first', h='max', l='min', c='last')).dropna()
-D = D[D.index.dayofweek < 5]
+D = D[D.index.dayofweek < 5] if os.environ.get('M5_SYM') != 'BTCUSD' else D   # BTC trades every day
 c = D.c; dlt = c.diff(); up = dlt.clip(lower=0).ewm(alpha=1 / 2).mean(); dn = (-dlt.clip(upper=0)).ewm(alpha=1 / 2).mean()
 rsi = 100 - 100 / (1 + up / dn.replace(0, np.nan))
 pc = c.shift(); atr = np.maximum(D.h - D.l, np.maximum((D.h - pc).abs(), (D.l - pc).abs())).rolling(14).mean()
