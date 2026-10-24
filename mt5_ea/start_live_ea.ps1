@@ -13,5 +13,7 @@ $env:EA_CONFIG_FILE = Join-Path $data ("live_config_{0}.json" -f $Kind)
 $env:EA_OUTBOX_DB = Join-Path $data ("live_outbox_{0}.sqlite3" -f $Kind)
 $env:EA_LOG_FILE = Join-Path $data ("live_{0}.log" -f $Kind)
 if (-not $env:EA_GAS_URL -or -not $env:EA_GAS_KEY) { throw "Run configure_live_ea.ps1 first." }
+if (-not $env:EA_AUTO_UPDATE) { $env:EA_AUTO_UPDATE = $(if ($Kind -eq "live") { "0" } else { "1" }) }   # live: update by hand
 Write-Host ("Live EA ({0}) account {1}" -f $Kind, $env:EA_LIVE_LOGIN) -ForegroundColor Green
 py -m mt5_ea.live.main_live
+exit $LASTEXITCODE
