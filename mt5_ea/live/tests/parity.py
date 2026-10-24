@@ -176,15 +176,15 @@ def run_c(syms):
         m, start, res = ws_data(sym)
         a = C_.ADOPTED[sym]
         F = full_frames(sym, m, start)
-        r = C_.run(F, entry_bar=False, env=Env(m))
+        r = C_.run(F, entry_bar=False, env=Env(m), notri=a['notri'])
         ref = pd.read_csv(res / 'step2' / ('C_feat.csv' if a['strength'] else 'cl15_md4tri.csv'))
         if a['strength']:
             r = dict(r, trades=r['trades'][[C_.strong(t) for t in r['trades'].tag]])
             ref = ref[(ref.dur > 24) & (ref.slope > 0.03)]
         n_ok, bad, n_ref = compare(r['trades'], ref, F.M15T.iat[-1])
         print(f'[test1] C {sym}: research {n_ref}, same {n_ok}, differ {len(bad)}', bad[:5], flush=True)
-        fn = lambda F_: C_.run(F_, strength=a['strength'])
-        print(f'[test2] C {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=fn(F) if False else C_.run(F, strength=a['strength'], env=Env(m)), detail=True)), flush=True)
+        fn = lambda F_: C_.run(F_, strength=a['strength'], notri=a['notri'])
+        print(f'[test2] C {sym}: ' + fmt2(truncation(fn, m, start, cuts_for(m, start), full=C_.run(F, strength=a['strength'], env=Env(m), notri=a['notri']), detail=True)), flush=True)
 
 
 def run_j2(syms):

@@ -35,7 +35,7 @@ ADOPTED = [
     EA('L2@XAUUSD', 'XAUUSD', lambda F, env: L_.run(F, room=1.0, env=env)),
     EA('A@EURUSD', 'EURUSD', lambda F, env: A_.run(F, env=env)),
     EA('C@EURUSD', 'EURUSD', lambda F, env: C_.run(F, env=env)),
-    EA('C@USDJPY', 'USDJPY', lambda F, env: C_.run(F, strength=True, env=env)),
+    EA('C@USDJPY', 'USDJPY', lambda F, env: C_.run(F, strength=True, notri=False, env=env)),
     EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY'])),
     EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
     EA('S@BTCUSD', 'BTCUSD', lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD']), entry_ok=weekdays),

@@ -21,7 +21,9 @@ from env_recognition.pivots import atr
 
 LOOK, DROP, PROM, MAXAB, MAXLEN, IMPW, IMP = 40, 0.6, 1.5, 40, 300, 96, 6.0
 CFG = dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0, dside=0, maxdev=4, notri='H4')
-ADOPTED = {'EURUSD': dict(strength=False), 'USDJPY': dict(strength=True)}
+# USDJPY: the research workspace had no triangle file (results/tri_intervals.csv missing), so its validated C ran WITHOUT the
+# H4-triangle filter; the live USDJPY C does the same (parity test 1: 5 trades differed with the filter on).
+ADOPTED = {'EURUSD': dict(strength=False, notri=True), 'USDJPY': dict(strength=True, notri=False)}
 
 
 def lines(F: Frames):
@@ -98,10 +100,11 @@ def strong(tag):
     return int(dur) > 24 and float(slope) > 0.03
 
 
-def run(F: Frames, strength=False, entry_bar=True, env=None):
+def run(F: Frames, strength=False, entry_bar=True, env=None, notri=True):
     """strength (USDJPY): run with every line (as the research did), then keep only trades from strong lines."""
     env = env or Env(F.m15_all)
-    r = E.run(F, events(F), CFG, env_ok=env.ok, entry_bar=entry_bar)
+    cfg = CFG if notri else {k: v for k, v in CFG.items() if k != 'notri'}
+    r = E.run(F, events(F), cfg, env_ok=env.ok, entry_bar=entry_bar)
     if not strength:
         return r
     tr = r['trades']

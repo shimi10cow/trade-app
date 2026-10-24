@@ -25,7 +25,7 @@ RUN = {
     'L2@XAUUSD': lambda F, env: L_.run(F, room=1.0, env=env, entry_bar=False),
     'A@EURUSD': lambda F, env: A_.run(F, env=env, entry_bar=False),
     'C@EURUSD': lambda F, env: C_.run(F, env=env, entry_bar=False),
-    'C@USDJPY': lambda F, env: C_.run(F, strength=True, env=env, entry_bar=False),
+    'C@USDJPY': lambda F, env: C_.run(F, strength=True, notri=False, env=env, entry_bar=False),
     'J2@USDJPY': lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY'], entry_bar=False),
     'S@XAUUSD': lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD'], entry_bar=False),
     'S@BTCUSD': lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD'], entry_bar=False),
