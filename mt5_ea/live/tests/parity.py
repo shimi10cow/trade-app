@@ -40,7 +40,10 @@ def full_frames(sym, m, start):
     import pickle
     f = WS / 'live_cache' / f'frames_{sym}_{start:%Y%m%d}.pkl'; f.parent.mkdir(exist_ok=True)
     if f.exists():
-        return pickle.load(open(f, 'rb'))
+        F = pickle.load(open(f, 'rb'))
+        if not hasattr(F, 'm15_all'):            # cached before m15_all existed
+            F.m15_all = m[['t', 'o', 'h', 'l', 'c']].assign(t=pd.to_datetime(m.t)).drop_duplicates('t').sort_values('t').reset_index(drop=True)
+        return F
     F = Frames(m, start); pickle.dump(F, open(f, "wb")); return F
 
 
