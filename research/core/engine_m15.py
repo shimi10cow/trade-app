@@ -54,6 +54,8 @@ class Config:
     trail_pivots:object=None   # optional DataFrame(kind 'L'/'H', price, confirm_time) replacing the M15 ATR14x1.5 ZigZag      # False: skip SMA200 slope, SMA200/480 relation, q75 and MA-ABCD (long-MA filters)
     max_entry_point:int=2
     extra_filter:object=None   # optional callable(time, side) -> bool; None keeps the canonical behaviour
+    q75_seed:object=None       # optional {1: [...], -1: [...]} strengths from before this run (live EA: history older than its window)
+    q75_log:object=None        # optional list; each q75 point is appended as (time, side, strength)
     tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
     tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
     sl_fn:object=None          # optional callable(time, side, entry, default_sl) -> stop price, or None to skip the trade
@@ -305,7 +307,7 @@ def run_pair(pair,cfg=CFG):
     for _,p in _rows(m15p):piv_by_t.setdefault(p.confirm_time,[]).append(p)
     positions=[]; closed=[]
     states={1:0,-1:0}; pcount={1:0,-1:0}; regime_side=0; regime_id=0; regime_trades={1:[],2:[],3:[]}
-    qhist={1:[],-1:[]}
+    qhist={1:list((cfg.q75_seed or {}).get(1,[])),-1:list((cfg.q75_seed or {}).get(-1,[]))}
     rsi_state={'buy_block':False,'sell_block':False,'peak':np.nan,'bottom':np.nan}; last_h4i=-1
     latest_pivot={'L':None,'H':None}
     prevK=prevD=np.nan
@@ -402,6 +404,7 @@ def run_pair(pair,cfg=CFG):
             if len(hist)>=cfg.q75_warmup:
                 q=np.quantile(hist,.75); qrej=strength>q
             hist.append(float(strength))
+            if cfg.q75_log is not None: cfg.q75_log.append((str(t),side,float(strength)))
             if qrej and cfg.use_long_ma: continue
 
             # P-independent downstream filters
