@@ -10,7 +10,34 @@
 - ホームに EA の保有中と予約中、履歴に「EA」タブ、分析の「EA」で EA ごとの成績とバックテストの比較・口座の推移
 - 入れ替えに必要なこと：`gas/EA_Live.gs` を貼り直して新バージョンでデプロイ（表「Reservations」は自動で作られる）、PC は STOP → `git pull` → START
 
-まだのもの：MT5 の取り込みの作り直し、表の整理（Trades への統合）、画面の改善。
+## 4. 表の整理（Trades）と MT5 の取り込み（2026-10-24 その 3）
+
+### GAS
+1. Apps Script に `gas/Trades.gs` を「EA_Trades」と同じ要領で追加（名前 `Trades`）。`Code.gs` と `EA_Live.gs` も貼り直す
+2. 新バージョンでデプロイ
+3. 関数 `migrateToTrades` を実行
+   - スプレッドシートを丸ごとコピー（「トレードアプリ_backup_日時」）してから、表「Trades」を作る
+   - 実行ログの `"ok": true` と、件数・損益・pips・画像の数が Entries と同じことを確認
+   - 「Entries」は何も変わらない
+4. 関数 `switchToTrades` を実行 → アプリが「Trades」を使う。戻すときは `switchBackToEntries`
+5. （後で、確認できてから）`mergeMemosIntoIdeas`（古い「メモ」をアプリのメモへ）、`cleanPairsEAColumns`（Pairs の古い EA 列を消す）、`archiveOldSheets`（使っていない表を別ファイル「トレードアプリ_保管」へ移す）
+
+Trades で消した列：Pair（PAIR32 などの番号）・エントリー前チェックの ✅ 6 列・M15/H1 決済の 4 列・古い MT5 連携の列・見出しが空の列。画像の 9 列は EntryImages / ExitImages / PreImages の 3 列（1 行に 1 枚）。アプリからは今までどおり見える。
+
+### PC（PC 側の Claude に頼む）
+- 取り込む口座ごとに MT5 のコピーを作る（例 `C:\MT5\acc1\`。XM の MT5 をフォルダごとコピーし、`terminal64.exe /portable` で 1 回起動して、その口座に**投資家パスワード**でログイン、パスワードを保存）
+- `%USERPROFILE%\TradeEA_data\import_accounts.json` に口座を書く（GitHub には上げない）
+  ```json
+  [{"login": 12345678, "path": "C:\\MT5\\acc1\\terminal64.exe", "label": "KIWAMI 1", "portable": true}]
+  ```
+- EA 用の口座は書かない（EA のトレードは EA が自分で記録する）
+- 取り込みはデモの EA が動いている時に動く（アプリのボタン → 5 分以内に EA の PC が受け取り、別のプロセスで各コピーを順に開いて読み、閉じる）。手で動かすなら `py -m mt5_ea.live.importer`（`--reread90` で 90 日読み直し）。記録は `TradeEA_data\import.log`
+
+### アプリ
+- MT5 タブの「まとめて取り込む」。手入力のトレード（同じペア・向き、エントリーが 3 時間以内）が 1 つだけあれば自動で紐付け、なければ「確認が必要なトレード」（下書き）に出る
+- 下書きは「記録にする」「手入力の候補に紐付け」「分ける」（ポジションごと）「選んだものをまとめる」「🗑️」（同じ約定は次から出ない）
+
+まだのもの：EA のトレードを Trades にも入れること（今は EA_Trades に記録してアプリはそこから表示）、日時の書き方の統一（日本時間＋時差）。
 
 ## 1. 裏側（Google Apps Script）
 

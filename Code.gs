@@ -16,6 +16,9 @@ const APP_SETTINGS_SHEET = 'App_Settings';
 const EA_REPLAY_SHEET = 'EA_Replay_Requests';
 const MT5_IMPORT_REQUESTS_SHEET = 'MT5_Import_Requests';
 
+// "Trades" (Trades.gs) replaces "Entries" after switchToTrades(); without Trades.gs everything stays on "Entries"
+function entriesSheetName_() { return typeof tradesSheetName_ === 'function' ? tradesSheetName_() : ENTRIES_SHEET; }
+
 // =============================================
 // エントリーポイント
 // =============================================
@@ -236,7 +239,7 @@ function getEntries() {
     return JSON.parse(cached);
   }
 
-  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) return [];
 
@@ -257,7 +260,7 @@ function getEntries() {
         }
         obj[h] = val !== null && val !== undefined ? String(val) : '';
       });
-      return obj;
+      return typeof tradesExpand_ === 'function' ? tradesExpand_(obj) : obj;
     });
 
   try {
@@ -289,7 +292,7 @@ function getPairs() {
         }
         obj[h] = val !== null && val !== undefined ? String(val) : '';
       });
-      return obj;
+      return typeof tradesExpand_ === 'function' ? tradesExpand_(obj) : obj;
     });
 }
 
@@ -345,7 +348,7 @@ function saveEntry(entryData) {
 
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(ENTRIES_SHEET);
+    const sheet = ss.getSheetByName(entriesSheetName_());
 
     // ヘッダー取得
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
@@ -370,6 +373,7 @@ function saveEntry(entryData) {
       entryData['ステータス'] = '保有中';
     }
 
+    if (typeof tradesCollapse_ === 'function') entryData = tradesCollapse_(entryData, null);   // Trades: images in 3 columns
     // 列順に並べてappend
     const row = headers.map(h => entryData[h] !== undefined ? entryData[h] : '');
     sheet.appendRow(row);
@@ -390,7 +394,7 @@ function updateEntry(entryId, updateData) {
   lock.waitLock(10000);
 
   try {
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
     const data = sheet.getDataRange().getValues();
     const headers = data[0].map(h => String(h).trim());
     const idCol = headers.indexOf('EntryID');
@@ -400,6 +404,10 @@ function updateEntry(entryId, updateData) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][idCol]).trim() === String(entryId).trim()) {
         const row = data[i].slice();
+        if (typeof tradesCollapse_ === 'function' && typeof tradesActive_ === 'function' && tradesActive_()) {
+          const cur = {}; headers.forEach((h, j) => cur[h] = row[j]);
+          updateData = tradesCollapse_(updateData, tradesExpand_(cur));
+        }
         Object.keys(updateData).forEach(key => {
           const col = headers.indexOf(key);
           if (col >= 0) row[col] = updateData[key];
@@ -422,7 +430,7 @@ function deleteEntry(entryId) {
   lock.waitLock(10000);
 
   try {
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
     const data = sheet.getDataRange().getValues();
     const headers = data[0].map(h => String(h).trim());
     const idCol = headers.indexOf('EntryID');
@@ -772,7 +780,7 @@ function uploadImage(base64Data, filename) {
 // =============================================
 function updateWinLossColumn() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  const sheet = ss.getSheetByName(entriesSheetName_());
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
 
@@ -1036,7 +1044,7 @@ function recalculateAllScores(config) {
   }
 
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  const sheet = ss.getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
 
   const data = sheet.getDataRange().getValues();
@@ -1080,7 +1088,7 @@ function recalculateAllScores(config) {
 // =============================================
 function recalculateCaseBScores() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  const sheet = ss.getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'シートが見つかりません' };
 
   const data = sheet.getDataRange().getValues();
@@ -1136,7 +1144,7 @@ function recalculateCaseBScores() {
 // =============================================
 function migrateExitRefPerfect() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(ENTRIES_SHEET);
+  const sheet = ss.getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'シートが見つかりません' };
   const data = sheet.getDataRange().getValues();
   const headers = data[0].map(function(h) { return String(h).trim(); });
@@ -1158,7 +1166,7 @@ function migrateExitRefPerfect() {
 // =============================================
 function ensureNamedColumns(columns) {
   if (!columns || !Array.isArray(columns)) return { success: false, error: 'columns不正' };
-  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   let added = 0;
@@ -1197,7 +1205,7 @@ function ensurePairColumns(columns) {
 function ensureScoreColumns(config) {
   if (!config || !Array.isArray(config)) return { success: false, error: 'config不正' };
 
-  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
@@ -1220,7 +1228,7 @@ function ensureScoreColumns(config) {
 // エントリー振り返りフィールド移行（GASエディタから手動実行）
 // =============================================
 function migrateEntryFields() {
-  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
@@ -1325,7 +1333,7 @@ function migrateEntryFields() {
 // v2移行: 完璧エントリー→エントリータイミングOK、完璧決済→決済タイミングOK
 // =============================================
 function migrateEntryFieldsV2() {
-  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
   if (!sheet) return { success: false, error: 'Entriesシートが見つかりません' };
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
   var lastRow = sheet.getLastRow();
@@ -1492,7 +1500,7 @@ function syncMT5Trade(data){
   // Manual MT5 trades must go through the MT5 review tab. Never create Entries automatically.
   if(String(data.Source||'').toUpperCase()==='MT5-MANUAL') return {success:true,ignored:true,reason:'manual-review-required'};
   ensureNamedColumns(['TradeGroupID','MT5SyncKey','MT5Account','MT5Ticket','Source','TradeType','EAルール','ExitPrice','ExitDate','ExitTime','Profit','損益']);
-  const ss=SpreadsheetApp.openById(SPREADSHEET_ID), sh=ss.getSheetByName(ENTRIES_SHEET);
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID), sh=ss.getSheetByName(entriesSheetName_());
   const vals=sh.getDataRange().getValues(), hs=vals[0].map(v=>String(v).trim());
   const col=n=>hs.indexOf(n), syncCol=col('MT5SyncKey');
   let row=-1;
