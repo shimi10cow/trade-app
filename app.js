@@ -1332,8 +1332,9 @@ function renderPositions() {
   // Filter for active positions (保有中 or 保有中（見逃し）)
   const activeTrades = App.data.entries.filter(t => t['ステータス'] === '保有中' || t['ステータス'] === '保有中（見逃し）');
   const eaOpen = window.eaLive ? window.eaLive.openTrades() : [];
+  const resWait = window.eaLive && window.eaLive.waitingCount ? window.eaLive.waitingCount() : 0;
 
-  if (activeTrades.length === 0 && eaOpen.length === 0) {
+  if (activeTrades.length === 0 && eaOpen.length === 0 && resWait === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">現在保有中のポジションはありません</div>';
     return;
   }

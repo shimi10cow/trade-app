@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from . import gas, sizing
+from . import reservations as RV
 from .core import Frames, from_space, to_space
 from .env import Env
 from .registry import ADOPTED, BY_KEY
@@ -93,8 +94,75 @@ class Runner:
                 logging.exception('%s step failed', sym)
                 self.notify('error', f'EA {sym}: {ex}')
                 gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'{sym}: {ex}'[:500]))
+        try:
+            report += self._step_reservations(eq)
+        except Exception as ex:
+            logging.exception('reservations step failed')
+            gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'reservations: {ex}'[:500]))
         self.save()
         return report
+
+    # ------------------------------------------------------------------ reservation entries (予約)
+    def refresh_reservations(self):
+        """Read the waiting reservations of this account right before the bar closes (cheap GET)."""
+        try:
+            r = gas.call('eaResList', dict(account=self.kind))
+            if isinstance(r, dict) and isinstance(r.get('reservations'), list):
+                self.state['reservations'] = r['reservations']
+        except Exception as ex:
+            logging.warning('reservation list failed: %s', ex)
+
+    def _step_reservations(self, eq):
+        out = []
+        done = self.state.setdefault('res_done', [])
+        last_seen = self.state.setdefault('res_last', {})
+        for r in self.state.get('reservations') or []:
+            rid = str(r.get('ResID') or '')
+            if not rid or rid in done or str(r.get('Account') or 'demo') != self.kind or str(r.get('Status')) != 'WAIT':
+                continue
+            sym = str(r['Symbol']).upper(); side = 1 if str(r['Direction']).upper() == 'BUY' else -1
+            m15 = self.b.bars(sym, 12)[['t', 'o', 'h', 'l', 'c']]
+            frame = RV.h1_bars(m15) if str(r.get('Trigger')).upper() == 'H1' else m15
+            if not len(frame):
+                continue
+            lt = str(frame.t.iat[-1])
+            if last_seen.get(rid) == lt:                     # this bar of the trigger frame was already checked
+                continue
+            last_seen[rid] = lt
+            hit = RV.trigger_on_last(frame, side, RV.to_server(r.get('CreatedAt')))
+            if hit:
+                out += self._enter_res(r, rid, sym, side, hit, eq)
+        live_ids = {str(r.get('ResID')) for r in self.state.get('reservations') or []}
+        self.state['res_last'] = {k: v for k, v in last_seen.items() if k in live_ids}
+        self.state['res_done'] = done[-200:]
+        return out
+
+    def _enter_res(self, r, rid, sym, side, hit, eq):
+        key = 'RES:' + rid; side_j = '買い' if side == 1 else '売り'
+        bid, ask = self.b.quote(sym); px = ask if side == 1 else bid
+        sl = float(r['SLPrice']) if str(r.get('SLPrice') or '').strip() else hit['extreme'] - side * 0.3 * hit['atr']
+        if side * (px - sl) <= 0:
+            self.notify('error', f'予約 {sym} {side_j}: 損切り {sl:.5g} が今の値段 {px:.5g} の逆側なので見送り（予約は残す）')
+            return [f'{key} skip: stop on the wrong side']
+        tp = float(r['TPPrice']) if str(r.get('TPPrice') or '').strip() else None
+        if tp is not None and side * (tp - px) <= 0:
+            tp = None
+        lots, money, note = RV.lots_for_res(self.b.spec(sym), eq, str(r.get('LotMode') or 'pct'), r.get('LotValue') or 0.5, abs(px - sl))
+        rec = dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px, sl=sl, tp=tp or '',
+                   lots=lots, risk_jpy=round(money), mult=1, weight=1, note=note, reason=f"予約 {r.get('Trigger')} ストキャス")
+        if not self.config.get('running', False) or lots <= 0:
+            why = '全体停止中' if not self.config.get('running', False) else note
+            self.notify('signal', f'予約のシグナル {sym} {side_j} {px:.5g}（{why}・予約は残す）')
+            gas.enqueue('eaSignal', dict(rec, status=why))
+            return [f'{key} signal only ({why})']
+        o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31])
+        self.state['tickets'][str(o['ticket'])] = dict(key=key, sim_t='', side=side, entry=o['price'], sl0=sl, lots=o['volume'],
+                                                         opened=str(self.b.server_now(sym)), risk_jpy=money, res=rid)
+        self.state['res_done'].append(rid)
+        self.notify('entry', f'予約エントリー {sym} {side_j} {o["price"]:.5g} {o["volume"]}lot 損切り {sl:.5g}（{note}）')
+        gas.enqueue('eaTradeOpen', dict(rec, ticket=o['ticket'], fill=o['price'], lots=o['volume'], entry_time=to_jst(self.b.server_now(sym) or hit['t'])))
+        gas.enqueue('eaResFilled', dict(account=self.kind, res_id=rid, trade_id=f'{self.kind}:{o["ticket"]}'))
+        return [f'{key} open {o["ticket"]} {side_j} {o["volume"]} @ {o["price"]}']
 
     def _live_positions(self, key):
         return [p for p in self.b.positions({MAGIC[key]})]
@@ -205,7 +273,7 @@ class Runner:
     # ------------------------------------------------------------------ closed trades -> records
     def sweep_closed(self, deal_reader=None):
         """Tickets we opened that are no longer open: send the result once."""
-        open_t = {str(p.ticket) for p in self.b.positions(set(MAGIC.values()))}
+        open_t = {str(p.ticket) for p in self.b.positions(set(MAGIC.values()) | {RV.RES_MAGIC})}
         for t, info in list(self.state['tickets'].items()):
             if t in open_t:
                 continue
@@ -222,12 +290,14 @@ class Runner:
     def heartbeat(self):
         a = self.b.account()
         x = dict(account=self.kind, login=a.get('login'), balance=a['balance'], equity=a['equity'], peak=self.state.get('peak'),
-                 dd=(1 - a['equity'] / self.state['peak']) if self.state.get('peak') else 0, positions=len(self.b.positions(set(MAGIC.values()))),
+                 dd=(1 - a['equity'] / self.state['peak']) if self.state.get('peak') else 0, positions=len(self.b.positions(set(MAGIC.values()) | {RV.RES_MAGIC})),
                  outbox=gas.pending_count(), time=to_jst(self.b.server_now() or pd.Timestamp.now()))
         try:
             r = gas.call('eaHeartbeat', x)
             if isinstance(r, dict) and r.get('config'):
                 self.set_config(r['config'])
+            if isinstance(r, dict) and isinstance(r.get('reservations'), list):
+                self.state['reservations'] = r['reservations']
         except Exception as ex:
             logging.warning('heartbeat failed: %s', ex)
         return x

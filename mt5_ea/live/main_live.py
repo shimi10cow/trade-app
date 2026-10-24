@@ -78,6 +78,7 @@ def main():
             slot = now.floor('15min')
             daily_slot = now.hour == 23 and 45 <= now.minute <= 55
             if (slot != last_slot and (now - slot).total_seconds() >= BAR_DELAY_SEC) or daily_slot:
+                R.refresh_reservations()             # reservations made in the app just before this bar closed
                 for line in R.step():
                     logging.info(line)
                 R.sweep_closed(deal_reader(b))

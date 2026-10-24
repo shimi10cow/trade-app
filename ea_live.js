@@ -18,7 +18,7 @@
   const HALF = {'S@XAUUSD': 1, 'Q@XAUUSD': 1};
   const LIVE_ON = ['R@EURUSD', 'T2@EURUSD', 'L@EURUSD', 'A@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
   const ALL_KEYS = CARDS.flatMap(c => c.keys.map(k => k[0]));
-  let S = {acc: localStorage.getItem(ACC_LS) || 'demo', dash: null, sheet: null, saving: '', err: ''};
+  let S = {acc: localStorage.getItem(ACC_LS) || 'demo', dash: null, sheet: null, saving: '', err: '', res: null};
   try { S.dash = JSON.parse(localStorage.getItem(CACHE_LS) || 'null'); } catch (e) {}
 
   function defaultConfig(acc) {
@@ -72,6 +72,91 @@
   window.eaLiveMode = function (id, mode) { const c = cfg(); CARDS.find(x => x.id === id).keys.forEach(k => c.eas[k[0]].mode = mode); save(); };
   window.eaLiveSym = function (key) { const c = cfg(); c.eas[key].on = !c.eas[key].on; save(); };
   window.eaLiveWeight = function (key, w) { const c = cfg(); c.eas[key].weight = w; save(); };
+
+
+  // ---------- reservation entries (予約): per monitored pair, M15 / H1 stochastic trigger on the EA account
+  const LOT_JA = {pct: '口座の %', jpy: '最大損失（円）', lot: 'ロット'};
+  function pairNames() {
+    const ps = (typeof App !== 'undefined' && App.data && App.data.pairs) || [];
+    return [...new Set(ps.map(p => p['PairName（元）'] || p['PairName'] || '').filter(Boolean))].sort();
+  }
+  const resAll = () => (S.dash && S.dash.reservations) || [];
+  function resLine(r, withCancel) {
+    const lot = r.LotMode === 'pct' ? r.LotValue + '%' : r.LotMode === 'jpy' ? yen(r.LotValue) : r.LotValue + ' lot';
+    const st = {WAIT: ['待機中', '#22d3ee'], FILLED: ['約定', '#4ade80'], CANCEL: ['取消', '#94a3b8']}[r.Status] || [r.Status, '#94a3b8'];
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
+      <div><b>${esc(r.Symbol)}</b> ${String(r.Direction) === 'BUY' ? '<span style="color:#f87171">買い</span>' : '<span style="color:#38bdf8">売り</span>'} · ${esc(r.Trigger)} ストキャス
+        <div style="color:#94a3b8;font-size:11px">損切り ${esc(r.SLPrice || '自動')} · 利確 ${esc(r.TPPrice || 'なし')} · ${esc(lot)}${String(r.Account) === 'live' ? ' · <span style="color:#f87171">本番</span>' : ''}</div></div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:${st[1]}">${st[0]}</span>
+        ${withCancel && r.Status === 'WAIT' ? `<button onclick="eaResCancel('${esc(r.ResID)}')" style="border:1px solid #f87171;color:#f87171;background:transparent;border-radius:6px;padding:3px 8px;font-size:11px">取消</button>` : ''}</div></div>`;
+  }
+  function resSection() {
+    const mine = resAll().filter(r => String(r.Account) === S.acc);
+    const wait = mine.filter(r => r.Status === 'WAIT'), recent = mine.filter(r => r.Status !== 'WAIT').slice(-5).reverse();
+    const chips = pairNames().map(p => `<button onclick="eaResOpen('${esc(p)}')" style="border:1px solid #334155;background:#0f172a;color:#cbd5e1;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700">${esc(p)} <span style="color:#22d3ee">＋予約</span></button>`).join('')
+      || '<div style="font-size:12px;color:#94a3b8">通貨ペアタブの監視ペアがここに出ます</div>';
+    return `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px">予約エントリー（${ACC_JA[S.acc]}口座）</div>
+      <div class="ea-card" style="padding:10px 12px">
+        ${wait.length ? wait.map(r => resLine(r, true)).join('') : '<div style="font-size:12px;color:#94a3b8;padding-bottom:6px">待機中の予約はありません</div>'}
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${chips}</div>
+        ${recent.length ? `<div style="font-size:11px;color:#64748b;margin-top:10px">最近の予約</div>${recent.map(r => resLine(r, false)).join('')}` : ''}
+        <div style="font-size:10px;color:#64748b;margin-top:8px;line-height:1.5">M15 か H1 のストキャス（14,5,3）が 20 未満→%D を上抜け→20 を上抜けで買い（売りは逆）。予約した後の足だけ見る。損切りを空けると、押しの安値（高値）から 0.3ATR 外。期限なし（取り消すまで）。</div>
+      </div>`;
+  }
+  function resSheet() {
+    const f = S.res; if (!f) return '';
+    const seg = (name, val, opts) => `<div style="display:grid;grid-template-columns:repeat(${opts.length},minmax(0,1fr));gap:6px">${opts.map(([v, l, col, rgb]) =>
+      `<button onclick="eaResSet('${name}','${v}')" style="${btn};${f[name] === v ? neon(col || '#22d3ee', rgb || '34,211,238') : offBtn}">${l}</button>`).join('')}</div>`;
+    const inp = (name, ph, step) => `<input type="number" step="${step || 'any'}" inputmode="decimal" value="${esc(f[name])}" oninput="eaResSet('${name}',this.value,1)" placeholder="${ph}" class="ea-input" style="width:100%">`;
+    const lab = t => `<div style="font-size:11px;color:#94a3b8;font-weight:700;margin:2px 0 6px">${t}</div>`;
+    return `<div onclick="if(event.target===this)eaResClose()" style="position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:300;display:flex;align-items:flex-end">
+      <div style="width:100%;max-height:88vh;overflow:auto;background:#111c31;border:1px solid #26364f;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:16px;font-weight:800">${esc(f.symbol)} を予約 <span style="font-size:11px;color:#94a3b8">${ACC_JA[S.acc]}口座</span></div>
+          <button onclick="eaResClose()" aria-label="閉じる" style="width:36px;height:36px;border-radius:9px;border:1px solid #334155;background:#172033;color:#cbd5e1;font-size:18px">×</button></div>
+        <div>${lab('向き')}${seg('direction', f.direction, [['BUY', '買い', '#f87171', '248,113,113'], ['SELL', '売り', '#38bdf8', '56,189,248']])}</div>
+        <div>${lab('きっかけ（ストキャス）')}${seg('trigger', f.trigger, [['M15', 'M15'], ['H1', 'H1']])}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div>${lab('損切りの価格（空 = 自動）')}${inp('sl', '自動')}</div><div>${lab('利確の価格（空 = なし）')}${inp('tp', 'なし')}</div></div>
+        <div>${lab('ロットの決め方')}${seg('lotMode', f.lotMode, [['pct', '口座の %'], ['jpy', '最大損失'], ['lot', 'ロット']])}
+          <div style="margin-top:8px">${inp('lotValue', LOT_JA[f.lotMode])}</div></div>
+        <div>${lab('メモ（任意）')}<input value="${esc(f.note)}" oninput="eaResSet('note',this.value,1)" class="ea-input" style="width:100%"></div>
+        ${f.msg ? `<div style="font-size:12px;color:${/でき|失敗|通信|入れて/.test(f.msg) ? '#f87171' : '#94a3b8'}">${esc(f.msg)}</div>` : ''}
+        <button onclick="eaResSubmit()" ${f.busy ? 'disabled' : ''} style="${btn};padding:13px;font-size:14px;${neon('#4ade80', '74,222,128')}">${f.busy ? '保存中…' : '予約する'}</button>
+      </div></div>`;
+  }
+  window.eaResOpen = function (sym) { S.res = {symbol: sym, direction: 'BUY', trigger: 'M15', sl: '', tp: '', lotMode: 'pct', lotValue: '0.5', note: '', msg: ''}; render(); };
+  window.eaResClose = function () { S.res = null; render(); };
+  window.eaResSet = function (k, v, quiet) {
+    if (!S.res) return; S.res[k] = v;
+    if (k === 'lotMode') S.res.lotValue = v === 'pct' ? '0.5' : v === 'jpy' ? '3000' : '0.01';
+    if (!quiet) render();
+  };
+  async function resPost(body) {
+    return fetch(GAS_URL, {method: 'POST', body: JSON.stringify(Object.assign({action: 'eaResSave', key: appKey()}, body))}).then(x => x.json());
+  }
+  window.eaResSubmit = async function () {
+    const f = S.res; if (!f || f.busy) return;
+    const v = Number(f.lotValue);
+    if (!(v > 0)) { f.msg = 'ロットの値を入れてください'; render(); return; }
+    if (f.lotMode === 'pct' && v > 3) { f.msg = '口座の % は 3% までにしてください'; render(); return; }
+    f.busy = true; f.msg = ''; render();
+    try {
+      const r = await resPost({op: 'create', account: S.acc, symbol: f.symbol, direction: f.direction, trigger: f.trigger, sl: f.sl, tp: f.tp, lotMode: f.lotMode, lotValue: v, note: f.note});
+      if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
+      S.dash = S.dash || {}; S.dash.reservations = resAll().concat([r.reservation]);
+      try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
+      S.res = null; S.saving = '予約しました（EA は 5 分以内に受け取ります）'; render(); refreshViews();
+      setTimeout(() => { S.saving = ''; render(); }, 4000);
+    } catch (e) { f.busy = false; f.msg = '保存できませんでした: ' + e.message; render(); }
+  };
+  window.eaResCancel = async function (id) {
+    if (!confirm('この予約を取り消しますか？')) return;
+    try {
+      const r = await resPost({op: 'cancel', resId: id});
+      if (!r || r.success === false) throw new Error((r && r.error) || '');
+      resAll().forEach(x => { if (String(x.ResID) === String(id)) x.Status = r.status || 'CANCEL'; });
+      render(); refreshViews();
+    } catch (e) { alert('取り消せませんでした: ' + e.message); }
+  };
 
   // ---------- view
   const neon = (col, rgb) => `border:1px solid ${col};background:rgba(${rgb},.10);color:${col};box-shadow:0 0 10px rgba(${rgb},.28)`;
@@ -151,9 +236,10 @@
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><div style="font-size:12px;font-weight:700;color:#94a3b8">EA 一覧</div><div style="font-size:11px;color:#94a3b8">${onCount} / 19 が ON</div></div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${cards}</div>
+      ${resSection()}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px">EA のトレード（最近）</div>
       <div class="ea-card" style="padding:4px 12px">${trades}</div>
-    </div>${sheet}`;
+    </div>${sheet}${resSheet()}`;
   }
 
 
@@ -163,6 +249,7 @@
   const ACC_JA = {demo: 'デモ', live: '本番'};
   let V = {histAcc: 'demo', anAcc: 'demo'};
   function eaName(key) {
+    if (/^RES:/.test(String(key || ''))) return '予約エントリー';
     const k = String(key || ''), card = CARDS.find(c => c.keys.some(x => x[0] === k));
     const sym = k.split('@')[1] || '';
     return card ? card.title + ' ' + sym : k;
@@ -177,7 +264,7 @@
       <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">${esc(t.Symbol)}
           <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
-          <span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
+          ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
         <div style="font-weight:700;font-size:15px;color:${col}">${open ? '保有中' : R}</div></div>
         <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
@@ -185,7 +272,13 @@
   window.eaLive = {
     data: () => S.dash, load: load, name: eaName,
     openTrades: () => allTrades().filter(t => t.Status === 'OPEN'),
-    homeHtml: () => allTrades().filter(t => t.Status === 'OPEN').slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join(''),
+    homeHtml: function () {
+      const pos = allTrades().filter(t => t.Status === 'OPEN').slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('');
+      const wait = resAll().filter(r => r.Status === 'WAIT');
+      const res = wait.length ? `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">予約中</div><div class="ea-card" style="padding:4px 12px;margin-bottom:8px">${wait.map(r => resLine(r, false)).join('')}</div>` : '';
+      return pos + res;
+    },
+    waitingCount: () => resAll().filter(r => r.Status === 'WAIT').length,
     historyHtml: function (f) {
       if (!appKey()) return '<div style="color:#94a3b8;text-align:center;padding:20px">EA 設定タブで合言葉を入れると、EA のトレードが出ます</div>';
       const tab = a => `<button class="toggle-btn ${V.histAcc === a ? 'active' : ''}" onclick="eaLiveHistAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
@@ -200,13 +293,14 @@
       const tab = a => `<button class="toggle-btn ${V.anAcc === a ? 'active' : ''}" onclick="eaLiveAnAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
       const xs = allTrades().filter(t => String(t.Account) === V.anAcc && t.Status === 'CLOSED');
       const by = {}; xs.forEach(t => (by[t.EA] = by[t.EA] || []).push(t));
-      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on));
+      Object.keys(by).filter(k => /^RES:/.test(k)).forEach(k => { (by['RES'] = by['RES'] || []).push(...by[k]); delete by[k]; });
+      const keys = ALL_KEYS.filter(k => by[k] || (cfg().eas[k] && cfg().eas[k].on)).concat(by['RES'] ? ['RES'] : []);
       const num = (v, d) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d);
       const rows = keys.map(k => {
         const g = by[k] || [], R = g.map(t => Number(t.R) || 0), n = g.length, w = R.filter(r => r > 0).length;
         const pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0), b = BT[k] || {};
         const avg = n ? R.reduce((a, b) => a + b, 0) / n : null, low = n >= 10 && avg != null && b.avgR != null && avg < b.avgR - 0.5;
-        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left">${esc(eaName(k))}</td><td>${n}</td>
+        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left">${k === 'RES' ? '予約エントリー' : esc(eaName(k))}</td><td>${n}</td>
           <td>${n ? (w / n * 100).toFixed(0) + '%' : '—'}<div style="color:#64748b">${num(b.wr, 0)}%</div></td>
           <td style="color:${low ? '#f87171' : 'inherit'}">${num(avg, 2)}<div style="color:#64748b">${num(b.avgR, 2)}</div></td>
           <td>${neg > 0 ? (pos / neg).toFixed(2) : n ? '∞' : '—'}<div style="color:#64748b">${num(b.pf, 2)}</div></td>
