@@ -23,7 +23,7 @@ from mt5_ea.live import gas  # noqa: E402
 from mt5_ea.live.broker import MT5Broker  # noqa: E402
 from mt5_ea.live.runner import MAGIC, Runner  # noqa: E402
 
-LOG = Path(__file__).with_name('live.log')
+LOG = Path(os.getenv('EA_LOG_FILE') or Path(__file__).with_name('live.log'))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s',
                     handlers=[logging.FileHandler(LOG, encoding='utf-8'), logging.StreamHandler()])
 HEARTBEAT_SEC = 300
