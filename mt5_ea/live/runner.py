@@ -41,6 +41,33 @@ JST = 'Asia/Tokyo'; SERVER_TZ = 'Europe/Athens'
 DEFAULT_CONFIG = dict(running=False, base_risk=0.01, eas={e.key: dict(mode='off', weight=e.weight) for e in ADOPTED})
 
 
+def compute_symbol(sym, m, warm, keys):
+    """EA logic for one symbol (pure calculation, no broker access): returns {key: result}. Runs in a worker process."""
+    start = m.t.iat[0] + pd.Timedelta(days=warm)
+    F = Frames(m, start, h_days=warm, m_days=warm)
+    env, out = None, {}
+    for key in keys:
+        if env is None and key not in DAILY:
+            env = Env(F.m15_all)
+        out[key] = BY_KEY[key].run(F, env)
+    return out
+
+
+_POOL = None
+
+
+def _pool():
+    """Worker processes for the per-symbol calculation (EA_WORKERS, default: CPU cores - 1, at most 8; 1 = no pool)."""
+    global _POOL
+    n = int(os.getenv('EA_WORKERS') or max(1, min(8, (os.cpu_count() or 2) - 1)))
+    if n <= 1:
+        return None
+    if _POOL is None:
+        from concurrent.futures import ProcessPoolExecutor
+        _POOL = ProcessPoolExecutor(max_workers=n)
+    return _POOL
+
+
 def to_jst(t):
     return pd.Timestamp(t).tz_localize(SERVER_TZ, ambiguous='NaT', nonexistent='shift_forward').tz_convert(JST).strftime('%Y-%m-%d %H:%M+09:00')
 
@@ -104,13 +131,29 @@ class Runner:
         for e in ADOPTED:
             if self.ea_cfg(e.key)['mode'] != 'off' or self._live_positions(e.key):
                 by_sym.setdefault(e.symbol, []).append(e)
+        jobs = []
         for sym, eas in by_sym.items():
             try:
-                report += self._step_symbol(sym, eas, eq)
+                job = self._prepare_symbol(sym, eas)
+                if job:
+                    jobs.append(job)
             except Exception as ex:
-                logging.exception('%s step failed', sym)
-                self.notify('error', f'EA {sym}: {ex}')
-                gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'{sym}: {ex}'[:500]))
+                self._symbol_error(sym, ex)
+        pool = _pool() if len(jobs) > 1 else None
+        futs = {}
+        if pool:
+            try:
+                futs = {j['sym']: pool.submit(compute_symbol, j['sym'], j['m'], j['warm'], j['keys']) for j in jobs}
+            except Exception as ex:                       # pool broken: fall back to one by one
+                logging.warning('process pool unavailable (%s): computing one by one', ex)
+                global _POOL
+                _POOL = None; futs = {}
+        for j in jobs:
+            try:
+                res = futs[j['sym']].result(timeout=600) if j['sym'] in futs else compute_symbol(j['sym'], j['m'], j['warm'], j['keys'])
+                report += self._finish_symbol(j, res, eq)
+            except Exception as ex:
+                self._symbol_error(j['sym'], ex)
         try:
             report += self._step_reservations(eq)
         except Exception as ex:
@@ -186,7 +229,13 @@ class Runner:
     def _live_positions(self, key):
         return [p for p in self.b.positions({MAGIC[key]})]
 
-    def _step_symbol(self, sym, eas, eq):
+    def _symbol_error(self, sym, ex):
+        logging.error('%s step failed: %s', sym, ex, exc_info=ex)
+        self.notify('error', f'EA {sym}: {ex}')
+        gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'{sym}: {ex}'[:500]))
+
+    def _prepare_symbol(self, sym, eas):
+        """Broker side before the calculation: bars, which EAs run now. None = nothing new for this symbol."""
         days = max(e.window_days for e in eas); warm = max(e.warm_days for e in eas)
         bars = self.b.bars(sym, days)
         if len(bars) < 1000:
@@ -197,28 +246,25 @@ class Runner:
         new_bar = self.state['last_bar'].get(sym) != last_t
         daily_todo = in_daily_slot and any(e.key in DAILY and self.state.get('daily_done', {}).get(e.key) != str(now.date()) for e in eas)
         if not new_bar and not daily_todo:
-            return []
+            return None
         self.state['last_bar'][sym] = last_t
+        run = [e for e in eas if not (e.key in DAILY and (not in_daily_slot or self.state.get('daily_done', {}).get(e.key) == str(now.date())))]
+        if not run:
+            return None
         m = bars[['t', 'o', 'h', 'l', 'c']].copy()
         m['t'] = m.t.astype('datetime64[us]')               # one time unit everywhere (MT5 gives seconds)
         for z in 'ohlc':
             m[z] = to_space(sym, m[z].to_numpy())
-        start = m.t.iat[0] + pd.Timedelta(days=warm)
-        F = Frames(m, start, h_days=warm, m_days=warm)
-        env = None
-        days_list = sorted(set(pd.to_datetime(bars.t).dt.normalize()))
+        return dict(sym=sym, m=m, warm=warm, keys=[e.key for e in run], now=now,
+                    days_list=sorted(set(pd.to_datetime(bars.t).dt.normalize())))
+
+    def _finish_symbol(self, j, res, eq):
+        """Broker side after the calculation: orders / stops for each EA of the symbol, in registry order."""
         out = []
-        for e in eas:
-            if e.key in DAILY and not in_daily_slot:
-                continue
-            if e.key in DAILY and self.state.get('daily_done', {}).get(e.key) == str(now.date()):
-                continue
-            if env is None and e.key not in DAILY:
-                env = Env(F.m15_all)
-            res = e.run(F, env)
-            out += self._reconcile(e, res, sym, eq, days_list, now)
-            if e.key in DAILY:
-                self.state.setdefault('daily_done', {})[e.key] = str(now.date())
+        for key in j['keys']:
+            out += self._reconcile(BY_KEY[key], res[key], j['sym'], eq, j['days_list'], j['now'])
+            if key in DAILY:
+                self.state.setdefault('daily_done', {})[key] = str(j['now'].date())
         return out
 
     # ------------------------------------------------------------------ reconcile one EA

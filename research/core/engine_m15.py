@@ -98,6 +98,18 @@ def ATR(d,n=14):
     tr=pd.concat([(d.high-d.low),(d.high-pc).abs(),(d.low-pc).abs()],axis=1).max(axis=1)
     return tr.rolling(n).mean()
 
+
+class _Row(dict):
+    """A row usable as r.col and r['col'] (iterrows was the slowest part of the live EA; values are the same)."""
+    __slots__ = ()
+    def __getattr__(self, k):
+        try: return self[k]
+        except KeyError: raise AttributeError(k)
+
+def _rows(d):
+    """(index, row) pairs like DataFrame.iterrows(), much faster."""
+    return zip(d.index, map(_Row, d.to_dict('records')))
+
 def resample_ohlc(d,freq):
     x=d.set_index('time').resample(freq,label='left',closed='left').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna().reset_index()
     delta=pd.Timedelta(freq)
@@ -107,7 +119,7 @@ def resample_ohlc(d,freq):
 def causal_pivots(d, atr_col='atr', mult=1.5, avail_col='time'):
     """Return confirmed alternating pivots. Same-bar new extreme cannot confirm reversal."""
     out=[]; mode=0; extreme=None; extreme_i=None
-    for i,r in d.iterrows():
+    for i,r in _rows(d):
         a=r[atr_col]
         if not np.isfinite(a) or a<=0: continue
         h,l=float(r.high),float(r.low)
@@ -139,7 +151,7 @@ def causal_pivots(d, atr_col='atr', mult=1.5, avail_col='time'):
 def causal_pivots_bootstrap(d, atr_col='atr', mult=1.5, avail_col='time'):
     """Practical causal ZZ bootstrap: establish first leg once price reverses threshold from an extreme."""
     out=[]; hi=lo=None; hii=loi=None; mode=0; extreme=None; extreme_i=None
-    for i,r in d.iterrows():
+    for i,r in _rows(d):
         a=r[atr_col]
         if not np.isfinite(a) or a<=0: continue
         h,l=float(r.high),float(r.low); th=mult*a
@@ -290,7 +302,7 @@ def run_pair(pair,cfg=CFG):
     pip=.01 if pair.endswith('JPY') else .0001; minrisk=10*pip
     # pivot confirmations indexed by M15 bar time; effective next bar handled via confirm_time < current time
     piv_by_t={}
-    for _,p in m15p.iterrows():piv_by_t.setdefault(p.confirm_time,[]).append(p)
+    for _,p in _rows(m15p):piv_by_t.setdefault(p.confirm_time,[]).append(p)
     positions=[]; closed=[]
     states={1:0,-1:0}; pcount={1:0,-1:0}; regime_side=0; regime_id=0; regime_trades={1:[],2:[],3:[]}
     qhist={1:[],-1:[]}
@@ -298,7 +310,7 @@ def run_pair(pair,cfg=CFG):
     latest_pivot={'L':None,'H':None}
     prevK=prevD=np.nan
 
-    for i,r in m.iterrows():
+    for i,r in _rows(m):
         t=r.time
         # update RSI state when a new completed H4 becomes available
         if cfg.use_h4_rsi and np.isfinite(r.h4i) and int(r.h4i)!=last_h4i:
