@@ -10,6 +10,7 @@ Periods: develop 2020-2024, check 2025, model-trade year 2026 (the model trades 
 Also measures how many of the user's model trades it reproduces (same side, entry within +/-24h).
 Usage: EA_M15_CACHE=<csv> python dow_strategy/dow_turn_ea.py
 """
+import os as _os; _ENTRY_BAR = _os.environ.get('EA_ENTRY_BAR') == '1'   # 1 = also check the stop on the entry bar (2026-10-24 fix, §93/§106)
 import bisect
 import glob
 import json
@@ -72,7 +73,7 @@ def run(cfg):
         # manage open positions on bar i
         keep = []
         for p in pos:
-            if p['k'] >= i:
+            if p['k'] > i or (p['k'] == i and not _ENTRY_BAR):
                 keep.append(p); continue
             s = p['side']
             if (l[i] <= p['sl']) if s == 1 else (h[i] >= p['sl']):

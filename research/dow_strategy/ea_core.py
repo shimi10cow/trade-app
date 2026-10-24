@@ -10,6 +10,7 @@
   exit    : trail to swings once +act R: 'h1', 'h4', 'm15', or 'hyb' (M15 swings until +sw R, then H1 swings); trail only tightens
 Entry at the next M15 open. Cost 1.2 pip. Optional environment filter via env_ctx (dside / env).
 Everything uses only information known at the signal bar's close (causal)."""
+import os as _os; _ENTRY_BAR = _os.environ.get('EA_ENTRY_BAR') == '1'   # 1 = also check the stop on the entry bar (2026-10-24 fix, §93/§106)
 import bisect, sys
 from pathlib import Path
 import numpy as np
@@ -128,7 +129,7 @@ def run(events, cfg):
     for i in range(N):
         keep = []
         for p in pos:
-            if p['k'] >= i:
+            if p['k'] > i or (p['k'] == i and not _ENTRY_BAR):
                 keep.append(p); continue
             s = p['side']
             if (B.l[i] <= p['sl']) if s == 1 else (B.h[i] >= p['sl']):

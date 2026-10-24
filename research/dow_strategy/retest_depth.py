@@ -4,6 +4,7 @@ pullback has retraced >= q of the move from the level L to the best price since 
 Entry on the next M15 provisional turn in the trade direction. Each trade is tagged 'shallow' if, at entry, price had NOT
 yet come back within tol x ATR of L (= a trade the original A would not have taken at that point).
 Reports by q, shallow vs full, and by JST entry hour."""
+import os as _os; _ENTRY_BAR = _os.environ.get('EA_ENTRY_BAR') == '1'   # 1 = also check the stop on the entry bar (2026-10-24 fix, §93/§106)
 import sys, bisect
 from pathlib import Path
 import numpy as np, pandas as pd
@@ -46,7 +47,7 @@ def simulate(ent, cfg=N1):
     for i in range(n):
         keep = []
         for p in pos:
-            if p['k'] >= i: keep.append(p); continue
+            if p['k'] > i or (p['k'] == i and not _ENTRY_BAR): keep.append(p); continue
             s = p['side']
             if (B.l[i] <= p['sl']) if s == 1 else (B.h[i] >= p['sl']):
                 p['exit'] = p['sl']; p['exit_t'] = M15T[i]; trades.append(p); continue

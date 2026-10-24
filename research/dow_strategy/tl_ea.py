@@ -12,6 +12,7 @@ Exits (structure based, no fixed R): 'h1' trail H1 swings after +1R | 'm15' trai
 Optional regime gate: only when the recent H4 turns / breakouts followed through (regime_gate.py).
 Usage: DT_START=2005-01-01 EA_M15_CACHE=<csv> python dow_strategy/tl_ea.py [names]
 """
+import os as _os; _ENTRY_BAR = _os.environ.get('EA_ENTRY_BAR') == '1'   # 1 = also check the stop on the entry bar (2026-10-24 fix, §93/§106)
 import bisect
 import sys
 from multiprocessing import Pool
@@ -148,7 +149,7 @@ def run(cfg):
     for i in range(n):
         keep = []
         for p in pos:
-            if p['k'] >= i:
+            if p['k'] > i or (p['k'] == i and not _ENTRY_BAR):
                 keep.append(p); continue
             s = p['side']
             if (B.l[i] <= p['sl']) if s == 1 else (B.h[i] >= p['sl']):
