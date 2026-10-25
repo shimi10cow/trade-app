@@ -147,7 +147,8 @@
     }).join('');
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>📊 検証結果（どれを外すかの目安）</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
-      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。</div>${rows}${comboTable()}` : ''}</div>`;
+      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。</div>${rows}${comboTable()}
+      <div style="font-size:11px;color:#fbbf24;margin-top:10px;line-height:1.6;border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:8px 10px">📝 本番の方針（2026-10-25）：外す候補の T@US30・DS@JP225・A@EURUSD は本番では OFF で始める。デモの成績を見てから戻すか決める</div>` : ''}</div>`;
   }
   function resSection() {
     const mine = resAll().filter(r => String(r.Account) === S.acc);
