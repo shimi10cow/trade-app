@@ -231,7 +231,9 @@ function impGet_(k, d) { try { return JSON.parse(impProps_().getProperty(k) || '
 
 /** app: save the import settings (the import itself is started on the PC with its desktop button). */
 function impSaveSettings_(b) {
-  const st = {groupHours: Number(b.groupHours) || 24, mergeAcross: b.mergeAcross !== false};
+  const lh = Number(b.linkHours);
+  const st = {groupHours: Number(b.groupHours) || 24, mergeAcross: b.mergeAcross !== false,
+              linkHours: lh > 0 && lh <= 72 ? lh : IMP_LINK_HOURS_};
   impProps_().setProperty('IMPORT_SETTINGS', JSON.stringify(st));
   return {success: true, settings: st};
 }
@@ -301,28 +303,53 @@ function impBatch_(b) {
   return {success: true, executionsNew: add.length, updated: updated, linked: linked, drafts: drafts};
 }
 
-const IMP_LINK_HOURS_ = 3;    // a draft's link candidates: hand-written entries within this many hours
+const IMP_LINK_HOURS_ = 3;      // default: a draft's link candidates are hand-written entries within this many hours
+const IMP_RECENT_DAYS_ = 14;    // "最近記録にしたもの" in the MT5 tab
+const IMP_TRASH_ = 'ゴミ箱';     // status of a discarded draft (kept until the trash is emptied)
+// fields a link copies from MT5 onto the hand-written trade; their old values are kept in LinkBackup so the link can be undone
+const IMP_LINK_FIELDS_ = ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', 'Accounts', 'ExecCount',
+                          'InitialSLPrice', 'TakeProfitPrice', '損益', '実取得pips', 'ステータス', 'MergeMode'];
+
+function impExecOf_(E, tradeId) {
+  return E.rows.filter(function (r) { return String(r.TradeID) === String(tradeId); }).map(function (r) { const o = Object.assign({}, r); delete o._row; return o; });
+}
+function impPosCount_(ex) { return Object.keys(ex.reduce(function (a, r) { a[r.Account + ':' + r.PositionID] = 1; return a; }, {})).length; }
+function impBrief_(t) {
+  return {EntryID: t.EntryID, 'PairName（元）': t['PairName（元）'] || t.PairName, Direction: t.Direction, EntryDate: t.EntryDate, EntryTime: t.EntryTime,
+          ExitDate: t.ExitDate, ExitTime: t.ExitTime, Lot: t.Lot, '損益': t['損益'], '実取得pips': t['実取得pips'], 'ステータス': t['ステータス'],
+          Source: t.Source, Accounts: t.Accounts, TrashedAt: t.TrashedAt, AdoptedAt: t.AdoptedAt, LinkedAt: t.LinkedAt, linked: !!t.LinkBackup};
+}
 
 /** app: MT5 tab data. */
 function impStatus_() {
   const T = trRead_(), E = execRead_();
+  const st = impGet_('IMPORT_SETTINGS', {groupHours: 24, mergeAcross: true});
+  const linkH = Number(st.linkHours) > 0 ? Number(st.linkHours) : IMP_LINK_HOURS_;
   const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き'; }).map(function (t) {
-    const ex = E.rows.filter(function (r) { return String(r.TradeID) === String(t.EntryID); }).map(function (r) { const o = Object.assign({}, r); delete o._row; return o; });
+    const ex = impExecOf_(E, t.EntryID);
     // link candidates: hand-written trades (open or closed, the whole history) with the same pair and direction whose
-    // entry is within 3 hours; not drafts, not missed entries, not reservations, not trades already linked to MT5
+    // entry is within linkH hours; not drafts / trash / missed entries / reservations / trades already linked to MT5
     const ms = impEntryMs_(t);
     const cands = T.rows.filter(function (c) {
-      return c !== t && !c.Accounts && ['下書き', '決済（見逃し）'].indexOf(String(c['ステータス'])) < 0 && String(c.Source || '') !== '予約'
+      return c !== t && !c.Accounts && ['下書き', IMP_TRASH_, '決済（見逃し）'].indexOf(String(c['ステータス'])) < 0 && String(c.Source || '') !== '予約'
         && String(c['PairName（元）'] || c.PairName || '').toUpperCase() === String(t['PairName（元）'] || t.PairName || '').toUpperCase()
-        && String(c.Direction) === String(t.Direction) && Math.abs(impEntryMs_(c) - ms) <= IMP_LINK_HOURS_ * 3600e3;
+        && String(c.Direction) === String(t.Direction) && Math.abs(impEntryMs_(c) - ms) <= linkH * 3600e3;
     }).sort(function (x, y) { return Math.abs(impEntryMs_(x) - ms) - Math.abs(impEntryMs_(y) - ms); })     // closest first
       .map(function (c) { return {EntryID: c.EntryID, EntryDate: c.EntryDate, EntryTime: c.EntryTime, Lot: c.Lot, '損益': c['損益'], 'ステータス': c['ステータス']}; });
     const o = tradesExpand_(Object.assign({}, t)); delete o._row;
-    return {trade: o, executions: ex, positions: Object.keys(ex.reduce(function (a, r) { a[r.Account + ':' + r.PositionID] = 1; return a; }, {})).length, candidates: cands};
+    return {trade: o, executions: ex, positions: impPosCount_(ex), candidates: cands};
   });
+  const trash = T.rows.filter(function (t) { return t['ステータス'] === IMP_TRASH_; }).map(function (t) {
+    const ex = impExecOf_(E, t.EntryID); return {trade: impBrief_(t), executions: ex, positions: impPosCount_(ex)};
+  });
+  const since = Date.now() - IMP_RECENT_DAYS_ * 86400e3, when = function (s) { const d = new Date(String(s || '').replace(' ', 'T')); return isNaN(d) ? 0 : d.getTime(); };
+  const recent = T.rows.filter(function (t) { return ['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) < 0 && Math.max(when(t.AdoptedAt), t.LinkBackup ? when(t.LinkedAt) : 0) >= since; })
+    .sort(function (a, b) { return Math.max(when(b.AdoptedAt), when(b.LinkedAt)) - Math.max(when(a.AdoptedAt), when(a.LinkedAt)); })
+    .map(function (t) { const ex = impExecOf_(E, t.EntryID); return {trade: impBrief_(t), executions: ex, positions: impPosCount_(ex)}; });
   const eaStatus = {}; try { ealRows_('status').forEach(function (r) { eaStatus[r.Account] = r.UpdatedAt; }); } catch (e) {}
   return {success: true, request: impGet_('IMPORT_REQUEST', null), status: impGet_('IMPORT_STATUS', {accounts: {}}),
-          settings: impGet_('IMPORT_SETTINGS', {groupHours: 24, mergeAcross: true}), drafts: drafts, eaStatus: eaStatus};
+          settings: Object.assign({linkHours: linkH}, st), drafts: drafts, trash: trash, recent: recent, eaStatus: eaStatus,
+          features: {trash: 1, unadopt: 1, linkHours: 1}};
 }
 
 function impFind_(T, id) { const t = T.rows.filter(function (r) { return String(r.EntryID) === String(id); })[0]; if (!t) throw new Error('trade not found: ' + id); return t; }
@@ -330,12 +357,38 @@ function impFind_(T, id) { const t = T.rows.filter(function (r) { return String(
 /** app: keep a draft as a real record (status from whether it is closed). */
 function impAdopt_(b) {
   const T = trRead_(), t = impFind_(T, b.entryId);
-  t['ステータス'] = t.ExitDate ? '決済' : '保有中'; trWrite_(T, t);
+  t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t.AdoptedAt = tradesNow_(); trWrite_(T, t);
   return {success: true, status: t['ステータス']};
+}
+/** app: a trade recorded from the MT5 tab goes back to "確認が必要なトレード".
+ *  - recorded from a draft (Source MT5): back to a draft
+ *  - linked to a hand-written trade: the hand-written values come back from LinkBackup and the MT5 part becomes a draft again */
+function impUnadopt_(b) {
+  const T = trRead_(), t = impFind_(T, b.entryId), E = execRead_();
+  if (t.LinkBackup) return {success: true, draftId: impUnlinkRow_(T, E, t, JSON.parse(t.LinkBackup))};
+  if (String(t.Source) !== 'MT5') throw new Error('MT5 から記録したトレードではありません');
+  t['ステータス'] = '下書き'; t.AdoptedAt = ''; trWrite_(T, t);
+  return {success: true, draftId: t.EntryID};
+}
+/** The MT5 part of a linked trade becomes a new draft; the hand-written trade gets `orig` back. Returns the draft id. */
+function impUnlinkRow_(T, E, t, orig) {
+  const rs = E.rows.filter(function (r) { return String(r.TradeID) === String(t.EntryID); });
+  let draftId = '';
+  if (rs.length) {
+    const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, impFields_(impAggregate_(rs)));
+    trWrite_(T, d); T.rows.push(d); draftId = d.EntryID;
+    execSetTradeId_(E, rs.map(function (r) { return r.ExecID; }), d.EntryID);
+  }
+  IMP_LINK_FIELDS_.forEach(function (k) { t[k] = orig[k] === undefined ? '' : orig[k]; });
+  t.LinkBackup = ''; t.LinkedAt = '';
+  trWrite_(T, t);
+  return draftId;
 }
 /** app: attach a draft's MT5 numbers to a hand-written trade, then remove the draft. */
 function impLink_(b) {
   const T = trRead_(), d = impFind_(T, b.draftId), t = impFind_(T, b.entryId), E = execRead_();
+  const backup = {}; IMP_LINK_FIELDS_.forEach(function (k) { backup[k] = t[k] === undefined ? '' : t[k]; });   // to undo the link later
+  t.LinkBackup = JSON.stringify(backup); t.LinkedAt = tradesNow_();
   ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', 'Accounts', 'ExecCount', 'InitialSLPrice', 'TakeProfitPrice'].forEach(function (k) { if (d[k] !== '' && d[k] !== undefined) t[k] = d[k]; });
   if (!t['損益'] && d['損益'] !== '') t['損益'] = d['損益'];
   if (!t['実取得pips'] && d['実取得pips'] !== '') t['実取得pips'] = d['実取得pips'];
@@ -369,13 +422,65 @@ function impMerge_(b) {
   CacheService.getScriptCache().remove(CACHE_KEY);
   return {success: true};
 }
-/** app: not a trade to record (the executions stay, marked IGNORED so they never come back as a draft). */
+/** app: not a trade to record -> the trash (status ゴミ箱). Its executions keep pointing to it, so a new import neither
+ *  brings it back as a new draft nor duplicates it; it can be restored until the trash is emptied. */
 function impDiscard_(b) {
-  const T = trRead_(), d = impFind_(T, b.draftId), E = execRead_();
-  execSetTradeId_(E, E.rows.filter(function (r) { return String(r.TradeID) === String(d.EntryID); }).map(function (r) { return r.ExecID; }), 'IGNORED');
-  T.sh.deleteRow(d._row); CacheService.getScriptCache().remove(CACHE_KEY);
-  return {success: true};
+  const T = trRead_(), ids = (b.ids || [b.draftId]).map(String);
+  ids.forEach(function (id) { const d = impFind_(T, id); d['ステータス'] = IMP_TRASH_; d.TrashedAt = tradesNow_(); trWrite_(T, d); });
+  return {success: true, trashed: ids.length};
 }
+/** app: trash -> back to "確認が必要なトレード". */
+function impRestore_(b) {
+  const T = trRead_(), ids = (b.ids || []).map(String);
+  ids.forEach(function (id) { const d = impFind_(T, id); if (d['ステータス'] !== IMP_TRASH_) return; d['ステータス'] = '下書き'; d.TrashedAt = ''; trWrite_(T, d); });
+  return {success: true, restored: ids.length};
+}
+/** app: delete for good (some ids, or the whole trash with all: true). The executions are marked IGNORED so they never
+ *  come back as a draft, even with the 90-day reread. */
+function impPurge_(b) {
+  const T = trRead_(), E = execRead_();
+  const rows = T.rows.filter(function (t) { return t['ステータス'] === IMP_TRASH_ && (b.all || (b.ids || []).map(String).indexOf(String(t.EntryID)) >= 0); });
+  rows.forEach(function (d) {
+    execSetTradeId_(E, E.rows.filter(function (r) { return String(r.TradeID) === String(d.EntryID); }).map(function (r) { return r.ExecID; }), 'IGNORED');
+  });
+  rows.map(function (d) { return d._row; }).sort(function (a, b) { return b - a; }).forEach(function (r) { T.sh.deleteRow(r); });
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return {success: true, purged: rows.length};
+}
+
+/** One-off (run from the editor): the trades the old import linked to hand-written ones automatically (before
+ *  2026-10-25) go back to "確認が必要なトレード". Run with apply = false first (the default) and read the log.
+ *  The hand-written values come back from the Entries sheet when the app already uses Trades (the migration left Entries
+ *  untouched); otherwise only the link is undone and the values MT5 wrote are listed so they can be checked by hand. */
+function impRevertAutoLinksOnce(apply) {
+  const T = trRead_(), E = execRead_();
+  const auto = T.rows.filter(function (t) {
+    return t.Accounts && !t.LinkBackup && String(t.Source || '') !== 'MT5' && String(t.MergeMode || '') === 'auto'
+      && ['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) < 0;
+  });
+  let orig = {};
+  if (tradesActive_()) {
+    const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+    if (sh) {
+      const v = sh.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); });
+      v.slice(1).forEach(function (r) {
+        const o = {}; h.forEach(function (k, j) { let x = r[j]; if (x instanceof Date) x = x.getFullYear() <= 1900 ? Utilities.formatDate(x, 'Asia/Tokyo', 'HH:mm') : Utilities.formatDate(x, 'Asia/Tokyo', 'yyyy/MM/dd'); o[k] = x; });
+        if (o.EntryID) orig[String(o.EntryID)] = o;
+      });
+    }
+  }
+  const report = auto.map(function (t) {
+    const o = orig[String(t.EntryID)];
+    const back = {}; IMP_LINK_FIELDS_.forEach(function (k) { back[k] = o ? (o[k] === undefined ? '' : o[k]) : (['Accounts', 'ExecCount', 'MergeMode'].indexOf(k) >= 0 ? '' : t[k]); });
+    const line = {EntryID: t.EntryID, pair: t['PairName（元）'] || t.PairName, dir: t.Direction, entry: t.EntryDate + ' ' + t.EntryTime,
+                  source: o ? 'Entries (元の値を戻す)' : 'なし (結び付きだけ外す。今の値: ' + ['EntryPrice', 'Lot', 'ExitDate', 'ExitTime', 'Profit', '損益', '実取得pips'].map(function (k) { return k + '=' + t[k]; }).join(' ') + ')'};
+    if (apply) line.draftId = impUnlinkRow_(T, E, t, back);
+    return line;
+  });
+  Logger.log(JSON.stringify({apply: !!apply, tradesActive: tradesActive_(), count: report.length, trades: report}, null, 1));
+  return report;
+}
+function impRevertAutoLinksApply() { return impRevertAutoLinksOnce(true); }
 
 // ------------------------------------------------------------------ time stamps
 /** One-off: rewrite old time stamps to Japan time with the offset (2026-10-24 21:15+09:00). Run once from the editor.

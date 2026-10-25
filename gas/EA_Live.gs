@@ -65,7 +65,7 @@ function ealAuth_(body, who) {
 }
 
 const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
-const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1};
+const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -81,6 +81,7 @@ function routeEALive_(action, body) {
                 eaImportAdopt: b2 => impAdopt_(b2), eaImportLink: b2 => impLink_(b2), eaImportSplit: b2 => impSplit_(b2),
                 eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2),
                 eaImportSaveSettings: b2 => impSaveSettings_(b2),
+                eaImportRestore: b2 => impRestore_(b2), eaImportPurge: b2 => impPurge_(b2), eaImportUnadopt: b2 => impUnadopt_(b2),
                 eaImportCancel: () => { PropertiesService.getScriptProperties().deleteProperty('IMPORT_REQUEST'); return {success: true}; }}[action];
     if (/^eaImport/.test(action) && typeof impBatch_ !== 'function') throw new Error('add Trades.gs to the Apps Script project');
     const lock = LockService.getScriptLock();
