@@ -70,7 +70,7 @@ def _pool():
 
 
 def to_jst(t):
-    return pd.Timestamp(t).tz_localize(SERVER_TZ, ambiguous='NaT', nonexistent='shift_forward').tz_convert(JST).strftime('%Y-%m-%d %H:%M+09:00')
+    return pd.Timestamp(t).tz_localize(SERVER_TZ, ambiguous=True, nonexistent='shift_forward').tz_convert(JST).strftime('%Y-%m-%d %H:%M+09:00')
 
 
 def load_json(p, default):

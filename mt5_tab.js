@@ -65,14 +65,15 @@
       act('戻しています…', 'eaImportUnadopt', {entryId: id}, () => '確認が必要なトレードに戻しました');
   };
   // trade detail (app.js): any trade recorded or linked from the MT5 tab can go back, no time limit
-  window.mt5UnadoptFromDetail = async function (id, linked) {
+  window.mt5UnadoptFromDetail = async function (id, linked, noBackup) {
     if (!key()) { if (typeof showToast === 'function') showToast('EA 設定タブで合言葉を入れると使えます'); return false; }
-    if (!confirm(linked ? 'この紐付けを外して、MT5 の分を「確認が必要なトレード」に戻しますか？（このトレードは紐付ける前の値に戻ります）'
+    if (!confirm(noBackup ? 'この紐付けを外して、MT5 の分を「確認が必要なトレード」に戻しますか？\n（前の仕組みで紐付けたので、紐付ける前の値の控えがありません。建値・ロット・損益などは、元の値が残っていれば戻し、無ければ今の値のまま残ります）'
+               : linked ? 'この紐付けを外して、MT5 の分を「確認が必要なトレード」に戻しますか？（このトレードは紐付ける前の値に戻ります）'
                         : 'このトレードを履歴から外して、MT5 タブの「確認が必要なトレード」に戻しますか？')) return false;
     try {
       const r = await call('eaImportUnadopt', {entryId: id});
       if (!r || r.success === false) throw new Error((r && r.error) || '失敗');
-      if (typeof showToast === 'function') showToast('確認が必要なトレードに戻しました');
+      if (typeof showToast === 'function') showToast(noBackup ? (r.restored ? '紐付けを外し、元の値に戻しました' : '紐付けを外しました（値は今のまま）') : '確認が必要なトレードに戻しました');
       if (typeof loadData === 'function') try { loadData(); } catch (e) {}
       load(); return true;
     } catch (e) { if (typeof showToast === 'function') showToast('⚠️ できませんでした: ' + e.message); return false; }
@@ -217,7 +218,11 @@
     const tile = (label, val, col) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:10px 6px;text-align:center"><div style="font-size:10px;color:#94a3b8">${label}</div><div style="font-size:16px;font-weight:800;margin-top:4px;color:${col || '#f8fafc'}">${val}</div></div>`;
     const tiles = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${tile('前回', last ? esc(String(last.at).slice(5, 16)) : '—')}${tile('新しい約定', last ? last.executionsNew : '—')}${tile('確認待ち', drafts.length, drafts.length ? '#22d3ee' : '')}</div>`;
     const lastLine = last ? `${last.period ? '期間 ' + esc(last.period) + ' · ' : ''}更新 ${last.updated} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
-    const errs = last && last.errors && last.errors.length ? `<div style="font-size:11px;color:#f87171">${last.errors.map(esc).join('<br>')}</div>` : '';
+    // which accounts could not be read: listed per account below (older GAS: the raw messages here)
+    const badAccs = accs.filter(([, a]) => a.error);
+    const errs = last && last.errors && last.errors.length ? (badAccs.length
+        ? `<div style="font-size:11px;color:#fbbf24">${badAccs.length} 口座は読めませんでした（下の「口座ごとの取り込み」）。読めた口座の分は取り込めています</div>`
+        : `<div style="font-size:11px;color:#f87171">${last.errors.map(esc).join('<br>')}</div>`) : '';
     // read period (2026-10-25): the PC's importer reads it when its button is pressed
     const periodRow = () => {
       const m = st.readMode || 'continue', pb = (v, l) => `<button onclick="mt5Set('readMode','${v}')" style="${btn};flex:1;padding:8px 4px;font-size:11px;${m === v ? neon('#22d3ee', '34,211,238') : off}">${l}</button>`;
@@ -239,8 +244,11 @@
         <input type="number" min="1" max="72" value="${esc(st.linkHours || 3)}" onchange="mt5Set('linkHours',Math.min(72,Math.max(1,Number(this.value)||3)))" class="ea-input" style="width:72px;text-align:center"> 時間</div>` : ''}
       ${feat().readPeriod ? periodRow() : ''}
       <div style="font-size:10px;color:#64748b">設定は次の取り込みから使われます。過去 90 日を読み直す時は PC の「MT5 取り込み 90日読み直し」ボタン（同じ約定は増えません）。EA 用の口座は自動で記録するので対象外です。</div></div>`;
-    const accBody = accs.length ? accs.map(([login, a]) => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b">
-      <span>${esc(a.label || login)}<span style="color:#64748b;font-size:10px"> ${esc(login)}</span></span><span style="color:#94a3b8">${esc(String(a.last || '').slice(5, 16)) || '—'} · ${esc(a.deals)} 件</span></div>`).join('')
+    const accBody = accs.length ? accs.map(([login, a]) => `<div style="padding:6px 0;border-bottom:1px solid #1e293b;font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(a.label || login)}<span style="color:#64748b;font-size:10px"> ${esc(login)}</span></span>
+        ${a.error ? `<span style="color:#f87171;font-weight:700;white-space:nowrap">${/パスワード|password/i.test(a.error) ? '未ログイン' : '読めない'}</span>`
+                  : `<span style="color:#4ade80;white-space:nowrap">✓ ${esc(String(a.at || a.last || '').slice(5, 16)) || '—'} · ${esc(a.deals)} 件</span>`}</div>
+      ${a.error ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">${/パスワード|password/i.test(a.error) ? '取り込み用 MT5 で、この口座に投資家パスワードでログインして「パスワードを保存」' : esc(a.error)}${a.last ? ' · 前に読めたのは ' + esc(String(a.last).slice(5, 16)) : ''}</div>` : ''}</div>`).join('')
       : '<div style="font-size:12px;color:#94a3b8">まだありません（PC の import_accounts.json に口座を書きます）</div>';
     const ea = d.eaStatus || {};
     const trash = d.trash || [], recent = d.recent || [];
@@ -272,7 +280,7 @@
       ${drafts.length ? drafts.map(draftCard).join('') : '<div class="ea-card" style="font-size:12px;color:#94a3b8;text-align:center;padding:18px">確認が必要なトレードはありません ✅</div>'}
       ${feat().unadopt ? section('recent', `最近記録にしたもの（${14} 日）`, recentBody, recent.length + ' 件') : ''}
       ${feat().trash ? section('trash', '🗑️ ゴミ箱', trashBody, trash.length + ' 件') : ''}
-      ${section('acc', '口座ごとの取り込み', accBody, accs.length + ' 口座')}
+      ${section('acc', '口座ごとの取り込み', accBody, (badAccs.length ? (accs.length - badAccs.length) + ' / ' : '') + accs.length + ' 口座')}
       ${section('set', '取り込みの設定', settings)}
       <div class="ea-card" style="padding:10px 12px;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between"><span>EA 口座の最後の記録</span>
         <span>デモ ${ea.demo ? esc(String(ea.demo).slice(5, 16)) : '—'} · 本番 ${ea.live ? esc(String(ea.live).slice(5, 16)) : '—'}</span></div>

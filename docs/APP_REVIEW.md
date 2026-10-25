@@ -75,6 +75,8 @@
 - 予約の「シグナルのみ」（2026-10-25）：`gas/EA_Live.gs` の表 Reservations に `Kind`（ENTRY / SIGNAL）、PC が送ったら Status `SIGNALED`。シグナルのみの予約は、対応した PC（`res_kinds`）にだけ渡す（古い PC が注文にしないように）。アプリはデプロイ後に「種類」の欄が出る
 - EA のロット「最小ロット」（2026-10-25）：設定 `lot_mode: 'min'`。PC が心拍で `Caps`（`min_lot,res_kind`）を送り、表 EA_Status に残す。アプリは対応した PC の口座だけ「最小ロット」を押せる
 - **PC の EA の入れ替えが要る**（`git pull` → 新EA 更新）：最小ロット・シグナルのみ予約・予約の銘柄名（GOLD / SILVER / NATGAS）・予約の足を 20 日分読む（H1 MA200 の損切り用）
+- （10/25 夜・デプロイ後の追加。`gas/Trades.gs` だけ貼り直し）控えのない紐付け（前の自動の紐付け・古い GAS での紐付け）も「確認待ちに戻す」で外せる（`impUnadopt_`・`impRevertAutoLinksOnce` は MergeMode を見ない）。予約のトレードは対象外。取り込みで読めなかった口座も「口座ごとの取り込み」に残す（`error`。前に読めた日時は消さない）
+- PC：`importer.py`（読めなかった口座も送る・夏時間の終わりの重なる 1 時間で止まらない）は `git pull` だけで次の取り込みから。`runner.py` の同じ時刻の直しは次の「新EA 更新」で
 ### デプロイのあとにやること
 
 1. Apps Script のエディタで `impRevertAutoLinksOnce` を実行 → 実行ログで、前回自動で結び付いたトレード（4 件のはず）と、元の値を戻せるか（「Entries」か「なし」）を確認

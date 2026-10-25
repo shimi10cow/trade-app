@@ -46,7 +46,7 @@ APP_PAIR = {'XAUUSD': 'GOLD', 'GOLD': 'GOLD', 'XAGUSD': 'SILVER', 'SILVER': 'SIL
 
 def jst(server_epoch):
     """MT5 time (server time written as if UTC) -> 'yyyy-MM-dd HH:mm+09:00' (Japan time with the offset)."""
-    t = pd.to_datetime(int(server_epoch), unit='s').tz_localize(SERVER_TZ, ambiguous='NaT', nonexistent='shift_forward')
+    t = pd.to_datetime(int(server_epoch), unit='s').tz_localize(SERVER_TZ, ambiguous=True, nonexistent='shift_forward')
     return t.tz_convert('Asia/Tokyo').strftime('%Y-%m-%d %H:%M') + '+09:00'
 
 
@@ -225,13 +225,15 @@ def main(argv=None):
             acc_out.append(dict(login=key, label=acc.get('label', ''), deals=len(rs), last=max((r['_t'] for r in rs), default=state.get(key, since))))
         except Exception as ex:
             logging.exception('account %s', key); errors.append(f"{acc.get('label') or key}: {ex}")
+            # failed accounts are listed too, so the app shows every account and which ones still need a login
+            acc_out.append(dict(login=key, label=acc.get('label', ''), deals=0, last=None, error=str(ex)[:200]))
     for path in dict.fromkeys(acc['path'] for acc in accounts):      # close each import MT5 once, after all accounts
         close_terminal(path)
     trades = group_trades(rows, a.group_hours, a.merge_across not in ('0', 'false', 'off'))
     for r in rows:
         r.pop('_t', None)
     payload = dict(request_id=a.request, executions=rows, trades=trades, errors=errors,
-                   accounts=[dict(x, last=jst(x['last']) if x['last'] else '') for x in acc_out],
+                   accounts=[dict(x, last=jst(x['last']) if x['last'] else '', error=x.get('error', '')) for x in acc_out],
                    settings=dict(group_hours=a.group_hours, merge_across=a.merge_across, reread90=a.reread90, period=label))
     logging.info('import: %d executions, %d trades, %d errors', len(rows), len(trades), len(errors))
     if a.dry_run:
@@ -241,7 +243,7 @@ def main(argv=None):
         raise SystemExit(f'GAS import failed: {r}')
     if until is None:                       # an end date in the past: "the last import" stays where it was
         for x in acc_out:
-            if x['last']:
+            if x['last'] and not x.get('error'):
                 state[x['login']] = max(int(x['last']), int(state.get(x['login'], 0)))
         STATE_F.write_text(json.dumps(state), encoding='utf-8')
     logging.info('GAS: %s', {k: v for k, v in r.items() if k != 'success'})

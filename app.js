@@ -5718,13 +5718,14 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     const body=modal.querySelector('.modal-body'); if(body)body.insertBefore(mt5Box,body.firstChild);
   }
   // new MT5 import (2026-10-25): recorded from a draft (Source MT5) or linked to this hand-written trade (LinkBackup)
-  const mt5New=!readOnly&&!!t.EntryID&&(!!t.LinkBackup||(String(t.Source||'')==='MT5'&&!!t.Accounts));
+  // also a hand-written trade linked without a backup (the old automatic link, or linked with the older GAS)
+  const mt5New=!readOnly&&!!t.EntryID&&String(t.Source||'')!=='予約'&&(!!t.LinkBackup||!!t.Accounts);   // 予約 trades carry the EA account, not an MT5 link
   if(mt5New){
-    const accN=String(t.Accounts||'').split(',').filter(String).length,linked=!!t.LinkBackup;
+    const accN=String(t.Accounts||'').split(',').filter(String).length,linked=String(t.Source||'')!=='MT5',noBackup=linked&&!t.LinkBackup;
     mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5'+(linked?' 紐付け':' 取り込み')+'</span><span style="overflow:hidden;text-overflow:ellipsis">'+(t.Lot||'-')+' lot · '+accN+' 口座 · '+(t.ExecCount||'-')+' 約定</span><button type="button" id="td-mt5-unadopt-btn" style="margin-left:auto;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;white-space:nowrap">確認待ちに戻す</button></div>';
     mt5Box.style.display='block';
     document.getElementById('td-mt5-unadopt-btn').onclick=async function(ev){ev.preventDefault();ev.stopPropagation();
-      if(!window.mt5UnadoptFromDetail)return;if(await window.mt5UnadoptFromDetail(t.EntryID,linked))closeTradeDetail();};
+      if(!window.mt5UnadoptFromDetail)return;if(await window.mt5UnadoptFromDetail(t.EntryID,linked,noBackup))closeTradeDetail();};
   } else if(mt5Linked){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
     mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5同期済み</span><span style="overflow:hidden;text-overflow:ellipsis">'+lot+' lot · '+cnt+'約定</span></div>';

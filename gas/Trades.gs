@@ -303,7 +303,11 @@ function impBatch_(b) {
     trWrite_(T, d); T.rows.push(d); byId[d.EntryID] = d; execSetTradeId_(E2, ids, d.EntryID); drafts++;
   });
   const status = impGet_('IMPORT_STATUS', {accounts: {}});
-  (b.accounts || []).forEach(function (x) { status.accounts[x.login] = {label: x.label || '', last: x.last || '', deals: x.deals, at: now}; });
+  (b.accounts || []).forEach(function (x) {
+    const old = status.accounts[x.login] || {};
+    if (x.error) status.accounts[x.login] = Object.assign({}, old, {label: x.label || old.label || '', error: String(x.error), errorAt: now});   // keep its last good read
+    else status.accounts[x.login] = {label: x.label || '', last: x.last || '', deals: x.deals, at: now, error: ''};
+  });
   status.last = {at: now, request: b.request_id || '', executionsNew: add.length, updated: updated, linked: linked, drafts: drafts, errors: b.errors || [],
                  period: String((b.settings || {}).period || '')};
   impProps_().setProperty('IMPORT_STATUS', JSON.stringify(status));
@@ -375,9 +379,32 @@ function impAdopt_(b) {
 function impUnadopt_(b) {
   const T = trRead_(), t = impFind_(T, b.entryId), E = execRead_();
   if (t.LinkBackup) return {success: true, draftId: impUnlinkRow_(T, E, t, JSON.parse(t.LinkBackup))};
+  // linked without a backup (the old automatic link, or a link made before the undo existed): the MT5 part becomes a draft;
+  // the hand-written values come back from Entries when they are there from before the link, else they stay as they are
+  if (String(t.Source) !== 'MT5' && String(t.Source) !== '予約' && t.Accounts) { const o = impOrigFor_(t, impEntriesById_()); return {success: true, draftId: impUnlinkRow_(T, E, t, o.back), restored: o.restored}; }
   if (String(t.Source) !== 'MT5') throw new Error('MT5 から記録したトレードではありません');
   t['ステータス'] = '下書き'; t.AdoptedAt = ''; trWrite_(T, t);
   return {success: true, draftId: t.EntryID};
+}
+/** Entries rows by EntryID (only when the app already reads "Trades": then Entries is the copy from before the switch). */
+function impEntriesById_() {
+  const orig = {};
+  if (!tradesActive_()) return orig;
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
+  if (!sh) return orig;
+  const v = sh.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); });
+  v.slice(1).forEach(function (r) {
+    const o = {}; h.forEach(function (k, j) { let x = r[j]; if (x instanceof Date) x = x.getFullYear() <= 1900 ? Utilities.formatDate(x, 'Asia/Tokyo', 'HH:mm') : Utilities.formatDate(x, 'Asia/Tokyo', 'yyyy/MM/dd'); o[k] = x; });
+    if (o.EntryID) orig[String(o.EntryID)] = o;
+  });
+  return orig;
+}
+/** Values a linked trade gets back when its link is undone without LinkBackup: from Entries if that row is from before the
+ *  link (no MT5 accounts on it), else the current values with only the MT5 marks (Accounts / ExecCount / MergeMode) cleared. */
+function impOrigFor_(t, orig) {
+  const o = orig[String(t.EntryID)], ok = !!(o && !o.Accounts);
+  const back = {}; IMP_LINK_FIELDS_.forEach(function (k) { back[k] = ok ? (o[k] === undefined ? '' : o[k]) : (['Accounts', 'ExecCount', 'MergeMode'].indexOf(k) >= 0 ? '' : t[k]); });
+  return {back: back, restored: ok};
 }
 /** The MT5 part of a linked trade becomes a new draft; the hand-written trade gets `orig` back. Returns the draft id. */
 function impUnlinkRow_(T, E, t, orig) {
@@ -465,32 +492,22 @@ function impPurge_(b) {
   return {success: true, purged: rows.length};
 }
 
-/** One-off (run from the editor): the trades the old import linked to hand-written ones automatically (before
- *  2026-10-25) go back to "確認が必要なトレード". Run with apply = false first (the default) and read the log.
+/** One-off (run from the editor): the hand-written trades linked to MT5 without a backup (the old import's automatic links
+ *  before 2026-10-25, and links made with the older GAS) go back: the MT5 part to "確認が必要なトレード". Run with apply = false first (the default) and read the log.
  *  The hand-written values come back from the Entries sheet when the app already uses Trades (the migration left Entries
  *  untouched); otherwise only the link is undone and the values MT5 wrote are listed so they can be checked by hand. */
 function impRevertAutoLinksOnce(apply) {
   const T = trRead_(), E = execRead_();
   const auto = T.rows.filter(function (t) {
-    return t.Accounts && !t.LinkBackup && String(t.Source || '') !== 'MT5' && String(t.MergeMode || '') === 'auto'
+    // every hand-written trade linked to MT5 without a backup (the old automatic links, and links made with the older GAS)
+    return t.Accounts && !t.LinkBackup && String(t.Source || '') !== 'MT5' && String(t.Source || '') !== '予約'
       && ['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) < 0;
   });
-  let orig = {};
-  if (tradesActive_()) {
-    const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(ENTRIES_SHEET);
-    if (sh) {
-      const v = sh.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); });
-      v.slice(1).forEach(function (r) {
-        const o = {}; h.forEach(function (k, j) { let x = r[j]; if (x instanceof Date) x = x.getFullYear() <= 1900 ? Utilities.formatDate(x, 'Asia/Tokyo', 'HH:mm') : Utilities.formatDate(x, 'Asia/Tokyo', 'yyyy/MM/dd'); o[k] = x; });
-        if (o.EntryID) orig[String(o.EntryID)] = o;
-      });
-    }
-  }
+  const orig = impEntriesById_();
   const report = auto.map(function (t) {
-    const o = orig[String(t.EntryID)];
-    const back = {}; IMP_LINK_FIELDS_.forEach(function (k) { back[k] = o ? (o[k] === undefined ? '' : o[k]) : (['Accounts', 'ExecCount', 'MergeMode'].indexOf(k) >= 0 ? '' : t[k]); });
+    const ob = impOrigFor_(t, orig), back = ob.back;
     const line = {EntryID: t.EntryID, pair: t['PairName（元）'] || t.PairName, dir: t.Direction, entry: t.EntryDate + ' ' + t.EntryTime,
-                  source: o ? 'Entries (元の値を戻す)' : 'なし (結び付きだけ外す。今の値: ' + ['EntryPrice', 'Lot', 'ExitDate', 'ExitTime', 'Profit', '損益', '実取得pips'].map(function (k) { return k + '=' + t[k]; }).join(' ') + ')'};
+                  source: ob.restored ? 'Entries (元の値を戻す)' : 'なし (結び付きだけ外す。今の値: ' + ['EntryPrice', 'Lot', 'ExitDate', 'ExitTime', 'Profit', '損益', '実取得pips'].map(function (k) { return k + '=' + t[k]; }).join(' ') + ')'};
     if (apply) line.draftId = impUnlinkRow_(T, E, t, back);
     return line;
   });
