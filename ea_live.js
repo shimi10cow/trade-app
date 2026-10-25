@@ -76,6 +76,7 @@
   window.eaLiveDDHalf = function () { const c = cfg(); c.dd_half = c.dd_half === false; save(); };
   window.eaLiveAllOn = function () { const c = cfg(); ALL_KEYS.forEach(k => { c.eas[k].on = true; if (c.eas[k].mode === 'off') c.eas[k].mode = 'auto'; }); save(); };
   window.eaLiveBT = function () { S.btOpen = !S.btOpen; render(); };
+  window.eaLiveML = function () { S.mlOpen = !S.mlOpen; render(); };
   window.eaLiveNotify = function (k) { const c = cfg(); c.notify = c.notify || {}; c.notify[k] = c.notify[k] === false; save(); };
   window.eaLiveOpen = function (id) { S.sheet = id; render(); };
   window.eaLiveClose = function () { S.sheet = null; render(); };
@@ -136,6 +137,19 @@
       <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
         <b>合計（19 本すべて・ゴールド S と Q は半分）</b>：年利 +79%・最大 DD -19%<br>ゴールド S・Q を全量にすると年利 +90%・最大 DD -19%（リスク 0.75% なら +58%・-16% ／ 全量 +65%・-17%）</div>
       <div style="font-size:10px;color:#64748b;margin-top:6px">条件：リスク 1%・DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。本番の目減り（滑りなど）は入っていない</div>`;
+  }
+  // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
+  const MINLOT_LOSS = [
+    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円'], ['日経 右肩', '150 円'], ['BTC S', '約 1,900 円'], ['US500 右肩', '約 2,400 円'],
+    ['US500 M（短い押し目）', '約 3,300 円'], ['US30 T（トレンド）', '約 3,900 円'], ['ゴールド S・Q・L2', '約 4,000〜4,900 円'], ['US30 Q・銀 Q', '約 5,700〜5,800 円'],
+    ['ゴールド 右肩', '約 14,300 円'], ['US30 M（短い押し目）', '約 20,800 円']];
+  function minLotSection() {
+    const rows = MINLOT_LOSS.map(([n, v]) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #1e293b;font-size:12px"><span>${esc(n)}</span><b style="white-space:nowrap">${esc(v)}</b></div>`).join('');
+    return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveML()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
+      <span>💴 最小ロットで 1 回負けた時の金額（目安）</span><span style="color:#94a3b8">${S.mlOpen ? '▲' : '▼'}</span></button>
+      ${S.mlOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">損切りまで行った時の損失。損切り幅は過去のトレードの真ん中の値なので、これより大きい回も小さい回もある。最小ロットのリスク・1% のリスク・OFF を決める目安に。</div>${rows}
+        <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6">前提：XM KIWAMI 口座の最小ロット（FX・ゴールド・銀 0.01、指数 0.1）、2026-10-24 の値段、1 ドル 158.5 円。スタンダード・マイクロ口座や値段が変わると金額も変わる。<br>
+        今の決まり：最小ロットでも損失が口座の 1.5% を超える回は自動で見送り（10 万円なら 1,500 円まで）。</div>` : ''}</div>`;
   }
   function btSection() {
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
@@ -316,6 +330,7 @@
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><div style="font-size:12px;font-weight:700;color:#94a3b8">EA 一覧</div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#94a3b8">${onCount} / 19 が ON</span>${onCount < 19 ? `<button onclick="eaLiveAllOn()" style="${btn};${offBtn};padding:4px 9px;font-size:11px">すべて ON</button>` : ''}</div></div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${cards}</div>
       ${btSection()}
+      ${minLotSection()}
       ${resSection()}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px">EA のトレード（最近）</div>
       <div class="ea-card" style="padding:4px 12px">${trades}</div>
