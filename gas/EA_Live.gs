@@ -258,6 +258,12 @@ function eaWatchdog() {
   });
 }
 
+/** Daily time trigger, without any Telegram (user 2026-10-25: no stop notices): one row per EA in "EA_Health" each day
+ *  (live result vs backtest, average slip / spread). Use this instead of eaWatchdog when the PC-stopped notices are not wanted. */
+function eaHealthDaily() {
+  try { ealHealth_(); } catch (e) { ealLog_({level: 'error', message: 'health: ' + e}); }
+}
+
 function ealTelegram_(text) {
   const p = PropertiesService.getScriptProperties(), tok = p.getProperty('TELEGRAM_BOT_TOKEN'), chat = p.getProperty('TELEGRAM_CHAT_ID');
   if (!tok || !chat) return;
