@@ -516,6 +516,43 @@ function impRevertAutoLinksOnce(apply) {
 }
 function impRevertAutoLinksApply() { return impRevertAutoLinksOnce(true); }
 
+/** Check (run from the editor): which trade every MT5 execution belongs to. Executions that belong to no draft / record /
+ *  linked trade (e.g. left on a hand-written trade whose link was undone, or on a trade that no longer exists) are listed;
+ *  with apply = true they become drafts in "確認が必要なトレード" again. For a hand-written trade the log also shows which of
+ *  its values are the same as MT5's (= most likely written by MT5). Nothing else is changed. */
+function impCheckLinksOnce(apply) {
+  const T = trRead_(), E = execRead_(), byId = {}; T.rows.forEach(function (t) { byId[String(t.EntryID)] = t; });
+  const groups = {}; E.rows.forEach(function (r) { const k = String(r.TradeID || ''); if (k === 'IGNORED') return; (groups[k] = groups[k] || []).push(r); });
+  const rep = {apply: !!apply, executions: E.rows.length, drafts: 0, recorded: 0, linked: 0, trash: 0, orphans: []};
+  const same = function (a, b) { if (a === '' || a === undefined || b === '' || b === undefined) return false; const x = Number(a), y = Number(b); return isFinite(x) && isFinite(y) ? Math.abs(x - y) < 1e-9 : String(a) === String(b); };
+  Object.keys(groups).forEach(function (k) {
+    const t = k ? byId[k] : null, rs = groups[k];
+    let why = '';
+    if (!k) why = 'どのトレードにも付いていない';
+    else if (!t) why = '付いているトレードがもう無い';
+    else if (t['ステータス'] === '下書き') { rep.drafts++; return; }
+    else if (t['ステータス'] === IMP_TRASH_) { rep.trash++; return; }
+    else if (String(t.Source) === 'MT5') { rep.recorded++; return; }
+    else if (t.Accounts) { rep.linked++; return; }
+    else why = '紐付けを外したのに、手入力のトレードに残っている';
+    // one draft per trade (no trade id: per account + position)
+    const parts = {}; rs.forEach(function (r) { const pk = k || (r.Account + ':' + r.PositionID); (parts[pk] = parts[pk] || []).push(r); });
+    Object.keys(parts).forEach(function (pk) {
+      const f = impFields_(impAggregate_(parts[pk]));
+      const line = {why: why, tradeId: k, pair: f['PairName（元）'], dir: f.Direction, entry: f.EntryDate + ' ' + f.EntryTime, executions: parts[pk].length};
+      if (t) line.sameAsMT5 = ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', '損益', '実取得pips'].filter(function (x) { return same(t[x], f[x]); }).join(' ') || 'なし';
+      if (apply) {
+        const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, f);
+        trWrite_(T, d); T.rows.push(d); execSetTradeId_(E, parts[pk].map(function (r) { return r.ExecID; }), d.EntryID); line.draftId = d.EntryID;
+      }
+      rep.orphans.push(line);
+    });
+  });
+  Logger.log(JSON.stringify(rep, null, 1));
+  return rep;
+}
+function impCheckLinksApply() { return impCheckLinksOnce(true); }
+
 // ------------------------------------------------------------------ time stamps
 /** One-off: rewrite old time stamps to Japan time with the offset (2026-10-24 21:15+09:00). Run once from the editor.
  *  Only "when was this written" columns; EntryDate / EntryTime / ExitDate / ExitTime stay as the app uses them (already Japan time). */
