@@ -89,6 +89,8 @@ function doPost(e) {
     result = updatePair(body.pairName, body.data);
   } else if (action === 'resetPairFlags') {
     result = resetPairFlags();
+  } else if (action === 'savePairHistory') {
+    result = savePairHistory(body.rows);
   } else if (action === 'saveIdea') {
     result = saveIdea(body.data);
   } else if (action === 'updateIdea') {
@@ -230,10 +232,15 @@ function updatePair(pairName, data) {
   if (rowIdx < 0) return { success: false, error: 'Pair not found: ' + pairName };
 
   const sheetRow = rowIdx + 2; // 1-indexed + header row
+  if ('確認日時' in data && headers.indexOf('確認日時') < 0) {      // when the pair was last saved in the app (for 「データを送信」)
+    sheet.getRange(1, headers.length + 1).setValue('確認日時'); headers.push('確認日時');
+  }
   Object.keys(data).forEach(key => {
     const colIdx = headers.indexOf(key);
     if (colIdx >= 0) {
-      sheet.getRange(sheetRow, colIdx + 1).setValue(data[key]);
+      const cell = sheet.getRange(sheetRow, colIdx + 1);
+      if (key === '確認日時') cell.setNumberFormat('@');            // keep "2026-10-25 21:15+09:00" as text
+      cell.setValue(data[key]);
     }
   });
   try{CacheService.getScriptCache().remove('hybrid_config_v2');}catch(e){}
@@ -241,6 +248,37 @@ function updatePair(pairName, data) {
   return { success: true };
 }
 
+
+// 通貨ペアの見方の記録（2026-10-25）：ペアタブの「データを送信」で、直近に更新したペアの見方を 1 行ずつ足す。
+// そのペアの前回の記録と中身（確認日時以外）が同じなら足さない（差分だけ。2 回押しても増えない）。ダウルール候補・分析チェックは送らない（ユーザー決定）。
+const PAIR_HISTORY_SHEET = 'Pair_History';
+const PAIR_HISTORY_HEADERS = ['SentAt', 'PairName', '確認日時', 'M1', 'W1', 'D1', 'H4', 'H1', 'H4MA乖離', 'H4MA480.1200', 'H1MA20.80', 'H4MA20.80',
+                              'フラグ', 'メモ', 'プラン方向', 'プラン設定日', 'プラン画像'];
+function savePairHistory(rows) {
+  if (!Array.isArray(rows) || !rows.length) return { success: true, added: 0, skipped: 0 };
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sh = ss.getSheetByName(PAIR_HISTORY_SHEET);
+    if (!sh) { sh = ss.insertSheet(PAIR_HISTORY_SHEET); sh.getRange(1, 1, 1, PAIR_HISTORY_HEADERS.length).setValues([PAIR_HISTORY_HEADERS]); sh.setFrozenRows(1); }
+    const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+    // only what changed: a pair whose view is the same as its latest record is not added again
+    const ip = h.indexOf('PairName'), body = h.filter(x => x !== 'SentAt' && x !== '確認日時');
+    const sig = get => body.map(x => String(get(x) == null ? '' : get(x)).trim()).join('\u0001');
+    const last = {};
+    v.slice(1).forEach(r => { last[String(r[ip])] = sig(x => r[h.indexOf(x)]); });
+    const now = jstNow_(), add = [];
+    let skipped = 0;
+    rows.forEach(o => {
+      const p = String(o.PairName || ''), sg = sig(x => o[x]);
+      if (!p || last[p] === sg) { skipped++; return; }
+      last[p] = sg;
+      add.push(h.map(x => x === 'SentAt' ? now : (o[x] === undefined || o[x] === null ? '' : String(o[x]))));
+    });
+    if (add.length) { const rg = sh.getRange(sh.getLastRow() + 1, 1, add.length, h.length); rg.setNumberFormat('@'); rg.setValues(add); }
+    return { success: true, added: add.length, skipped: skipped };
+  } finally { lock.releaseLock(); }
+}
 
 function resetPairFlags() {
   const lock = LockService.getScriptLock();

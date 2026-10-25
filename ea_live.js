@@ -35,7 +35,7 @@
   }
   const appKey = () => localStorage.getItem(KEY_LS) || '';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
-  const yen = v => (v === '' || v == null || isNaN(v)) ? '—' : '¥' + Math.round(Number(v)).toLocaleString();
+  const yen = v => (v === '' || v == null || isNaN(v)) ? '—' : (Number(v) < 0 ? '-¥' : '¥') + Math.abs(Math.round(Number(v))).toLocaleString();
 
   async function load() {
     if (!appKey()) return;
@@ -319,7 +319,7 @@
   function tradeRow(t, onclick) {
     const open = t.Status === 'OPEN', pr = Number(t.Profit), col = open ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
     const R = t.R !== '' && t.R != null && !isNaN(t.R) ? (Number(t.R) > 0 ? '+' : '') + Number(t.R).toFixed(2) + 'R' : '';
-    const line = open ? (String(t.Direction).toUpperCase() === 'BUY' ? '#f43f5e' : '#3b82f6') : '#4ade80';   // open: buy red / sell blue (same as 裁量)
+    const line = String(t.Direction).toUpperCase() === 'BUY' ? '#f43f5e' : '#3b82f6';   // buy red / sell blue (same as 裁量)
     return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${line}">
       <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">${esc(t.Symbol)}

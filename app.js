@@ -66,6 +66,8 @@ const FAST_CACHE_KEY='tradeAppFastStart_v1';
 function readFastCache(){try{return JSON.parse(localStorage.getItem(FAST_CACHE_KEY)||'{}');}catch(e){return {};}}
 function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now()};localStorage.setItem(FAST_CACHE_KEY,JSON.stringify(x));}catch(e){}}
 const ENTRIES_CACHE_KEY='tradeAppEntries_v1';
+// money as -¥3,000 / ¥3,000 (never ¥-3,000)
+function yenSigned_(v){const n=Math.round(parseFloat(v)||0);return (n<0?'-¥':'¥')+Math.abs(n).toLocaleString();}
 // MT5 import drafts and the trash live in the same sheet; they are not trades yet, so the app never counts them (2026-10-25)
 function realEntries_(a){return (a||[]).filter(function(t){var s=t&&t['ステータス'];return s!=='下書き'&&s!=='ゴミ箱';});}
 function hydrateFastCache(){
@@ -734,11 +736,11 @@ function renderHistoryList() {
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
     const pips = parseFloat(t['実取得pips']) || 0;
     // History colors have separate meanings:
-    // left rail = trade type (actual red / missed orange)
+    // left rail = direction (buy red / sell blue, same as the home cards; missed orange)
     // pips text = result (profit green / loss red / flat neutral)
     const pipsColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
     const pipsSign = pips > 0 ? '+' : '';
-    const borderColor = isMissed ? '#f59e0b' : '#ef4444';
+    const borderColor = isMissed ? '#f59e0b' : (t.Direction === 'Buy' ? '#f43f5e' : '#3b82f6');
 
     return `
       <div class="list-card" onclick="openTradeDetailFromHistory(${index})" style="cursor:pointer; border-left: 4px solid ${borderColor}">
@@ -754,7 +756,7 @@ function renderHistoryList() {
           </div>
           <div style="font-size:11px; color:#94a3b8; display:flex; justify-content:space-between;">
             <span>${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</span>
-            <span>¥${(parseFloat(t['損益']) || 0).toLocaleString()}</span>
+            <span>${yenSigned_(t['損益'])}</span>
           </div>
         </div>
         <div style="color:#94a3b8; font-size:16px; margin-left:12px;">›</div>
@@ -1364,6 +1366,30 @@ async function resetPairFlags() {
   }
 }
 window.resetPairFlags = resetPairFlags;
+
+// ---- 通貨ペアの見方の記録（2026-10-25）：直近 1 日に保存したペアだけを、記録用の表（Pair_History）に足す
+function jstStamp_(d){const x=new Date((d||new Date()).getTime()+9*3600e3),p=n=>String(n).padStart(2,'0');return x.getUTCFullYear()+'-'+p(x.getUTCMonth()+1)+'-'+p(x.getUTCDate())+' '+p(x.getUTCHours())+':'+p(x.getUTCMinutes())+'+09:00';}
+function stampMs_(v){const s=String(v||'').trim();if(!s)return 0;const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[ T](\d{1,2}):(\d{2})/);if(m&&!/Z$|GMT/.test(s)){const t=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-9*3600e3;return t;}const d=new Date(s);return isNaN(d)?0:d.getTime();}
+const PAIR_HISTORY_FIELDS = ['M1','W1','D1','H4','H1','H4MA乖離','H4MA480.1200','H1MA20.80','H4MA20.80','フラグ','メモ','プラン方向','プラン設定日','プラン画像'];
+async function sendPairHistory() {
+  const since = Date.now() - 24 * 3600e3;
+  const xs = (App.data.pairs || []).filter(p => stampMs_(p['確認日時']) >= since);
+  if (!xs.length) { showToast('直近 1 日に更新したペアはありません'); return; }
+  const names = xs.map(p => p['PairName（元）'] || p.PairName);
+  if (!confirm('直近 1 日に更新した ' + xs.length + ' ペアの見方を記録に送りますか？\n' + names.join('、') + '\n（前回の記録と同じ中身のペアは入りません。ダウルール候補・分析チェックは送りません）')) return;
+  showLoader();
+  try {
+    const rows = xs.map(p => { const o = { PairName: p['PairName（元）'] || p.PairName, '確認日時': p['確認日時'] }; PAIR_HISTORY_FIELDS.forEach(k => { o[k] = p[k] == null ? '' : p[k]; }); if (!o['メモ']) o['メモ'] = p['環境認識メモ'] || ''; return o; });
+    const res = await gasPost({ action: 'savePairHistory', rows: rows });
+    if (!res || res.success === false) throw new Error(/Unknown action/.test(String(res && res.error)) ? 'GAS をデプロイすると使えます' : ((res && res.error) || '送れませんでした'));
+    showToast(res.added ? res.added + ' ペアを記録しました' + (res.skipped ? '（' + res.skipped + ' ペアは前回の記録と同じ）' : '') : '前回の記録から変わったペアはありません');
+  } catch (e) {
+    showToast('⚠️ ' + e.message);
+  } finally {
+    hideLoader();
+  }
+}
+window.sendPairHistory = sendPairHistory;
 
 function renderPairs() {
   const container = document.getElementById('pairs-list');
@@ -4537,6 +4563,8 @@ async function savePairEdit() {
       updateData['プラン設定日'] = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
     }
 
+    // 確認日時 moves only when something really changed (「データを送信」 sends the pairs changed within the last day)
+    if (Object.keys(updateData).some(k => String(p[k] == null ? '' : p[k]).trim() !== String(updateData[k] == null ? '' : updateData[k]).trim())) updateData['確認日時'] = jstStamp_();
     const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
     if (!res.success) throw new Error(res.error || '保存失敗');
 
@@ -5155,7 +5183,7 @@ function calculateRuleMetrics() {
   // Formula: ルール準拠損益 = 損益 × (ルール準拠pips / 実取得pips)
   if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(rPips)) {
     const rProfit = Math.round(profit * (rPips / pips));
-    prDisp.textContent = `¥${rProfit.toLocaleString()}`;
+    prDisp.textContent = yenSigned_(rProfit);
     prDisp.style.color = '#f8fafc';
   } else {
     prDisp.textContent = `--`;
