@@ -1,7 +1,7 @@
 # アプリの仕様の見直し（2026-10-25、デスクトップ）
 
 > 2026-10-25 夜：アプリの作業はクラウドに戻した。続きは `docs/HANDOFF_DESKTOP_TO_CLOUD_20261025.md` の 4。
-> 作業のリストの状態：1・2 済み（GAS のデプロイ後に `impRevertAutoLinksOnce`）、3 未着手、4 は合言葉が要る画面だけ未確認、5 済み（分析・履歴は「裁量／EA」のままと決定）、6 は下の「次の GAS デプロイで入るもの」、7 後回し。
+> 作業のリストの状態：1・2 済み（GAS のデプロイ後に `impRevertAutoLinksOnce`）、3 済み（2026-10-25 クラウド。アプリは main で反映済み、GAS は次のデプロイ）、4 は合言葉が要る画面だけ未確認、5 済み（分析・履歴は「裁量／EA」のままと決定）、6 は下の「次の GAS デプロイで入るもの」、7 後回し。
 
 `docs/EA_SYSTEM_PLAN.md`（決めたこと）と、今の main のアプリ・GAS を照らし合わせた結果。
 画面は公開中のアプリ（GitHub Pages、スマホ幅）で、合言葉なしで見られる範囲を確認した。MT5 タブ・EA 設定タブは合言葉が要るのでコードで確認。
@@ -13,7 +13,7 @@
 | G1 | **合言葉なしで読み書きできる** | EA 関係以外の窓口（トレードの読み出し・保存・更新・**削除**、ペア、レビュー、メモ、設定）に合言葉の確認がない。公開ページのコードから GAS のアドレスが分かる | 読み出しも含め全部の通信に合言葉を付ける | 全部の窓口で APP_KEY を確認。アプリは保存済みの合言葉を全部の通信に付ける。**GAS のデプロイが要る** |
 | G2 | 表の作り直し・移行用の窓口が外から呼べる | `ensureColumns`・`migrateEntryFields`・`recalculateAllScores` などが URL で呼べる | （整理の対象） | 窓口から外す（必要ならエディタから実行） |
 | G3 | 起動が重い | 起動時に全トレードの表を丸ごと読む。画面によって 3 回読み直す | 起動時は直近だけ 1 回読み、画面で使い回す。古いデータは必要な時だけ | 直近 3 か月を先に読み、それ以前は分析で「全期間」を選んだ時に読む |
-| G4 | 古い画面・機能のコードが残っている | `ea.js`（旧 EA タブ）・`mt5_import.js`（旧取り込み）・AI トレード分析（Groq）のコード・GAS の旧 EA の窓口（`saveEASignal`・`requestEAReplay`・`getEAControl`・`getHybridConfig` ほか） | 削る（`OPEN_ITEMS.md` の C1） | 使っている部分（分析のタブ切り替え・`openRecordShortcut`）を移してから消す |
+| G4 | 古い画面・機能のコードが残っている | `ea.js`（旧 EA タブ）・`mt5_import.js`（旧取り込み）・AI トレード分析（Groq）のコード・GAS の旧 EA の窓口（`saveEASignal`・`requestEAReplay`・`getEAControl`・`getHybridConfig` ほか） | 削る（`OPEN_ITEMS.md` の C1） | **済み（10/25）**。アプリ：`ea.js`・`mt5_import.js`・`ai_prompt.js` を削除（EA タブ・裁量／EA の切り替えは `index.html`＋`ea_live.js`、ボタンの見た目は `style.css`、`openRecordShortcut` は `app.js` へ）。GAS：旧 EA・旧取り込み・一度きりの移行の窓口と関数を削除（`gas/EA_API.gs` も削除） |
 | G5 | 合言葉を入れる場所 | EA 設定タブ。MT5 タブは「EA 設定タブで合言葉を入れると使えます」とだけ出る | 設定（⚙️）に最初に 1 回入れる欄 | 設定に欄を作る（EA 設定タブの入力も残す） |
 | G6 | アプリと GAS の版のずれ | アプリは main（新しい）、GAS はデプロイが古い（例：`eaImportSettings` がない） | GAS はまとめてデプロイする（ユーザーの方針） | デプロイが要る変更を「次のデプロイで入るもの」として下に貯める |
 
@@ -40,7 +40,7 @@
 | B7 | 本番で最小ロットのリスクが 1.5% を超える回 | 自動で見送り（ログだけ） | ユーザーが決める |
 | N1 | 合言葉なしの読み出しを止める（G1） | 止めていない | **止める**。最優先 |
 | N2 | 起動時に読む範囲（G3） | 全部 | 直近 3 か月 |
-| N3 | 古いコードの削除（G4）の時期 | 未着手 | G1 と一緒に（同じ GAS のデプロイで済む） |
+| N3 | 古いコードの削除（G4）の時期 | 済み（10/25。GAS は次のデプロイ） | G1 と一緒に（同じ GAS のデプロイで済む） |
 
 ## 作業のリスト（2026-10-25）
 
@@ -64,7 +64,7 @@
 - 起動の重さの直し（`Code.gs` のトレード・通貨ペアの一時保存、`gas/Trades.gs` の `cleanPairsEAColumns`）。貼るのは `Code.gs` と `Trades.gs`
 - 取り込みで自動の紐付けをやめ、全部を下書きにする／候補は 3 時間以内・過去の履歴も（`gas/Trades.gs`。B3 の決定 2026-10-25）
 - 取り込みのゴミ箱・戻す・紐付けの控え・候補にする時間の設定（`gas/Trades.gs`・`gas/EA_Live.gs`）
-- G4（古いコードの削除）で GAS を直したら、ここに足す
+- 古いコードの削除（G4、2026-10-25）：`Code.gs` から旧 EA（`saveEASignal`・`getHybridConfig`・`getEAControl`・`requestEAReplay` ほか）、旧取り込み（`adoptMT5Trade`・`linkMT5ToEntry`・`splitMT5Trade`・`getMT5ImportDashboard` ほか）、一度きりの移行（`ensureColumns`・`ensurePairColumns`・`migrateEntryFields`・`migrateEntryFieldsV2`・`recalculateCaseBScores`・`migrateExitRefPerfect`）の窓口と関数を削除。残した窓口：トレード・ペア・メモ・レビュー・カレンダー・画像・スコア（`ensureScoreColumns`・`recalculateAllScores`）と `ea*`（新 EA・取り込み）。古い Python の EA（`mt5_ea/main.py` ほか）はこのデプロイから動かなくなる（今は使っていない）。Apps Script に `EA_API` というファイルがあれば消してよい（どこからも使っていない）
 
 ### デプロイのあとにやること
 

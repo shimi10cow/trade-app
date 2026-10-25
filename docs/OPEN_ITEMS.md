@@ -39,7 +39,7 @@
 
 ## C. 実装の残り・気になっていること（デスクトップ向け）
 
-- C1 古い EA のファイルの整理：`mt5_ea/main.py`・`EA_START.bat`・`start_live.ps1`・`MT5_*`、アプリの `ea.js`（旧 EA タブ。今は分析のタブ切り替えと一部の表示だけ使っている）、Code.gs の旧 EA・旧取り込みの関数、`mt5_import.js`（旧取り込み画面。`openRecordShortcut` だけ使用中）
+- C1 古い EA のファイルの整理（**アプリと GAS の分は 10/25 に済み**。残りは `mt5_ea/` の古い Python と bat）：`mt5_ea/main.py`・`EA_START.bat`・`start_live.ps1`・`MT5_*`、アプリの `ea.js`（旧 EA タブ。今は分析のタブ切り替えと一部の表示だけ使っている）、Code.gs の旧 EA・旧取り込みの関数、`mt5_import.js`（旧取り込み画面。`openRecordShortcut` だけ使用中）
 - C2 リポジトリの分け方（計画：今のリポジトリを非公開の研究用にし、公開のアプリ用を別に作る）は未着手
 - C3 1 回の計算は研究用のマシン（4 コア）で約 19 秒。PC のコア数で変わる（環境変数 `EA_WORKERS` で並列の数を指定できる、1 で並列なし）
 - C4 分析の EA の pips は銘柄ごとの目安の 1pip（FX 0.0001 / 円 0.01 / 金 0.1 / 銀 0.01 / 指数・BTC 1）。勝ち負けは R で数える
