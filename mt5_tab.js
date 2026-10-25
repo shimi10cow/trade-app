@@ -64,6 +64,19 @@
                        : 'このトレードを履歴から外して「確認が必要なトレード」に戻しますか？'))
       act('戻しています…', 'eaImportUnadopt', {entryId: id}, () => '確認が必要なトレードに戻しました');
   };
+  // trade detail (app.js): any trade recorded or linked from the MT5 tab can go back, no time limit
+  window.mt5UnadoptFromDetail = async function (id, linked) {
+    if (!key()) { if (typeof showToast === 'function') showToast('EA 設定タブで合言葉を入れると使えます'); return false; }
+    if (!confirm(linked ? 'この紐付けを外して、MT5 の分を「確認が必要なトレード」に戻しますか？（このトレードは紐付ける前の値に戻ります）'
+                        : 'このトレードを履歴から外して、MT5 タブの「確認が必要なトレード」に戻しますか？')) return false;
+    try {
+      const r = await call('eaImportUnadopt', {entryId: id});
+      if (!r || r.success === false) throw new Error((r && r.error) || '失敗');
+      if (typeof showToast === 'function') showToast('確認が必要なトレードに戻しました');
+      if (typeof loadData === 'function') try { loadData(); } catch (e) {}
+      load(); return true;
+    } catch (e) { if (typeof showToast === 'function') showToast('⚠️ できませんでした: ' + e.message); return false; }
+  };
   window.mt5Exp = function (id) { S.exp = S.exp || {}; S.exp[id] = !S.exp[id]; render(); };
 
   // ---- confirmation sheet before 記録にする / 紐付け (shows what will be recorded, positions included)
@@ -76,8 +89,9 @@
       <div style="width:100%;max-width:500px;max-height:80dvh;display:flex;flex-direction:column;background:#0f172a;border-radius:20px 20px 0 0;border-top:1px solid #26364f">
         <div style="padding:16px 16px 8px;overflow-y:auto;flex:1">${html}</div>
         <div style="display:flex;gap:8px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #1e293b">
-          <button onclick="mt5ConfirmClose()" style="${btn};${off};flex:1;padding:12px">やめる</button>
-          <button onclick="mt5ConfirmOk()" style="${btn};${neon('#4ade80', '74,222,128')};flex:2;padding:12px">${okLabel}</button></div></div></div>`;
+          ${onOk ? `<button onclick="mt5ConfirmClose()" style="${btn};${off};flex:1;padding:12px">やめる</button>
+          <button onclick="mt5ConfirmOk()" style="${btn};${neon('#4ade80', '74,222,128')};flex:2;padding:12px">${okLabel}</button>`
+          : `<button onclick="mt5ConfirmClose()" style="${btn};${off};flex:1;padding:12px">${okLabel}</button>`}</div></div></div>`;
   }
   window.mt5ConfirmClose = function () { const el = document.getElementById('mt5-confirm'); if (el) el.innerHTML = ''; S.pending = null; };
   window.mt5ConfirmOk = function () { const f = S.pending; mt5ConfirmClose(); if (f) f(); };
@@ -89,13 +103,36 @@
       '記録にする', () => mt5Adopt(id));
   };
   window.mt5AskLink = function (d, e) {
-    const x = findDraft(d); if (!x) return; const c = (x.candidates || []).find(k => String(k.EntryID) === String(e)) || {};
+    const x = findDraft(d); if (!x) return; const c = (x.candidates || []).find(k => String(k.EntryID) === String(e)) || appTrades().find(k => String(k.EntryID) === String(e)) || {};
     confirmSheet(`<div style="font-size:15px;font-weight:800;margin-bottom:8px">この手入力のトレードに紐付けますか？</div>
       <div style="font-size:12px;color:#cbd5e1;background:#111c30;border:1px solid #26364f;border-radius:10px;padding:8px 10px;margin-bottom:8px">手入力：${esc(String(c.EntryDate || '').slice(5))} ${esc(String(c.EntryTime || '').slice(0, 5))} ${c.Lot ? esc(c.Lot) + ' lot' : ''} ${c['損益'] !== '' && c['損益'] != null ? esc(yen(c['損益'])) : ''} ${c['ステータス'] === '保有中' ? '（保有中）' : ''}</div>
       <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">MT5 の取引</div>${summary(x.trade)}
       <div style="font-size:11px;color:#94a3b8;margin:10px 0 4px">まとめたポジション（${x.positions}）</div>${posList(x.executions)}
       <div style="font-size:11px;color:#64748b;margin-top:8px">建値・ロット・決済・損益（空欄のみ）が MT5 の値になります。手で入れた損益・pips は上書きしません。違っていたら「最近記録にしたもの」から外せます。</div>`,
       '紐付ける', () => mt5Link(d, e));
+  };
+
+  // ---- pick any hand-written trade to link (2026-10-25): same pair and direction, the whole history, closest entry first
+  const pairKey = p => { const s = String(p || '').toUpperCase().replace(/#|\.|CASH|MICRO/g, '').trim(); return {XAUUSD: 'GOLD', XAGUSD: 'SILVER'}[s] || s; };
+  const appTrades = () => ((window.TradeApp && window.TradeApp.data && window.TradeApp.data.entries) || []);
+  const entryMs = t => { const d = String(t.EntryDate || '').replace(/\//g, '-').slice(0, 10), m = String(t.EntryTime || '00:00').slice(0, 5); const x = new Date(d + 'T' + m + ':00+09:00'); return isNaN(x) ? 0 : x.getTime(); };
+  function linkTargets(t) {
+    const ms = entryMs(t), pk = pairKey(t['PairName（元）'] || t.PairName);
+    return appTrades().filter(c => !c.Accounts && !c.LinkBackup && ['下書き', 'ゴミ箱', '決済（見逃し）', '保有中（見逃し）'].indexOf(String(c['ステータス'])) < 0
+        && String(c.Source || '') !== '予約' && String(c.Direction) === String(t.Direction) && pairKey(c['PairName（元）'] || c.PairName) === pk)
+      .sort((a, b) => Math.abs(entryMs(a) - ms) - Math.abs(entryMs(b) - ms));
+  }
+  window.mt5PickLink = function (id) {
+    const x = findDraft(id); if (!x) return;
+    const xs = linkTargets(x.trade), ms = entryMs(x.trade);
+    const gap = c => { const h = Math.abs(entryMs(c) - ms) / 3600e3; return h < 48 ? Math.round(h) + ' 時間' : Math.round(h / 24) + ' 日'; };
+    const rows = xs.map(c => { const cp = Number(c['損益']), money = c['損益'] !== '' && c['損益'] != null && !isNaN(cp) ? yen(cp) : '';
+      return `<button onclick="mt5ConfirmClose();mt5AskLink('${esc(id)}','${esc(c.EntryID)}')" style="width:100%;text-align:left;background:#0b1424;border:1px solid #1e293b;border-radius:10px;padding:9px 10px;color:#e2e8f0;display:flex;justify-content:space-between;gap:8px;font-size:12px">
+        <span>${esc(String(c.EntryDate || '').slice(0, 10))} ${esc(String(c.EntryTime || '').slice(0, 5))}${c.Lot ? ' · ' + esc(c.Lot) + ' lot' : ''}${c['ステータス'] === '保有中' ? ' · 保有中' : ''}<br><span style="color:#64748b;font-size:10px">エントリーの差 ${gap(c)}</span></span>
+        <span style="color:${cp >= 0 ? '#4ade80' : '#f87171'};font-weight:700;white-space:nowrap">${esc(money)}</span></button>`; }).join('');
+    confirmSheet(`<div style="font-size:15px;font-weight:800;margin-bottom:4px">紐付ける手入力のトレードを選ぶ</div>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${esc(x.trade['PairName（元）'])} ${String(x.trade.Direction) === 'Buy' ? '買い' : '売り'} の手入力トレード（全期間・エントリーが近い順）。MT5 とまだ紐付いていないものだけ出ます</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${rows || '<div style="font-size:12px;color:#64748b">同じ通貨・向きの手入力トレードはありません</div>'}</div>`, '閉じる', null);
   };
 
   // ---- the positions inside a trade (from its MT5 executions)
@@ -132,6 +169,8 @@
   window.mt5Merge = function () {
     const ids = Object.keys(S.sel).filter(k => S.sel[k]);
     if (ids.length < 2) { S.msg = '2 つ以上選んでください'; return render(); }
+    const kinds = new Set(ids.map(i => { const x = findDraft(i); return x ? pairKey(x.trade['PairName（元）']) + ' ' + x.trade.Direction : i; }));
+    if (kinds.size > 1) { S.msg = '通貨か向きが違うものはまとめられません（' + [...kinds].join(' / ') + '）'; return render(); }
     S.sel = {}; act('まとめています…', 'eaImportMerge', {ids: ids}, () => ids.length + ' つを 1 つにまとめました');
   };
 
@@ -160,6 +199,7 @@
       ${exp ? posList(x.executions) : ''}
       ${cands ? `<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11px;color:#94a3b8;align-self:center">手入力の候補（${esc(lh)} 時間以内）:</span>${cands}</div>`
               : `<div style="font-size:11px;color:#64748b">${esc(lh)} 時間以内の手入力のトレードはありません</div>`}
+      <button onclick="mt5PickLink('${id}')" style="align-self:flex-start;background:none;border:0;color:#22d3ee;font-size:11px;font-weight:700;padding:0">ほかの手入力トレードを選んで紐付け ›</button>
       <div style="display:flex;gap:6px;justify-content:flex-end">
         ${x.positions > 1 ? `<button onclick="mt5Split('${id}')" style="${btn};${off}">分ける</button>` : ''}
         <button onclick="mt5Discard('${id}')" aria-label="ゴミ箱へ" style="${btn};border:1px solid rgba(248,113,113,.5);background:transparent;color:#f87171;padding:9px">🗑️</button>

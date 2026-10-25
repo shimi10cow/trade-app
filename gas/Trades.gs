@@ -396,6 +396,10 @@ function impUnlinkRow_(T, E, t, orig) {
 /** app: attach a draft's MT5 numbers to a hand-written trade, then remove the draft. */
 function impLink_(b) {
   const T = trRead_(), d = impFind_(T, b.draftId), t = impFind_(T, b.entryId), E = execRead_();
+  // any hand-written trade may be chosen in the app (not only the candidates); these are never a link target
+  if (['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) >= 0) throw new Error('確認待ち・ゴミ箱のトレードには紐付けられません');
+  if (t.Accounts || t.LinkBackup) throw new Error('このトレードはもう MT5 と紐付いています（先に「確認待ちに戻す」で外す）');
+  if (String(t.Direction) !== String(d.Direction)) throw new Error('向きが違うトレードには紐付けられません');
   const backup = {}; IMP_LINK_FIELDS_.forEach(function (k) { backup[k] = t[k] === undefined ? '' : t[k]; });   // to undo the link later
   t.LinkBackup = JSON.stringify(backup); t.LinkedAt = tradesNow_();
   ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', 'Accounts', 'ExecCount', 'InitialSLPrice', 'TakeProfitPrice'].forEach(function (k) { if (d[k] !== '' && d[k] !== undefined) t[k] = d[k]; });
@@ -424,6 +428,10 @@ function impSplit_(b) {
 function impMerge_(b) {
   const T = trRead_(), ids = (b.ids || []).map(String); if (ids.length < 2) throw new Error('choose 2 or more');
   const ds = ids.map(function (i) { return impFind_(T, i); }), E = execRead_();
+  // only the same pair and direction (2026-10-25: a mixed merge made one trade out of different instruments)
+  const kinds = {}; ds.forEach(function (d) { kinds[String(d['PairName（元）'] || d.PairName || '').toUpperCase() + ' ' + d.Direction] = 1; });
+  if (Object.keys(kinds).length > 1) throw new Error('通貨か向きが違うものはまとめられません（' + Object.keys(kinds).join(' / ') + '）');
+  if (ds.some(function (d) { return d['ステータス'] !== '下書き'; })) throw new Error('まとめられるのは確認が必要なトレードだけです');
   const rs = E.rows.filter(function (r) { return ids.indexOf(String(r.TradeID)) >= 0; });
   const keepRow = ds[0]; Object.assign(keepRow, impFields_(impAggregate_(rs)), {MergeMode: 'manual'}); trWrite_(T, keepRow);
   execSetTradeId_(E, rs.map(function (r) { return r.ExecID; }), String(keepRow.EntryID));
