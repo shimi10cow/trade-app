@@ -10,6 +10,8 @@ Stop (chosen in the app): stoch = just outside the pullback extreme since %K ent
 m15ma200 / h1ma75 / h1ma200 = that moving average at entry (on the wrong side of the price -> stoch instead).
 Target: the price given in the app, or none (exit by stop or by hand in MT5).
 Lot: per reservation, 'pct' (% of equity at risk), 'jpy' (max loss in yen) or 'lot' (fixed lots).
+Kind (2026-10-25): ENTRY (default) orders as above; SIGNAL only sends the signal to Telegram once (always, whatever the
+notification switches say) and the reservation ends (status SIGNALED); no order, also when the EA is stopped.
 """
 import math
 
@@ -19,6 +21,16 @@ import pandas as pd
 RES_MAGIC = 780000
 SERVER_TZ = 'Europe/Athens'
 MAX_MINLOT_RISK = 0.015
+# app pair names -> the EA's symbol names (the broker finds GOLD#, SILVER#, NGASCash# ... from these)
+APP_TO_SYMBOL = {'GOLD': 'XAUUSD', 'SILVER': 'XAGUSD', 'NATGAS': 'NGAS', 'NGASCASH': 'NGAS', 'OIL': 'OIL'}
+
+
+def logical_symbol(app_name):
+    s = ''.join(ch for ch in str(app_name).upper() if ch.isalnum())
+    for suf in ('MICRO', 'CASH'):
+        if s.endswith(suf) and len(s) > len(suf):
+            s = s[: -len(suf)]
+    return APP_TO_SYMBOL.get(s, s)
 
 
 def to_server(jst_text):

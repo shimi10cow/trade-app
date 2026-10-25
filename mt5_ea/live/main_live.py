@@ -60,6 +60,8 @@ def main():
             telegram.error(t, cfg)
         elif k in ('signal', 'entry', 'exit'):
             telegram.send(k, t, cfg)
+        elif k == 'res_signal':                     # a signal-only reservation: always sent (that is its only purpose)
+            telegram.send('signal', t, dict(cfg, notifySignal=True))
         else:
             telegram.send('error', t, dict(cfg, notifyError=True)) if k == 'info' and telegram.configured() else None
     R = Runner(b, notify=note, account_kind=kind)

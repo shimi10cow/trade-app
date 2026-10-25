@@ -17,14 +17,14 @@
  */
 const EAL_ = {
   config: ['Account', 'ConfigJSON', 'UpdatedAt'],
-  status: ['Account', 'Login', 'Balance', 'Equity', 'Peak', 'DD', 'Positions', 'Outbox', 'EATime', 'UpdatedAt'],
+  status: ['Account', 'Login', 'Balance', 'Equity', 'Peak', 'DD', 'Positions', 'Outbox', 'EATime', 'UpdatedAt', 'Caps'],   // Caps: what the PC's EA code supports (min_lot, res_kind)
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
            'TargetPrice', 'Spread', 'Slip'],   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
-  res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode']
+  res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
 };
 const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health'};
 
@@ -103,12 +103,12 @@ function ealHeartbeat_(b) {
   const acc = String(b.account || 'demo'), now = ealNow_();
   const st = ealRows_('status').find(x => String(x.Account) === acc);
   ealWriteRow_('status', st ? st._row : null, {Account: acc, Login: b.login, Balance: b.balance, Equity: b.equity, Peak: b.peak, DD: b.dd,
-                                              Positions: b.positions, Outbox: b.outbox, EATime: b.time, UpdatedAt: now});
+                                              Positions: b.positions, Outbox: b.outbox, EATime: b.time, UpdatedAt: now, Caps: String(b.caps || '')});
   const day = now.slice(0, 10), d = ealRows_('daily');
   const today = d.find(x => String(x.Date).slice(0, 10) === day && String(x.Account) === acc);
   ealWriteRow_('daily', today ? today._row : null, {Date: day, Account: acc, Balance: b.balance, Equity: b.equity, Peak: b.peak, DD: b.dd});
   PropertiesService.getScriptProperties().setProperty('EA_LAST_HEARTBEAT_' + acc, String(Date.now()));
-  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc)};
+  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc, b.res_kinds)};
 }
 
 function ealTradeOpen_(b) {
@@ -154,7 +154,7 @@ function ealDashboard_(b) {
   const status = {}; ealRows_('status').forEach(r => { delete r._row; status[r.Account] = r; });
   const res = ealRows_('res').filter(r => r.Status === 'WAIT' || String(r.UpdatedAt).slice(0, 10) >= Utilities.formatDate(new Date(Date.now() - 30 * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd'))
     .map(r => { delete r._row; return r; });
-  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res,
+  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1},
           daily: ealRows_('daily').slice(-800).map(r => { delete r._row; return r; })};
 }
 
@@ -182,15 +182,18 @@ function ealStop_(b) {
 }
 
 // ---------- reservations (予約エントリー)
-function ealWaiting_(acc) {
-  return ealRows_('res').filter(r => r.Status === 'WAIT' && String(r.Account) === String(acc)).map(r => { delete r._row; return r; });
+// signal-only reservations go only to an EA PC that knows them (res_kinds): an older PC would place them as orders
+function ealWaiting_(acc, kinds) {
+  return ealRows_('res').filter(r => r.Status === 'WAIT' && String(r.Account) === String(acc) && (kinds || String(r.Kind || '') !== 'SIGNAL'))
+    .map(r => { delete r._row; return r; });
 }
-function ealResList_(b) { return {success: true, reservations: ealWaiting_(String(b.account || 'demo'))}; }
+function ealResList_(b) { return {success: true, reservations: ealWaiting_(String(b.account || 'demo'), b.res_kinds)}; }
 
 function ealResFilled_(b) {
   const r = ealRows_('res').find(x => String(x.ResID) === String(b.res_id));
   if (!r) return {success: true, unknown: true};
-  ealWriteRow_('res', r._row, Object.assign({}, r, {Status: 'FILLED', TradeID: b.trade_id || '', UpdatedAt: ealNow_()}));
+  // FILLED (an order) or SIGNALED (a signal-only reservation sent its signal to Telegram)
+  ealWriteRow_('res', r._row, Object.assign({}, r, {Status: b.status === 'SIGNALED' ? 'SIGNALED' : 'FILLED', TradeID: b.trade_id || '', UpdatedAt: ealNow_()}));
   return {success: true};
 }
 
@@ -212,7 +215,8 @@ function ealResSave_(b) {
   const id = 'R' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
   const row = {ResID: id, Account: String(b.account || 'demo'), Symbol: sym, Direction: dir, Trigger: trig, SLPrice: b.sl || '', TPPrice: b.tp || '',
                LotMode: mode, LotValue: Number(b.lotValue) || 0, Status: 'WAIT', TradeID: '', Note: String(b.note || '').slice(0, 300), CreatedAt: now, UpdatedAt: now,
-               SLMode: ['stoch', 'm15ma200', 'h1ma75', 'h1ma200'].indexOf(b.slMode) >= 0 ? b.slMode : 'stoch'};
+               SLMode: ['stoch', 'm15ma200', 'h1ma75', 'h1ma200'].indexOf(b.slMode) >= 0 ? b.slMode : 'stoch',
+               Kind: String(b.kind || '').toUpperCase() === 'SIGNAL' ? 'SIGNAL' : 'ENTRY'};   // SIGNAL = Telegram only, no order
   ealWriteRow_('res', null, row);
   return {success: true, reservation: row};
 }

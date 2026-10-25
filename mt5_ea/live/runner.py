@@ -10,7 +10,8 @@ Every closed M15 bar (checked every few seconds):
   4. heartbeat + config from the app (GAS) every few minutes; trade records via the outbox
 RSI(2) (daily EAs) is only evaluated in the slot just before the session close (23:45-23:55 broker time).
 Missed bars (PC off) are never traded afterwards: only signals on the last closed bar become orders.
-Config (EA_Config from the app, cached in live_config.json): running, base_risk, per EA mode ('auto'/'signal'/'off'), weight.
+Config (EA_Config from the app, cached in live_config.json): running, base_risk, lot_mode ('risk' / 'min' = always the minimum
+lot, 2026-10-25), per EA mode ('auto'/'signal'/'off'), weight.
 """
 import json
 import logging
@@ -165,7 +166,7 @@ class Runner:
     def refresh_reservations(self):
         """Read the waiting reservations of this account right before the bar closes (cheap GET)."""
         try:
-            r = gas.call('eaResList', dict(account=self.kind))
+            r = gas.call('eaResList', dict(account=self.kind, res_kinds=1))   # res_kinds: this PC knows signal-only reservations
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
         except Exception as ex:
@@ -179,8 +180,8 @@ class Runner:
             rid = str(r.get('ResID') or '')
             if not rid or rid in done or str(r.get('Account') or 'demo') != self.kind or str(r.get('Status')) != 'WAIT':
                 continue
-            sym = str(r['Symbol']).upper(); side = 1 if str(r['Direction']).upper() == 'BUY' else -1
-            m15 = self.b.bars(sym, 12)[['t', 'o', 'h', 'l', 'c']]
+            sym = RV.logical_symbol(r['Symbol']); side = 1 if str(r['Direction']).upper() == 'BUY' else -1
+            m15 = self.b.bars(sym, 20)[['t', 'o', 'h', 'l', 'c']]           # 20 days: enough H1 bars for the H1 MA200 stop
             frame = RV.h1_bars(m15) if str(r.get('Trigger')).upper() == 'H1' else m15
             if not len(frame):
                 continue
@@ -207,6 +208,15 @@ class Runner:
         tp = float(r['TPPrice']) if str(r.get('TPPrice') or '').strip() else None
         if tp is not None and side * (tp - px) <= 0:
             tp = None
+        if str(r.get('Kind') or '').upper() == 'SIGNAL':            # シグナルのみ (2026-10-25): Telegram once, no order, the reservation ends
+            tp_t = f' 利確 {tp:.5g}' if tp is not None else ''
+            self.notify('res_signal', f'予約のシグナル（シグナルのみ）{sym} {side_j} {px:.5g} 損切りの目安 {sl:.5g}{tp_t}（{r.get("Trigger")}{sl_note}）'
+                                      + (f' メモ: {r.get("Note")}' if r.get('Note') else ''))
+            gas.enqueue('eaSignal', dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px,
+                                         sl=sl, tp=tp or '', status='シグナルのみ（予約）', reason=f"予約 {r.get('Trigger')} シグナル"))
+            self.state['res_done'].append(rid)
+            gas.enqueue('eaResFilled', dict(account=self.kind, res_id=rid, trade_id='', status='SIGNALED'))
+            return [f'{key} signal sent (signal-only reservation)']
         lots, money, note = RV.lots_for_res(self.b.spec(sym), eq, str(r.get('LotMode') or 'pct'), r.get('LotValue') or 0.5, abs(px - sl))
         rec = dict(account=self.kind, ea=key, source='RES', symbol=sym, side=side, signal_time=to_jst(hit['t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
                    lots=lots, risk_jpy=round(money), mult=1, weight=1, note=note + sl_note, reason=f"予約 {r.get('Trigger')} エントリー")
@@ -318,7 +328,7 @@ class Runner:
         tdm = sizing.trading_day_of_month(days_list, p['signal_t'])
         mult = sizing.calendar_mult(sym, s, p['signal_t'], tdm)
         lots, money, note = sizing.lots_for(self.b.spec(sym), eq, float(self.state['peak']), float(self.config.get('base_risk', 0.01)), mult, cfg['weight'], dist,
-                                          dd_half=self.config.get('dd_half', True) is not False)
+                                          dd_half=self.config.get('dd_half', True) is not False, min_lot=self.config.get('lot_mode') == 'min')
         side_j = '買い' if s == 1 else '売り'
         rec = dict(account=self.kind, ea=key, symbol=sym, side=s, signal_time=to_jst(p['signal_t']), price=px, spread=(ask - bid) if (ask and bid) else '', sl=sl, tp=tp or '',
                    lots=lots, risk_jpy=round(money), mult=mult, weight=cfg['weight'], note=note, reason=p.get('tag', ''))
@@ -356,7 +366,8 @@ class Runner:
         a = self.b.account()
         x = dict(account=self.kind, login=a.get('login'), balance=a['balance'], equity=a['equity'], peak=self.state.get('peak'),
                  dd=(1 - a['equity'] / self.state['peak']) if self.state.get('peak') else 0, positions=len(self.b.positions(set(MAGIC.values()) | {RV.RES_MAGIC})),
-                 outbox=gas.pending_count(), time=to_jst(self.b.server_now() or pd.Timestamp.now()))
+                 outbox=gas.pending_count(), time=to_jst(self.b.server_now() or pd.Timestamp.now()), res_kinds=1,
+                 caps='min_lot,res_kind')       # the app enables 最小ロット / シグナルのみ予約 only for a PC that supports them
         if self.state.get('tg_stop'):
             self._push_stop()
         try:

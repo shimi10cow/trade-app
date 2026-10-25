@@ -20,7 +20,8 @@ XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US
 # Names differ between XM account types (KIWAMI '#', Standard none, Micro 'micro', demo servers ...): try these bases in order,
 # each with the suffixes below, then fall back to any symbol on the account whose name starts with a base.
 XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'],
-            'US30': ['US30Cash', 'US30'], 'BTCUSD': ['BTCUSD'], 'ETHUSD': ['ETHUSD']}
+            'US30': ['US30Cash', 'US30'], 'BTCUSD': ['BTCUSD'], 'ETHUSD': ['ETHUSD'], 'NGAS': ['NGASCash', 'NGAS', 'NATGAS'],
+            'OIL': ['OILCash', 'OIL']}
 SUFFIXES = ['#', '', '.', 'micro', '#.']
 
 

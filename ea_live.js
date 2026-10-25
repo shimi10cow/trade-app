@@ -65,7 +65,14 @@
   window.eaLiveSetKey = function () { const v = (document.getElementById('eal-key') || {}).value || ''; if (v.trim()) { localStorage.setItem(KEY_LS, v.trim()); load(); } };
   window.eaLiveAcc = function (a) { S.acc = a; localStorage.setItem(ACC_LS, a); render(); };
   window.eaLiveRun = function (on) { const c = cfg(); c.running = on; save(); };
-  window.eaLiveRisk = function (v) { const c = cfg(); c.base_risk = Number(v); save(); };
+  window.eaLiveRisk = function (v) { const c = cfg(); c.base_risk = Number(v); c.lot_mode = 'risk'; save(); };
+  // what the PC's EA code supports (heartbeat Caps): 最小ロット / シグナルのみ予約 are enabled only then (an older PC would ignore them)
+  const caps = acc => String(((S.dash && S.dash.status && S.dash.status[acc]) || {}).Caps || '').split(',');
+  window.eaLiveLotMode = function (v) {
+    const c = cfg();
+    if (v === 'min' && caps(S.acc).indexOf('min_lot') < 0) { S.err = 'PC の EA を更新すると使えます（「新EA 更新」のあと、数分で使えるようになります）'; render(); return; }
+    c.lot_mode = v === 'min' ? 'min' : 'risk'; save();
+  };
   window.eaLiveDDHalf = function () { const c = cfg(); c.dd_half = c.dd_half === false; save(); };
   window.eaLiveAllOn = function () { const c = cfg(); ALL_KEYS.forEach(k => { c.eas[k].on = true; if (c.eas[k].mode === 'off') c.eas[k].mode = 'auto'; }); save(); };
   window.eaLiveBT = function () { S.btOpen = !S.btOpen; render(); };
@@ -86,10 +93,11 @@
   }
   const resAll = () => (S.dash && S.dash.reservations) || [];
   function resLine(r, withCancel) {
-    const lot = r.LotMode === 'pct' ? r.LotValue + '%' : r.LotMode === 'jpy' ? yen(r.LotValue) : r.LotValue + ' lot';
-    const st = {WAIT: ['待機中', '#22d3ee'], FILLED: ['約定', '#4ade80'], CANCEL: ['取消', '#94a3b8']}[r.Status] || [r.Status, '#94a3b8'];
+    const sig = String(r.Kind || '') === 'SIGNAL';
+    const lot = sig ? 'Telegram に送るだけ' : r.LotMode === 'pct' ? r.LotValue + '%' : r.LotMode === 'jpy' ? yen(r.LotValue) : r.LotValue + ' lot';
+    const st = {WAIT: ['待機中', '#22d3ee'], FILLED: ['約定', '#4ade80'], SIGNALED: ['送信済み', '#4ade80'], CANCEL: ['取消', '#94a3b8']}[r.Status] || [r.Status, '#94a3b8'];
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
-      <div><b>${esc(r.Symbol)}</b> ${String(r.Direction) === 'BUY' ? '<span style="color:#f87171">買い</span>' : '<span style="color:#38bdf8">売り</span>'} · ${esc(r.Trigger)} エントリー
+      <div><b>${esc(r.Symbol)}</b> ${String(r.Direction) === 'BUY' ? '<span style="color:#f87171">買い</span>' : '<span style="color:#38bdf8">売り</span>'} · ${esc(r.Trigger)} ${sig ? '<span style="color:#fbbf24">シグナルのみ</span>' : 'エントリー'}
         <div style="color:#94a3b8;font-size:11px">損切り ${esc(SL_JA[r.SLMode] || r.SLPrice || 'ストキャス直下')} · 利確 ${esc(r.TPPrice || 'なし')} · ${esc(lot)}${String(r.Account) === 'live' ? ' · <span style="color:#f87171">本番</span>' : ''}</div></div>
       <div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:${st[1]}">${st[0]}</span>
         ${withCancel && r.Status === 'WAIT' ? `<button onclick="eaResCancel('${esc(r.ResID)}')" style="border:1px solid #f87171;color:#f87171;background:transparent;border-radius:6px;padding:3px 8px;font-size:11px">取消</button>` : ''}</div></div>`;
@@ -164,18 +172,20 @@
       <div style="width:100%;max-height:88vh;overflow:auto;background:#111c31;border:1px solid #26364f;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:16px;font-weight:800">${esc(f.symbol)} を予約 <span style="font-size:11px;color:#94a3b8">${ACC_JA[S.acc]}口座</span></div>
           <button onclick="eaResClose()" aria-label="閉じる" style="width:36px;height:36px;border-radius:9px;border:1px solid #334155;background:#172033;color:#cbd5e1;font-size:18px">×</button></div>
+        ${S.dash && S.dash.features && S.dash.features.resKind ? `<div>${lab('種類')}${seg('kind', f.kind, [['ENTRY', '実エントリー', '#4ade80', '74,222,128'], ['SIGNAL', 'シグナルのみ', '#fbbf24', '251,191,36']])}
+          ${f.kind === 'SIGNAL' ? `<div style="font-size:10px;color:#94a3b8;margin-top:6px">条件がそろったら Telegram に 1 回送って終わり（注文はしない。通知の設定に関係なく送る）${caps(S.acc).indexOf('res_kind') < 0 ? '<br><span style="color:#fbbf24">PC の EA を更新するまでは待機のまま（注文もしません）</span>' : ''}</div>` : ''}</div>` : ''}
         <div>${lab('向き')}${seg('direction', f.direction, [['BUY', '買い', '#f87171', '248,113,113'], ['SELL', '売り', '#38bdf8', '56,189,248']])}</div>
         <div>${lab('エントリー')}${seg('trigger', f.trigger, [['M15', 'M15'], ['H1', 'H1']])}</div>
         <div>${lab('損切り')}${seg('slMode', f.slMode, [['stoch', 'ストキャス直下'], ['m15ma200', 'M15 MA200'], ['h1ma75', 'H1 MA75'], ['h1ma200', 'H1 MA200']])}</div>
         <div>${lab('利確の価格（空 = なし）')}${inp('tp', 'なし')}</div>
-        <div>${lab('ロットの決め方')}${seg('lotMode', f.lotMode, [['pct', '口座の %'], ['jpy', '最大損失'], ['lot', 'ロット']])}
-          <div style="margin-top:8px">${inp('lotValue', LOT_JA[f.lotMode])}</div></div>
+        ${f.kind === 'SIGNAL' ? '' : `<div>${lab('ロットの決め方')}${seg('lotMode', f.lotMode, [['pct', '口座の %'], ['jpy', '最大損失'], ['lot', 'ロット']])}
+          <div style="margin-top:8px">${inp('lotValue', LOT_JA[f.lotMode])}</div></div>`}
         <div>${lab('メモ（任意）')}<input value="${esc(f.note)}" oninput="eaResSet('note',this.value,1)" class="ea-input" style="width:100%"></div>
         ${f.msg ? `<div style="font-size:12px;color:${/でき|失敗|通信|入れて/.test(f.msg) ? '#f87171' : '#94a3b8'}">${esc(f.msg)}</div>` : ''}
-        <button onclick="eaResSubmit()" ${f.busy ? 'disabled' : ''} style="${btn};padding:13px;font-size:14px;${neon('#4ade80', '74,222,128')}">${f.busy ? '保存中…' : '予約する'}</button>
+        <button onclick="eaResSubmit()" ${f.busy ? 'disabled' : ''} style="${btn};padding:13px;font-size:14px;${neon('#4ade80', '74,222,128')}">${f.busy ? '保存中…' : f.kind === 'SIGNAL' ? 'シグナルを予約する' : '予約する'}</button>
       </div></div>`;
   }
-  window.eaResOpen = function (sym) { S.res = {symbol: sym, direction: 'BUY', trigger: 'M15', slMode: 'stoch', tp: '', lotMode: 'pct', lotValue: '0.5', note: '', msg: ''}; render(); };
+  window.eaResOpen = function (sym) { S.res = {symbol: sym, kind: 'ENTRY', direction: 'BUY', trigger: 'M15', slMode: 'stoch', tp: '', lotMode: 'pct', lotValue: '0.5', note: '', msg: ''}; render(); };
   window.eaResClose = function () { S.res = null; render(); };
   window.eaResSet = function (k, v, quiet) {
     if (!S.res) return; S.res[k] = v;
@@ -192,8 +202,13 @@
     if (f.lotMode === 'pct' && v > 3) { f.msg = '口座の % は 3% までにしてください'; render(); return; }
     f.busy = true; f.msg = ''; render();
     try {
-      const r = await resPost({op: 'create', account: S.acc, symbol: f.symbol, direction: f.direction, trigger: f.trigger, slMode: f.slMode, tp: f.tp, lotMode: f.lotMode, lotValue: v, note: f.note});
+      const r = await resPost({op: 'create', account: S.acc, kind: f.kind, symbol: f.symbol, direction: f.direction, trigger: f.trigger, slMode: f.slMode, tp: f.tp, lotMode: f.lotMode, lotValue: v, note: f.note});
       if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
+      // safety: a signal-only reservation saved without its kind would become a real order -> take it back at once
+      if (f.kind === 'SIGNAL' && String((r.reservation || {}).Kind) !== 'SIGNAL') {
+        await resPost({op: 'cancel', resId: (r.reservation || {}).ResID}).catch(() => {});
+        throw new Error('裏側（GAS）がシグナルのみに対応していないため取り消しました（GAS のデプロイ後に使えます）');
+      }
       S.dash = S.dash || {}; S.dash.reservations = resAll().concat([r.reservation]);
       try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
       S.res = null; S.saving = '予約しました（EA は 5 分以内に受け取ります）'; render(); refreshViews();
@@ -227,7 +242,7 @@
         <input id="eal-key" class="ea-input" style="width:100%" placeholder="合言葉"><button class="ea-save" style="margin-top:10px" onclick="eaLiveSetKey()">保存</button></div></div>`;
       return;
     }
-    const c = cfg(), st = (S.dash && S.dash.status && S.dash.status[S.acc]) || {}, live = S.acc === 'live';
+    const c = cfg(), st = (S.dash && S.dash.status && S.dash.status[S.acc]) || {}, live = S.acc === 'live', minLot = c.lot_mode === 'min';
     const run = !!c.running, n = c.notify || {};
     const tab = on => `${btn};${on ? neon('#22d3ee', '34,211,238') : 'border:1px solid transparent;background:transparent;color:#94a3b8'};padding:10px;font-size:13px;font-weight:800`;
     const dd = st.DD !== undefined && st.DD !== '' ? (-(Number(st.DD) * 100)).toFixed(1) + '%' : '—';
@@ -280,9 +295,14 @@
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
             <button onclick="eaLiveRun(true)" style="${btn};${run ? neon('#4ade80', '74,222,128') : offBtn}">稼働</button>
             <button onclick="eaLiveRun(false)" style="${btn};${!run ? neon('#f87171', '248,113,113') : offBtn}">全体停止</button></div></div>
-        <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">リスク</div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">ロット</div>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
+            <button onclick="eaLiveLotMode('risk')" style="${btn};${minLot ? offBtn : neon('#22d3ee', '34,211,238')}">リスク %</button>
+            <button onclick="eaLiveLotMode('min')" style="${btn};${minLot ? neon('#fbbf24', '251,191,36') : offBtn}${caps(S.acc).indexOf('min_lot') < 0 ? ';opacity:.5' : ''}">最小ロット</button></div></div>
+        <div style="display:flex;align-items:center;gap:8px;${minLot ? 'opacity:.4' : ''}"><div style="min-width:80px;font-size:12px;color:#94a3b8">リスク</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${[0.005, 0.0075, 0.01, 0.0125].map(v =>
-            `<button onclick="eaLiveRisk(${v})" style="${btn};${Math.abs(c.base_risk - v) < 1e-9 ? neon('#22d3ee', '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
+            `<button onclick="eaLiveRisk(${v})" style="${btn};${!minLot && Math.abs(c.base_risk - v) < 1e-9 ? neon('#22d3ee', '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
+        ${minLot ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">全 EA が銘柄の最小ロット（例 0.01）で入ります。最小ロットでも損失が口座の 1.5% を超える回は見送り</div>' : ''}
         <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">DD10%で半分</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
             <button onclick="${c.dd_half === false ? 'eaLiveDDHalf()' : ''}" style="${btn};${c.dd_half !== false ? neon('#22d3ee', '34,211,238') : offBtn}">ON</button>

@@ -70,6 +70,9 @@
 
 - 取り込みの「まとめる」は同じ通貨・向きだけ、紐付けは確認待ち・ゴミ箱・紐付け済み・逆向きのトレードには不可（`gas/Trades.gs` の `impMerge_`・`impLink_`。アプリ側の確認は main で反映済み）
 - 通貨ペアの見方の記録（2026-10-25）：ペアタブの「データを送信」→ `Code.gs` の `savePairHistory` が表「Pair_History」（自動で作る）に、直近 1 日に変えたペアのうち前回の記録と中身が違うものだけ 1 行ずつ足す。`updatePair` は「確認日時」の列がなければ作る。ダウルール候補・分析チェックは送らない
+- 予約の「シグナルのみ」（2026-10-25）：`gas/EA_Live.gs` の表 Reservations に `Kind`（ENTRY / SIGNAL）、PC が送ったら Status `SIGNALED`。シグナルのみの予約は、対応した PC（`res_kinds`）にだけ渡す（古い PC が注文にしないように）。アプリはデプロイ後に「種類」の欄が出る
+- EA のロット「最小ロット」（2026-10-25）：設定 `lot_mode: 'min'`。PC が心拍で `Caps`（`min_lot,res_kind`）を送り、表 EA_Status に残す。アプリは対応した PC の口座だけ「最小ロット」を押せる
+- **PC の EA の入れ替えが要る**（`git pull` → 新EA 更新）：最小ロット・シグナルのみ予約・予約の銘柄名（GOLD / SILVER / NATGAS）・予約の足を 20 日分読む（H1 MA200 の損切り用）
 ### デプロイのあとにやること
 
 1. Apps Script のエディタで `impRevertAutoLinksOnce` を実行 → 実行ログで、前回自動で結び付いたトレード（4 件のはず）と、元の値を戻せるか（「Entries」か「なし」）を確認
