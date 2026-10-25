@@ -60,4 +60,11 @@
 - （main にあって、まだデプロイしていない分）取り込みの設定の読み出し `eaImportSettings`、予約の損切り 4 択、Telegram 停止の書き込み `eaStop` ほか（`OPEN_ITEMS.md` の A1）
 - 起動の重さの直し（`Code.gs` のトレード・通貨ペアの一時保存、`gas/Trades.gs` の `cleanPairsEAColumns`）。貼るのは `Code.gs` と `Trades.gs`
 - 取り込みで自動の紐付けをやめ、全部を下書きにする／候補は 3 時間以内・過去の履歴も（`gas/Trades.gs`。B3 の決定 2026-10-25）
+- 取り込みのゴミ箱・戻す・紐付けの控え・候補にする時間の設定（`gas/Trades.gs`・`gas/EA_Live.gs`）
 - G4（古いコードの削除）で GAS を直したら、ここに足す
+
+### デプロイのあとにやること
+
+1. Apps Script のエディタで `impRevertAutoLinksOnce` を実行 → 実行ログで、前回自動で結び付いたトレード（4 件のはず）と、元の値を戻せるか（「Entries」か「なし」）を確認
+2. よければ `impRevertAutoLinksApply` を実行 → MT5 タブの「確認が必要なトレード」に戻る
+3. 10/25 に間違えて「記録にする」を押した 1 件は、MT5 タブの「最近記録にしたもの」→「確認待ちに戻す」
