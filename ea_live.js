@@ -240,7 +240,8 @@
         <div style="font-size:11px;color:#cbd5e1;margin-top:5px;line-height:1.4;min-height:15px">${syms.length ? syms.join(' · ') : '銘柄なし'}</div>
         <div style="margin-top:6px"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;color:${md[1]};background:rgba(${md[2]},.12)">${md[0]}</span></div></button>`;
     }).join('');
-    const trades = ((S.dash && S.dash.trades) || []).filter(t => String(t.Account) === S.acc).slice(-15).reverse().map(t => {
+    const trades = ((S.dash && S.dash.trades) || []).filter(t => String(t.Account) === S.acc)
+      .sort((x, y) => String(y.EntryTime || y.SignalTime).localeCompare(String(x.EntryTime || x.SignalTime))).slice(0, 15).map(t => {   // newest first
       const pr = Number(t.Profit), col = t.Status === 'OPEN' ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
       return `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
         <div><b>${esc(t.EA)}</b> ${t.Direction === 'BUY' ? '買い' : '売り'}<div style="color:#94a3b8;font-size:11px">${esc(String(t.EntryTime).slice(5, 16))} · ${esc(t.Lot)} lot</div></div>
@@ -393,6 +394,9 @@
     const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml();
     if (V.anKind === 'ea' && typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {}
     if (document.getElementById('modal-history')?.classList.contains('active') && typeof renderHistoryList === 'function') renderHistoryList();
+    // the monthly summary can open before the EA data has arrived: draw its EA box again
+    const mb = document.getElementById('monthly-ea-stats');
+    if (mb && mb.dataset.ym && document.getElementById('modal-monthly')?.classList.contains('active') && typeof renderMonthlyEAStats_ === 'function') renderMonthlyEAStats_(mb.dataset.ym);
   }
   window.eaLiveHistEA = id => { V.histEA = id; if (typeof renderHistoryList === 'function') renderHistoryList(); };
   window.eaLiveHistAcc = a => { V.histAcc = a; if (typeof renderHistoryList === 'function') renderHistoryList(); };

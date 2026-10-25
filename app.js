@@ -2320,6 +2320,7 @@ function renderMonthlyEAStats_(ym) {
   const box0 = document.getElementById('monthly-stats2'); if (!box0) return;
   let box = document.getElementById('monthly-ea-stats');
   if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box.style.marginBottom = '16px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  box.dataset.ym = ym;   // ea_live.js draws this box again when the EA data arrives
   const d = window.eaLive && window.eaLive.data && window.eaLive.data();
   const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && !/^RES:/.test(String(t.EA)) && String(t.ExitTime).slice(0, 7) === ym);
   const line = acc => { const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';

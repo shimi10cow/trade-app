@@ -68,8 +68,8 @@
    | GAS の古い窓口 | `saveEASignal`・`requestEAReplay`・`getEAControl`・`getHybridConfig`・`adoptMT5Trade`・`unlinkMT5FromEntry`・`ensureColumns`・`migrateEntryFields`・`recalculateAllScores` ほか | アプリの古い部分からだけ |
 
    アプリの変更は main に入るとすぐスマホに出る。版の番号（`index.html` の `?v=`・`sw.js` の `CACHE_NAME`）を上げる
-2. **合言葉が要る画面の確認**（デスクトップでは未確認）：EA 設定タブ、ホームの EA の保有中・予約中、分析の「EA」。スマホ幅で、切れている所・おかしい所がないか
-3. 月の総括の画面（その月がまだ来ていないので未確認。`maybeShowMonthlySummary`）
+2. **合言葉が要る画面の確認**（**10/25 クラウドで済み**）：EA 設定タブ、ホームの EA の保有中・予約中、分析の「EA」。スマホ幅で、切れている所・おかしい所がないか
+3. 月の総括の画面（**10/25 クラウドで確認済み**。EA の欄が起動直後に空のままになるのを直した）
 4. 後回し：リポジトリの分け方（研究用は非公開に）
 
 ## 5. デスクトップ（PC）の今の状態
