@@ -380,8 +380,8 @@ function impUnadopt_(b) {
   const T = trRead_(), t = impFind_(T, b.entryId), E = execRead_();
   if (t.LinkBackup) return {success: true, draftId: impUnlinkRow_(T, E, t, JSON.parse(t.LinkBackup))};
   // linked without a backup (the old automatic link, or a link made before the undo existed): the MT5 part becomes a draft;
-  // the hand-written values come back from Entries when they are there from before the link, else they stay as they are
-  if (String(t.Source) !== 'MT5' && String(t.Source) !== '予約' && t.Accounts) { const o = impOrigFor_(t, impEntriesById_()); return {success: true, draftId: impUnlinkRow_(T, E, t, o.back), restored: o.restored}; }
+  // the hand-written values come back from Entries when they are there from before the link, else the values MT5 wrote are emptied
+  if (String(t.Source) !== 'MT5' && String(t.Source) !== '予約' && t.Accounts) { const o = impOrigFor_(t, impEntriesById_()); return {success: true, draftId: impUnlinkRow_(T, E, t, o.back, !o.restored), restored: o.restored}; }
   if (String(t.Source) !== 'MT5') throw new Error('MT5 から記録したトレードではありません');
   t['ステータス'] = '下書き'; t.AdoptedAt = ''; trWrite_(T, t);
   return {success: true, draftId: t.EntryID};
@@ -406,19 +406,40 @@ function impOrigFor_(t, orig) {
   const back = {}; IMP_LINK_FIELDS_.forEach(function (k) { back[k] = ok ? (o[k] === undefined ? '' : o[k]) : (['Accounts', 'ExecCount', 'MergeMode'].indexOf(k) >= 0 ? '' : t[k]); });
   return {back: back, restored: ok};
 }
-/** The MT5 part of a linked trade becomes a new draft; the hand-written trade gets `orig` back. Returns the draft id. */
-function impUnlinkRow_(T, E, t, orig) {
+/** The MT5 part of a linked trade becomes a new draft; the hand-written trade gets `orig` back. Returns the draft id.
+ *  clearSame (no backup of the values from before the link): the values that are the same as MT5's are emptied instead. */
+function impUnlinkRow_(T, E, t, orig, clearSame) {
   const rs = E.rows.filter(function (r) { return String(r.TradeID) === String(t.EntryID); });
+  const f = rs.length ? impFields_(impAggregate_(rs)) : null;
   let draftId = '';
   if (rs.length) {
-    const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, impFields_(impAggregate_(rs)));
+    const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, f);
     trWrite_(T, d); T.rows.push(d); draftId = d.EntryID;
     execSetTradeId_(E, rs.map(function (r) { return r.ExecID; }), d.EntryID);
   }
   IMP_LINK_FIELDS_.forEach(function (k) { t[k] = orig[k] === undefined ? '' : orig[k]; });
+  if (clearSame && f) impClearMT5Values_(t, f);
   t.LinkBackup = ''; t.LinkedAt = '';
   trWrite_(T, t);
   return draftId;
+}
+/** A value equal to MT5's (prices, lot, exit, profit, pips, stop, target) was written by the link: empty it (user 2026-10-25).
+ *  No exit date and no 損益 left on a closed trade -> back to 保有中. Values typed by hand (different from MT5's) stay.
+ *  Returns the emptied fields. */
+const IMP_MT5_VALUE_FIELDS_ = ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', '損益', '実取得pips', 'InitialSLPrice', 'TakeProfitPrice'];
+function impSameValue_(a, b) {
+  if (a === '' || a === undefined || a === null || b === '' || b === undefined || b === null) return false;
+  const x = Number(a), y = Number(b);
+  if (String(a).trim() !== '' && String(b).trim() !== '' && isFinite(x) && isFinite(y)) return Math.abs(x - y) < 1e-9;
+  return String(a).replace(/-/g, '/').trim() === String(b).replace(/-/g, '/').trim();
+}
+function impClearMT5Values_(t, f) {
+  const cleared = IMP_MT5_VALUE_FIELDS_.filter(function (k) { return impSameValue_(t[k], f[k]); });
+  cleared.forEach(function (k) { t[k] = ''; });
+  ['Accounts', 'ExecCount', 'MergeMode'].forEach(function (k) { t[k] = ''; });
+  // back to 保有中 only when nothing of an exit is left (a 損益 typed by hand keeps it 決済)
+  if (!t.ExitDate && (t['損益'] === '' || t['損益'] === undefined) && String(t['ステータス']) === '決済') t['ステータス'] = '保有中';
+  return cleared;
 }
 /** app: attach a draft's MT5 numbers to a hand-written trade, then remove the draft. */
 function impLink_(b) {
@@ -508,7 +529,7 @@ function impRevertAutoLinksOnce(apply) {
     const ob = impOrigFor_(t, orig), back = ob.back;
     const line = {EntryID: t.EntryID, pair: t['PairName（元）'] || t.PairName, dir: t.Direction, entry: t.EntryDate + ' ' + t.EntryTime,
                   source: ob.restored ? 'Entries (元の値を戻す)' : 'なし (結び付きだけ外す。今の値: ' + ['EntryPrice', 'Lot', 'ExitDate', 'ExitTime', 'Profit', '損益', '実取得pips'].map(function (k) { return k + '=' + t[k]; }).join(' ') + ')'};
-    if (apply) line.draftId = impUnlinkRow_(T, E, t, back);
+    if (apply) line.draftId = impUnlinkRow_(T, E, t, back, !ob.restored);     // no backup: the values MT5 wrote are emptied
     return line;
   });
   Logger.log(JSON.stringify({apply: !!apply, tradesActive: tradesActive_(), count: report.length, trades: report}, null, 1));
@@ -518,13 +539,13 @@ function impRevertAutoLinksApply() { return impRevertAutoLinksOnce(true); }
 
 /** Check (run from the editor): which trade every MT5 execution belongs to. Executions that belong to no draft / record /
  *  linked trade (e.g. left on a hand-written trade whose link was undone, or on a trade that no longer exists) are listed;
- *  with apply = true they become drafts in "確認が必要なトレード" again. For a hand-written trade the log also shows which of
- *  its values are the same as MT5's (= most likely written by MT5). Nothing else is changed. */
+ *  with apply = true they become drafts in "確認が必要なトレード" again. Hand-written trades still carrying the numbers MT5
+ *  wrote (the link was undone without a backup) are listed too (leftValues); apply empties those values (user 2026-10-25:
+ *  exit date / time etc. written by the link should go; no exit left -> 保有中). Run without apply first and read the log. */
 function impCheckLinksOnce(apply) {
   const T = trRead_(), E = execRead_(), byId = {}; T.rows.forEach(function (t) { byId[String(t.EntryID)] = t; });
   const groups = {}; E.rows.forEach(function (r) { const k = String(r.TradeID || ''); if (k === 'IGNORED') return; (groups[k] = groups[k] || []).push(r); });
   const rep = {apply: !!apply, executions: E.rows.length, drafts: 0, recorded: 0, linked: 0, trash: 0, orphans: []};
-  const same = function (a, b) { if (a === '' || a === undefined || b === '' || b === undefined) return false; const x = Number(a), y = Number(b); return isFinite(x) && isFinite(y) ? Math.abs(x - y) < 1e-9 : String(a) === String(b); };
   Object.keys(groups).forEach(function (k) {
     const t = k ? byId[k] : null, rs = groups[k];
     let why = '';
@@ -540,12 +561,30 @@ function impCheckLinksOnce(apply) {
     Object.keys(parts).forEach(function (pk) {
       const f = impFields_(impAggregate_(parts[pk]));
       const line = {why: why, tradeId: k, pair: f['PairName（元）'], dir: f.Direction, entry: f.EntryDate + ' ' + f.EntryTime, executions: parts[pk].length};
-      if (t) line.sameAsMT5 = ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', '損益', '実取得pips'].filter(function (x) { return same(t[x], f[x]); }).join(' ') || 'なし';
+      if (t) line.sameAsMT5 = IMP_MT5_VALUE_FIELDS_.filter(function (x) { return impSameValue_(t[x], f[x]); }).join(' ') || 'なし';
       if (apply) {
         const d = Object.assign({EntryID: Utilities.getUuid().substring(0, 8), 'ステータス': '下書き', Source: 'MT5', MergeMode: 'auto'}, f);
         trWrite_(T, d); T.rows.push(d); execSetTradeId_(E, parts[pk].map(function (r) { return r.ExecID; }), d.EntryID); line.draftId = d.EntryID;
+        if (t) { line.cleared = impClearMT5Values_(t, f).join(' ') || 'なし'; trWrite_(T, t); }     // the values MT5 wrote on it
       }
       rep.orphans.push(line);
+    });
+  });
+  // hand-written trades whose link was already undone but still carry MT5's numbers: compared with each draft of the same
+  // pair / direction entered within 3 days; 3 or more identical values (entry, lot, exit, exit date / time, profit) = written by MT5
+  rep.leftValues = [];
+  const pk = function (x) { return String(x['PairName（元）'] || x.PairName || '').toUpperCase(); };
+  const keyF = ['EntryPrice', 'Lot', 'ExitPrice', 'ExitDate', 'ExitTime', '損益'];
+  T.rows.filter(function (d) { return d['ステータス'] === '下書き'; }).forEach(function (d) {
+    T.rows.forEach(function (t) {
+      if (t === d || t.Accounts || t.LinkBackup || ['MT5', '予約'].indexOf(String(t.Source || '')) >= 0 || ['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) >= 0) return;
+      if (pk(t) !== pk(d) || String(t.Direction) !== String(d.Direction) || Math.abs(impEntryMs_(t) - impEntryMs_(d)) > 3 * 86400e3) return;
+      const hits = keyF.filter(function (x) { return impSameValue_(t[x], d[x]); });
+      if (hits.length < 3) return;
+      const line = {EntryID: t.EntryID, pair: pk(t), dir: t.Direction, entry: t.EntryDate + ' ' + t.EntryTime, sameAsDraft: d.EntryID,
+                    values: IMP_MT5_VALUE_FIELDS_.filter(function (x) { return impSameValue_(t[x], d[x]); }).map(function (x) { return x + '=' + t[x]; }).join(' ')};
+      if (apply) { line.cleared = impClearMT5Values_(t, d).join(' '); line.status = t['ステータス']; trWrite_(T, t); }
+      rep.leftValues.push(line);
     });
   });
   Logger.log(JSON.stringify(rep, null, 1));
