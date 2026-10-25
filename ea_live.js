@@ -319,12 +319,13 @@
   function tradeRow(t, onclick) {
     const open = t.Status === 'OPEN', pr = Number(t.Profit), col = open ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
     const R = t.R !== '' && t.R != null && !isNaN(t.R) ? (Number(t.R) > 0 ? '+' : '') + Number(t.R).toFixed(2) + 'R' : '';
-    return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${open ? '#22d3ee' : '#4ade80'}">
+    const line = open ? (String(t.Direction).toUpperCase() === 'BUY' ? '#f43f5e' : '#3b82f6') : '#4ade80';   // open: buy red / sell blue (same as 裁量)
+    return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${line}">
       <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">${esc(t.Symbol)}
           <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
           ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
-        <div style="font-weight:700;font-size:15px;color:${col}">${open ? '保有中' : R}</div></div>
+        <div style="font-weight:700;font-size:15px;color:${col}">${open ? '' : R}</div></div>
         <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
   }

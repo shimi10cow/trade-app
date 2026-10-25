@@ -1324,7 +1324,7 @@ function renderPositions() {
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
 
     return `
-      <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : '#3b82f6'}">
+      <div class="list-card" onclick="openTradeDetail(${index})" style="cursor:pointer; border-left: 4px solid ${isMissed ? '#f59e0b' : (t.Direction === 'Buy' ? '#f43f5e' : '#3b82f6')}">
         <div>
           <div style="font-weight:700; font-size:14px; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
             ${t['PairName（元）'] || t.PairName || t.Pair || 'ペア不明'}
