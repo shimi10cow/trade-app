@@ -66,8 +66,10 @@ const FAST_CACHE_KEY='tradeAppFastStart_v1';
 function readFastCache(){try{return JSON.parse(localStorage.getItem(FAST_CACHE_KEY)||'{}');}catch(e){return {};}}
 function writeFastCache(k,v){try{var x=readFastCache();x[k]={data:v,at:Date.now()};localStorage.setItem(FAST_CACHE_KEY,JSON.stringify(x));}catch(e){}}
 const ENTRIES_CACHE_KEY='tradeAppEntries_v1';
+// MT5 import drafts and the trash live in the same sheet; they are not trades yet, so the app never counts them (2026-10-25)
+function realEntries_(a){return (a||[]).filter(function(t){var s=t&&t['ステータス'];return s!=='下書き'&&s!=='ゴミ箱';});}
 function hydrateFastCache(){
-  try{var ce=JSON.parse(localStorage.getItem(ENTRIES_CACHE_KEY)||'null');if(ce&&Array.isArray(ce.data)&&ce.data.length&&!(App.data.entries||[]).length){App.data.entries=ce.data;App.state.entriesFromCache=true;setTimeout(function(){try{renderPositions();renderAnalysis();renderGallery();}catch(e){}},0);}}catch(e){}
+  try{var ce=JSON.parse(localStorage.getItem(ENTRIES_CACHE_KEY)||'null');if(ce&&Array.isArray(ce.data)&&ce.data.length&&!(App.data.entries||[]).length){App.data.entries=realEntries_(ce.data);App.state.entriesFromCache=true;setTimeout(function(){try{renderPositions();renderAnalysis();renderGallery();}catch(e){}},0);}}catch(e){}
   var x=readFastCache();
   if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
   if(Array.isArray(x.calendar?.data?.events)&&x.calendar.data.events.length){App.data.calendar=x.calendar.data.events;App.data.calendarIsNextWeek=!!x.calendar.data.isNextWeek;App.state.calendarError='';}
@@ -1161,7 +1163,7 @@ async function loadData() {
   try {
     // 全リクエスト同時開始・届いた順に即レンダリング（タイムアウト・リトライ付き）
     const entriesP = gasGet('getEntries').then(res => {
-      App.data.entries = res.data || [];
+      App.data.entries = realEntries_(res.data);
       App.state.entriesFromCache = false;
       try { localStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({at: Date.now(), data: App.data.entries})); } catch (e) {}   // too big: just no cache
       renderPositions();   // ① ポジション（最優先）
@@ -2008,7 +2010,7 @@ function openPendingReview() {
 function renderReviewEAStats_(weekStart) {
   const box0 = document.getElementById('review-stats'); if (!box0) return;
   let box = document.getElementById('review-ea-stats');
-  if (!box) { box = document.createElement('div'); box.id = 'review-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  if (!box) { box = document.createElement('div'); box.id = 'review-ea-stats'; box.style.marginTop = '10px'; box.style.marginBottom = '16px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
   const d = window.eaLive && window.eaLive.data && window.eaLive.data();
   const from = fmtYmd(weekStart), endD = new Date(weekStart); endD.setDate(endD.getDate() + 7); const to = fmtYmd(endD);
   const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && !/^RES:/.test(String(t.EA)) && String(t.ExitTime).slice(0, 10) >= from && String(t.ExitTime).slice(0, 10) < to);
@@ -2025,7 +2027,7 @@ function renderReviewEAStats_(weekStart) {
 
 function openReviewModal(weekKey) {
   // バックグラウンドで最新データを取得（土日のトレード入力反映）
-  gasGet('getEntries').then(res => { if (res.data) App.data.entries = res.data; }).catch(() => {});
+  gasGet('getEntries').then(res => { if (res.data) App.data.entries = realEntries_(res.data); }).catch(() => {});
   // ↑ 非同期のため現在データで即開き、次回開き直し時に反映される
 
   let weekStart;
@@ -2187,7 +2189,7 @@ function openRetroReviewModal(retroKey) {
   _renderRetroReviewModal(retroKey);
   gasGet('getEntries').then(res => {
     if (res.data) {
-      App.data.entries = res.data;
+      App.data.entries = realEntries_(res.data);
       // モーダルがまだ表示中のときだけ再描画（ナビ後に勝手に再表示されるのを防ぐ）
       if (document.getElementById('modal-retro-review').classList.contains('active')) {
         _renderRetroReviewModal(retroKey);
@@ -2392,7 +2394,7 @@ function savePromiseFromSettings() {
 function renderMonthlyEAStats_(ym) {
   const box0 = document.getElementById('monthly-stats2'); if (!box0) return;
   let box = document.getElementById('monthly-ea-stats');
-  if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
+  if (!box) { box = document.createElement('div'); box.id = 'monthly-ea-stats'; box.style.marginTop = '10px'; box.style.marginBottom = '16px'; box0.parentNode.insertBefore(box, box0.nextSibling); }
   const d = window.eaLive && window.eaLive.data && window.eaLive.data();
   const xs = ((d && d.trades) || []).filter(t => t.Status === 'CLOSED' && !/^RES:/.test(String(t.EA)) && String(t.ExitTime).slice(0, 7) === ym);
   const line = acc => { const g = xs.filter(t => String(t.Account) === acc); if (!g.length) return '';

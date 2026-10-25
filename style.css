@@ -1588,3 +1588,6 @@ button[data-gf-quality]{
 #heatmap-cat-btns::-webkit-scrollbar { display: none; }
 #heatmap-cat-btns > .toggle-btn { flex: none !important; white-space: nowrap; writing-mode: horizontal-tb; }
 #app-loader .loader-caption { position: absolute; top: calc(50% + 34px); left: 0; right: 0; text-align: center; color: #cbd5e1; font-size: 13px; font-weight: 700; }
+
+/* 2026-10-25: gallery filters - "すべて" must not break into two lines next to 7 narrow score buttons */
+[data-gf-score="all"], [data-gf-rr="all"] { white-space: nowrap; flex: 0 0 auto; padding-left: 10px !important; padding-right: 10px !important; }
