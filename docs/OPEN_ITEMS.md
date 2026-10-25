@@ -17,7 +17,7 @@
 | # | やること | どこ | 備考 |
 |---|---|---|---|
 | A1 | `Code.gs`・`EA_Live.gs`・`Trades.gs` を最新に貼り直して新バージョンでデプロイ（手順：`docs/DEPLOY_GAS_20261025.md`） | GAS | 10/25 の変更（予約＝裁量の記録、損切り 4 択、Telegram 停止の書き込み、取り込み設定、鍵の窓口削除、Pairs の古い列を足し直さない）が入る |
-| A2 | `upgradeSheetsOnce` を 1 回実行して、実行ログを確認 | GAS | バックアップ → Trades（件数・損益が合わなければ止まる）→ 切り替え → 古いメモ → Pairs の古い EA 列 → 時刻 → 使っていない表を「トレードアプリ_保管」へ。戻すときは `switchBackToEntries` |
+| A2 | ~~`upgradeSheetsOnce` を 1 回実行~~ → **やらない（2026-10-25 ユーザー決定。Entries のままで全部動く）**。試した時はバックアップのコピーで Drive の権限エラー（`DriveApp.makeCopy` に drive の権限が要る）になり、何も変わっていない。やる時は権限を足してから | GAS | バックアップ → Trades（件数・損益が合わなければ止まる）→ 切り替え → 古いメモ → Pairs の古い EA 列 → 時刻 → 使っていない表を「トレードアプリ_保管」へ。戻すときは `switchBackToEntries` |
 | A3 | `eaWatchdog` を 1 時間ごとのトリガーに。スクリプトのプロパティに TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID | GAS | PC が 2 時間止まった時の通知と、毎日の EA_Health（バックテストとの比較・注文のズレ） |
 | A4 | デモと本番の EA を STOP → `git pull` → START。`/status` で両方から返事が来るか | PC | 速さ（並列）、R の q75、損切り 4 択、DD10%半分の切り替え、Telegram の即時停止が入る |
 | A5 | 本番口座の画面で「すべて ON」を押す（19 本すべて動かす方針） | アプリ | 保存済みの本番設定は 10 本 ON のまま |
