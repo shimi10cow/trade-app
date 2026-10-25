@@ -176,8 +176,20 @@
     const drafts = d.drafts || [];
     const tile = (label, val, col) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:10px 6px;text-align:center"><div style="font-size:10px;color:#94a3b8">${label}</div><div style="font-size:16px;font-weight:800;margin-top:4px;color:${col || '#f8fafc'}">${val}</div></div>`;
     const tiles = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${tile('前回', last ? esc(String(last.at).slice(5, 16)) : '—')}${tile('新しい約定', last ? last.executionsNew : '—')}${tile('確認待ち', drafts.length, drafts.length ? '#22d3ee' : '')}</div>`;
-    const lastLine = last ? `更新 ${last.updated} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
+    const lastLine = last ? `${last.period ? '期間 ' + esc(last.period) + ' · ' : ''}更新 ${last.updated} · 下書き ${last.drafts}` : 'まだ取り込んでいません';
     const errs = last && last.errors && last.errors.length ? `<div style="font-size:11px;color:#f87171">${last.errors.map(esc).join('<br>')}</div>` : '';
+    // read period (2026-10-25): the PC's importer reads it when its button is pressed
+    const periodRow = () => {
+      const m = st.readMode || 'continue', pb = (v, l) => `<button onclick="mt5Set('readMode','${v}')" style="${btn};flex:1;padding:8px 4px;font-size:11px;${m === v ? neon('#22d3ee', '34,211,238') : off}">${l}</button>`;
+      const date = (k, v) => `<input type="date" value="${esc(v || '')}" onchange="mt5Set('${k}',this.value)" class="ea-input" style="flex:1;min-width:0;padding:7px 6px">`;
+      return `<div style="display:flex;flex-direction:column;gap:6px"><span>読む期間（全口座）</span>
+        <div style="display:flex;gap:6px">${pb('continue', '前回の続き')}${pb('days', '直近 N 日')}${pb('range', '日付を指定')}</div>
+        ${m === 'days' ? `<div style="display:flex;align-items:center;gap:8px"><span style="flex:1">直近</span>
+          <input type="number" min="1" max="365" value="${esc(st.readDays || 30)}" onchange="mt5Set('readDays',Math.min(365,Math.max(1,Math.round(Number(this.value))||30)))" class="ea-input" style="width:72px;text-align:center"> 日</div>` : ''}
+        ${m === 'range' ? `<div style="display:flex;align-items:center;gap:6px">${date('readFrom', st.readFrom)}<span>〜</span>${date('readTo', st.readTo)}</div>
+          <div style="font-size:10px;color:${st.readFrom ? '#64748b' : '#f87171'}">${st.readFrom ? '終了日を空にすると今日まで。終了日がある時は「前回の続き」の位置は進みません' : '開始日を入れてください（空のままだと前回の続きから読みます）'}</div>` : ''}
+        ${m === 'continue' ? '<div style="font-size:10px;color:#64748b">口座ごとに前回の続きから（初めての口座は 90 日）</div>' : ''}</div>`;
+    };
     const settings = `<div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:#cbd5e1">
       <div style="display:flex;align-items:center;gap:8px"><span style="flex:1">まとめる時間（同じ銘柄・向き）</span>
         <input type="number" min="1" max="168" value="${esc(st.groupHours)}" onchange="mt5Set('groupHours',Number(this.value)||24)" class="ea-input" style="width:72px;text-align:center"> 時間</div>
@@ -185,6 +197,7 @@
         <button onclick="mt5Set('mergeAcross',${st.mergeAcross === false})" style="${btn};${st.mergeAcross !== false ? neon('#22d3ee', '34,211,238') : off}">${st.mergeAcross !== false ? 'ON' : 'OFF'}</button></div>
       ${feat().linkHours ? `<div style="display:flex;align-items:center;gap:8px"><span style="flex:1">紐付けの候補にする時間（エントリーの差）</span>
         <input type="number" min="1" max="72" value="${esc(st.linkHours || 3)}" onchange="mt5Set('linkHours',Math.min(72,Math.max(1,Number(this.value)||3)))" class="ea-input" style="width:72px;text-align:center"> 時間</div>` : ''}
+      ${feat().readPeriod ? periodRow() : ''}
       <div style="font-size:10px;color:#64748b">設定は次の取り込みから使われます。過去 90 日を読み直す時は PC の「MT5 取り込み 90日読み直し」ボタン（同じ約定は増えません）。EA 用の口座は自動で記録するので対象外です。</div></div>`;
     const accBody = accs.length ? accs.map(([login, a]) => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-bottom:1px solid #1e293b">
       <span>${esc(a.label || login)}<span style="color:#64748b;font-size:10px"> ${esc(login)}</span></span><span style="color:#94a3b8">${esc(String(a.last || '').slice(5, 16)) || '—'} · ${esc(a.deals)} 件</span></div>`).join('')

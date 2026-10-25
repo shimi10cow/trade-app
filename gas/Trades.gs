@@ -231,9 +231,14 @@ function impGet_(k, d) { try { return JSON.parse(impProps_().getProperty(k) || '
 
 /** app: save the import settings (the import itself is started on the PC with its desktop button). */
 function impSaveSettings_(b) {
-  const lh = Number(b.linkHours);
+  const lh = Number(b.linkHours), rd = Math.round(Number(b.readDays));
+  const day = function (v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : ''; };
+  // read period (2026-10-25): continue = from the last import (PC default) / days = the last readDays days / range = readFrom..readTo (JST dates, readTo may be empty)
+  const mode = ['continue', 'days', 'range'].indexOf(b.readMode) >= 0 ? b.readMode : 'continue';
   const st = {groupHours: Number(b.groupHours) || 24, mergeAcross: b.mergeAcross !== false,
-              linkHours: lh > 0 && lh <= 72 ? lh : IMP_LINK_HOURS_};
+              linkHours: lh > 0 && lh <= 72 ? lh : IMP_LINK_HOURS_,
+              readMode: mode, readDays: rd >= 1 && rd <= 365 ? rd : 30, readFrom: day(b.readFrom), readTo: day(b.readTo)};
+  if (st.readFrom && st.readTo && st.readFrom > st.readTo) throw new Error('開始日が終了日より後です');
   impProps_().setProperty('IMPORT_SETTINGS', JSON.stringify(st));
   return {success: true, settings: st};
 }
@@ -272,6 +277,9 @@ function impBatch_(b) {
   (b.trades || []).forEach(function (a) {
     // the full execution set of an already linked trade decides (a partial read must not shrink it)
     const ids = a.exec_ids.map(String), tids = ids.map(function (i) { return String((byExec[i] || {}).TradeID || ''); }).filter(String);
+    // a position read only in part (e.g. its exit after the window that read its entry) joins the trade that has its other executions
+    const pos = {}; ids.forEach(function (i) { const r = byExec[i]; if (r && r.PositionID !== '') pos[r.Account + ':' + r.PositionID] = 1; });
+    E2.rows.forEach(function (r) { if (r.TradeID && pos[r.Account + ':' + r.PositionID] && ids.indexOf(String(r.ExecID)) < 0) tids.push(String(r.TradeID)); });
     if (tids.indexOf('IGNORED') >= 0) return;
     const tid = tids[0];
     if (tid && byId[tid]) {
@@ -296,7 +304,8 @@ function impBatch_(b) {
   });
   const status = impGet_('IMPORT_STATUS', {accounts: {}});
   (b.accounts || []).forEach(function (x) { status.accounts[x.login] = {label: x.label || '', last: x.last || '', deals: x.deals, at: now}; });
-  status.last = {at: now, request: b.request_id || '', executionsNew: add.length, updated: updated, linked: linked, drafts: drafts, errors: b.errors || []};
+  status.last = {at: now, request: b.request_id || '', executionsNew: add.length, updated: updated, linked: linked, drafts: drafts, errors: b.errors || [],
+                 period: String((b.settings || {}).period || '')};
   impProps_().setProperty('IMPORT_STATUS', JSON.stringify(status));
   const req = impGet_('IMPORT_REQUEST', null);
   if (req && (!b.request_id || req.id === b.request_id)) impProps_().deleteProperty('IMPORT_REQUEST');
@@ -349,7 +358,7 @@ function impStatus_() {
   const eaStatus = {}; try { ealRows_('status').forEach(function (r) { eaStatus[r.Account] = r.UpdatedAt; }); } catch (e) {}
   return {success: true, request: impGet_('IMPORT_REQUEST', null), status: impGet_('IMPORT_STATUS', {accounts: {}}),
           settings: Object.assign({linkHours: linkH}, st), drafts: drafts, trash: trash, recent: recent, eaStatus: eaStatus,
-          features: {trash: 1, unadopt: 1, linkHours: 1}};
+          features: {trash: 1, unadopt: 1, linkHours: 1, readPeriod: 1}};
 }
 
 function impFind_(T, id) { const t = T.rows.filter(function (r) { return String(r.EntryID) === String(id); })[0]; if (!t) throw new Error('trade not found: ' + id); return t; }

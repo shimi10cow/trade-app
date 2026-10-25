@@ -65,6 +65,8 @@
 - 取り込みで自動の紐付けをやめ、全部を下書きにする／候補は 3 時間以内・過去の履歴も（`gas/Trades.gs`。B3 の決定 2026-10-25）
 - 取り込みのゴミ箱・戻す・紐付けの控え・候補にする時間の設定（`gas/Trades.gs`・`gas/EA_Live.gs`）
 - 古いコードの削除（G4、2026-10-25）：`Code.gs` から旧 EA（`saveEASignal`・`getHybridConfig`・`getEAControl`・`requestEAReplay` ほか）、旧取り込み（`adoptMT5Trade`・`linkMT5ToEntry`・`splitMT5Trade`・`getMT5ImportDashboard` ほか）、一度きりの移行（`ensureColumns`・`ensurePairColumns`・`migrateEntryFields`・`migrateEntryFieldsV2`・`recalculateCaseBScores`・`migrateExitRefPerfect`）の窓口と関数を削除。残した窓口：トレード・ペア・メモ・レビュー・カレンダー・画像・スコア（`ensureScoreColumns`・`recalculateAllScores`）と `ea*`（新 EA・取り込み）。古い Python の EA（`mt5_ea/main.py` ほか）はこのデプロイから動かなくなる（今は使っていない）。Apps Script に `EA_API` というファイルがあれば消してよい（どこからも使っていない）
+- 取り込みの読む期間（2026-10-25）：MT5 タブの「取り込みの設定」に「読む期間」（前回の続き／直近 N 日／日付を指定）。`gas/Trades.gs` の `impSaveSettings_` が `readMode`・`readDays`・`readFrom`・`readTo` を保存し、前回の取り込みに期間を記録する。PC の `importer.py` は起動時にこれを読む（GAS が古い間はアプリに欄が出ず、PC は今までどおり）
+- 取り込みで、決済だけ届いた約定（エントリーは前の取り込みで読み済み）を、同じ口座・同じポジション番号のトレードにつなぐ（今までは別の下書きになっていた。4 日以上持ったポジションや、期間の端で切れたトレード）。`gas/Trades.gs` の `impBatch_`
 
 ### デプロイのあとにやること
 

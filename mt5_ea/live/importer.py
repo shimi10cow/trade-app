@@ -5,13 +5,20 @@ One import MT5 (its own copy, not the EA terminals) in which every account was l
 password and "save password" on; the importer switches between the accounts with mt5.login (no password passed: the
 terminal uses the saved one). The terminal is closed once at the end (2026-10-25: one window instead of one per account).
 Started by hand on the PC (desktop button; 2026-10-25: the EA no longer starts it):  py -m mt5_ea.live.importer [--reread90]
+  [--days N | --from yyyy-mm-dd [--to yyyy-mm-dd]]
 Its own process (the MetaTrader5 package talks to one terminal per process); the EA can keep running or be stopped.
 The merge settings come from the app's MT5 tab unless --group-hours / --merge-across are given.
 
 Accounts: %USERPROFILE%\\TradeEA_data\\import_accounts.json (not in git), e.g.
   [{"login": 12345678, "server": "XMTrading-MT5 3", "path": "C:\\\\MT5_import\\\\terminal64.exe", "label": "KIWAMI 1"}, ...]
   (every account the same path; "portable": true if that copy runs in portable mode)
-Per account only deals after the last import are read (first time / --reread90: the last 90 days).
+Read period (2026-10-25, set in the app's MT5 tab = IMPORT_SETTINGS readMode):
+  continue (default)  per account the deals after the last import, 3 days overlap (first time: the last 90 days)
+  days                the last readDays days, every account
+  range               readFrom .. readTo (Japan dates; no readTo = up to now), every account. With an end date only the deals
+                      up to that day are sent and import_state.json ("the last import") is not moved.
+  --reread90 (90 days, every account) and --days / --from / --to on the command line win over the app.
+The same deal never comes twice (ExecID), so a wider period does not add trades again.
 Positions (= MT5 position id) are merged into trades on the PC: same symbol and direction, entered within GROUP_HOURS of the
 trade's first entry or while the trade is still open; across accounts when merge_across is on. GAS only appends.
 """
@@ -55,8 +62,37 @@ def app_pair(sym):
     return APP_PAIR.get(s, s)
 
 
-def read_account(acc, since_epoch):
-    """Deals of one account since since_epoch (server time). Returns execution rows."""
+def server_epoch(day, end=False):
+    """Japan date 'yyyy-mm-dd' -> MT5 server time as an epoch (00:00:00, or 23:59:59 with end) -- the reverse of jst()."""
+    t = pd.Timestamp(f"{day} {'23:59:59' if end else '00:00:00'}").tz_localize('Asia/Tokyo').tz_convert(SERVER_TZ).tz_localize(None)
+    return int((t - pd.Timestamp('1970-01-01')).total_seconds())
+
+
+def read_period(st, a, now):
+    """(mode, since_fn(key, state), until_epoch or None, label) from the app settings / command line."""
+    days = a.days if a.days else (90 if a.reread90 else None)
+    frm, to = a.date_from, a.date_to
+    mode = st.get('readMode') or 'continue'
+    if days is None and not frm:
+        if mode == 'days':
+            days = int(st.get('readDays') or 30)
+        elif mode == 'range' and st.get('readFrom'):
+            frm, to = st.get('readFrom'), st.get('readTo') or ''
+        elif mode == 'range':
+            logging.warning('read period "range" without a start date: reading from the last import')
+    if days:
+        since = now - int(days) * 86400
+        return 'days', (lambda key, state: since), None, f'直近 {int(days)} 日'
+    if frm:
+        since, until = server_epoch(frm), (server_epoch(to, end=True) if to else None)
+        if until is not None and until < since:
+            raise SystemExit(f'start date {frm} is after end date {to}')
+        return 'range', (lambda key, state: since), until, f"{frm}〜{to or '今'}"
+    return 'continue', (lambda key, state: int(state[key]) - 3 * 86400 if key in state else now - 90 * 86400), None, '前回の続き'
+
+
+def read_account(acc, since_epoch, until_epoch=None):
+    """Deals of one account since since_epoch (server time), up to until_epoch when given. Returns execution rows."""
     import MetaTrader5 as mt5
     ok = mt5.initialize(acc['path'], portable=True) if acc.get('portable') else mt5.initialize(acc['path'])
     if not ok:
@@ -69,12 +105,15 @@ def read_account(acc, since_epoch):
             if info is None or int(info.login) != int(acc['login']):
                 raise RuntimeError(f"取り込み用 MT5 でこの口座のパスワードが保存されていない"
                                    f"（ログイン中 {getattr(info, 'login', None)}、{mt5.last_error()}）")
-        frm = pd.Timestamp(since_epoch, unit='s').to_pydatetime(); to = (pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
+        frm = pd.Timestamp(since_epoch, unit='s').to_pydatetime()
+        to = (pd.Timestamp(until_epoch + 1, unit='s') if until_epoch is not None else pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
         deals = mt5.history_deals_get(frm, to) or []
         orders = {o.ticket: o for o in (mt5.history_orders_get(frm, to) or [])}
         rows = []
         for d in deals:
             if int(d.type) not in (0, 1) or not d.symbol:            # buy / sell only (no balance, credit ...)
+                continue
+            if until_epoch is not None and int(d.time) > until_epoch:   # end date: only the deals up to that day
                 continue
             o = orders.get(d.order)
             # direction of the POSITION: an IN deal's side; an OUT deal closes the opposite side
@@ -156,28 +195,32 @@ def main(argv=None):
     ap.add_argument('--request', default='')
     ap.add_argument('--group-hours', type=float, default=None)      # default: the app's MT5 tab settings (24 h)
     ap.add_argument('--merge-across', default=None)
-    ap.add_argument('--reread90', action='store_true')
+    ap.add_argument('--reread90', action='store_true')             # the last 90 days, every account (wins over the app)
+    ap.add_argument('--days', type=int, default=None)               # the last N days (wins over the app)
+    ap.add_argument('--from', dest='date_from', default='')         # yyyy-mm-dd, Japan date (wins over the app)
+    ap.add_argument('--to', dest='date_to', default='')             # yyyy-mm-dd, with --from
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args(argv)
-    if a.group_hours is None or a.merge_across is None:                  # settings saved in the app's MT5 tab
-        try:
-            st = (gas.call('eaImportSettings', {}, timeout=20) or {}).get('settings') or {}
-        except Exception:
-            st = {}
-        if a.group_hours is None:
-            a.group_hours = float(st.get('groupHours') or 24)
-        if a.merge_across is None:
-            a.merge_across = '0' if st.get('mergeAcross') is False else '1'
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    try:                                                                 # settings saved in the app's MT5 tab
+        st = (gas.call('eaImportSettings', {}, timeout=20) or {}).get('settings') or {}
+    except Exception as ex:
+        logging.warning('app settings not read (%s): defaults', ex); st = {}
+    if a.group_hours is None:
+        a.group_hours = float(st.get('groupHours') or 24)
+    if a.merge_across is None:
+        a.merge_across = '0' if st.get('mergeAcross') is False else '1'
     accounts = json.loads(ACCOUNTS_F.read_text(encoding='utf-8'))
     state = json.loads(STATE_F.read_text(encoding='utf-8')) if STATE_F.exists() else {}
     now = int(pd.Timestamp.utcnow().timestamp()) + 3 * 3600          # roughly server time
+    mode, since_of, until, label = read_period(st, a, now)
+    logging.info('read period: %s (%s)', label, mode)
     rows, acc_out, errors = [], [], []
     for acc in accounts:
         key = str(acc['login'])
-        since = now - 90 * 86400 if (a.reread90 or key not in state) else int(state[key]) - 3 * 86400   # 3 days overlap: partly closed positions
+        since = since_of(key, state)
         try:
-            rs = read_account(acc, since)
+            rs = read_account(acc, since, until)
             rows += rs
             acc_out.append(dict(login=key, label=acc.get('label', ''), deals=len(rs), last=max((r['_t'] for r in rs), default=state.get(key, since))))
         except Exception as ex:
@@ -189,17 +232,18 @@ def main(argv=None):
         r.pop('_t', None)
     payload = dict(request_id=a.request, executions=rows, trades=trades, errors=errors,
                    accounts=[dict(x, last=jst(x['last']) if x['last'] else '') for x in acc_out],
-                   settings=dict(group_hours=a.group_hours, merge_across=a.merge_across, reread90=a.reread90))
+                   settings=dict(group_hours=a.group_hours, merge_across=a.merge_across, reread90=a.reread90, period=label))
     logging.info('import: %d executions, %d trades, %d errors', len(rows), len(trades), len(errors))
     if a.dry_run:
         print(json.dumps(payload, ensure_ascii=False, default=str)[:3000]); return payload
     r = gas.call('eaImportBatch', payload, timeout=120)
     if not (isinstance(r, dict) and r.get('success')):
         raise SystemExit(f'GAS import failed: {r}')
-    for x in acc_out:
-        if x['last']:
-            state[x['login']] = int(x['last'])
-    STATE_F.write_text(json.dumps(state), encoding='utf-8')
+    if until is None:                       # an end date in the past: "the last import" stays where it was
+        for x in acc_out:
+            if x['last']:
+                state[x['login']] = max(int(x['last']), int(state.get(x['login'], 0)))
+        STATE_F.write_text(json.dumps(state), encoding='utf-8')
     logging.info('GAS: %s', {k: v for k, v in r.items() if k != 'success'})
     return r
 
