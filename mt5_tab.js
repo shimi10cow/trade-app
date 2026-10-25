@@ -1,4 +1,4 @@
-// MT5 tab (2026-10-24, docs/EA_SYSTEM_PLAN.md "MT5 の取り込み"). Replaces the old import screen (mt5_import.js keeps its other helpers).
+// MT5 tab (2026-10-24, docs/EA_SYSTEM_PLAN.md "MT5 の取り込み"). Replaced the old import screen (mt5_import.js, removed 2026-10-25).
 // The import runs from the PC's desktop button. Every imported trade comes here as a draft to check (2026-10-25): see what
 // positions it holds, link it to a hand-written trade (candidates within the set hours) or record it, after a confirmation.
 // 🗑️ moves a draft to the trash (restore / delete for good / empty the trash); recorded or linked trades can go back.

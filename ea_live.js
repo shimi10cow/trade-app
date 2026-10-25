@@ -1,5 +1,5 @@
 // EA settings tab for the new live EAs (2026-10-24, docs/EA_SYSTEM_PLAN.md, mockup artifact 1SGsxraBBzz7PbVN9npFTB).
-// Replaces only window.renderEA from ea.js (the old per-pair screen); everything else in ea.js keeps working.
+// Also owns the 裁量 / EA switch of the analysis tab (the old ea.js was removed 2026-10-25).
 // Backend: GAS EA_Live.gs (eaGetDashboard / eaSaveConfig) with the app key (asked once, kept on this phone).
 (function () {
   const KEY_LS = 'eaLiveAppKey_v1', ACC_LS = 'eaLiveAccount_v1', CACHE_LS = 'eaLiveDash_v1';
@@ -412,42 +412,35 @@
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
   };
-  // analysis: show the EA panel when the analysis type "EA" is chosen (old ea.js owns the tabs)
-  function hookAnalysis() {
-    const prevType = window.eaAnalysisType;
-    if (!prevType || prevType._eal) return;
-    window.eaAnalysisType = function (b) {
-      prevType(b);
-      const v = b && b.dataset && b.dataset.v, on = v === 'ea';
-      V.anKind = v;
-      const screen = document.getElementById('screen-analysis');
-      let an = document.getElementById('eal-analysis');
-      if (!an && screen) { an = document.createElement('div'); an.id = 'eal-analysis'; an.style.marginTop = '16px'; screen.appendChild(an); }
-      // EA: period, account, pair (EA symbols) and EA; the hand-written filters are hidden
-      const box = document.getElementById('flt-ea-box'); if (box) box.style.display = on ? 'grid' : 'none';
-      ['flt-pair', 'flt-status', 'flt-timezone', 'flt-rule', 'flt-score', 'flt-entry-ref', 'flt-exit-ref', 'flt-manual-ma', 'flt-plan', 'flt-ea-extra'].forEach(id => {
-        const el = document.getElementById(id); if (!el) return;
-        const w = el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('analysis-multi-native') ? el.parentNode : el;
-        if (on) { if (w.dataset.ealHid !== '1') { w.dataset.ealPrev = w.style.display || ''; w.dataset.ealHid = '1'; } w.style.display = 'none'; }
-        else if (w.dataset.ealHid === '1') { w.style.display = w.dataset.ealPrev || ''; w.dataset.ealHid = ''; }
-      });
-      if (an) { an.style.display = on ? '' : 'none'; if (on) an.innerHTML = window.eaLive.analysisHtml(); }
-      if (typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {}
-      if (on && (!S._loadedAt || Date.now() - S._loadedAt > 60000)) { S._loadedAt = Date.now(); load(); }
-    };
-    window.eaAnalysisType._eal = 1;
-    // only 裁量 / EA (no すべて); EA filter options
-    const tabs = document.getElementById('trade-type-tabs');
-    const allBtn = tabs && tabs.querySelector('[data-v="all"]');
-    if (allBtn) { const wasOn = allBtn.classList.contains('on'); allBtn.remove(); if (wasOn || !window._eaAnalysisType || window._eaAnalysisType === 'all') { const m = tabs.querySelector('[data-v="manual"]'); if (m) window.eaAnalysisType(m); } }
+  // analysis: 裁量 / EA switch (the buttons are in index.html). EA shows its own panel and filters; the hand-written filters are hidden.
+  const MANUAL_ONLY = ['flt-pair', 'flt-status', 'flt-timezone', 'flt-rule', 'flt-score', 'flt-entry-ref', 'flt-exit-ref', 'flt-manual-ma', 'flt-plan'];
+  window._eaAnalysisType = 'manual';
+  window.eaAnalysisType = function (b) {
+    const v = (b && b.dataset && b.dataset.v) === 'ea' ? 'ea' : 'manual', on = v === 'ea';
+    document.querySelectorAll('#trade-type-tabs button').forEach(x => x.classList.toggle('on', x.dataset.v === v));
+    window._eaAnalysisType = v; V.anKind = v;
+    const screen = document.getElementById('screen-analysis');
+    let an = document.getElementById('eal-analysis');
+    if (!an && screen) { an = document.createElement('div'); an.id = 'eal-analysis'; an.style.marginTop = '16px'; screen.appendChild(an); }
+    const box = document.getElementById('flt-ea-box'); if (box) box.style.display = on ? 'grid' : 'none';
+    MANUAL_ONLY.forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      const w = el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('analysis-multi-native') ? el.parentNode : el;
+      w.style.display = on ? 'none' : '';
+    });
+    if (typeof updateAnalysisFilterVisibility === 'function') updateAnalysisFilterVisibility();   // MA filter: 裁量 only
+    if (an) { an.style.display = on ? '' : 'none'; if (on) an.innerHTML = window.eaLive.analysisHtml(); }
+    if (typeof applyAnalysisFilters === 'function') try { applyAnalysisFilters(); } catch (e) {}
+    if (on && (!S._loadedAt || Date.now() - S._loadedAt > 60000)) { S._loadedAt = Date.now(); load(); }
+  };
+  function setupAnalysis() {
     const fe = document.getElementById('flt-ea'), fs = document.getElementById('flt-ea-sym');
     if (fe && fe.options.length <= 1) ALL_KEYS.forEach(k => fe.add(new Option(eaName(k), k)));
     if (fs && fs.options.length <= 1) [...new Set(ALL_KEYS.map(k => k.split('@')[1]))].sort().forEach(x => fs.add(new Option(x, x)));
     const fa = document.getElementById('flt-acc'); if (fa && !fa._eal) { fa._eal = 1; fa.addEventListener('change', () => { const an = document.getElementById('eal-analysis'); if (an && an.style.display !== 'none') an.innerHTML = window.eaLive.analysisHtml(); }); }
+    if (typeof updateAnalysisFilterVisibility === 'function') updateAnalysisFilterVisibility();
   }
-  document.addEventListener('DOMContentLoaded', () => { hookAnalysis(); setTimeout(() => { hookAnalysis(); if (appKey()) { S._loadedAt = Date.now(); load(); } }, 1500); });
+  document.addEventListener('DOMContentLoaded', () => { setupAnalysis(); setTimeout(() => { if (appKey()) { S._loadedAt = Date.now(); load(); } }, 1500); });
 
-  const prev = window.renderEA;
   window.renderEA = function () { render(); if (!S._loadedAt || Date.now() - S._loadedAt > 60000) { S._loadedAt = Date.now(); load(); } };
-  window.renderEALegacy = prev;          // the old per-pair screen stays reachable for comparison
 })();

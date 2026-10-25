@@ -71,7 +71,7 @@ function realEntries_(a){return (a||[]).filter(function(t){var s=t&&t['ステー
 function hydrateFastCache(){
   try{var ce=JSON.parse(localStorage.getItem(ENTRIES_CACHE_KEY)||'null');if(ce&&Array.isArray(ce.data)&&ce.data.length&&!(App.data.entries||[]).length){App.data.entries=realEntries_(ce.data);App.state.entriesFromCache=true;setTimeout(function(){try{renderPositions();renderAnalysis();renderGallery();}catch(e){}},0);}}catch(e){}
   var x=readFastCache();
-  if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();if(typeof window.refreshEAPairs==='function')window.refreshEAPairs();}
+  if(Array.isArray(x.pairs?.data)&&x.pairs.data.length){App.data.pairs=x.pairs.data;populateFilterPairs();renderPairs();renderPlans();}
   if(Array.isArray(x.calendar?.data?.events)&&x.calendar.data.events.length){App.data.calendar=x.calendar.data.events;App.data.calendarIsNextWeek=!!x.calendar.data.isNextWeek;App.state.calendarError='';}
 }
 
@@ -703,7 +703,6 @@ function renderHistoryList() {
     if (histStatus === 'entry' && t['ステータス'] === '決済（見逃し）') return false;
     if (histStatus === 'missed' && t['ステータス'] !== '決済（見逃し）') return false;
     if (histStatus === 'ea' && !/EA/i.test(String(t.Source || t.TradeType || ''))) return false;
-    if (histStatus === 'signal') return false;
     // 期間フィルター
     const dateStr = t.EntryDate ? String(t.EntryDate).split('T')[0].replace(/\//g, '-') : '';
     if (fPeriod === 'this_month' && !dateStr.startsWith(currentMonthStr)) return false;
@@ -716,14 +715,6 @@ function renderHistoryList() {
     return true;
   });
 
-  if (histStatus === 'signal') {
-    const allSignals=(window._eaSignals||[]);
-    const fmtSigDateTime=(v)=>{const d=new Date(v||'');if(isNaN(d))return {date:String(v||'').slice(0,10).replace(/-/g,'/'),time:String(v||'').split(/[ T]/)[1]?.slice(0,5)||''};return {date:d.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}).replace(/-/g,'/'),time:d.toLocaleTimeString('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false})};};
-    let sigs=allSignals.filter(x=>String(x.Executed||x.Decision||'').toLowerCase()!=='yes'&&!/entry$/i.test(String(x.Decision||''))&&!!x.ExitTime);
-    sigs=sigs.filter(x=>{const z=fmtSigDateTime(x.SignalTime),ds=z.date.replace(/\//g,'-');if(fPeriod==='this_month'&&!ds.startsWith(currentMonthStr))return false;if(fPeriod==='last_month'&&!ds.startsWith(lastMonthStr))return false;if(fPeriod==='custom'){const td=new Date(ds);if(dFrom&&td<new Date(dFrom))return false;if(dTo&&td>new Date(dTo+'T23:59:59'))return false;}return true;});
-    const sigHtml=sigs.slice().reverse().map(x=>{const idx=allSignals.indexOf(x),z=fmtSigDateTime(x.SignalTime),tf=x.TF||(/^H1/i.test(String(x.Rule||''))?'H1':'M15'),p=Number(x.Pips??x.VirtualPips),pTxt=Number.isFinite(p)?((p>0?'+':'')+p.toFixed(1)+' pips'):'--',col=p>0?'#10b981':p<0?'#ef4444':'#94a3b8',checked=window._signalSelectMode?'<input type="checkbox" class="signal-history-check" data-id="'+String(x.SignalID||'').replace(/"/g,'&quot;')+'" onclick="event.stopPropagation()">':'';return '<div class="list-card" onclick="openSignalDetail('+idx+',\'all\')" style="cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:center"><div>'+checked+' <b>'+(x.Pair||'--')+'</b> <span class="badge">'+(x.Direction||'')+'</span></div><span class="badge">'+tf+'</span></div><div style="font-size:11px;color:#94a3b8;margin-top:5px">'+z.date+' '+z.time+' · '+(x.Pattern||x.Pullback||'')+'</div><div style="margin-top:6px;font-weight:800;color:'+col+'">決済済み · '+pTxt+'</div></div>';}).join('');
-    container.innerHTML='<div style="display:flex;gap:8px;margin-bottom:10px"><button class="ea-btn" onclick="event.stopPropagation();toggleSignalHistorySelect()">'+(window._signalSelectMode?'選択解除':'選択して削除')+'</button>'+(window._signalSelectMode?'<button class="ea-btn" style="border-color:#ef4444;color:#fca5a5" onclick="event.stopPropagation();deleteSelectedSignalHistory()">選択したSignalを削除</button>':'')+'</div>'+(sigHtml||'<div style="color:#64748b;text-align:center;padding:20px;">決済済みシグナル履歴がありません</div>');return;
-  }
   if (filtered.length === 0) {
     container.innerHTML = '<div style="color:#64748b;text-align:center;padding:20px;">履歴がありません</div>';
     return;
@@ -776,33 +767,20 @@ function renderHistoryList() {
 // Navigation
 // ==========================================
 function openRecordShortcut(kind) {
+  // 📝 / 🖼️ in the header: open the gallery screen with only the memo or only the gallery section
   const screen = document.getElementById('screen-gallery');
   if (!screen) return;
-  // Fade the destination in so the shortcut does not feel like an abrupt screen jump.
-  screen.classList.add('record-shortcut-transition');
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.screen').forEach(x => x.classList.remove('active'));
   screen.classList.add('active');
   if (typeof renderGallery === 'function') renderGallery();
   if (typeof renderIdeas === 'function') renderIdeas();
-  const key = kind === 'memo' ? 'g-memo' : 'g-gallery';
-  const section = screen.querySelector('[data-collapse-key="' + key + '"]');
-  if (!section) return;
-  section.classList.remove('collapsed');
-  try {
-    const state = getCollapsedSections();
-    state[key] = false;
-    localStorage.setItem('analysisCollapsed_v1', JSON.stringify(state));
-  } catch (_) {}
-  requestAnimationFrame(() => {
-    // Position the section heading immediately below the fixed app navigation.
-    const fixedTop = 104;
-    const y = window.scrollY + section.getBoundingClientRect().top - fixedTop;
-    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-    section.classList.add('record-shortcut-highlight');
-    setTimeout(() => section.classList.remove('record-shortcut-highlight'), 420);
-    setTimeout(() => screen.classList.remove('record-shortcut-transition'), 260);
-  });
+  const memo = screen.querySelector('[data-collapse-key="g-memo"]'), gallery = screen.querySelector('[data-collapse-key="g-gallery"]');
+  const target = kind === 'memo' ? memo : gallery, other = kind === 'memo' ? gallery : memo;
+  if (target) { target.style.display = 'block'; target.classList.remove('collapsed'); }
+  if (other) other.style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  requestAnimationFrame(() => { window.scrollTo({ top: 0, behavior: 'auto' }); setTimeout(() => window.scrollTo({ top: 0, behavior: 'auto' }), 80); });
 }
 
 function setupEventListeners() {
@@ -925,6 +903,7 @@ function switchTab(tabId) {
   if (tabId === 'analysis') renderAnalysis();
   if (tabId === 'gallery') renderGallery();
   if (tabId === 'mt5' && typeof renderMT5Import === 'function') renderMT5Import();
+  if (tabId === 'ea' && typeof renderEA === 'function') renderEA();
 
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === targetTab));
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s === targetScreen));
@@ -1175,8 +1154,6 @@ async function loadData() {
       populateFilterPairs();
       renderPairs();       // ② ペア
       renderPlans();       // ポジションタブのプラン一覧
-      // EA add-on: Pairs取得完了後に通貨選択を同期
-      if (typeof window.refreshEAPairs === 'function') window.refreshEAPairs();
     });
 
     const ideasP = gasGet('getIdeas').then(res => {
@@ -1222,33 +1199,10 @@ async function loadData() {
       if (!monthlyShown) maybeShowPromisePop();
     }
 
-    // スコア列・追加列の自動確認（初回のみバックグラウンドで実行）
+    // スコア列の自動確認（初回のみバックグラウンドで実行）
     if (!App.state._columnsEnsured) {
       App.state._columnsEnsured = true;
       gasPost({ action: 'ensureScoreColumns', config: scoreConfig }).catch(function(){});
-      gasPost({ action: 'ensureColumns', columns: ['ChartImage2', 'ChartImage3', 'ChartImage4', '決済チャート2', '決済チャート3', '決済チャート4', '指標前エントリー', '再エントリー', 'ダウ認識', 'TL推進認識', 'TL逆トレ認識', 'TL(M15)認識', '上位足リスク認識', 'Lot/損切り設定', '指標決済', '計画エントリー', '事前チャート', 'お気に入り', '後日振り返り'] }).catch(function(){});
-      gasPost({ action: 'ensurePairColumns', columns: ['プラン方向', 'プラン画像', 'プラン設定日'] }).catch(function(){});
-    }
-    // 既存データ移行（一回限り・localStorage管理）
-    if (!localStorage.getItem('_entryFieldsMigrated_v1')) {
-      gasPost({ action: 'migrateEntryFields' })
-        .then(function(res) {
-          if (res.success) {
-            localStorage.setItem('_entryFieldsMigrated_v1', '1');
-            loadData();
-          }
-        })
-        .catch(function(){});
-    }
-    if (!localStorage.getItem('_entryFieldsMigrated_v2')) {
-      gasPost({ action: 'migrateEntryFieldsV2' })
-        .then(function(res) {
-          if (res.success) {
-            localStorage.setItem('_entryFieldsMigrated_v2', '1');
-            if (res.updated > 0) { loadData(); }
-          }
-        })
-        .catch(function(){});
     }
 
     renderHistoryList();   // ④ 記録（最後）
@@ -1389,35 +1343,6 @@ function renderPositions() {
   container.innerHTML=tradeHtml+signalHtml;
 }
 
-function signalBtn(id,value,opts,extra){return '<div class="btn-group '+(extra||'')+'" id="'+id+'" style="display:flex;width:100%;gap:6px">'+opts.map(function(o){var dc=o.v==='Buy'?' dir-buy':o.v==='Sell'?' dir-sell':'';return '<button class="toggle-btn'+dc+' '+(String(value).toLowerCase()===String(o.v).toLowerCase()?'active':'')+'" data-value="'+o.v+'" onclick="toggleBtn(this)" style="flex:1;min-height:42px;padding:10px 8px">'+o.t+'</button>'}).join('')+'</div>'}
-window.toggleSignalHistorySelect=function(){window._signalSelectMode=!window._signalSelectMode;renderHistoryList();};
-window.deleteSelectedSignalHistory=async function(){var ids=[...document.querySelectorAll('.signal-history-check:checked')].map(x=>x.dataset.id).filter(Boolean);if(!ids.length){if(window.showToast)showToast('削除するSignalを選択してください');return;}if(!confirm(ids.length+'件のSignal履歴を削除しますか？'))return;try{for(const id of ids){var z=await gasPost({action:'deleteEASignal',signalId:id});if(z&&z.success===false)throw new Error(z.error||'delete failed');}window._eaSignals=(window._eaSignals||[]).filter(x=>!ids.includes(String(x.SignalID||'')));window._signalSelectMode=false;renderHistoryList();if(window.renderEAHistory)renderEAHistory();if(window.showToast)showToast(ids.length+'件削除しました');}catch(e){if(window.showToast)showToast('一括削除に失敗しました');}};
-window._signalChartPhase='entry';window._signalChartTF='M15';
-window.switchSignalChartPhase=function(v){window._signalChartPhase=v;['entry','exit'].forEach(x=>document.getElementById('sig-chart-'+x+'-btn')?.classList.toggle('on',x===v));if(window.renderSignalChartImage)renderSignalChartImage();};
-window.switchSignalChartTF=function(v){window._signalChartTF=v;['M15','H1','H4'].forEach(x=>document.getElementById('sig-chart-tf-'+x)?.classList.toggle('on',x===v));if(window.renderSignalChartImage)renderSignalChartImage();};
-function openSignalDetail(idx,scope){
- const all=window._eaSignals||[],arr=scope==='live'?all.filter(x=>/監視|open|active/i.test(String(x.Status||''))||(/SIGNAL_ONLY/i.test(String(x.Decision||''))&&!x.ExitTime)):all,s=arr[idx];if(!s)return;window._signalEditTarget=s;
- const snap=Object.assign({},s.EnvironmentSnapshot||s.EnvSnapshot||s.snapshot||{}),val=k=>s[k]??snap[k]??'',esc=v=>String(v??'').replace(/"/g,'&quot;');
- const old=document.getElementById('signal-detail-modal');if(old)old.remove();const m=document.createElement('div');m.id='signal-detail-modal';m.className='modal-overlay active';
- const rawDT=String(s.SignalTime||''),parsedDT=new Date(rawDT),dt=rawDT.split(/[ T]/),date=(s.EntryDate||(!isNaN(parsedDT)?parsedDT.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}):dt[0]||'')).replace(/\//g,'-'),time=(s.EntryTime||(!isNaN(parsedDT)?parsedDT.toLocaleTimeString('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false}):(dt[1]||'').slice(0,5))).slice(0,5);
- const trend=['M1','W1','D1','H4','H1'].map(k=>'<div class="grid-item"><span class="grid-label">'+k+'</span>'+signalBtn('sig-'+k,val(k),[{t:'↑',v:'↑'},{t:'→',v:'→'},{t:'↓',v:'↓'}])+'</div>').join('');
- const mas=[['H4MA乖離',[{t:'◎',v:'◎'},{t:'✕',v:'✕'},{t:'NG',v:'NG'}]],['H4MA480.1200',[{t:'◎',v:'◎'},{t:'✕',v:'✕'}]],['H1MA20.80',[{t:'◎',v:'◎'},{t:'✕',v:'✕'}]],['H4MA20.80',[{t:'◎',v:'◎'},{t:'✕',v:'✕'}]]].map(z=>'<div class="grid-item"><span class="grid-label">'+z[0]+'</span>'+signalBtn('sig-'+z[0],val(z[0]),z[1])+'</div>').join('');
- const inp=(id,label,v,type='text')=>'<div class="form-row"><span class="form-label">'+label+'</span><input '+(type==='number'?'step="any" ':'')+'type="'+type+'" class="form-input" id="'+id+'" value="'+esc(v)+'"></div>';
- m.innerHTML='<div class="modal-content has-sticky fixed-h"><div class="modal-header"><div class="modal-title">Signal詳細</div><div class="modal-close" onclick="document.getElementById(&quot;signal-detail-modal&quot;).remove()">✕</div></div><div class="modal-body">'
- +'<div class="section">'+'<div class="form-row"><span class="form-label">日付</span><div class="form-input" style="background:#0f172a;color:#cbd5e1">'+esc(date)+'</div></div><div class="form-row"><span class="form-label">時間</span><div class="form-input" style="background:#0f172a;color:#cbd5e1">'+esc(time)+'</div></div><div class="form-row"><span class="form-label">ペア</span><div class="form-input" style="background:#0f172a;color:#cbd5e1">'+esc(s.Pair||'')+'</div></div>'+'<div class="form-row"><span class="form-label">方向</span>'+signalBtn('sig-direction',s.Direction||'',[{t:'▲ Buy',v:'Buy'},{t:'▼ Sell',v:'Sell'}],'sig-direction-group')+'</div>'+'<div class="form-row"><span class="form-label">EAルール</span><div class="form-input" id="sig-rule" style="background:#0f172a;color:#cbd5e1">'+esc(s.TF||(/^H1/i.test(String(s.Rule||''))?'H1':'M15'))+'</div></div>'+inp('sig-pattern','Pattern',s.Pattern||s.Pullback||'')+'</div>'
- +'<div class="section"><div class="section-title">EA環境認識</div><div class="grid-item" style="margin-bottom:6px"><span class="grid-label">TL 推進</span>'+signalBtn('sig-TL推進環境',val('TL推進環境'),[{t:'↑',v:'↑'},{t:'↓',v:'↓'},{t:'なし',v:'なし'}])+'</div><div class="grid-item"><span class="grid-label">TL 逆トレ</span>'+signalBtn('sig-TL逆トレ環境',val('TL逆トレ環境'),[{t:'↑',v:'↑'},{t:'↓',v:'↓'},{t:'なし',v:'なし'}])+'</div></div>'
- +'<div class="section"><div class="section-title">トレンド方向</div><div class="grid-2col">'+trend+'</div></div>'
- +'<div class="section"><div class="section-title">MA 条件</div><div class="grid-2col">'+mas+'</div></div>'
- +'<div class="section"><div class="section-title">エントリー根拠</div><div class="grid-2col"><div class="grid-item"><span class="grid-label">根拠1</span><input class="form-input" id="sig-basis1" value="'+esc(s.Basis1||'')+'"></div><div class="grid-item"><span class="grid-label">根拠2</span><input class="form-input" id="sig-basis2" value="'+esc(s.Basis2||'')+'"></div></div></div>'
- +'<div class="section"><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px"><div class="grid-item"><span class="grid-label">TP</span><input type="number" step="any" class="form-input" id="sig-tp" value="'+esc(s.TP||'')+'"></div><div class="grid-item"><span class="grid-label">SL</span><input type="number" step="any" class="form-input" id="sig-sl" value="'+esc(s.SL||'')+'"></div><div class="grid-item"><span class="grid-label">Lot</span><input type="number" step="any" class="form-input" id="sig-lot" value="'+esc(s.Lot||'')+'"></div></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px"><div class="grid-item"><span class="grid-label">Entry価格</span><input type="number" step="any" class="form-input" id="sig-entry-price" value="'+esc(s.EntryPrice||'')+'"></div><div class="grid-item"><span class="grid-label">Exit価格</span><input type="number" step="any" class="form-input" id="sig-exit-price" value="'+esc(s.ExitPrice||'')+'"></div><div class="grid-item"><span class="grid-label">SL価格</span><input type="number" step="any" class="form-input" id="sig-sl-price" value="'+esc(s.InitialSLPrice||s.SLPrice||'')+'"></div><div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="sig-tp-price" value="'+esc(s.TakeProfitPrice||s.TPPrice||'')+'"></div></div>'+'<div style="height:12px"></div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px"><div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" step="any" class="form-input" id="sig-profit" value="'+esc(s.VirtualProfit||s.Profit||s['損益']||'')+'"></div><div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" step="0.1" class="form-input" id="sig-pips" value="'+esc(s.VirtualPips||s.Pips||'')+'"></div><div class="grid-item"><span class="grid-label">実RR</span><input class="form-input" id="sig-rr" value="'+esc(s.VirtualR||s.R||'')+'"></div></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-top:8px"><div class="grid-item"><span class="grid-label">ルール準拠Pips</span><input type="number" step="0.1" class="form-input" id="sig-rule-pips" value="'+esc(s.RulePips||'')+'"></div><div class="grid-item"><span class="grid-label">M15決済(pips)</span><input type="number" step="0.1" class="form-input" id="sig-m15-exit" value="'+esc(s.M15ExitPips||'')+'"></div><div class="grid-item"><span class="grid-label">H1決済(pips)</span><input type="number" step="0.1" class="form-input" id="sig-h1-exit" value="'+esc(s.H1ExitPips||'')+'"></div></div></div>'
- +'<div class="section"><div class="section-title">振り返り</div><div class="form-row" style="display:block"><span class="form-label" style="display:block;width:100%;margin-bottom:6px">エントリー時メモ</span><textarea class="form-input" id="sig-entry-memo" rows="3" style="width:100%;min-height:84px">'+esc(s.EntryMemo||'')+'</textarea></div><div class="form-row" style="display:block"><span class="form-label" style="display:block;width:100%;margin-bottom:6px">決済メモ</span><textarea class="form-input" id="sig-exit-memo" rows="3" style="width:100%;min-height:84px">'+esc(s.ExitMemo||'')+'</textarea></div><div class="form-row" style="display:block"><span class="form-label" style="display:block;width:100%;margin-bottom:6px">後日振り返り</span><textarea class="form-input" id="sig-retro" rows="3" style="width:100%;min-height:84px">'+esc(s.RetroReview||'')+'</textarea></div></div>'
- +'<div class="section"><div class="section-title">決済情報</div><div class="form-row"><span class="form-label">決済時間</span><div class="form-input" style="background:#0f172a;color:#cbd5e1">'+esc((function(){var d=new Date(s.ExitTime||'');return isNaN(d)?String(s.ExitTime||'').slice(-8,-3):d.toLocaleTimeString('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false});})())+'</div></div></div>'+'<div class="section"><div class="section-title">Signalチャート</div><div style="display:flex;gap:6px;margin-bottom:8px"><button id="sig-chart-entry-btn" class="ea-btn on" onclick="switchSignalChartPhase(\'entry\')">エントリー時</button><button id="sig-chart-exit-btn" class="ea-btn" onclick="switchSignalChartPhase(\'exit\')" '+(!s.ExitTime?'disabled':'')+'>決済時</button></div><div style="display:flex;gap:6px;margin-bottom:8px"><button id="sig-chart-tf-M15" class="ea-btn on" onclick="switchSignalChartTF(\'M15\')">M15</button><button id="sig-chart-tf-H1" class="ea-btn" onclick="switchSignalChartTF(\'H1\')">H1</button><button id="sig-chart-tf-H4" class="ea-btn" onclick="switchSignalChartTF(\'H4\')">H4</button></div><div id="signal-chart-note" style="font-size:11px;color:#94a3b8;margin-bottom:8px">実価格データを取得中...</div><img id="signal-chart-main" style="width:100%;border-radius:8px;border:1px solid #334155;background:#0b1220" alt="Signal chart"></div>'
- +'</div><div class="sticky-footer" style="bottom:8px;padding-bottom:8px;display:grid;grid-template-columns:1fr 2fr;gap:8px"><button onclick="deleteSignalDetail()" style="padding:14px;background:#7f1d1d;color:white;border:1px solid #ef4444;border-radius:12px;font-weight:700">削除</button><button onclick="saveSignalDetail()" style="padding:14px;background:linear-gradient(135deg,#38bdf8,#2563eb);color:white;border:none;border-radius:12px;font-weight:700;font-size:15px">💾 変更内容を保存</button></div></div>';
- document.body.appendChild(m);if(window.makeRealSignalCharts)window.makeRealSignalCharts(s);
-}
-async function saveSignalDetail(){var s=window._signalEditTarget;if(!s)return;var keys=['TL推進環境','TL逆トレ環境','M1','W1','D1','H4','H1','H4MA乖離','H4MA480.1200','H1MA20.80','H4MA20.80'];s.Direction=document.querySelector('#sig-direction .toggle-btn.active')?.dataset.value||s.Direction;s.Pattern=document.getElementById('sig-pattern')?.value||'';s.EntryPrice=document.getElementById('sig-entry-price')?.value||'';s.ExitPrice=document.getElementById('sig-exit-price')?.value||'';s.InitialSLPrice=document.getElementById('sig-sl-price')?.value||'';s.TakeProfitPrice=document.getElementById('sig-tp-price')?.value||'';s.Lot=document.getElementById('sig-lot')?.value||'';s.VirtualProfit=document.getElementById('sig-profit')?.value||'';s.VirtualPips=document.getElementById('sig-pips')?.value||'';s.VirtualR=document.getElementById('sig-rr')?.value||'';s.RulePips=document.getElementById('sig-rule-pips')?.value||'';s.M15ExitPips=document.getElementById('sig-m15-exit')?.value||'';s.H1ExitPips=document.getElementById('sig-h1-exit')?.value||'';s.EntryMemo=document.getElementById('sig-entry-memo')?.value||'';s.ExitMemo=document.getElementById('sig-exit-memo')?.value||'';s.RetroReview=document.getElementById('sig-retro')?.value||'';s.EnvironmentSnapshot=s.EnvironmentSnapshot||{};keys.forEach(function(k){var el=document.getElementById('sig-'+k),bb=el&&el.querySelector('.toggle-btn.active');if(bb)s.EnvironmentSnapshot[k]=bb.dataset.value||bb.textContent.trim();});try{await gasPost({action:'updateEASignal',data:s});}catch(e){}document.getElementById('signal-detail-modal')?.remove();if(window.showToast)showToast('Signal情報を更新しました');}
-async function deleteSignalDetail(){var s=window._signalEditTarget;if(!s||!s.SignalID)return;if(!confirm('このSignal履歴を削除しますか？'))return;try{var x=await gasPost({action:'deleteEASignal',signalId:s.SignalID});if(x&&x.success===false)throw new Error(x.error||'delete failed');window._eaSignals=(window._eaSignals||[]).filter(v=>v.SignalID!==s.SignalID);document.getElementById('signal-detail-modal')?.remove();if(window.renderHistoryList)renderHistoryList();if(window.renderEAHistory)renderEAHistory();if(window.showToast)showToast('Signal履歴を削除しました');}catch(e){if(window.showToast)showToast('削除に失敗しました');}}
-window.openSignalDetail=openSignalDetail;window.saveSignalDetail=saveSignalDetail;window.deleteSignalDetail=deleteSignalDetail;
 
 
 async function resetPairFlags() {
@@ -3173,8 +3098,6 @@ function applyAnalysisFilters() {
   const fExitRefs = analysisValues('flt-exit-ref');
   const fMA = analysisValues('flt-ma');
   const fPlan = document.getElementById('flt-plan')?.value || 'all';
-  const fEaTf = document.getElementById('flt-ea-tf')?.value || 'all';
-  const fEaP = document.getElementById('flt-ea-p')?.value || 'all';
   const dFrom = document.getElementById('flt-date-from').value;
   const dTo = document.getElementById('flt-date-to').value;
 
@@ -3196,7 +3119,6 @@ function applyAnalysisFilters() {
     if (eaType === 'ea') return analysisHas(fEA, t.EAKey) && analysisHas(fEaSym, t['PairName（元）']);   // EA: pair and EA only
     if (fStatus === 'entry' && (t['ステータス'] || '').includes('見逃し')) return false;
     if (fStatus === 'missed' && !(t['ステータス'] || '').includes('見逃し')) return false;
-    if (fStatus === 'signal') return false;
     if (!analysisHas(fPairs,(t['PairName（元）'] || t.PairName || t.Pair))) return false;
     if (!analysisHas(fTimezones,t['時間帯'])) return false;
     if (!analysisHas(fRules,t.DowRule)) return false;
@@ -5480,6 +5402,11 @@ function openTradeDetailFromHistory(index) {
   openTradeDetail(index, false, true);
 }
 
+// FX pairs have a lot field in the trade detail; gold, silver, crypto and indices do not
+function tdIsForexPair_(t) {
+  const p = String(t['PairName（元）'] || t.PairName || t.Pair || '').toUpperCase();
+  return /^[A-Z]{6}$/.test(p) && !/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(p);
+}
 function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailFromHistory = fromHistory;
   const t = App.data.entries[index];
@@ -5516,7 +5443,10 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-date').value = dateStr.replace(/\//g, '-');
   document.getElementById('td-time').value = formatTimeDisplay(t.EntryTime);
   const exitDateEl=document.getElementById('td-exit-date');if(exitDateEl)exitDateEl.value=formatDateDisplay(t.ExitDate||t['決済日']||'').replace(/\//g,'-');
-  document.getElementById('td-pair').value = t['PairName（元）'] || t.PairName || t.Pair || '';
+  // a pair that is not in the pair list (e.g. a symbol from MT5) is added, so saving never blanks it
+  const tdPairName = t['PairName（元）'] || t.PairName || t.Pair || '';
+  if (tdPairName && ![...sel.options].some(o => o.value === tdPairName)) sel.add(new Option(tdPairName, tdPairName));
+  sel.value = tdPairName;
 
   // Score display
   const scoreDisp = document.getElementById('td-score-display');
@@ -5578,7 +5508,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-tp').value = t['TP'] || t['TakeProfitPips'] || t['StopProfitPips'] || '';
   document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
   const tdPair=String(t['PairName（元）']||t.PairName||t.Pair||'').toUpperCase();
-  const tdIsForex=/^[A-Z]{6}$/.test(tdPair)&&!/XAU|XAG|BTC|ETH|LTC|XRP|GOLD/.test(tdPair);
+  const tdIsForex=tdIsForexPair_(t);
   const lotItem=document.getElementById('td-lot')?.closest('.grid-item');
   document.getElementById('td-lot').value = tdIsForex?(t['Lot'] || ''):'';
   if(lotItem)lotItem.style.visibility=tdIsForex?'visible':'hidden';
@@ -5693,9 +5623,6 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
     topImgEl.src = '';
     topArea.style.display = 'none';
   }
-  const autoCtl=document.getElementById('td-auto-chart-controls');if(autoCtl)autoCtl.style.display=/EA/i.test(String(t.Source||t.TradeType||''))?'block':'none';window._eaChartTradeIndex=index;window._eaChartTF='M15';
-  window.showEAChartTF=function(tf,btn){window._eaChartTF=tf;document.querySelectorAll('#td-auto-chart-controls .toggle-btn').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');var tr=App.data.entries[window._eaChartTradeIndex],src=tf==='H1'?tr.ChartH1:tf==='H4'?tr.ChartH4:tr.ChartImage;if(src){topImgEl.src=src;topArea.style.display='block';makeTappable(topImgEl);}};
-  window.regenerateCurrentEACharts=function(){if(window.regenerateEACharts)window.regenerateEACharts(window._eaChartTradeIndex);};
 
   // 上部スロットのラベル
   const topLabel = topArea.querySelector('button');
@@ -5763,10 +5690,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
   if(mt5Linked){
     const lot=t.Lot||'-',open=t.MT5OpenLot||'0',closed=t.MT5ClosedLot||'0',swap=t.Swap||'0',cnt=t.MT5EntryCount||'-';
-    mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5同期済み</span><span style="overflow:hidden;text-overflow:ellipsis">'+lot+' lot · '+cnt+'約定</span><button type="button" id="td-mt5-unlink-btn" style="margin-left:auto;background:#172033;border:1px solid #64748b;color:#e2e8f0;border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;white-space:nowrap">紐付け解除</button></div>';
+    mt5Box.innerHTML='<div style="display:flex;align-items:center;gap:7px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:7px 9px;margin-bottom:8px;font-size:10px;color:#94a3b8;white-space:nowrap"><span style="font-weight:800;color:#38bdf8">MT5同期済み</span><span style="overflow:hidden;text-overflow:ellipsis">'+lot+' lot · '+cnt+'約定</span></div>';
     mt5Box.style.display='block';
-    const unlinkBtn=document.getElementById('td-mt5-unlink-btn');
-    if(unlinkBtn){unlinkBtn.onclick=function(ev){ev.preventDefault();ev.stopPropagation();unlinkCurrentMT5Trade();};}
   } else mt5Box.style.display='none';
 
   // Apply read-only mode if requested (e.g. opened from similar trades)
@@ -5783,46 +5708,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   requestAnimationFrame(() => { _tdm.querySelector('.modal-body').scrollTop = 0; });
 }
 
-async function unlinkCurrentMT5Trade() {
-  const idx=App.state.activeTradeIndex,t=App.data.entries[idx];
-  if(!t||!t.EntryID)return;
-  try{
-    showLoader();
-    const r=await gasPost({action:'getMT5LinkedTradeGroups',entryId:t.EntryID});
-    hideLoader();
-    if(!r||r.success===false)throw new Error(r&&r.error||'紐付け情報を取得できません');
-    const gs=r.groups||[];
-    if(!gs.length){showToast('紐付いているMT5 Tradeがありません');return;}
-    const escHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const html='<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">外したいMT5 Tradeを選択してください。外したTradeはMT5の未確認へ戻ります。</div>'+gs.map((g,i)=>
-      '<button type="button" style="width:100%;text-align:left;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;margin-bottom:8px;color:#e2e8f0" onclick="unlinkOneMT5Group('+i+')">'+
-      '<b>'+escHtml(g.pair)+' '+escHtml(g.direction)+'</b><span style="float:right;color:'+(Number(g.profit)>=0?'#10b981':'#ef4444')+'">'+(Number(g.profit)>=0?'+':'')+Math.round(Number(g.profit)||0).toLocaleString()+'円</span>'+
-      '<div style="font-size:11px;color:#94a3b8;margin-top:5px">'+escHtml(g.entryTime)+(g.exitTime?' → '+escHtml(g.exitTime):' · 保有中')+' · '+escHtml(g.positionCount)+'ポジション</div></button>'
-    ).join('');
-    App.state.mt5UnlinkGroups=gs;
-    if(window.openMT5UnlinkSheet)window.openMT5UnlinkSheet(html);
-    else {const sh=document.getElementById('mt5-sheet');if(sh){document.getElementById('mt5-sheet-title').textContent='MT5紐付け解除';document.getElementById('mt5-sheet-body').innerHTML=html;sh.classList.add('active');}}
-  }catch(e){hideLoader();showToast('⚠️ '+e.message);}
-}
-window.unlinkOneMT5Group=async function(i){
-  const idx=App.state.activeTradeIndex,t=App.data.entries[idx],g=(App.state.mt5UnlinkGroups||[])[i];
-  if(!t||!g)return;
-  if(!confirm(g.entryTime+' のMT5 Tradeだけ紐付け解除しますか？'))return;
-  try{
-    showLoader();
-    const r=await gasPost({action:'splitMT5Trade',entryId:t.EntryID,executionIds:g.executionIds});
-    if(!r||r.success===false)throw new Error(r&&r.error||'解除に失敗しました');
-    const sh=document.getElementById('mt5-sheet');if(sh)sh.classList.remove('active');
-    hideLoader();showToast('選択したMT5 Tradeだけ未確認へ戻しました');
-    if(window.refreshMT5AfterUnlink)window.refreshMT5AfterUnlink().catch(()=>{});
-    Promise.resolve().then(()=>loadData()).catch(()=>{});
-    closeTradeDetail();
-  }catch(e){hideLoader();showToast('⚠️ '+e.message);}
-};
-window.unlinkCurrentMT5Trade=unlinkCurrentMT5Trade;
 
 function closeTradeDetail() {
-  const _tdi=parseInt(document.getElementById('td-index')?.value);if(!isNaN(_tdi)&&App.data.entries[_tdi]&&App.data.entries[_tdi]._mt5Draft)App.data.entries.splice(_tdi,1);
   document.getElementById('modal-trade-detail').classList.remove('active');
   // レビューから開いた詳細 → 閉じたらレビューに戻る
   if (App.state.returnToRetroReview) {
@@ -5966,7 +5853,7 @@ async function saveTradeDetail() {
       'ExitTime': document.getElementById('td-exit-time')?.value || '',
       'StopLossPips': document.getElementById('td-sl')?.value || '',
       // Lot is hidden for non-FX instruments; never erase an existing/MT5-synced value just because the field is not editable.
-      'Lot': tdIsForex ? (document.getElementById('td-lot')?.value || '') : (t['Lot'] || ''),
+      'Lot': tdIsForexPair_(t) ? (document.getElementById('td-lot')?.value || '') : (t['Lot'] || ''),
       'DowRule': document.getElementById('td-dow-rule')?.value || '',
       'M1': getActiveBtn('td-tf-m1'),
       'W1': getActiveBtn('td-tf-w1'),
@@ -6016,9 +5903,7 @@ async function saveTradeDetail() {
       await saveImgs(App.state.detailExitImages||[],exitFields,'exit');
     }
 
-    // MT5候補は詳細確認中はドラフト。変更内容を保存した時点で初めてEntriesへ採用する。
-    let res;
-    if(t._mt5Draft){const _mt5ids=(t._mt5ExecutionIds||[]).slice();res=await gasPost({action:'adoptMT5Trade',executionIds:_mt5ids,options:{overlay:updateData,confirmCreate:'MT5_REVIEW_SAVE'}});if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,res.entry||{},updateData,{EntryID:res.entryId});delete t._mt5Draft;delete t._mt5ExecutionIds;if(window.mt5CommitLocal)window.mt5CommitLocal(_mt5ids);}else{res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);}
+    const res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);
 
     const payloadStatus = updateData['ステータス'];
     const payloadPips = updateData['実取得pips'];
@@ -6176,10 +6061,6 @@ function showToast(msg) {
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
 }
-
-// ════════════════════════════════════════
-// 🤖 AI トレード分析（Groq）
-// ════════════════════════════════════════
 
 function renderIdeas() {
   const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';

@@ -10,7 +10,7 @@
   
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180x180.png">
-  <link rel="stylesheet" href="./style.css?v=20261025b">
+  <link rel="stylesheet" href="./style.css?v=20261025f">
 </head>
 <body>
 
@@ -39,6 +39,9 @@
     </div>
     <div class="tab" data-tab="mt5">
       <span class="tab-icon">🖥️</span>MT5
+    </div>
+    <div class="tab" data-tab="ea">
+      <span class="tab-icon">🤖</span>EA設定
     </div>
   </nav>
   <div id="ptr-anchor"></div>
@@ -129,6 +132,11 @@
       </div>
 
       <!-- Filter Panel -->
+      <!-- 裁量 / EA (ea_live.js eaAnalysisType) -->
+      <div id="trade-type-tabs" class="ea-tabs">
+        <button class="ea-btn on" data-v="manual" onclick="eaAnalysisType(this)">裁量</button>
+        <button class="ea-btn" data-v="ea" onclick="eaAnalysisType(this)">EA</button>
+      </div>
       <div class="filter-panel">
         <select id="flt-period" onchange="toggleCustomDate()">
           <option value="all">全期間</option>
@@ -195,12 +203,6 @@
           <option value="all">決済振り返り：全て</option>
           <!-- populated dynamically -->
         </select>
-        <div id="flt-ea-extra" style="display:none;grid-column:1/-1;">
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;">
-            <select id="flt-ea-tf"><option value="all">EAルール：すべて</option><option value="M15">M15</option><option value="H1">H1</option></select>
-            <select id="flt-ea-p"><option value="all">P：全て</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select>
-          </div>
-        </div>
         <div id="flt-manual-ma">
           <select id="flt-ma" multiple size="1" title="MA条件（複数選択可）">
             <option value="h4dev">H4MA乖離 ○</option>
@@ -317,6 +319,11 @@
           <div style="color:#64748b;font-size:12px;padding:12px 0;">MT5データを準備中...</div>
         </div>
       </div>
+    </div>
+
+    <!-- Screen: EA settings (ea_live.js) -->
+    <div id="screen-ea" class="screen">
+      <div id="ea-root"></div>
     </div>
 
     <!-- Screen: Gallery (記録タブ) -->
@@ -953,12 +960,6 @@
               </div>
 
               <!-- エントリー画像スロット（常に表示、反省の直後） -->
-              <div id="td-auto-chart-controls" style="display:none;margin-top:12px;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;">
-                <div style="font-size:12px;font-weight:700;margin-bottom:8px;">自動チャート</div>
-                <div style="display:flex;gap:6px;margin-bottom:8px;"><button class="toggle-btn active" onclick="showEAChartTF('M15',this)" style="flex:1;">M15</button><button class="toggle-btn" onclick="showEAChartTF('H1',this)" style="flex:1;">H1</button><button class="toggle-btn" onclick="showEAChartTF('H4',this)" style="flex:1;">H4</button></div>
-                <button onclick="regenerateCurrentEACharts()" style="width:100%;padding:10px;background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:8px;font-weight:700;">設定を反映して再作成</button>
-                <div style="font-size:10px;color:#64748b;margin-top:6px;">MA・表示本数は EA設定 → 自動チャート設定 で変更</div>
-              </div>
               <div id="td-top-image-area" style="display:none; margin-top:10px; position:relative;">
                 <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
                 <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
@@ -1364,10 +1365,8 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261025d" charset="utf-8"></script>
-  <script src="./mt5_import.js?v=20261003bgpostsave" charset="utf-8"></script>
-  <script src="./mt5_tab.js?v=20261025e" charset="utf-8"></script>
-  <script src="./ea.js?v=20261005startfix1" charset="utf-8"></script>
-  <script src="./ea_live.js?v=20261025c" charset="utf-8"></script>
+  <script src="./app.js?v=20261025f" charset="utf-8"></script>
+  <script src="./mt5_tab.js?v=20261025f" charset="utf-8"></script>
+  <script src="./ea_live.js?v=20261025f" charset="utf-8"></script>
 </body>
 </html>

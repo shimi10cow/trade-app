@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v214';
+const CACHE_NAME = 'trade-app-v215';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -25,12 +25,9 @@ self.addEventListener('fetch', event => {
   const liveAsset = url.pathname.endsWith('/') ||
     url.pathname.endsWith('/index.html') ||
     url.pathname.endsWith('/app.js') ||
-    url.pathname.endsWith('/ea.js') ||
     url.pathname.endsWith('/ea_live.js') ||
     url.pathname.endsWith('/mt5_tab.js') ||
-    url.pathname.endsWith('/mt5_import.js') ||
-    url.pathname.endsWith('/style.css') ||
-    url.pathname.endsWith('/ai_prompt.js');
+    url.pathname.endsWith('/style.css');
 
   if (liveAsset) {
     // Code/UI files must always come from the network. Keeping old JS as an

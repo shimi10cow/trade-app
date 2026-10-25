@@ -1591,3 +1591,21 @@ button[data-gf-quality]{
 
 /* 2026-10-25: gallery filters - "すべて" must not break into two lines next to 7 narrow score buttons */
 [data-gf-score="all"], [data-gf-rr="all"] { white-space: nowrap; flex: 0 0 auto; padding-left: 10px !important; padding-right: 10px !important; }
+
+/* EA buttons / cards (moved from the old ea.js, 2026-10-25) */
+.ea-card{background:#111c31;border:1px solid #26364f;border-radius:12px;padding:12px;margin-bottom:10px}
+.ea-row{display:flex;gap:7px;align-items:center;margin:8px 0}
+.ea-row>label{min-width:92px;color:#94a3b8;font-size:12px}
+.ea-input{flex:1;min-width:0;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:9px}
+.ea-btn{border:1px solid #334155;background:#172033;color:#94a3b8;border-radius:8px;padding:9px;font-weight:700}
+.ea-btn.on{background:#0f766e;color:#fff;border-color:#14b8a6}
+.ea-btn.buy.on{background:#075985;border-color:#38bdf8}
+.ea-btn.sell.on{background:#991b1b;border-color:#ef4444}
+.ea-save{width:100%;padding:12px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
+.ea-save:disabled{opacity:.65}
+.ea-mode3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:1}
+.ea-mode3 .ea-btn{padding:9px 5px;font-size:12px}
+.ea-tabs{display:flex;gap:5px;margin:8px 0}
+.ea-tabs button{flex:1}
+.tabs{overflow-x:auto}
+.tabs .tab{min-width:68px}
