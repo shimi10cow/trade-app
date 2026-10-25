@@ -139,16 +139,21 @@
       <div style="font-size:10px;color:#64748b;margin-top:6px">条件：リスク 1%・DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。本番の目減り（滑りなど）は入っていない</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
+  // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
+  // US500 右肩 = buy only, above the left shoulder (§103). Checked against real XM trades 2026-10-25 (BTC 0.01 lot, UK100 1 lot = 1 GBP / point)
   const MINLOT_LOSS = [
-    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円'], ['日経 右肩', '150 円'], ['BTC S', '約 1,900 円'], ['US500 右肩', '約 2,400 円'],
-    ['US500 M（短い押し目）', '約 3,300 円'], ['US30 T（トレンド）', '約 3,900 円'], ['ゴールド S・Q・L2', '約 4,000〜4,900 円'], ['US30 Q・銀 Q', '約 5,700〜5,800 円'],
-    ['ゴールド 右肩', '約 14,300 円'], ['US30 M（短い押し目）', '約 20,800 円']];
+    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円', '約 20〜75 pips'], ['日経 右肩', '150 円', '約 1,500 円幅（2.4%）'],
+    ['BTC S', '約 1,900 円', '約 1,200 ドル（1.5%）'], ['US500 右肩', '約 2,000 円', '約 120 ポイント（1.6%）'],
+    ['US500 M（短い押し目）', '約 3,300 円', '約 210 ポイント（2.7%）'], ['US30 T（トレンド）', '約 3,900 円', '約 250 ポイント（0.5%）'],
+    ['ゴールド S・Q・L2', '約 4,000〜4,900 円', '約 25〜31 ドル（0.6〜0.75%）'], ['ゴールド 右肩', '約 5,400 円', '約 34 ドル（0.8%）'],
+    ['US30 Q・銀 Q', '約 5,700〜5,800 円', 'US30 約 370 ポイント・銀 約 0.7 ドル'], ['US30 M（短い押し目）', '約 20,800 円', '約 1,300 ポイント（2.5%）']];
   function minLotSection() {
-    const rows = MINLOT_LOSS.map(([n, v]) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #1e293b;font-size:12px"><span>${esc(n)}</span><b style="white-space:nowrap">${esc(v)}</b></div>`).join('');
+    const rows = MINLOT_LOSS.map(([n, v, w]) => `<div style="padding:7px 0;border-bottom:1px solid #1e293b;font-size:12px"><div style="display:flex;justify-content:space-between;gap:10px"><span>${esc(n)}</span><b style="white-space:nowrap">${esc(v)}</b></div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">損切り幅（真ん中）${esc(w)}</div></div>`).join('');
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveML()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>💴 最小ロットで 1 回負けた時の金額（目安）</span><span style="color:#94a3b8">${S.mlOpen ? '▲' : '▼'}</span></button>
       ${S.mlOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">損切りまで行った時の損失。損切り幅は過去のトレードの真ん中の値なので、これより大きい回も小さい回もある。最小ロットのリスク・1% のリスク・OFF を決める目安に。</div>${rows}
-        <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6">前提：XM KIWAMI 口座の最小ロット（FX・ゴールド・銀 0.01、指数 0.1）、2026-10-24 の値段、1 ドル 158.5 円。スタンダード・マイクロ口座や値段が変わると金額も変わる。<br>
+        <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6">前提：XM KIWAMI 口座の最小ロット（FX・ゴールド・銀・BTC 0.01、指数 0.1 ＝ 1 ポイントで 0.1 ドル）、2026-10-24 の値段、1 ドル 158.5 円。実際の約定（BTC 0.01・UK100）と合うことを確認済み。金額が大きいのはロットではなく損切り幅が広いため。スタンダード・マイクロ口座や値段が変わると金額も変わる。<br>
         今の決まり：最小ロットでも損失が口座の 1.5% を超える回は自動で見送り（10 万円なら 1,500 円まで）。</div>` : ''}</div>`;
   }
   function btSection() {
