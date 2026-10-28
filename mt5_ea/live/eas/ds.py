@@ -6,7 +6,7 @@ Adopted versions (INSTRUMENT_PROFILES.md): H1, pullback depth >= 4 ATR(H4)
   JP225 : stop beyond the left shoulder, 2R target, both sides
   US500 : stop beyond the left shoulder, 2R target, buys only
   XAUUSD: stop beyond the right shoulder, H1 trail from +1R, buys only
-Width (2026-10-28, RESEARCH_LOG §109, JP225 / XAUUSD only): adopted setups also need >= MIN_LN_HOURS from the left shoulder (the extreme bar of
+Width (2026-10-28, RESEARCH_LOG §109, all three): adopted setups also need >= MIN_LN_HOURS from the left shoulder (the extreme bar of
 the H1 run that turned) to the neck (the deepest M15 bar before the rally). Thin shapes lost on JP225 / gold in both halves.
 The setups themselves (and their tags) are unchanged; the width is carried as e['ln_h'] and applied in run_adopted.
 """
@@ -21,7 +21,7 @@ from env_recognition.pivots import atr
 
 ADOPTED = {
     'JP225': dict(stop='left', exit='tp2', side=None, ln=True),
-    'US500': dict(stop='left', exit='tp2', side=1, ln=False),         # width rule: no gain on US500 (§109), left out
+    'US500': dict(stop='left', exit='tp2', side=1, ln=True),          # width rule: total -2R but win % / PF up, same DD (user 2026-10-28)
     'XAUUSD': dict(stop='shoulder', exit='h1', side=1, ln=True),
 }
 MIN_DEPTH = 4.0
