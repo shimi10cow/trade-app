@@ -139,10 +139,15 @@ class MT5Broker:
         return dict(ticket=int(res.order), price=res.price, volume=res.volume)
 
     def modify(self, pos: Position, sl=None, tp=None):
-        mt5 = self.mt5
-        req = dict(action=mt5.TRADE_ACTION_SLTP, position=pos.ticket, symbol=self.name(pos.symbol),
-                   sl=float(pos.sl if sl is None else sl), tp=float(pos.tp if tp is None else tp), magic=pos.magic)
+        mt5 = self.mt5; name = self.name(pos.symbol)
+        info = mt5.symbol_info(name); dg = int(getattr(info, 'digits', 5) or 5)
+        new_sl = round(float(pos.sl if sl is None else sl), dg); new_tp = round(float(pos.tp if tp is None else tp), dg)
+        if new_sl == round(float(pos.sl or 0), dg) and new_tp == round(float(pos.tp or 0), dg):
+            return                                  # same stop / target at the symbol's precision: nothing to send
+        req = dict(action=mt5.TRADE_ACTION_SLTP, position=pos.ticket, symbol=name, sl=new_sl, tp=new_tp, magic=pos.magic)
         r = mt5.order_send(req)
+        if r is not None and r.retcode == getattr(mt5, 'TRADE_RETCODE_NO_CHANGES', 10025):
+            return                                  # MT5: "No changes" (the stop is already there) -- not an error
         if r is None or r.retcode != mt5.TRADE_RETCODE_DONE:
             raise RuntimeError(f'modify failed: {r} {mt5.last_error()}')
 
