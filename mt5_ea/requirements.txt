@@ -2,3 +2,4 @@ MetaTrader5
 requests
 numpy
 pandas
+matplotlib

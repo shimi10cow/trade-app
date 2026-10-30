@@ -681,22 +681,23 @@ function getImageUrlByPath(path) {
 // =============================================
 // 画像アップロード（Google Drive）
 // =============================================
-function uploadImage(base64Data, filename) {
+function uploadImage(base64Data, filename, mime) {   // mime: default image/jpeg (the app); the EA sends image/png
   try {
     // DriveApp不使用 → Drive REST API + UrlFetchApp で実装
     // 必要スコープ: drive.file（フルdriveスコープ不要）
-    const base64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const base64 = String(base64Data).replace(/^data:image\/\w+;base64,/, '');
     const token  = ScriptApp.getOAuthToken();
 
     // マルチパートアップロード
     const boundary = 'trade_app_' + Utilities.getUuid().replace(/-/g,'');
-    const metadata = JSON.stringify({ name: filename, mimeType: 'image/jpeg' });
+    const type = mime || 'image/jpeg';
+    const metadata = JSON.stringify({ name: filename, mimeType: type });
     const body =
       '--' + boundary + '\r\n' +
       'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
       metadata + '\r\n' +
       '--' + boundary + '\r\n' +
-      'Content-Type: image/jpeg\r\n' +
+      'Content-Type: ' + type + '\r\n' +
       'Content-Transfer-Encoding: base64\r\n\r\n' +
       base64 + '\r\n' +
       '--' + boundary + '--';

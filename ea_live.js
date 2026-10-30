@@ -443,6 +443,14 @@
   window.eaLiveHistEA = id => { V.histEA = id; if (typeof renderHistoryList === 'function') renderHistoryList(); };
   window.eaLiveHistAcc = a => { V.histAcc = a; if (typeof renderHistoryList === 'function') renderHistoryList(); };
   window.eaLiveAnAcc = a => { V.anAcc = a; const an = document.getElementById('eal-analysis'); if (an) an.innerHTML = window.eaLive.analysisHtml(V.anKind); };
+  // entry / exit charts drawn by the EA PC (EA_Trades.EntryImage / ExitImage, Drive links); tap = large view
+  function imgs(t) {
+    const list = [['エントリー', t.EntryImage], ['決済', t.ExitImage]].filter(x => x[1]);
+    if (!list.length || typeof getImageUrl !== 'function') return '';
+    const big = list.map(x => getImageUrl(x[1], 1600));
+    return `<div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">${list.map((x, i) => `<div><div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">📈 ${x[0]}</div>
+      <img src="${esc(getImageUrl(x[1], 1000))}" referrerpolicy="no-referrer" loading="lazy" onclick='openLightbox(${JSON.stringify(big[i])}, ${JSON.stringify(big)}, ${i})' style="width:100%;border-radius:8px;border:1px solid #334155;cursor:zoom-in"></div>`).join('')}</div>`;
+  }
   window.eaLiveTrade = function (id) {
     const t = allTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
     const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
@@ -455,6 +463,7 @@
       ${row('ロット', esc(t.Lot) + (t.LotMult && Number(t.LotMult) !== 1 ? '（倍率 ' + esc(t.LotMult) + '）' : '') + (t.Weight && Number(t.Weight) !== 1 ? '（重み ' + esc(t.Weight) + '）' : ''))}
       ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
       ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
+      ${imgs(t)}
       <div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">💬 コメント</div>
         <textarea id="eal-trade-comment" rows="4" maxlength="2000" class="form-input" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="気付いたこと・入り方の良し悪しなど">${esc(t.Comment || '')}</textarea>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="eal-trade-comment-msg" style="font-size:11px;color:#64748b">${t.CommentAt ? '保存 ' + jst(t.CommentAt) : ''}</span>

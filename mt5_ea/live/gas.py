@@ -15,6 +15,7 @@ import requests
 URL = os.getenv('EA_GAS_URL', '')
 KEY = os.getenv('EA_GAS_KEY', '')
 DB = Path(os.getenv('EA_OUTBOX_DB', Path(__file__).with_name('live_outbox.sqlite3')))
+NON_BLOCKING = {'eaTradeImage'}       # failures of these are retried a few times, then dropped, without stopping the queue
 
 
 def call(action, payload=None, timeout=20):
@@ -53,6 +54,14 @@ def flush(max_items=50):
                 db.execute('DELETE FROM outbox WHERE id = ?', (oid,))
             sent += 1
         except Exception as e:
+            if action in NON_BLOCKING:              # an image must never hold up the trade records behind it
+                with _db() as db:
+                    if att + 1 >= 5:
+                        db.execute('DELETE FROM outbox WHERE id = ?', (oid,))
+                    else:
+                        db.execute('UPDATE outbox SET attempts = attempts + 1, next = ?, err = ? WHERE id = ?', (time.time() + 300, str(e)[:500], oid))
+                logging.warning('GAS post %s failed (%s): %s', action, 'dropped' if att + 1 >= 5 else 'later', e)
+                continue
             with _db() as db:
                 db.execute('UPDATE outbox SET attempts = attempts + 1, next = ?, err = ? WHERE id = ?', (time.time() + min(600, 2 ** min(att + 1, 9)), str(e)[:500], oid))
             logging.warning('GAS post %s failed (queued): %s', action, e)

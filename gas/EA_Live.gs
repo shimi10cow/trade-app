@@ -21,7 +21,7 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt'],   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage'],   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
@@ -64,7 +64,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
+const EAL_EA_ACTIONS_ = {eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
 const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -74,7 +74,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -108,7 +108,7 @@ function ealHeartbeat_(b) {
   const today = d.find(x => String(x.Date).slice(0, 10) === day && String(x.Account) === acc);
   ealWriteRow_('daily', today ? today._row : null, {Date: day, Account: acc, Balance: b.balance, Equity: b.equity, Peak: b.peak, DD: b.dd});
   PropertiesService.getScriptProperties().setProperty('EA_LAST_HEARTBEAT_' + acc, String(Date.now()));
-  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc, b.res_kinds)};
+  return {success: true, config: ealConfigFor_(acc), reservations: ealWaiting_(acc, b.res_kinds), features: {tradeImage: 1}};
 }
 
 function ealTradeOpen_(b) {
@@ -161,6 +161,18 @@ function ealDashboard_(b) {
 function ealGetTrades_(b) {
   const rows = ealRows_('trades'), lim = Number(b.limit || 300);
   return {success: true, data: rows.slice(-lim).map(r => { delete r._row; return r; })};
+}
+
+/** EA PC: the entry / exit chart (PNG, base64) of one trade -> Google Drive (same as the app's images), link in EA_Trades. */
+function ealTradeImage_(b) {
+  const id = String(b.account) + ':' + String(b.ticket), r = ealRows_('trades').find(x => String(x.TradeID) === id);
+  if (!r) throw new Error('trade not found: ' + id);
+  const up = uploadImage(String(b.png || ''), 'EA_' + id.replace(':', '_') + '_' + (b.kind === 'exit' ? 'exit' : 'entry') + '.png', 'image/png');
+  if (!up || !up.success) throw new Error('upload failed: ' + (up && up.error));
+  const url = 'https://drive.google.com/file/d/' + up.fileId + '/view';
+  const fresh = ealRows_('trades').find(x => String(x.TradeID) === id);          // re-read: the upload took a moment
+  ealWriteRow_('trades', fresh._row, Object.assign({}, fresh, b.kind === 'exit' ? {ExitImage: url} : {EntryImage: url}));
+  return {success: true, url: url};
 }
 
 /** App: the trader's comment on one EA trade (open or closed). The EA never writes this column. */

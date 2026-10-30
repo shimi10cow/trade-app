@@ -227,11 +227,12 @@ class Runner:
             return [f'{key} signal only ({why})']
         o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31])
         self.state['tickets'][str(o['ticket'])] = dict(key=key, sim_t='', side=side, entry=o['price'], sl0=sl, lots=o['volume'],
-                                                         opened=str(self.b.server_now(sym)), risk_jpy=money, res=rid)
+                                                         opened=str(self.b.server_now(sym)), risk_jpy=money, res=rid, sym=sym, tp=tp or 0)
         self.state['res_done'].append(rid)
         self.notify('entry', f'予約エントリー {sym} {side_j} {o["price"]:.5g} {o["volume"]}lot 損切り {sl:.5g}（{note}）')
         gas.enqueue('eaTradeOpen', dict(rec, ticket=o['ticket'], fill=o['price'], lots=o['volume'], entry_time=to_jst(self.b.server_now(sym) or hit['t'])))
         gas.enqueue('eaResFilled', dict(account=self.kind, res_id=rid, trade_id=f'{self.kind}:{o["ticket"]}'))
+        self._chart(o['ticket'], 'entry')
         return [f'{key} open {o["ticket"]} {side_j} {o["volume"]} @ {o["price"]}']
 
     def _live_positions(self, key):
@@ -340,10 +341,40 @@ class Runner:
         r = self.b.open(sym, s, lots, sl, tp, MAGIC[key], f'{key}')
         sim_t = p['t'] if 't' in p else pd.Timestamp(p['signal_t']) + pd.Timedelta(minutes=15)
         self.state['tickets'][str(r['ticket'])] = dict(key=key, sim_t=str(pd.Timestamp(sim_t)), side=s, entry=r['price'], sl0=sl, lots=r['volume'],
-                                                         opened=str(now), risk_jpy=money)
+                                                         opened=str(now), risk_jpy=money, sym=sym, tp=tp or 0)
         self.notify('entry', f'EA エントリー {key} {side_j} {r["price"]:.5g} {r["volume"]}lot 損切り {sl:.5g}（{note}）')
         gas.enqueue('eaTradeOpen', dict(rec, ticket=r['ticket'], fill=r['price'], lots=r['volume'], entry_time=to_jst(now)))
+        self._chart(r['ticket'], 'entry')
         return [f'{key} open {r["ticket"]} {side_j} {r["volume"]} @ {r["price"]}']
+
+    # ------------------------------------------------------------------ trade chart images (entry / exit)
+    def _chart(self, ticket, kind, exit_px=None, exit_time=None, R=None):
+        """Draw the entry / exit chart and queue it for GAS. Only when GAS takes images; never raises (trading goes on)."""
+        if not self.state.get('img_ok'):
+            return
+        try:
+            import base64
+            from . import tradechart
+            info = self.state['tickets'].get(str(ticket)) or {}
+            sym = info.get('sym')
+            if not sym:
+                return
+            opened = pd.Timestamp(info.get('opened'))
+            now = pd.Timestamp(exit_time) if exit_time is not None else (self.b.server_now(sym) or opened)
+            days = int((pd.Timestamp(now) - opened) / pd.Timedelta('1D')) + 14      # + warm-up for the Dow points and MA75
+            m15 = self.b.bars(sym, days)[['t', 'o', 'h', 'l', 'c']]
+            try:
+                digits = int(self.b.mt5.symbol_info(self.b.name(sym)).digits)
+            except Exception:
+                digits = 5
+            ea = str(info.get('key', ''))
+            title = f"{ea} · {'エントリー' if kind == 'entry' else '決済'} {opened:%Y-%m-%d %H:%M}（H1）"
+            png = tradechart.draw(m15, int(info.get('side', 1)), opened, float(info.get('entry')), float(info.get('sl0')), float(info.get('tp') or 0) or None,
+                                  title=title, exit_t=exit_time if kind == 'exit' else None, exit_px=exit_px, R=R, digits=digits)
+            if png:
+                gas.enqueue('eaTradeImage', dict(account=self.kind, ticket=str(ticket), kind=kind, png=base64.b64encode(png).decode()))
+        except Exception as ex:
+            logging.warning('trade chart %s %s: %s', ticket, kind, ex)
 
     # ------------------------------------------------------------------ closed trades -> records
     def sweep_closed(self, deal_reader=None):
@@ -359,6 +390,7 @@ class Runner:
             gas.enqueue('eaTradeClose', dict(account=self.kind, ticket=t, ea=info['key'], exit=exit_px, profit=profit,
                                              exit_time=to_jst(exit_time) if exit_time is not None else '', R=(profit / risk) if (profit is not None and risk) else ''))
             self.notify('exit', f'EA 決済 {info["key"]} #{t} 損益 {profit if profit is not None else "?"}円')
+            self._chart(t, 'exit', exit_px=exit_px, exit_time=exit_time, R=(profit / risk) if (profit is not None and risk) else None)
             del self.state['tickets'][t]
         self.save()
 
@@ -374,6 +406,8 @@ class Runner:
             r = gas.call('eaHeartbeat', x)
             if isinstance(r, dict) and r.get('config'):
                 self.set_config(r['config'])
+            if isinstance(r, dict):
+                self.state['img_ok'] = bool((r.get('features') or {}).get('tradeImage'))   # GAS stores trade images
             if isinstance(r, dict) and isinstance(r.get('reservations'), list):
                 self.state['reservations'] = r['reservations']
         except Exception as ex:
