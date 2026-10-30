@@ -21,7 +21,7 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip'],   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt'],   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
@@ -65,7 +65,7 @@ function ealAuth_(body, who) {
 }
 
 const EAL_EA_ACTIONS_ = {eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
-const EAL_APP_ACTIONS_ = {eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
+const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -74,7 +74,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaGetDashboard: ealDashboard_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -161,6 +161,14 @@ function ealDashboard_(b) {
 function ealGetTrades_(b) {
   const rows = ealRows_('trades'), lim = Number(b.limit || 300);
   return {success: true, data: rows.slice(-lim).map(r => { delete r._row; return r; })};
+}
+
+/** App: the trader's comment on one EA trade (open or closed). The EA never writes this column. */
+function ealTradeComment_(b) {
+  const r = ealRows_('trades').find(x => String(x.TradeID) === String(b.tradeId));
+  if (!r) throw new Error('trade not found');
+  ealWriteRow_('trades', r._row, Object.assign({}, r, {Comment: String(b.comment || '').slice(0, 2000), CommentAt: ealNow_()}));
+  return {success: true};
 }
 
 function ealSaveConfig_(b) {

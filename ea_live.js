@@ -278,8 +278,8 @@
     const trades = ((S.dash && S.dash.trades) || []).filter(t => String(t.Account) === S.acc)
       .sort((x, y) => String(y.EntryTime || y.SignalTime).localeCompare(String(x.EntryTime || x.SignalTime))).slice(0, 15).map(t => {   // newest first
       const pr = Number(t.Profit), col = t.Status === 'OPEN' ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
-      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
-        <div><b>${esc(t.EA)}</b> ${t.Direction === 'BUY' ? '買い' : '売り'}<div style="color:#94a3b8;font-size:11px">${esc(String(t.EntryTime).slice(5, 16))} · ${esc(t.Lot)} lot</div></div>
+      return `<div onclick="eaLiveTrade('${esc(t.TradeID)}')" style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
+        <div><b>${esc(t.EA)}</b> ${t.Direction === 'BUY' ? '買い' : '売り'}<div style="color:#94a3b8;font-size:11px">${esc(String(t.EntryTime).slice(5, 16))} · ${esc(t.Lot)} lot${t.Comment ? ' · 💬' : ''}</div></div>
         <div style="text-align:right;color:${col};font-weight:700">${t.Status === 'OPEN' ? '保有中' : yen(t.Profit)}<div style="font-size:11px;color:#94a3b8">${t.R !== '' && t.R != null ? Number(t.R).toFixed(2) + 'R' : ''}</div></div></div>`;
     }).join('') || '<div style="color:#94a3b8;font-size:12px;padding:10px 0">まだ EA のトレードはありません</div>';
     let sheet = '';
@@ -367,7 +367,7 @@
           <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
           ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
         <div style="font-weight:700;font-size:15px;color:${col}">${open ? '' : R}</div></div>
-        <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
+        <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}${t.Comment ? ' · 💬' : ''}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
   }
   const EA_PIP = sym => /JPY/.test(sym) ? 0.01 : /XAU/.test(sym) ? 0.1 : /XAG/.test(sym) ? 0.01 : /BTC|ETH|US30|US500|JP225/.test(sym) ? 1 : 0.0001;
@@ -454,9 +454,25 @@
       ${row('シグナルの足', jst(t.SignalTime))}${row('エントリー', jst(t.EntryTime) + ' @ ' + esc(t.EntryPrice))}${row('損切り', esc(t.SLPrice))}${row('利確', esc(t.TPPrice))}
       ${row('ロット', esc(t.Lot) + (t.LotMult && Number(t.LotMult) !== 1 ? '（倍率 ' + esc(t.LotMult) + '）' : '') + (t.Weight && Number(t.Weight) !== 1 ? '（重み ' + esc(t.Weight) + '）' : ''))}
       ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
-      ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('メモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
+      ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
+      <div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">💬 コメント</div>
+        <textarea id="eal-trade-comment" rows="4" maxlength="2000" class="form-input" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="気付いたこと・入り方の良し悪しなど">${esc(t.Comment || '')}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="eal-trade-comment-msg" style="font-size:11px;color:#64748b">${t.CommentAt ? '保存 ' + jst(t.CommentAt) : ''}</span>
+          <button onclick="eaLiveSaveComment('${esc(t.TradeID)}')" style="${btn};width:auto;padding:8px 16px;${neon('#22d3ee', '34,211,238')}">保存</button></div></div>
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
+  };
+  // the trader's comment on an EA trade (EA_Trades.Comment, GAS eaTradeComment)
+  window.eaLiveSaveComment = async function (id) {
+    const ta = document.getElementById('eal-trade-comment'), msg = document.getElementById('eal-trade-comment-msg'); if (!ta) return;
+    msg.textContent = '保存中…'; msg.style.color = '#94a3b8';
+    try {
+      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaTradeComment', key: appKey(), tradeId: id, comment: ta.value})}).then(x => x.json());
+      if (!r || r.success === false) throw new Error(/Unknown action/.test(String(r && r.error)) ? 'GAS をデプロイすると使えます' : ((r && r.error) || '保存できませんでした'));
+      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
+      try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
+      msg.textContent = '保存しました'; msg.style.color = '#4ade80'; render(); refreshViews();
+    } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }
   };
   // analysis: 裁量 / EA switch (the buttons are in index.html). EA shows its own panel and filters; the hand-written filters are hidden.
   const MANUAL_ONLY = ['flt-pair', 'flt-status', 'flt-timezone', 'flt-rule', 'flt-score', 'flt-entry-ref', 'flt-exit-ref', 'flt-manual-ma', 'flt-plan'];
