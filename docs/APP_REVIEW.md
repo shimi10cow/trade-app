@@ -78,6 +78,7 @@
 - （10/25 夜・デプロイ後の追加。`gas/Trades.gs` だけ貼り直し）控えのない紐付け（前の自動の紐付け・古い GAS での紐付け）も「確認待ちに戻す」で外せる（`impUnadopt_`・`impRevertAutoLinksOnce` は MergeMode を見ない）。予約のトレードは対象外。取り込みで読めなかった口座も「口座ごとの取り込み」に残す（`error`。前に読めた日時は消さない）
 - PC：`importer.py`（読めなかった口座も送る・夏時間の終わりの重なる 1 時間で止まらない）は `git pull` だけで次の取り込みから。`runner.py` の同じ時刻の直しは次の「新EA 更新」で
 - EA のトレードへのコメント（2026-10-30）：`gas/EA_Live.gs` の表 EA_Trades に Comment・CommentAt の列（自動で足される）、窓口 `eaTradeComment`。アプリは EA のトレードの詳細に「💬 コメント」、EA タブのトレード一覧から詳細を開ける
+- EA のトレードの画像（2026-10-30）：`gas/EA_Live.gs`（eaTradeImage、表 EA_Trades に EntryImage・ExitImage）と `Code.gs`（uploadImage に画像の種類）。PC は `py -m pip install matplotlib` と「新EA 更新」。GAS を入れるまで PC は画像を送らない
 ### デプロイのあとにやること
 
 1. Apps Script のエディタで `impRevertAutoLinksOnce` を実行 → 実行ログで、前回自動で結び付いたトレード（4 件のはず）と、元の値を戻せるか（「Entries」か「なし」）を確認
