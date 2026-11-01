@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>入りたい所の印</title>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--up:#16a34a;--dn:#dc2626;--m20:#0284c7;--m75:#7c3aed;--acc:#0ea5e9;--grid:#eef2f7;--chip:#f1f5f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:18px;margin:4px 0 2px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.prog{flex:1;min-width:140px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.sym{font-weight:700;font-size:17px}
+.dir{font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.dir.b{background:var(--up)}.dir.s{background:var(--dn)}
+canvas{width:100%;height:420px;display:block;touch-action:pan-y}
+@media (max-width:600px){canvas{height:330px}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:4px}
+.legend b{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 8px;cursor:pointer}
+button.lab{font-weight:700;padding:14px 6px}
+button.lab.on{outline:3px solid var(--acc)}
+#bT{border-color:var(--up)}#bR{border-color:var(--dn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea{width:100%;margin-top:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.nav button{flex:1}
+.st{font-size:12px;color:var(--mute);margin-top:6px;min-height:18px}
+.small{font-size:13px;padding:6px 10px}
+details{margin-top:14px;color:var(--mute);font-size:13px}
+</style>
+<style>
+.tools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tools button{flex:1;min-width:70px;padding:10px 6px}
+#aB{border-color:var(--up);font-weight:700}#aS{border-color:var(--dn);font-weight:700}#aX{font-weight:700}
+.marks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px}
+.mk{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.mk b{cursor:pointer;margin-left:6px;color:var(--mute)}
+.hint{font-size:13px;color:var(--mute);margin-top:6px}
+#none.on{outline:3px solid var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>入りたい所の印</h1>
+  <p class="sub">過去のチャートを先まで全部見せる。答えを知った上で「ここで入りたかった」「ここで出たかった」所に印をつける。その時点で見えていた形を、クラウドの Claude が探す。</p>
+  <div class="bar"><span id="cnt"></span><div class="prog"><i id="pg" style="width:0"></i></div><button class="small" id="next0">未記入へ</button></div>
+  <div class="card">
+    <div class="head"><div><span class="sym" id="sym"></span></div><div class="sub" style="margin:0" id="no"></div></div>
+    <canvas id="cv"></canvas>
+    <div class="legend"><span><b style="background:var(--m20)"></b>MA20</span><span><b style="background:var(--m75)"></b>MA75</span><span>● ＝ MA のクロス</span><span>H1 ・ 520本</span></div>
+    <div class="hint" id="hint"></div>
+    <div class="tools">
+      <button id="all">全体</button><button id="pl">◀</button><button id="pr">▶</button>
+    </div>
+    <div class="tools">
+      <button id="aB">買いで入る</button><button id="aS">売りで入る</button><button id="aX">ここで出る</button>
+    </div>
+    <div class="marks" id="marks"></div>
+    <div class="tools"><button id="none">この中に入りたい所はない</button></div>
+    <div class="chips" id="chips"></div>
+    <textarea id="note" placeholder="メモ：入りたい理由・その時点で何が見えていたか（例：レンジ上限を抜けて、2回目の押しでMA20に触れた所）"></textarea>
+    <div class="nav"><button id="prev">← 前</button><button id="next">次 →</button></div>
+    <div class="st" id="st"></div>
+  </div>
+  <details><summary>使い方</summary>
+    <p>1. チャートをタップすると、その辺りを拡大する。2. 拡大した状態でタップすると、その足に印の候補（縦線）が立つ。3.「買いで入る」「売りで入る」「ここで出る」で印を確定。印はいくつでもよい。下の一覧の × で消せる。</p>
+    <p>入りたい所が無い期間（レンジなど）は「この中に入りたい所はない」。理由のタグとメモがあると、特徴を探しやすい。45 区間（15 銘柄×3、2012 年以降）。</p>
+  </details>
+</div>
+<script src="data.js"></script>
+<script>
+const TAGS=['1回目の押し/戻り','2回目の押し/戻り','3回目以降','レンジ抜け','高値/安値の更新','トレンドライン抜け','MA20タッチ','MA75タッチ','ダブルボトム/トップ','前の高値/安値で支え','急な動きの後の反発','クロス直後','長いもみ合いの後'];
+let idx=0, db=null, me='me', zoom=null, pend=null;
+const L={}; const $=id=>document.getElementById(id);
+function lsGet(){try{return JSON.parse(localStorage.getItem('hlabels_v1')||'{}')}catch(e){return{}}}
+function lsSet(){try{localStorage.setItem('hlabels_v1',JSON.stringify(L))}catch(e){}}
+Object.assign(L,lsGet());
+try{const i=+localStorage.getItem('hlabels_idx');if(i>=0&&i<DATA.length)idx=i}catch(e){}
+const cur=()=>{const id=DATA[idx].id;return L[id]=Object.assign({marks:[],tags:[],note:'',none:false},L[id])};
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+let geo=null;
+function draw(){
+  const d=DATA[idx], cv=$('cv'), dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const n=d.c.length, a=zoom?zoom[0]:0, b=zoom?zoom[1]:n, pad=12, axisW=58;
+  let lo=Infinity,hi=-Infinity;
+  for(let i=a;i<b;i++){lo=Math.min(lo,d.l[i]);hi=Math.max(hi,d.h[i]);for(const m of [d.m20[i],d.m75[i]]) if(m!=null&&!isNaN(m)){lo=Math.min(lo,m);hi=Math.max(hi,m)}}
+  const r=hi-lo; lo-=r*0.05; hi+=r*0.05;
+  const plotW=W-axisW, cw=plotW/(b-a), X=i=>(i-a+0.5)*cw, Y=v=>pad+(hi-v)/(hi-lo)*(H-2*pad-16);
+  geo={a,b,cw};
+  g.font='11px system-ui'; g.fillStyle=css('--mute'); g.strokeStyle=css('--grid'); g.lineWidth=1;
+  for(let k=0;k<=5;k++){const v=lo+(hi-lo)*k/5,y=Y(v);g.beginPath();g.moveTo(0,y);g.lineTo(plotW,y);g.stroke();g.fillText(v.toFixed(d.d),plotW+4,y+4)}
+  const st=40*Math.max(1,Math.ceil(60/(40*cw)));
+  for(let i=Math.ceil(a/st)*st;i<b;i+=st){const j=i/40;if(d.tt[j])g.fillText(d.tt[j],X(i)-14,H-3)}
+  const up=css('--up'),dn=css('--dn'),bw=Math.max(1,cw*0.65);
+  for(let i=a;i<b;i++){const c=d.c[i]>=d.o[i]?up:dn;g.strokeStyle=c;g.fillStyle=c;const x=X(i);
+    g.beginPath();g.moveTo(x,Y(d.h[i]));g.lineTo(x,Y(d.l[i]));g.stroke();
+    const y1=Y(Math.max(d.o[i],d.c[i])),y2=Y(Math.min(d.o[i],d.c[i]));g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
+  for(const [k,col] of [['m20','--m20'],['m75','--m75']]){g.strokeStyle=css(col);g.lineWidth=1.6;g.beginPath();let s=false;
+    for(let i=a;i<b;i++){const v=d[k][i];if(v==null||isNaN(v))continue;s?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v));s=true}g.stroke()}
+  g.lineWidth=1; g.fillStyle=css('--ink');
+  for(let i=Math.max(a,1);i<b;i++){if((d.m20[i]>d.m75[i])!==(d.m20[i-1]>d.m75[i-1])){g.beginPath();g.arc(X(i),Y(d.m75[i]),3,0,7);g.fill()}}
+  // marks
+  const l=cur(); l.marks.forEach((m,k)=>{if(m.i<a||m.i>=b)return;const x=X(m.i);
+    const col=m.side==='buy'?up:m.side==='sell'?dn:css('--acc'); g.fillStyle=col; g.strokeStyle=col;
+    if(m.side==='exit'){const y=Y(d.c[m.i]);g.beginPath();g.moveTo(x-6,y-6);g.lineTo(x+6,y+6);g.moveTo(x+6,y-6);g.lineTo(x-6,y+6);g.lineWidth=2;g.stroke();g.lineWidth=1}
+    else{const bu=m.side==='buy',y=bu?Y(d.l[m.i])+12:Y(d.h[m.i])-12;g.beginPath();
+      if(bu){g.moveTo(x,y-8);g.lineTo(x-7,y+4);g.lineTo(x+7,y+4)}else{g.moveTo(x,y+8);g.lineTo(x-7,y-4);g.lineTo(x+7,y-4)}g.fill()}
+    g.fillStyle=css('--ink');g.fillText(String(k+1),x+7,m.side==='sell'?Y(d.h[m.i])-20:Y(d.l[m.i])+26)});
+  if(pend!=null&&pend>=a&&pend<b){g.setLineDash([3,3]);g.strokeStyle=css('--acc');g.beginPath();g.moveTo(X(pend),0);g.lineTo(X(pend),H-16);g.stroke();g.setLineDash([])}
+  $('hint').textContent=zoom?(pend==null?'足をタップして印の場所を選ぶ':'下のボタンで印を確定（別の足をタップすると場所を変える）'):'印をつけたい辺りをタップして拡大';
+}
+$('cv').addEventListener('click',ev=>{
+  const rc=$('cv').getBoundingClientRect(), x=ev.clientX-rc.left; if(!geo)return;
+  const i=Math.max(0,Math.min(DATA[idx].c.length-1,Math.floor(geo.a+x/geo.cw)));
+  if(!zoom){const n=DATA[idx].c.length,w=140;let a=Math.max(0,i-w/2);a=Math.min(a,n-w);zoom=[a,a+w];pend=null}
+  else pend=i;
+  draw();
+});
+function pan(k){if(!zoom)return;const n=DATA[idx].c.length,w=zoom[1]-zoom[0];let a=Math.max(0,Math.min(n-w,zoom[0]+k*Math.round(w*0.6)));zoom=[a,a+w];draw()}
+$('pl').onclick=()=>pan(-1);$('pr').onclick=()=>pan(1);$('all').onclick=()=>{zoom=null;pend=null;draw()};
+function addMark(side){if(pend==null)return;const l=cur();l.marks.push({i:pend,side});l.marks.sort((p,q)=>p.i-q.i);l.none=false;pend=null;save();render()}
+$('aB').onclick=()=>addMark('buy');$('aS').onclick=()=>addMark('sell');$('aX').onclick=()=>addMark('exit');
+$('none').onclick=()=>{const l=cur();l.none=!l.none;save();render()};
+function render(){
+  const d=DATA[idx], l=cur();
+  $('sym').textContent=d.sym; $('no').textContent=`${idx+1} / ${DATA.length}`;
+  const nm={buy:'買い',sell:'売り',exit:'出る'};
+  $('marks').innerHTML=l.marks.map((m,k)=>`<span class="mk">${k+1}. ${nm[m.side]}（${d.tt[Math.floor(m.i/40)]||''} 付近）<b data-k="${k}">×</b></span>`).join('');
+  $('marks').querySelectorAll('b').forEach(b=>b.onclick=()=>{l.marks.splice(+b.dataset.k,1);save();render()});
+  $('none').classList.toggle('on',!!l.none);
+  $('chips').innerHTML='';TAGS.forEach(t=>{const c=document.createElement('button');c.className='chip'+(l.tags.includes(t)?' on':'');c.textContent=t;
+    c.onclick=()=>{l.tags=l.tags.includes(t)?l.tags.filter(z=>z!==t):[...l.tags,t];save();render()};$('chips').appendChild(c)});
+  $('note').value=l.note||'';
+  const done=DATA.filter(x=>L[x.id]&&((L[x.id].marks||[]).length||L[x.id].none)).length;
+  $('cnt').textContent=`${done} / ${DATA.length} 記入済み`;$('pg').style.width=(100*done/DATA.length)+'%';
+  try{localStorage.setItem('hlabels_idx',idx)}catch(e){}
+  draw();
+}
+let saving=Promise.resolve();
+function save(id){
+  id=id||DATA[idx].id; lsSet(); const v=L[id]; if(!db){$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+  saving=saving.then(()=>db.collection('marks').doc(id).set({marks:v.marks||[],none:!!v.none,tags:v.tags||[],note:v.note||'',at:new Date().toISOString(),by:me}))
+    .then(()=>{$('st').textContent='保存しました'}).catch(e=>{$('st').textContent='保存できませんでした（この端末には残っています）：'+(e&&e.message||e)});
+}
+$('note').addEventListener('change',()=>{cur().note=$('note').value;save()});
+function go(k){idx=k;zoom=null;pend=null;render()}
+$('prev').onclick=()=>{if(idx>0)go(idx-1)};$('next').onclick=()=>{if(idx<DATA.length-1)go(idx+1)};
+$('next0').onclick=()=>{const j=DATA.findIndex(x=>!(L[x.id]&&((L[x.id].marks||[]).length||L[x.id].none)));if(j>=0)go(j)};
+window.addEventListener('resize',draw);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+render();
+(async()=>{
+  $('st').textContent='保存先に接続中…';
+  const t=setTimeout(()=>{if(!db)$('st').textContent='この端末に保存（共有の保存先につながっていない）'},10000);
+  try{
+    if(!window.claude||!claude.use){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    const d=await claude.use('db'); const u=await claude.use('user'); if(u){try{me=await u.id()}catch(e){}}
+    if(!d){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    db=d; const snap=await db.collection('marks').get(); clearTimeout(t);
+    const docs=snap.docs||snap||[];
+    docs.forEach(x=>{const v=x.data?x.data():x;const id=x.id||v.id;if(id&&!L[id])L[id]={marks:v.marks||[],none:!!v.none,tags:v.tags||[],note:v.note||''}});
+    for(const id of Object.keys(L)){if(!docs.some(x=>x.id===id))save(id)}
+    $('st').textContent='保存先に接続しました'; render();
+  }catch(e){clearTimeout(t);$('st').textContent='保存先に接続できません（この端末には保存）：'+(e&&e.message||e)}
+})();
+</script>
+</body>
+</html>
