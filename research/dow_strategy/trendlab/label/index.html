@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>クロス判定ラベル</title>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--up:#16a34a;--dn:#dc2626;--m20:#0284c7;--m75:#7c3aed;--acc:#0ea5e9;--grid:#eef2f7;--chip:#f1f5f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:18px;margin:4px 0 2px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.prog{flex:1;min-width:140px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.sym{font-weight:700;font-size:17px}
+.dir{font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.dir.b{background:var(--up)}.dir.s{background:var(--dn)}
+canvas{width:100%;height:420px;display:block;touch-action:pan-y}
+@media (max-width:600px){canvas{height:330px}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:4px}
+.legend b{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 8px;cursor:pointer}
+button.lab{font-weight:700;padding:14px 6px}
+button.lab.on{outline:3px solid var(--acc)}
+#bT{border-color:var(--up)}#bR{border-color:var(--dn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea{width:100%;margin-top:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.nav button{flex:1}
+.st{font-size:12px;color:var(--mute);margin-top:6px;min-height:18px}
+.small{font-size:13px;padding:6px 10px}
+details{margin-top:14px;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>クロス判定ラベル</h1>
+  <p class="sub">H1 の MA20 / MA75 クロスの後、最初の押し目（戻り）の確定足まで。この先トレンドになりそうか、レンジか、自分の目で判断して印をつける。先の値動きは見せていない。</p>
+  <div class="bar">
+    <span id="cnt">0 / 0</span>
+    <div class="prog"><i id="pg" style="width:0"></i></div>
+    <button class="small" id="zoom">400本</button>
+    <button class="small" id="next0">未判定へ</button>
+  </div>
+  <div class="card">
+    <div class="head">
+      <div><span class="sym" id="sym"></span> <span class="dir" id="dir"></span></div>
+      <div class="sub" style="margin:0" id="no"></div>
+    </div>
+    <canvas id="cv"></canvas>
+    <div class="legend"><span><b style="background:var(--m20)"></b>MA20</span><span><b style="background:var(--m75)"></b>MA75</span><span>縦の点線＝クロスした足</span><span>▲▼＝エントリー候補（最後の足）</span></div>
+    <div class="btns">
+      <button class="lab" id="bT" data-l="trend">トレンドになる</button>
+      <button class="lab" id="bR" data-l="range">レンジ</button>
+      <button class="lab" id="bU" data-l="unsure">分からない</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <textarea id="note" placeholder="メモ（任意）：どこを見てそう思ったか"></textarea>
+    <div class="nav"><button id="prev">← 前</button><button id="next">次 →</button></div>
+    <div class="st" id="st"></div>
+  </div>
+  <details><summary>使い方</summary>
+    <p>判定ボタンを押すと保存して次へ進む。理由のタグとメモは判定の前でも後でもつけられる（押した時点で保存）。同じ例をあとで直してもよい。保存先はこのページのデータで、クラウドの Claude が読んで、印と特徴量の関係を調べる。</p>
+    <p>買い＝上向きクロスの後の押し目、売り＝下向きクロスの後の戻り。銘柄は 15 種類×6 例、2012 年以降からランダム。</p>
+  </details>
+</div>
+<script src="data.js"></script>
+<script>
+const TAGS=['レンジ抜け','高値/安値の更新','トレンドライン抜け','MAの傾きが強い','MAの間が広い','クロス前がトレンド（戻しのクロス）','レンジの中','もみ合いが長い','近くに抵抗・支持','クロスが多い','値動きが小さい','急な動きの後'];
+let idx=0, view=200, db=null, me='me';
+const L={};               // id -> {label,tags,note}
+const $=id=>document.getElementById(id);
+function lsGet(){try{return JSON.parse(localStorage.getItem('xlabels_v1')||'{}')}catch(e){return{}}}
+function lsSet(){try{localStorage.setItem('xlabels_v1',JSON.stringify(L))}catch(e){}}
+Object.assign(L,lsGet());
+try{const i=+localStorage.getItem('xlabels_idx');if(i>=0&&i<DATA.length)idx=i}catch(e){}
+
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function draw(){
+  const d=DATA[idx], cv=$('cv'), dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const n=d.c.length, a=Math.max(0,n-view), pad=12, axisW=58, right=Math.round((W-axisW)*0.14);
+  let lo=Infinity,hi=-Infinity;
+  for(let i=a;i<n;i++){lo=Math.min(lo,d.l[i]);hi=Math.max(hi,d.h[i]);for(const m of [d.m20[i],d.m75[i]]) if(m!=null&&!isNaN(m)){lo=Math.min(lo,m);hi=Math.max(hi,m)}}
+  const r=hi-lo; lo-=r*0.04; hi+=r*0.04;
+  const plotW=W-axisW-right, cw=plotW/(n-a), X=i=>(i-a+0.5)*cw, Y=v=>pad+(hi-v)/(hi-lo)*(H-2*pad-16);
+  g.font='11px system-ui'; g.fillStyle=css('--mute'); g.strokeStyle=css('--grid'); g.lineWidth=1;
+  for(let k=0;k<=5;k++){const v=lo+(hi-lo)*k/5,y=Y(v);g.beginPath();g.moveTo(0,y);g.lineTo(W-axisW,y);g.stroke();g.fillText(v.toFixed(d.d),W-axisW+4,y+4)}
+  // future area
+  g.fillStyle=css('--grid'); g.fillRect(plotW,0,right,H-16);
+  g.fillStyle=css('--mute'); g.fillText('この先？',plotW+6,18);
+  // time labels
+  const st=40*Math.max(1,Math.ceil(70/(40*cw)));
+  for(let i=Math.ceil(a/st)*st;i<n;i+=st){const j=i/40;if(d.tt[j])g.fillText(d.tt[j],X(i)-20,H-3)}
+  // cross line
+  if(d.ci>=a){g.setLineDash([4,4]);g.strokeStyle=css('--mute');g.beginPath();g.moveTo(X(d.ci),0);g.lineTo(X(d.ci),H-16);g.stroke();g.setLineDash([])}
+  const up=css('--up'),dn=css('--dn'),bw=Math.max(1,cw*0.65);
+  for(let i=a;i<n;i++){const c=d.c[i]>=d.o[i]?up:dn;g.strokeStyle=c;g.fillStyle=c;const x=X(i);
+    g.beginPath();g.moveTo(x,Y(d.h[i]));g.lineTo(x,Y(d.l[i]));g.stroke();
+    const y1=Y(Math.max(d.o[i],d.c[i])),y2=Y(Math.min(d.o[i],d.c[i]));g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
+  for(const [k,col] of [['m20','--m20'],['m75','--m75']]){g.strokeStyle=css(col);g.lineWidth=1.6;g.beginPath();let s=false;
+    for(let i=a;i<n;i++){const v=d[k][i];if(v==null||isNaN(v))continue;s?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v));s=true}g.stroke()}
+  g.lineWidth=1;
+  // entry marker
+  const x=X(n-1), buy=d.s===1, y=buy?Y(d.l[n-1])+14:Y(d.h[n-1])-14; g.fillStyle=css('--acc'); g.beginPath();
+  if(buy){g.moveTo(x,y-8);g.lineTo(x-7,y+4);g.lineTo(x+7,y+4)}else{g.moveTo(x,y+8);g.lineTo(x-7,y-4);g.lineTo(x+7,y-4)}g.fill();
+}
+function render(){
+  const d=DATA[idx], l=L[d.id]||{};
+  $('sym').textContent=d.sym; const dir=$('dir'); dir.textContent=d.s===1?'買い（上向きクロス）':'売り（下向きクロス）'; dir.className='dir '+(d.s===1?'b':'s');
+  $('no').textContent=`${idx+1} / ${DATA.length}`;
+  document.querySelectorAll('.lab').forEach(b=>b.classList.toggle('on',l.label===b.dataset.l));
+  $('chips').innerHTML=''; TAGS.forEach(t=>{const c=document.createElement('button');c.className='chip'+((l.tags||[]).includes(t)?' on':'');c.textContent=t;c.onclick=()=>toggleTag(t);$('chips').appendChild(c)});
+  $('note').value=l.note||'';
+  const done=DATA.filter(x=>L[x.id]&&L[x.id].label).length; $('cnt').textContent=`${done} / ${DATA.length} 判定済み`; $('pg').style.width=(100*done/DATA.length)+'%';
+  $('zoom').textContent=view===200?'400本':'200本';
+  try{localStorage.setItem('xlabels_idx',idx)}catch(e){}
+  draw();
+}
+let saving=Promise.resolve();
+function save(id){
+  lsSet(); const v=L[id]; if(!db){$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+  saving=saving.then(()=>db.collection('labels').doc(id).set({label:v.label||'',tags:v.tags||[],note:v.note||'',at:new Date().toISOString(),by:me}))
+    .then(()=>{$('st').textContent='保存しました'}).catch(e=>{$('st').textContent='保存できませんでした（この端末には残っています）：'+(e&&e.message||e)});
+}
+function setLabel(lab){const id=DATA[idx].id;L[id]=Object.assign({},L[id],{label:lab,note:$('note').value});save(id);
+  if(idx<DATA.length-1){idx++;}render()}
+function toggleTag(t){const id=DATA[idx].id,l=L[id]=Object.assign({tags:[]},L[id]);l.tags=l.tags.includes(t)?l.tags.filter(z=>z!==t):[...l.tags,t];save(id);render()}
+document.querySelectorAll('.lab').forEach(b=>b.onclick=()=>setLabel(b.dataset.l));
+$('note').addEventListener('change',()=>{const id=DATA[idx].id;L[id]=Object.assign({},L[id],{note:$('note').value});save(id)});
+$('prev').onclick=()=>{if(idx>0){idx--;render()}};
+$('next').onclick=()=>{if(idx<DATA.length-1){idx++;render()}};
+$('zoom').onclick=()=>{view=view===200?400:200;render()};
+$('next0').onclick=()=>{const j=DATA.findIndex(x=>!(L[x.id]&&L[x.id].label));if(j>=0){idx=j;render()}};
+window.addEventListener('resize',draw);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+render();
+(async()=>{
+  $('st').textContent='保存先に接続中…';
+  const t=setTimeout(()=>{if(!db)$('st').textContent='この端末に保存（共有の保存先につながっていない）'},10000);
+  try{
+    if(!window.claude||!claude.use){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    const d=await claude.use('db'); const u=await claude.use('user');
+    if(u){try{me=await u.id()}catch(e){}}
+    if(!d){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    db=d; const snap=await db.collection('labels').get(); clearTimeout(t);
+    const docs=snap.docs||snap||[];
+    docs.forEach(x=>{const v=x.data?x.data():x;const id=x.id||v.id;if(id&&!L[id])L[id]={label:v.label,tags:v.tags||[],note:v.note||''}});
+    // anything only on this device goes up
+    for(const id of Object.keys(L)){if(!docs.some(x=>(x.id)===id))save(id)}
+    $('st').textContent='保存先に接続しました'; render();
+  }catch(e){clearTimeout(t);$('st').textContent='保存先に接続できません（この端末には保存）：'+(e&&e.message||e)}
+})();
+</script>
+</body>
+</html>
