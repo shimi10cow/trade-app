@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>あなたの線を引く</title>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--up:#16a34a;--dn:#dc2626;--m20:#0284c7;--m75:#7c3aed;--acc:#0ea5e9;--grid:#eef2f7;--chip:#f1f5f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:18px;margin:4px 0 2px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.prog{flex:1;min-width:140px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.sym{font-weight:700;font-size:17px}
+.dir{font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.dir.b{background:var(--up)}.dir.s{background:var(--dn)}
+canvas{width:100%;height:420px;display:block;touch-action:pan-y}
+@media (max-width:600px){canvas{height:330px}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:4px}
+.legend b{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 8px;cursor:pointer}
+button.lab{font-weight:700;padding:14px 6px}
+button.lab.on{outline:3px solid var(--acc)}
+#bT{border-color:var(--up)}#bR{border-color:var(--dn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea{width:100%;margin-top:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.nav button{flex:1}
+.st{font-size:12px;color:var(--mute);margin-top:6px;min-height:18px}
+.small{font-size:13px;padding:6px 10px}
+details{margin-top:14px;color:var(--mute);font-size:13px}
+</style>
+<style>
+:root{--uh:#ea580c;--up2:#2563eb;--uc:#059669;--eh:#64748b;--ep:#a855f7;--ec:#14b8a6}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--up2:#60a5fa;--uc:#34d399;--eh:#94a3b8}}
+canvas#cv{height:430px;touch-action:none}
+@media (max-width:600px){canvas#cv{height:360px}}
+.tabs,.kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.tabs button.on,.kinds button.on{outline:3px solid var(--acc);font-weight:700}
+.info{font-size:13px;color:var(--mute);margin:4px 0}
+.info b{color:var(--ink)}
+.ul{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:3px 8px;margin:3px 4px 0 0;font-size:13px}
+.rate{display:grid;grid-template-columns:5.5em repeat(3,1fr);gap:6px;align-items:center;margin-top:6px;font-size:13px}
+.rate button{padding:6px 4px;font-size:13px}.rate button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.row{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>あなたの線を引く</h1>
+  <p class="sub">あなたの実トレード 67 件。入った時点までのチャートに、EA が見ている線と帯（点線）を重ねてある。実際に見ていた水平線・推進ライン・逆トレラインを引き、EA の線が合っているかを選ぶ。EA の引き方をあなたに合わせるのに使う。</p>
+  <div class="bar"><span id="cnt"></span><div class="prog"><i id="pg" style="width:0"></i></div><button class="small" id="next0">未記入へ</button></div>
+  <div class="card">
+    <div class="head"><div><span class="sym" id="sym"></span> <span class="dir" id="dir"></span></div><div class="sub" style="margin:0" id="no"></div></div>
+    <div class="info" id="info"></div>
+    <div class="tabs" id="tabs"></div>
+    <canvas id="cv"></canvas>
+    <div class="legend"><span><b style="background:var(--uh)"></b>あなたの水平線</span><span><b style="background:var(--up2)"></b>あなたの推進</span><span><b style="background:var(--uc)"></b>あなたの逆トレ</span><span>点線＝EA（灰：H4 の帯、紫：推進、緑青：逆トレ）</span></div>
+    <div class="row"><label><input type="checkbox" id="showEA" checked> EA の線を表示</label></div>
+    <div class="kinds" id="kinds"></div>
+    <div class="info" id="hint"></div>
+    <div id="ulist"></div>
+    <div class="rate" id="rate"></div>
+    <textarea id="note" placeholder="メモ（任意）：EA との違い、見ていたもの"></textarea>
+    <div class="nav"><button id="prev">← 前</button><button id="next">次 →</button></div>
+    <div class="st" id="st"></div>
+  </div>
+  <details><summary>使い方</summary>
+    <p>上の H4 / H1 / M15 で時間足を切り替える。下で線の種類を選び、チャートをタップ：水平線は 1 回、推進・逆トレは 2 回（始点と終点）。線は右端の先まで伸ばして表示する。消すのは一覧の ×。全部引けなくても、一番大事だった線だけで十分。</p>
+  </details>
+</div>
+<script src="data.js"></script>
+<script>
+const KINDS=[['h','水平線','--uh'],['p','推進ライン','--up2'],['c','逆トレライン','--uc']];
+const RATES=[['h','水平線'],['p','推進'],['c','逆トレ']];
+let idx=0,tf='H1',kind='h',pA=null,db=null,me='me';const S={};const $=id=>document.getElementById(id);
+function lsGet(){try{return JSON.parse(localStorage.getItem('draw_v1')||'{}')}catch(e){return{}}}
+function lsSet(){try{localStorage.setItem('draw_v1',JSON.stringify(S))}catch(e){}}
+Object.assign(S,lsGet());try{const i=+localStorage.getItem('draw_i');if(i>=0&&i<DATA.length)idx=i}catch(e){}
+const cur=()=>{const d=DATA[idx];return S[d.id]=Object.assign({lines:[],rate:{},note:''},S[d.id])};
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+let G=null;
+function draw(){
+  const d=DATA[idx],f=d.P[tf],cv=$('cv'),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const n=f.c.length,axisW=62,right=Math.round((W-axisW)*0.12),pad=10;let lo=Infinity,hi=-Infinity;
+  for(let i=0;i<n;i++){lo=Math.min(lo,f.l[i]);hi=Math.max(hi,f.h[i])}
+  const r=hi-lo;lo-=r*.06;hi+=r*.06;const pw=W-axisW-right,cw=pw/n,X=i=>(i+.5)*cw,Y=v=>pad+(hi-v)/(hi-lo)*(H-2*pad-14),IV=y=>hi-(y-pad)/(H-2*pad-14)*(hi-lo);
+  G={X,Y,IV,cw,n,W,axisW};
+  g.font='11px system-ui';g.strokeStyle=css('--grid');g.fillStyle=css('--mute');
+  for(let k=0;k<=5;k++){const v=lo+(hi-lo)*k/5,y=Y(v);g.beginPath();g.moveTo(0,y);g.lineTo(W-axisW,y);g.stroke();g.fillText(v.toFixed(d.d),W-axisW+4,y+4)}
+  const stp=Math.max(1,Math.ceil(80/cw));for(let i=0;i<n;i+=stp)g.fillText(f.tt[i],X(i)-22,H-2);
+  g.fillStyle=css('--grid');g.fillRect(pw,0,right,H-14);
+  const up=css('--up'),dn=css('--dn'),bw=Math.max(1,cw*.65);
+  for(let i=0;i<n;i++){const c=f.c[i]>=f.o[i]?up:dn;g.strokeStyle=c;g.fillStyle=c;const x=X(i);g.beginPath();g.moveTo(x,Y(f.h[i]));g.lineTo(x,Y(f.l[i]));g.stroke();
+    const y1=Y(Math.max(f.o[i],f.c[i])),y2=Y(Math.min(f.o[i],f.c[i]));g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
+  if(f.m20){[['--m20',f.m20],['--m75',f.m75]].forEach(([col,m])=>{g.strokeStyle=css(col);g.lineWidth=1.5;g.beginPath();m.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()});g.lineWidth=1}
+  const ext=(x1,y1,x2,y2)=>{const xe=W-axisW;if(x2===x1)return[x1,y1,x2,y2];const s=(y2-y1)/(x2-x1);return[x1,y1,xe,y2+s*(xe-x2)]};
+  if($('showEA').checked){g.setLineDash([5,4]);g.lineWidth=1.3;
+    for(const [nm,v] of f.levels){g.strokeStyle=css('--eh');g.beginPath();g.moveTo(0,Y(v));g.lineTo(W-axisW,Y(v));g.stroke();g.fillStyle=css('--eh');g.fillText('EA '+nm,4,Y(v)-3)}
+    for(const l of f.lines){g.strokeStyle=css(l[0]==='推進'?'--ep':'--ec');g.globalAlpha=l[5]?1:.45;const e=ext(X(l[1]),Y(l[2]),X(l[3]),Y(l[4]));g.beginPath();g.moveTo(e[0],e[1]);g.lineTo(e[2],e[3]);g.stroke();g.globalAlpha=1}
+    g.setLineDash([]);g.lineWidth=1}
+  // user lines
+  const s=cur();g.lineWidth=2.2;
+  for(const l of s.lines.filter(l=>l.tf===tf)){const col=css(KINDS.find(k=>k[0]===l.kind)[2]);g.strokeStyle=col;g.beginPath();
+    if(l.kind==='h'){g.moveTo(0,Y(l.y1));g.lineTo(W-axisW,Y(l.y1))}else{const e=ext(X(l.x1),Y(l.y1),X(l.x2),Y(l.y2));g.moveTo(e[0],e[1]);g.lineTo(e[2],e[3])}g.stroke()}
+  g.lineWidth=1;
+  if(pA&&pA.tf===tf){g.fillStyle=css('--acc');g.beginPath();g.arc(X(pA.x),Y(pA.y),5,0,7);g.fill()}
+  // entry marker
+  const x=X(n-1)+cw*2,buy=d.s===1,y=buy?Y(f.l[n-1])+14:Y(f.h[n-1])-14;g.fillStyle=css('--acc');g.beginPath();
+  if(buy){g.moveTo(x,y-8);g.lineTo(x-7,y+4);g.lineTo(x+7,y+4)}else{g.moveTo(x,y+8);g.lineTo(x-7,y-4);g.lineTo(x+7,y-4)}g.fill();
+}
+$('cv').addEventListener('click',ev=>{if(!G)return;const rc=$('cv').getBoundingClientRect(),px=ev.clientX-rc.left,py=ev.clientY-rc.top;if(px>G.W-G.axisW)return;
+  const x=Math.max(0,Math.min(G.n-1+Math.round((G.W-G.axisW-G.n*G.cw)/G.cw),Math.floor(px/G.cw))),y=+G.IV(py).toFixed(DATA[idx].d+1),s=cur(),f=DATA[idx].P[tf];
+  const tt=i=>f.tt[Math.min(i,f.tt.length-1)];
+  if(kind==='h'){s.lines.push({tf,kind,x1:x,y1:y,t1:tt(x)});save();render();return}
+  if(!pA||pA.tf!==tf){pA={tf,x,y};draw();hint();return}
+  s.lines.push({tf,kind,x1:pA.x,y1:pA.y,x2:x,y2:y,t1:tt(pA.x),t2:tt(x)});pA=null;save();render()});
+function hint(){$('hint').textContent=kind==='h'?'チャートを 1 回タップで水平線':(pA?'終点をタップ':'始点をタップ（2 点で線）')}
+function render(){
+  const d=DATA[idx],s=cur();
+  $('sym').textContent=d.sym;const dir=$('dir');dir.textContent=d.s===1?'買い':'売り';dir.className='dir '+(d.s===1?'b':'s');
+  $('no').textContent=`${idx+1} / ${DATA.length}`;
+  const u=d.user;$('info').innerHTML=`${d.tj}（日本時間）・結果 <b>${d.win}</b><br>あなたの記録：水平線 <b>${u.水平線}</b>・推進 <b>${u.推進}</b>・逆トレ <b>${u.逆トレ}</b>・M15 <b>${u.M15}</b>・H1MA <b>${u.H1MA}</b>`;
+  $('tabs').innerHTML='';['H4','H1','M15'].forEach(x=>{const b=document.createElement('button');b.textContent=x;b.className=x===tf?'on':'';b.onclick=()=>{tf=x;pA=null;render()};$('tabs').appendChild(b)});
+  $('kinds').innerHTML='';KINDS.forEach(([k,nm])=>{const b=document.createElement('button');b.textContent=nm;b.className=k===kind?'on':'';b.onclick=()=>{kind=k;pA=null;render()};$('kinds').appendChild(b)});
+  const nmK=Object.fromEntries(KINDS.map(k=>[k[0],k[1]]));
+  $('ulist').innerHTML=s.lines.map((l,k)=>`<span class="ul">${l.tf} ${nmK[l.kind]} <b data-k="${k}" style="cursor:pointer;color:var(--mute)">×</b></span>`).join('');
+  $('ulist').querySelectorAll('b').forEach(b=>b.onclick=()=>{s.lines.splice(+b.dataset.k,1);save();render()});
+  $('rate').innerHTML='';RATES.forEach(([k,nm])=>{const lab=document.createElement('span');lab.textContent='EAの'+nm;$('rate').appendChild(lab);
+    [['ok','合ってる'],['part','一部'],['ng','違う・無い']].forEach(([v,t])=>{const b=document.createElement('button');b.textContent=t;b.className=s.rate[k]===v?'on':'';b.onclick=()=>{s.rate[k]=s.rate[k]===v?undefined:v;save();render()};$('rate').appendChild(b)})});
+  $('note').value=s.note||'';
+  const done=DATA.filter(x=>S[x.id]&&((S[x.id].lines||[]).length||Object.values(S[x.id].rate||{}).some(Boolean))).length;
+  $('cnt').textContent=`${done} / ${DATA.length} 記入済み`;$('pg').style.width=(100*done/DATA.length)+'%';
+  try{localStorage.setItem('draw_i',idx)}catch(e){}
+  hint();draw();
+}
+let saving=Promise.resolve();
+function save(){lsSet();const d=DATA[idx],v=cur();if(!db){$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+  const rate={};for(const k in v.rate)if(v.rate[k])rate[k]=v.rate[k];
+  saving=saving.then(()=>db.collection('draw').doc(d.id).set({lines:v.lines,rate,note:v.note||'',at:new Date().toISOString(),by:me}))
+  .then(()=>{$('st').textContent='保存しました'}).catch(e=>{$('st').textContent='保存できませんでした（この端末には残っています）：'+(e&&e.message||e)})}
+$('note').addEventListener('change',()=>{cur().note=$('note').value;save()});
+$('showEA').onchange=draw;
+function go(k){idx=k;pA=null;render();window.scrollTo(0,0)}
+$('prev').onclick=()=>{if(idx>0)go(idx-1)};$('next').onclick=()=>{if(idx<DATA.length-1)go(idx+1)};
+$('next0').onclick=()=>{const j=DATA.findIndex(x=>!(S[x.id]&&((S[x.id].lines||[]).length||Object.values(S[x.id].rate||{}).some(Boolean))));if(j>=0)go(j)};
+window.addEventListener('resize',draw);window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+render();
+(async()=>{$('st').textContent='保存先に接続中…';const t=setTimeout(()=>{if(!db)$('st').textContent='この端末に保存（共有の保存先につながっていない）'},10000);
+  try{if(!window.claude||!claude.use){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    const d=await claude.use('db');const u=await claude.use('user');if(u){try{me=await u.id()}catch(e){}}
+    if(!d){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    db=d;const snap=await db.collection('draw').get();clearTimeout(t);const docs=snap.docs||snap||[];
+    docs.forEach(x=>{const v=x.data?x.data():x;const id=x.id||v.id;if(id&&!S[id])S[id]={lines:v.lines||[],rate:v.rate||{},note:v.note||''}});
+    lsSet();$('st').textContent='保存先に接続しました';render();
+  }catch(e){clearTimeout(t);$('st').textContent='保存先に接続できません（この端末には保存）：'+(e&&e.message||e)}})();
+</script>
+</body>
+</html>
