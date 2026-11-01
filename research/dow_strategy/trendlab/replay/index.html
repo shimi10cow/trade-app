@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>リプレイで入る瞬間</title>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--up:#16a34a;--dn:#dc2626;--m20:#0284c7;--m75:#7c3aed;--acc:#0ea5e9;--grid:#eef2f7;--chip:#f1f5f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:18px;margin:4px 0 2px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.prog{flex:1;min-width:140px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.sym{font-weight:700;font-size:17px}
+.dir{font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.dir.b{background:var(--up)}.dir.s{background:var(--dn)}
+canvas{width:100%;height:420px;display:block;touch-action:pan-y}
+@media (max-width:600px){canvas{height:330px}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:4px}
+.legend b{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 8px;cursor:pointer}
+button.lab{font-weight:700;padding:14px 6px}
+button.lab.on{outline:3px solid var(--acc)}
+#bT{border-color:var(--up)}#bR{border-color:var(--dn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea{width:100%;margin-top:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.nav button{flex:1}
+.st{font-size:12px;color:var(--mute);margin-top:6px;min-height:18px}
+.small{font-size:13px;padding:6px 10px}
+details{margin-top:14px;color:var(--mute);font-size:13px}
+</style>
+<style>
+:root{--piv:#d97706}
+.tf{font-size:12px;color:var(--mute);margin:8px 0 2px;font-weight:700;display:flex;justify-content:space-between}
+canvas.c{height:200px}#c1{height:280px}
+@media (max-width:600px){canvas.c{height:170px}#c1{height:250px}}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+#aB{border-color:var(--up);font-weight:700;color:var(--up)}#aS{border-color:var(--dn);font-weight:700;color:var(--dn)}
+.mk{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:3px 8px;margin:3px 4px 0 0;font-size:13px}
+.now{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>リプレイで入る瞬間</h1>
+  <p class="sub">過去のチャートを 1 本ずつ進める。先は見えない。いつもの裁量で「今ここで入る」と思った瞬間に買い・売りを押す。持っている時は「決済」も押せる。入らない場面はどんどん進めてよい。</p>
+  <div class="bar"><span id="cnt"></span><div class="prog"><i id="pg" style="width:0"></i></div></div>
+  <div class="card">
+    <div class="head"><div><span class="sym" id="sym"></span> <span class="sub" id="pos"></span></div><div class="sub" style="margin:0" id="no"></div></div>
+    <div class="tf"><span>日足</span></div><canvas class="c" id="cD"></canvas>
+    <div class="tf"><span>H4</span></div><canvas class="c" id="c4"></canvas>
+    <div class="tf"><span>H1（MA20 / MA75）</span><span class="now" id="now"></span></div><canvas class="c" id="c1"></canvas>
+    <div class="steps"><button id="s1">＋1本</button><button id="s4">＋4本</button><button id="s12">＋12本</button><button id="s24">＋24本</button></div>
+    <div class="acts"><button id="aB">今 買う</button><button id="aS">今 売る</button><button id="aX">今 決済</button></div>
+    <div id="marks" style="margin-top:6px"></div>
+    <textarea id="note" placeholder="メモ（任意）：入った理由・見ていたところ"></textarea>
+    <div class="nav"><button id="prev">← 前の場面</button><button id="next">次の場面 →</button></div>
+    <div class="st" id="st"></div>
+  </div>
+  <details><summary>使い方</summary>
+    <p>15 場面（15 銘柄、2012 年以降のランダムな約 4 週間）。各場面 480 本進めると終わり。押した印はその時点の足に付き、あとから付け直しはできない（取り消しは × で）。途中でやめても、次に開いた時に続きから。</p>
+  </details>
+</div>
+<script src="data.js"></script>
+<script>
+const END=d=>d.H1.c.length-1;
+let w=0, db=null, me='me'; const S={};   // id -> {cur, marks, note}
+const $=id=>document.getElementById(id);
+function lsGet(){try{return JSON.parse(localStorage.getItem('replay_v1')||'{}')}catch(e){return{}}}
+function lsSet(){try{localStorage.setItem('replay_v1',JSON.stringify(S))}catch(e){}}
+Object.assign(S,lsGet()); try{const i=+localStorage.getItem('replay_w');if(i>=0&&i<DATA.length)w=i}catch(e){}
+const st=()=>{const d=DATA[w];return S[d.id]=Object.assign({cur:d.start,marks:[],note:''},S[d.id])};
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function chart(cv,f,a,b,dg,opt){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const n=b-a+1,axisW=58,right=30,pad=10;let lo=Infinity,hi=-Infinity;
+  for(let i=a;i<=b;i++){lo=Math.min(lo,f.l[i]);hi=Math.max(hi,f.h[i]);if(opt.ma)for(const m of opt.ma)if(m[i]!=null){lo=Math.min(lo,m[i]);hi=Math.max(hi,m[i])}}
+  const r=hi-lo||1;lo-=r*.05;hi+=r*.05;const pw=W-axisW-right,cw=pw/Math.max(n,opt.minN||0),X=i=>(i-a+.5)*cw,Y=v=>pad+(hi-v)/(hi-lo)*(H-2*pad-14);
+  g.font='11px system-ui';g.strokeStyle=css('--grid');g.fillStyle=css('--mute');
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);g.beginPath();g.moveTo(0,y);g.lineTo(W-axisW,y);g.stroke();g.fillText(v.toFixed(dg),W-axisW+4,y+4)}
+  const stp=Math.max(1,Math.ceil(70/cw));for(let i=a;i<=b;i+=stp)g.fillText(f.tt[i],X(i)-16,H-2);
+  const up=css('--up'),dn=css('--dn'),bw=Math.max(1,cw*.65);
+  for(let i=a;i<=b;i++){const c=f.c[i]>=f.o[i]?up:dn;g.strokeStyle=c;g.fillStyle=c;const x=X(i);g.beginPath();g.moveTo(x,Y(f.h[i]));g.lineTo(x,Y(f.l[i]));g.stroke();
+    const y1=Y(Math.max(f.o[i],f.c[i])),y2=Y(Math.min(f.o[i],f.c[i]));g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
+  if(opt.ma){[['--m20',opt.ma[0]],['--m75',opt.ma[1]]].forEach(([col,m])=>{g.strokeStyle=css(col);g.lineWidth=1.5;g.beginPath();let s=false;for(let i=a;i<=b;i++){if(m[i]==null)continue;s?g.lineTo(X(i),Y(m[i])):g.moveTo(X(i),Y(m[i]));s=true}g.stroke()});g.lineWidth=1}
+  if(opt.piv&&opt.piv.length){const P=opt.piv.filter(p=>p[1]>=a&&p[1]<=b);g.strokeStyle=css('--piv');g.fillStyle=css('--piv');g.lineWidth=1.3;g.beginPath();P.forEach((p,j)=>j?g.lineTo(X(p[1]),Y(p[2])):g.moveTo(X(p[1]),Y(p[2])));g.stroke();
+    P.forEach(p=>{g.beginPath();g.arc(X(p[1]),Y(p[2]),2.5,0,7);g.fill()});
+    g.setLineDash([3,3]);g.lineWidth=1;const his=P.filter(p=>p[3]).slice(-2),los=P.filter(p=>!p[3]).slice(-2);for(const p of his.concat(los)){g.beginPath();g.moveTo(X(p[1]),Y(p[2]));g.lineTo(W-axisW,Y(p[2]));g.stroke()}g.setLineDash([])}
+  if(opt.marks){opt.marks.forEach(m=>{if(m.i<a||m.i>b)return;const x=X(m.i);
+    if(m.side==='exit'){const y=Y(f.c[m.i]);g.strokeStyle=css('--acc');g.lineWidth=2;g.beginPath();g.moveTo(x-6,y-6);g.lineTo(x+6,y+6);g.moveTo(x+6,y-6);g.lineTo(x-6,y+6);g.stroke();g.lineWidth=1;return}
+    const bu=m.side==='buy',y=bu?Y(f.l[m.i])+12:Y(f.h[m.i])-12;g.fillStyle=bu?up:dn;g.beginPath();
+    if(bu){g.moveTo(x,y-8);g.lineTo(x-7,y+4);g.lineTo(x+7,y+4)}else{g.moveTo(x,y+8);g.lineTo(x-7,y-4);g.lineTo(x+7,y-4)}g.fill()})}
+}
+function sma(c,n,upto){const m=new Array(c.length).fill(null);let s=0;for(let i=0;i<=upto;i++){s+=c[i];if(i>=n)s-=c[i-n];if(i>=n-1)m[i]=s/n}return m}
+function pivAt(ev,now){const M={};for(const e of ev){if(e[4]<=now)M[e[0]]=e}return Object.values(M).sort((x,y)=>x[1]-y[1])}
+function lastClosed(cl,now){let k=-1;for(let i=0;i<cl.length;i++){if(cl[i]<=now)k=i;else break}return k}
+function draw(){
+  const d=DATA[w],s=st(),cur=s.cur,now=d.H1.cl[cur];
+  const kD=lastClosed(d.D.cl,now),k4=lastClosed(d.H4.cl,now);
+  chart($('cD'),d.D,Math.max(0,kD-99),kD,d.d,{piv:pivAt(d.D.ev,now),minN:100});
+  chart($('c4'),d.H4,Math.max(0,k4-149),k4,d.d,{piv:pivAt(d.H4.ev,now),minN:150});
+  chart($('c1'),d.H1,Math.max(0,cur-159),cur,d.d,{ma:[sma(d.H1.c,20,cur),sma(d.H1.c,75,cur)],marks:s.marks,minN:160});
+  $('now').textContent='今：'+d.H1.tt[cur]+'時 終値 '+d.H1.c[cur].toFixed(d.d);
+}
+function render(){
+  const d=DATA[w],s=st();
+  $('sym').textContent=d.sym;$('no').textContent=`${w+1} / ${DATA.length}`;
+  const done=s.cur-d.start,tot=END(d)-d.start;$('pos').textContent=`${done} / ${tot} 本`;
+  const all=DATA.reduce((a,x)=>a+(((S[x.id]||{}).cur||x.start)-x.start),0),T=DATA.reduce((a,x)=>a+END(x)-x.start,0);
+  const nm=DATA.reduce((a,x)=>a+((S[x.id]||{}).marks||[]).filter(m=>m.side!=='exit').length,0);
+  $('cnt').textContent=`全体 ${Math.round(100*all/T)}%・入った ${nm} 回`;$('pg').style.width=(100*all/T)+'%';
+  const nmS={buy:'買い',sell:'売り',exit:'決済'};
+  $('marks').innerHTML=s.marks.map((m,k)=>`<span class="mk">${nmS[m.side]} ${d.H1.tt[m.i]}時 <b data-k="${k}" style="cursor:pointer;color:var(--mute)">×</b></span>`).join('');
+  $('marks').querySelectorAll('b').forEach(b=>b.onclick=()=>{s.marks.splice(+b.dataset.k,1);save();render()});
+  $('note').value=s.note||'';
+  ['s1','s4','s12','s24','aB','aS','aX'].forEach(id=>$(id).disabled=s.cur>=END(d)&&id[0]==='s');
+  try{localStorage.setItem('replay_w',w)}catch(e){}
+  draw();
+}
+let saving=Promise.resolve(),timer=null;
+function save(){lsSet();const d=DATA[w],v=st();if(!db){$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+  clearTimeout(timer);timer=setTimeout(()=>{saving=saving.then(()=>db.collection('replay').doc(d.id).set({cur:v.cur,marks:v.marks,note:v.note||'',at:new Date().toISOString(),by:me}))
+  .then(()=>{$('st').textContent='保存しました'}).catch(e=>{$('st').textContent='保存できませんでした（この端末には残っています）：'+(e&&e.message||e)})},400)}
+function step(k){const d=DATA[w],s=st();s.cur=Math.min(END(d),s.cur+k);save();render()}
+function mark(side){const s=st();if(s.marks.some(m=>m.i===s.cur&&m.side===side))return;s.marks.push({i:s.cur,side});save();render()}
+$('s1').onclick=()=>step(1);$('s4').onclick=()=>step(4);$('s12').onclick=()=>step(12);$('s24').onclick=()=>step(24);
+$('aB').onclick=()=>mark('buy');$('aS').onclick=()=>mark('sell');$('aX').onclick=()=>mark('exit');
+$('note').addEventListener('change',()=>{st().note=$('note').value;save()});
+$('prev').onclick=()=>{if(w>0){w--;render();window.scrollTo(0,0)}};$('next').onclick=()=>{if(w<DATA.length-1){w++;render();window.scrollTo(0,0)}};
+document.addEventListener('keydown',e=>{if(e.target.tagName==='TEXTAREA')return;if(e.key==='ArrowRight')step(1);if(e.key==='b')mark('buy');if(e.key==='s')mark('sell')});
+window.addEventListener('resize',draw);window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+render();
+(async()=>{$('st').textContent='保存先に接続中…';const t=setTimeout(()=>{if(!db)$('st').textContent='この端末に保存（共有の保存先につながっていない）'},10000);
+  try{if(!window.claude||!claude.use){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    const d=await claude.use('db');const u=await claude.use('user');if(u){try{me=await u.id()}catch(e){}}
+    if(!d){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    db=d;const snap=await db.collection('replay').get();clearTimeout(t);const docs=snap.docs||snap||[];
+    docs.forEach(x=>{const v=x.data?x.data():x;const id=x.id||v.id;if(!id)return;const loc=S[id];if(!loc||(v.cur||0)>(loc.cur||0))S[id]={cur:v.cur,marks:v.marks||[],note:v.note||''}});
+    lsSet();$('st').textContent='保存先に接続しました';render();
+  }catch(e){clearTimeout(t);$('st').textContent='保存先に接続できません（この端末には保存）：'+(e&&e.message||e)}})();
+</script>
+</body>
+</html>
