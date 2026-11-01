@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ダウの場面ラベル</title>
+<style>
+:root{--bg:#f8fafc;--card:#ffffff;--ink:#0f172a;--mute:#64748b;--line:#e2e8f0;--up:#16a34a;--dn:#dc2626;--m20:#0284c7;--m75:#7c3aed;--acc:#0ea5e9;--grid:#eef2f7;--chip:#f1f5f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--mute:#94a3b8;--line:#1e293b;--up:#22c55e;--dn:#ef4444;--m20:#38bdf8;--m75:#a78bfa;--acc:#38bdf8;--grid:#16213a;--chip:#1a2540}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 16px 40px}
+h1{font-size:18px;margin:4px 0 2px}
+.sub{color:var(--mute);font-size:13px;margin:0 0 10px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.prog{flex:1;min-width:140px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.sym{font-weight:700;font-size:17px}
+.dir{font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.dir.b{background:var(--up)}.dir.s{background:var(--dn)}
+canvas{width:100%;height:420px;display:block;touch-action:pan-y}
+@media (max-width:600px){canvas{height:330px}}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:4px}
+.legend b{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:4px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 8px;cursor:pointer}
+button.lab{font-weight:700;padding:14px 6px}
+button.lab.on{outline:3px solid var(--acc)}
+#bT{border-color:var(--up)}#bR{border-color:var(--dn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+textarea{width:100%;margin-top:8px;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:44px}
+.nav{display:flex;gap:8px;margin-top:10px}
+.nav button{flex:1}
+.st{font-size:12px;color:var(--mute);margin-top:6px;min-height:18px}
+.small{font-size:13px;padding:6px 10px}
+details{margin-top:14px;color:var(--mute);font-size:13px}
+</style>
+<style>
+.tf{font-size:12px;color:var(--mute);margin:8px 0 2px;font-weight:700}
+canvas.c{height:240px}
+@media (max-width:600px){canvas.c{height:210px}}
+:root{--piv:#d97706}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ダウの場面ラベル</h1>
+  <p class="sub">H4 の出入口・砦・推進ラインに値が来た場面。先は見せない。いつもの裁量なら「入る」か「見送る」かを選ぶ。理由のタグが一番の手がかり。</p>
+  <div class="bar">
+    <span id="cnt">0 / 0</span>
+    <div class="prog"><i id="pg" style="width:0"></i></div>
+    <button class="small" id="next0">未判定へ</button>
+  </div>
+  <div class="card">
+    <div class="head">
+      <div><span class="sym" id="sym"></span> <span class="dir" id="dir"></span></div>
+      <div class="sub" style="margin:0" id="no"></div>
+    </div>
+    <div class="tf">日足（120本・ダウの山谷）</div><canvas class="c" id="cD"></canvas>
+    <div class="tf">H4（180本・ダウの山谷）</div><canvas class="c" id="c4"></canvas>
+    <div class="tf">H1（200本・MA20 / MA75）　▲▼＝ここで入るか</div><canvas class="c" id="c1"></canvas>
+    <div class="legend"><span><b style="background:var(--piv)"></b>ダウの山谷（その時点で確定していたもの）</span><span><b style="background:var(--m20)"></b>MA20</span><span><b style="background:var(--m75)"></b>MA75</span></div>
+    <div class="btns">
+      <button class="lab" id="bT" data-l="enter">入る</button>
+      <button class="lab" id="bR" data-l="skip">見送る</button>
+      <button class="lab" id="bU" data-l="unsure">分からない</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <textarea id="note" placeholder="メモ（任意）：どこを見て決めたか"></textarea>
+    <div class="nav"><button id="prev">← 前</button><button id="next">次 →</button></div>
+    <div class="st" id="st"></div>
+  </div>
+  <details><summary>使い方</summary>
+    <p>判定ボタンで保存して次へ。タグとメモは押した時点で保存。あとで直してもよい。15 銘柄、2012 年以降からランダムに 86 場面。</p>
+  </details>
+</div>
+<script src="data.js"></script>
+<script>
+const TAGS=['日足と同じ向き','日足と逆','H4転換したばかり','出入口で支え・抑え','砦（押し安値・戻り高値）で支え・抑え','推進ラインで支え・抑え','逆向きの線を抜けた','反発の形が良い','MAの形が良い','伸びすぎ・遠い','近くに抵抗','レンジ・波が汚い','押しが浅い','押しが深すぎ','ルール外'];
+let idx=0, db=null, me='me';
+const L={}; const $=id=>document.getElementById(id);
+function lsGet(){try{return JSON.parse(localStorage.getItem('dlabels_v1')||'{}')}catch(e){return{}}}
+function lsSet(){try{localStorage.setItem('dlabels_v1',JSON.stringify(L))}catch(e){}}
+Object.assign(L,lsGet());
+try{const i=+localStorage.getItem('dlabels_idx');if(i>=0&&i<DATA.length)idx=i}catch(e){}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function chart(cv,f,dg,mark){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const n=f.c.length,axisW=58,right=26,pad=10;let lo=Infinity,hi=-Infinity;
+  for(let i=0;i<n;i++){lo=Math.min(lo,f.l[i]);hi=Math.max(hi,f.h[i]);for(const k of ['m20','m75'])if(f[k]){lo=Math.min(lo,f[k][i]);hi=Math.max(hi,f[k][i])}}
+  const r=hi-lo;lo-=r*.05;hi+=r*.05;const pw=W-axisW-right,cw=pw/n,X=i=>(i+.5)*cw,Y=v=>pad+(hi-v)/(hi-lo)*(H-2*pad-14);
+  g.font='11px system-ui';g.strokeStyle=css('--grid');g.fillStyle=css('--mute');
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);g.beginPath();g.moveTo(0,y);g.lineTo(pw+right,y);g.stroke();g.fillText(v.toFixed(dg),pw+right+4,y+4)}
+  const st=Math.max(1,Math.ceil(70/cw));for(let i=0;i<n;i+=st)g.fillText(f.tt[i],X(i)-16,H-2);
+  g.fillStyle=css('--grid');g.fillRect(pw,0,right,H-14);
+  const up=css('--up'),dn=css('--dn'),bw=Math.max(1,cw*.65);
+  for(let i=0;i<n;i++){const c=f.c[i]>=f.o[i]?up:dn;g.strokeStyle=c;g.fillStyle=c;const x=X(i);g.beginPath();g.moveTo(x,Y(f.h[i]));g.lineTo(x,Y(f.l[i]));g.stroke();
+    const y1=Y(Math.max(f.o[i],f.c[i])),y2=Y(Math.min(f.o[i],f.c[i]));g.fillRect(x-bw/2,y1,bw,Math.max(1,y2-y1))}
+  for(const [k,col] of [['m20','--m20'],['m75','--m75']]){if(!f[k])continue;g.strokeStyle=css(col);g.lineWidth=1.5;g.beginPath();f[k].forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke()}
+  if(f.p&&f.p.length){g.strokeStyle=css('--piv');g.fillStyle=css('--piv');g.lineWidth=1.3;g.beginPath();f.p.forEach((p,j)=>j?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.stroke();
+    f.p.forEach(p=>{g.beginPath();g.arc(X(p[0]),Y(p[1]),2.5,0,7);g.fill()});
+    // dotted levels: last two highs and lows
+    const his=f.p.filter(p=>p[2]).slice(-2),los=f.p.filter(p=>!p[2]).slice(-2);g.setLineDash([3,3]);g.lineWidth=1;
+    for(const p of his.concat(los)){g.beginPath();g.moveTo(X(p[0]),Y(p[1]));g.lineTo(pw+right,Y(p[1]));g.stroke()}g.setLineDash([])}
+  g.lineWidth=1;
+  if(mark){const x=X(n-1),buy=mark===1,y=buy?Y(f.l[n-1])+12:Y(f.h[n-1])-12;g.fillStyle=css('--acc');g.beginPath();
+    if(buy){g.moveTo(x,y-8);g.lineTo(x-7,y+4);g.lineTo(x+7,y+4)}else{g.moveTo(x,y+8);g.lineTo(x-7,y-4);g.lineTo(x+7,y-4)}g.fill()}
+}
+function draw(){const d=DATA[idx];chart($('cD'),d.D,d.d,0);chart($('c4'),d.H4,d.d,0);chart($('c1'),d.H1,d.d,d.s)}
+function render(){
+  const d=DATA[idx],l=L[d.id]||{};
+  $('sym').textContent=d.sym;const dir=$('dir');dir.textContent=d.s===1?'買い候補':'売り候補';dir.className='dir '+(d.s===1?'b':'s');
+  $('no').textContent=`${idx+1} / ${DATA.length}`;
+  document.querySelectorAll('.lab').forEach(b=>b.classList.toggle('on',l.label===b.dataset.l));
+  $('chips').innerHTML='';TAGS.forEach(t=>{const c=document.createElement('button');c.className='chip'+((l.tags||[]).includes(t)?' on':'');c.textContent=t;c.onclick=()=>toggleTag(t);$('chips').appendChild(c)});
+  $('note').value=l.note||'';
+  const done=DATA.filter(x=>L[x.id]&&L[x.id].label).length;$('cnt').textContent=`${done} / ${DATA.length} 判定済み`;$('pg').style.width=(100*done/DATA.length)+'%';
+  try{localStorage.setItem('dlabels_idx',idx)}catch(e){}
+  draw();
+}
+let saving=Promise.resolve();
+function save(id){lsSet();const v=L[id];if(!db){$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+  saving=saving.then(()=>db.collection('labels').doc(id).set({label:v.label||'',tags:v.tags||[],note:v.note||'',at:new Date().toISOString(),by:me}))
+  .then(()=>{$('st').textContent='保存しました'}).catch(e=>{$('st').textContent='保存できませんでした（この端末には残っています）：'+(e&&e.message||e)})}
+function setLabel(lab){const id=DATA[idx].id;L[id]=Object.assign({},L[id],{label:lab,note:$('note').value});save(id);if(idx<DATA.length-1){idx++;window.scrollTo(0,0)}render()}
+function toggleTag(t){const id=DATA[idx].id,l=L[id]=Object.assign({tags:[]},L[id]);l.tags=l.tags.includes(t)?l.tags.filter(z=>z!==t):[...l.tags,t];save(id);render()}
+document.querySelectorAll('.lab').forEach(b=>b.onclick=()=>setLabel(b.dataset.l));
+$('note').addEventListener('change',()=>{const id=DATA[idx].id;L[id]=Object.assign({},L[id],{note:$('note').value});save(id)});
+$('prev').onclick=()=>{if(idx>0){idx--;render()}};$('next').onclick=()=>{if(idx<DATA.length-1){idx++;render()}};
+$('next0').onclick=()=>{const j=DATA.findIndex(x=>!(L[x.id]&&L[x.id].label));if(j>=0){idx=j;render()}};
+window.addEventListener('resize',draw);window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+render();
+(async()=>{$('st').textContent='保存先に接続中…';const t=setTimeout(()=>{if(!db)$('st').textContent='この端末に保存（共有の保存先につながっていない）'},10000);
+  try{if(!window.claude||!claude.use){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    const d=await claude.use('db');const u=await claude.use('user');if(u){try{me=await u.id()}catch(e){}}
+    if(!d){clearTimeout(t);$('st').textContent='この端末に保存（共有の保存先につながっていない）';return}
+    db=d;const snap=await db.collection('labels').get();clearTimeout(t);const docs=snap.docs||snap||[];
+    docs.forEach(x=>{const v=x.data?x.data():x;const id=x.id||v.id;if(id&&!L[id])L[id]={label:v.label,tags:v.tags||[],note:v.note||''}});
+    for(const id of Object.keys(L)){if(!docs.some(x=>x.id===id))save(id)}
+    $('st').textContent='保存先に接続しました';render();
+  }catch(e){clearTimeout(t);$('st').textContent='保存先に接続できません（この端末には保存）：'+(e&&e.message||e)}})();
+</script>
+</body>
+</html>
