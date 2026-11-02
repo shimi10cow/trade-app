@@ -244,10 +244,11 @@ function ealResSave_(b) {
 /** Hourly time trigger (add in the editor: Triggers > eaWatchdog, every hour). Telegram once when an EA PC stopped
  * sending heartbeats for over 2 hours, and once when it comes back. Needs Script properties TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
 // Backtest per EA (research, R after costs): win %, average R, PF. Same numbers as the app (ea_live.js BT).
-const EAL_BT_ = {"A@EURUSD":[43.1,0.202,1.38],"C@EURUSD":[45.2,0.218,1.43],"C@USDJPY":[43.1,0.319,1.63],"DS@JP225":[40.5,0.179,1.29],"DS@US500":[50.0,0.293,1.51],
-  "DS@XAUUSD":[49.2,0.27,1.58],"J2@USDJPY":[38.9,0.491,1.8],"L2@XAUUSD":[43.1,0.355,1.68],"L@EURUSD":[41.8,0.279,1.53],"M@US30":[73.8,0.116,1.73],"M@US500":[76.1,0.119,1.76],
-  "Q@US30":[43.1,0.295,1.55],"Q@XAGUSD":[35.7,0.913,2.49],"Q@XAUUSD":[44.2,0.189,1.72],"R@EURUSD":[47.4,0.71,2.26],"S@BTCUSD":[35.0,0.686,2.0],"S@XAUUSD":[37.7,0.143,1.48],
-  "T2@EURUSD":[41.1,0.397,1.67],"T@US30":[36.7,0.127,1.2]};
+const EAL_BT_ = {"A@EURUSD":[43.1, 0.202, 1.38], "C@EURUSD":[45.2, 0.218, 1.43], "C@USDJPY":[42.3, 0.271, 1.5], "DS@JP225":[48.1, 0.439, 1.84], "DS@US500":[50.0, 0.293, 1.51],
+  "DS@XAUUSD":[49.2, 0.27, 1.58], "J2@USDJPY":[38.9, 0.491, 1.8], "L2@XAUUSD":[43.1, 0.355, 1.68], "L@EURUSD":[41.8, 0.279, 1.53], "M@US30":[73.8, 0.116, 1.73],
+  "M@US500":[76.1, 0.119, 1.76], "Q@US30":[49.3, 0.474, 2.01], "Q@XAGUSD":[41.2, 0.78, 2.39], "Q@XAUUSD":[44.2, 0.189, 1.72], "R@EURUSD":[40.2, 0.325, 1.51],
+  "S@BTCUSD":[35.0, 0.686, 2.0], "S@XAUUSD":[37.7, 0.143, 1.48], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[37.6, 0.218, 1.36], "NEW@XAUUSD":[47.9, 1.381, 3.85],
+  "NEW@EURUSD":[53.9, 0.574, 2.39], "NEW@USDJPY":[51.7, 0.432, 1.94]};
 
 /** Once a day (from eaWatchdog): per account and EA, live results next to the backtest + order quality. Kept in EA_Health only (not in the app). */
 function ealHealth_() {

@@ -137,12 +137,22 @@ def _impulse(m, h1):
     return f
 
 
-def _h1_pivots(h1):
-    """Confirmed H1 swings (env_recognition, 1.9 x ATR7) as the engine's trail pivots (kind L/H, price, confirm_time)."""
+def _h1_pivots(h1, m15_times):
+    """Confirmed H1 swings (env_recognition, 1.9 x ATR7) as the engine's trail pivots (kind L/H, price, confirm_time).
+    The engine stores a pivot on the M15 bar whose time equals confirm_time and uses it from the next bar. An H1 bar that
+    closes into a gap (weekend, holiday) has no M15 bar at its close time, so its pivot is keyed to the last M15 bar before
+    it: it is then used from the first bar after the gap, as in the research trail (pivots confirmed before the bar)."""
     ev = pivot_events(h1.rename(columns=dict(open='o', high='h', low='l', close='c'))[['o', 'h', 'l', 'c']].reset_index(drop=True))
-    Ch = h1.avail_time.reset_index(drop=True)
-    return pd.DataFrame([dict(kind='L' if e['kind'] == 'lo' else 'H', price=e['price'], confirm_time=Ch[e['available_idx']])
-                         for e in ev if e['action'] == 'confirm']).sort_values('confirm_time').reset_index(drop=True)
+    Ch = h1.avail_time.reset_index(drop=True); T = np.asarray(m15_times, dtype='datetime64[ns]')
+    rows = []
+    for e in ev:
+        if e['action'] != 'confirm':
+            continue
+        c = np.datetime64(Ch[e['available_idx']]); k = int(np.searchsorted(T, c, side='right')) - 1
+        if k < 0:
+            continue
+        rows.append(dict(kind='L' if e['kind'] == 'lo' else 'H', price=e['price'], confirm_time=pd.Timestamp(T[k])))
+    return pd.DataFrame(rows).sort_values('confirm_time').reset_index(drop=True)
 
 
 _SEED = {}
@@ -179,7 +189,7 @@ def config(F: Frames, sym, m15, log=None):
             log[(pd.Timestamp(t), s)] = dict(band=hit, m20d=m20d, imp=ip, op=op, sl4=sl4, ok=ok)
         return bool(ok)
     return EM.Config(extra_filter=extra, max_positions=2, use_delayed_zz=False, trail_start_R=1.0, trail_close_check=True,
-                     trail_pivots=_h1_pivots(h1))
+                     trail_pivots=_h1_pivots(h1, m.time.to_numpy()))
 
 
 def run(F: Frames, sym, env=None, m15=None, seed=True, log=None):
