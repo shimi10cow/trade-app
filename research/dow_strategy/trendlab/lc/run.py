@@ -11,9 +11,8 @@ sym=sys.argv[1]; t0=time.time()
 LOGS={'XAUUSD','US500','JP225','OIL','NGAS'}
 COST={'XAUUSD':2.5e-4,'US500':2e-4,'JP225':3e-4,'OIL':6e-4,'NGAS':6e-3,'GBPUSD':1.6e-4,'USDCAD':2e-4,'USDCHF':2e-4,'CADJPY':2.5e-4,'EURJPY':2e-4,'AUDJPY':1.5e-4,'CHFJPY':1.5e-4,'USDJPY':1.5e-4,'AUDUSD':1.5e-4}
 m=pd.read_pickle(f'/home/user/trendlab/stoch/m15_{sym}.pkl').rename(columns=dict(time='t',open='o',high='h',low='l',close='c'))
-for z in 'ohlc':
-    if sym in LOGS: m[z]=np.log(m[z])
-    elif sym.endswith('JPY'): m[z]=m[z]/100
+for z in 'ohlc':                     # gold / indices / oil / gas are already natural log in this cache
+    if sym.endswith('JPY'): m[z]=m[z]/100
 start='2005-06-01' if m.t.iat[0]<pd.Timestamp('2005-01-01') else str((m.t.iat[0]+pd.Timedelta(days=200)).date())
 F=Frames(m,start,h_days=10000,m_days=10000); print('frames',round(time.time()-t0),flush=True)
 out=[]
