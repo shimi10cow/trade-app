@@ -1,6 +1,6 @@
 """The adopted EAs (research/INSTRUMENT_PROFILES.md, RESEARCH_LOG §106) as one table the live runner walks through (2026-10-24).
 2026-11-02 (docs/EA_PLAN_20261102.md): H4 opening gate on C@USDJPY, T@US30, Q@XAGUSD, Q@US30, DS@JP225; H4 MA75 slope gate on
-R@EURUSD; new trend EA NEW@ on XAUUSD / EURUSD / USDJPY.
+R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -50,10 +50,10 @@ ADOPTED = [
     EA('DS@JP225', 'JP225', gate(lambda F, env: DS.run_adopted(F, 'JP225'), 'open')),
     EA('DS@US500', 'US500', lambda F, env: DS.run_adopted(F, 'US500')),
     EA('DS@XAUUSD', 'XAUUSD', lambda F, env: DS.run_adopted(F, 'XAUUSD')),
-    # new trend EA (2026-11-02): appended at the end so the existing magic numbers stay the same
-    EA('NEW@XAUUSD', 'XAUUSD', lambda F, env: NT.run(F, 'XAUUSD'), window_days=800, warm_days=400),
-    EA('NEW@EURUSD', 'EURUSD', lambda F, env: NT.run(F, 'EURUSD'), window_days=800, warm_days=400),
-    EA('NEW@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), window_days=800, warm_days=400),
+    # P: new trend EA (2026-11-02): appended at the end so the existing magic numbers stay the same
+    EA('P@XAUUSD', 'XAUUSD', lambda F, env: NT.run(F, 'XAUUSD'), window_days=800, warm_days=400),
+    EA('P@EURUSD', 'EURUSD', lambda F, env: NT.run(F, 'EURUSD'), window_days=800, warm_days=400),
+    EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), window_days=800, warm_days=400),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})

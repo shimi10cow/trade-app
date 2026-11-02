@@ -1,4 +1,4 @@
-"""NEW trend EA (新 EA / ST2): the original M15 stochastic EA (research/core/engine_m15.py) with seven more entry conditions,
+"""P: the new trend EA (新 EA / ST2 in the research notes): the original M15 stochastic EA (research/core/engine_m15.py) with seven more entry conditions,
 an H1-swing trail from +1R and at most 2 positions (docs/EA_PLAN_20261102.md, RESEARCH_LOG §135-§149, 2026-11-02).
 
 Kept from the original EA: H1 SMA20/75 regime, M15 stochastic (14,3,5) 20 -> K over D -> over 20 (sells mirrored), P1/P2 only,
@@ -16,7 +16,7 @@ Added (all from bars closed at the signal):
 Exit: from +1R, the stop follows the last confirmed H1 swing (env_recognition pivots, 1.9 x ATR7) that is below (above) the close.
 No target, no time exit. Same symbol: 2 positions at most.
 Live caveat: q75 compares each signal with every earlier qualifying signal since the data start; the live window is short, so the
-research history before the window is loaded from mt5_ea/live/data/q75_NEW_{sym}.json (as R@EURUSD does).
+research history before the window is loaded from mt5_ea/live/data/q75_P_{sym}.json (as R@EURUSD does).
 """
 import bisect
 import json
@@ -160,7 +160,7 @@ _SEED = {}
 
 def q75_seed(sym, before):
     if sym not in _SEED:
-        f = DATA / f'q75_NEW_{sym}.json'
+        f = DATA / f'q75_P_{sym}.json'
         _SEED[sym] = json.loads(f.read_text())['points'] if f.exists() else []
     b = str(pd.Timestamp(before)); out = {1: [], -1: []}
     for t, sd, v in _SEED[sym]:

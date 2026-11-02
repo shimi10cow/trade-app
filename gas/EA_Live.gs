@@ -247,8 +247,8 @@ function ealResSave_(b) {
 const EAL_BT_ = {"A@EURUSD":[43.1, 0.202, 1.38], "C@EURUSD":[45.2, 0.218, 1.43], "C@USDJPY":[42.3, 0.271, 1.5], "DS@JP225":[48.1, 0.439, 1.84], "DS@US500":[50.0, 0.293, 1.51],
   "DS@XAUUSD":[49.2, 0.27, 1.58], "J2@USDJPY":[38.9, 0.491, 1.8], "L2@XAUUSD":[43.1, 0.355, 1.68], "L@EURUSD":[41.8, 0.279, 1.53], "M@US30":[73.8, 0.116, 1.73],
   "M@US500":[76.1, 0.119, 1.76], "Q@US30":[49.3, 0.474, 2.01], "Q@XAGUSD":[41.2, 0.78, 2.39], "Q@XAUUSD":[44.2, 0.189, 1.72], "R@EURUSD":[40.2, 0.325, 1.51],
-  "S@BTCUSD":[35.0, 0.686, 2.0], "S@XAUUSD":[37.7, 0.143, 1.48], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[37.6, 0.218, 1.36], "NEW@XAUUSD":[47.9, 1.381, 3.85],
-  "NEW@EURUSD":[53.9, 0.574, 2.39], "NEW@USDJPY":[51.7, 0.432, 1.94]};
+  "S@BTCUSD":[35.0, 0.686, 2.0], "S@XAUUSD":[37.7, 0.143, 1.48], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[37.6, 0.218, 1.36], "P@XAUUSD":[47.9, 1.381, 3.85],
+  "P@EURUSD":[53.9, 0.574, 2.39], "P@USDJPY":[51.7, 0.432, 1.94]};
 
 /** Once a day (from eaWatchdog): per account and EA, live results next to the backtest + order quality. Kept in EA_Health only (not in the app). */
 function ealHealth_() {

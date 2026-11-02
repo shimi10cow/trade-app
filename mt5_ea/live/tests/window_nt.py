@@ -22,7 +22,7 @@ TL = Path(os.environ.get('TRENDLAB', '/home/user/trendlab'))
 
 
 def main(sym, n_cuts=12, span=120):
-    e = BY_KEY[f'NEW@{sym}']; m = live_m15(sym); m['t'] = pd.to_datetime(m.t)
+    e = BY_KEY[f'P@{sym}']; m = live_m15(sym); m['t'] = pd.to_datetime(m.t)
     full = pd.read_pickle(TL / f'parity_nt_{sym}.pkl')['mine']
     cuts = pd.date_range('2009-01-01', '2026-06-01', periods=n_cuts)
     same = diff_live = diff_full = 0; rows = []
