@@ -16,7 +16,7 @@ for e in [x for x in ADOPTED if x.symbol==sym]:
         r=e.run(F,env); tr=pd.DataFrame(r['trades'])
         if not len(tr): print(e.key,'0'); continue
         tc=[c for c in ('t','time','entry_t') if c in tr][0]; ec=[c for c in ('exit_t','ExitTime') if c in tr][0]
-        x=pd.DataFrame(dict(key=e.key,sym=sym,t=pd.to_datetime(tr[tc]),exit_t=pd.to_datetime(tr[ec]),R=tr['R'].astype(float),weight=e.weight))
+        x=pd.DataFrame(dict(key=e.key,sym=sym,t=pd.to_datetime(tr[tc]),exit_t=pd.to_datetime(tr[ec]),R=tr['R'].astype(float),weight=e.weight,side=tr['side'].astype(int)))
         x=x[x.t>=pd.Timestamp(start)]
         if e.key.startswith('S@BTC'): x=x[x.t.dt.dayofweek<5]
         out.append(x); print(e.key,len(x),round(x.R.mean(),3),round(time.time()-t0),flush=True)
