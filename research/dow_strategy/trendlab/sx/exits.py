@@ -4,7 +4,7 @@ sym=sys.argv[1]; os.environ['EA_M15_CACHE']=f'/home/user/trendlab/stoch/m15_{sym
 sys.path.insert(0,'/home/user/trade-app/research/core'); sys.path.insert(0,'/home/user/trade-app/research')
 import engine_m15 as EM
 from env_recognition.pivots import pivot_events
-COST={'EURUSD':1.2e-4,'USDJPY':1.5e-2,'XAUUSD':2.5e-4}[sym]; pip=.01 if sym.endswith('JPY') else .0001
+COST={'EURUSD':1.2e-4,'USDJPY':1.5e-2,'XAUUSD':2.5e-4,'XAGUSD':8e-4,'BTCUSD':8e-4,'US30':1.5e-4,'US500':2e-4,'JP225':3e-4}[sym]; pip=.01 if sym.endswith('JPY') else .0001
 m,h1,h4,h1p,m15p=EM.build_features(sym)
 T=m.time.to_numpy(); H=m.high.to_numpy(); L=m.low.to_numpy(); C=m.close.to_numpy(); n=len(C); A15=m.atr.to_numpy()
 P=m15p.sort_values('confirm_time'); PT=P.confirm_time.to_numpy(); PK=P.kind.to_numpy(); PP=P.price.to_numpy()

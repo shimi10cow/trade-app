@@ -5,7 +5,7 @@ from mt5_ea.live.eas import l as EL, c as EC
 from env_recognition import dow_trend
 from env_recognition.pivots import atr
 sym=sys.argv[1]; confs=sys.argv[2].split(','); t0=time.time()
-COST={'EURUSD':1.2e-4,'USDJPY':1.5e-2,'XAUUSD':2.5e-4}
+COST={'EURUSD':1.2e-4,'USDJPY':1.5e-2,'XAUUSD':2.5e-4,'XAGUSD':8e-4,'BTCUSD':8e-4,'US30':1.5e-4,'US500':2e-4,'JP225':3e-4}
 m=pd.read_pickle(f'/home/user/trendlab/stoch/m15_{sym}.pkl').rename(columns=dict(time='t',open='o',high='h',low='l',close='c'))
 if sym.endswith('JPY'):
     for z in 'ohlc': m[z]=m[z]/100
