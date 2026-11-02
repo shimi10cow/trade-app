@@ -59,6 +59,8 @@ class Config:
     tp_fn:object=None          # optional callable(time, side, entry, risk) -> take-profit price or None
     tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
     sl_fn:object=None          # optional callable(time, side, entry, default_sl) -> stop price, or None to skip the trade
+    trail_start_R:float=2.0    # trailing starts once price has gone this many R in favour (canonical 2R)
+    trail_close_check:bool=False  # True: only trail to a pivot that is beyond the current close on the safe side (new trend EA, 2026-11-02)
 CFG=Config()
 
 def load_m15(pair):
@@ -341,12 +343,12 @@ def run_pair(pair,cfg=CFG):
         for p in positions:
             if not p['trail_on']:
                 fav=(r.high-p['entry']) if p['side']==1 else (p['entry']-r.low)
-                hit2=fav>=2*p['risk']
+                hit2=fav>=cfg.trail_start_R*p['risk']
                 delayed=cfg.use_delayed_zz and ((t-p['time']).total_seconds()/3600>=cfg.delayed_zz_hours)
                 if hit2 or delayed:
                     p['trail_on']=True; p['trail_reason']='2R' if hit2 else '240h'
                     pv=latest_pivot['L' if p['side']==1 else 'H']
-                    if pv is not None:
+                    if pv is not None and not (cfg.trail_close_check and (pv['price']-r.close)*p['side']>=0):
                         cand=pv['price']
                         if p['side']==1 and cand>p['sl']:p['sl']=cand
                         if p['side']==-1 and cand<p['sl']:p['sl']=cand
@@ -359,7 +361,7 @@ def run_pair(pair,cfg=CFG):
         for p in positions:
             if p['trail_on']:
                 pv=latest_pivot['L' if p['side']==1 else 'H']
-                if pv is not None and pv['confirm_time']<t:
+                if pv is not None and pv['confirm_time']<t and not (cfg.trail_close_check and (pv['price']-r.close)*p['side']>=0):
                     cand=pv['price']
                     if p['side']==1 and cand>p['sl']:p['sl']=cand
                     if p['side']==-1 and cand<p['sl']:p['sl']=cand
