@@ -110,7 +110,7 @@
   const BTX = {"A@EURUSD":[2005,2026,153,66,87,43.1,0.2,1.38,8.1,7.1,1.4],"C@EURUSD":[2005,2026,321,145,176,45.2,0.22,1.43,12.5,14.8,3.2],"C@USDJPY":[2005,2026,239,101,138,42.3,0.271,1.5,14.0,11.2,3.0],"DS@JP225":[2017,2026,81,39,42,48.1,0.439,1.84,5.0,8.8,3.8],"DS@US500":[2017,2026,46,23,23,50.0,0.29,1.51,4.7,4.8,1.4],"DS@XAUUSD":[2005,2026,189,93,96,49.2,0.27,1.58,6.2,9.0,2.4],"J2@USDJPY":[2005,2026,239,93,146,38.9,0.49,1.8,17.7,11.0,5.4],"L2@XAUUSD":[2005,2026,218,94,124,43.1,0.36,1.68,13.2,10.3,3.7],"L@EURUSD":[2005,2026,297,124,173,41.8,0.28,1.53,12.2,13.8,3.8],"M@US30":[2015,2026,107,79,28,73.8,0.12,1.73,2.6,9.9,1.1],"M@US500":[2017,2026,88,67,21,76.1,0.12,1.76,4.0,9.7,1.2],"Q@US30":[2016,2026,75,37,38,49.3,0.474,2.01,7.6,7.0,3.3],"Q@XAGUSD":[2005,2026,97,40,57,41.2,0.78,2.39,11.1,4.7,3.7],"Q@XAUUSD":[2005,2026,727,321,406,44.2,0.19,1.72,14.0,33.4,6.3],"R@EURUSD":[2005,2026,102,41,61,40.2,0.325,1.51,10.9,5.0,1.6],"S@BTCUSD":[2017,2026,280,98,182,35.0,0.69,2.0,17.9,30.3,20.8],"S@XAUUSD":[2005,2026,626,236,390,37.7,0.14,1.48,16.0,29.0,4.1],"T2@EURUSD":[2005,2026,377,155,222,41.1,0.4,1.67,17.6,17.4,6.9],"T@US30":[2015,2026,181,68,113,37.6,0.218,1.36,16.5,16.3,3.5],"P@XAUUSD":[2005,2026,167,80,87,47.9,1.381,3.85,7.8,7.9,10.9],"P@EURUSD":[2005,2026,89,48,41,53.9,0.574,2.39,6.0,4.3,2.5],"P@USDJPY":[2005,2026,87,45,42,51.7,0.432,1.94,6.9,4.2,1.8]};
   const MIN_ACC = {'R@EURUSD': 20, 'T2@EURUSD': 20, 'L@EURUSD': 20, 'A@EURUSD': 20, 'C@EURUSD': 20, 'C@USDJPY': 20, 'J2@USDJPY': 20, 'DS@JP225': 20, 'S@BTCUSD': 20,
     'DS@US500': 30, 'M@US500': 50, 'T@US30': 50, 'L2@XAUUSD': 50, 'DS@XAUUSD': 60, 'Q@XAGUSD': 60, 'Q@US30': 60, 'S@XAUUSD': 100, 'Q@XAUUSD': 100, 'M@US30': 300,
-    'P@USDJPY': 20, 'P@EURUSD': 20, 'P@XAUUSD': 30};
+    'P@USDJPY': 20, 'P@EURUSD': 20, 'P@XAUUSD': 50};
   const BT_NOTE = {
     'T@US30': '外す候補だったが、11/2 から H4 が伸びきった時（開き 2.5 以上）は見送りにして PF 1.21→1.36・DD 19.5→16.5R',
     'DS@JP225': '外す候補：PF 1.29 と弱め（ただし 20 万円から使える数少ない株価指数）。10/28 から左肩→ネックが 24 時間未満の細い形は見送り（検証 2017〜：+18.5R→+25.6R、平均 0.18→0.29R）。11/2 から H4 が伸びきった時（開き 2.5 以上）も見送り（DD 7.1→5.0R）',
@@ -127,14 +127,15 @@
     'Q@XAGUSD': '11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 14.2→11.1R）',
     'Q@US30': '11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 9.8→7.6R）',
     'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）', 'L2@XAUUSD': '伸びる先に壁がある時は見送り'};
-  // portfolio combinations (RESEARCH_LOG §107 / §106: 1% risk, half at DD 10%, calendar x1.5, backtest as is)
+  // portfolio combinations (2026-11-05: live-code trades with the H4 gates + P, same method as RESEARCH_LOG §107: 1% risk, half at DD 10%,
+  // calendar x1.5, gold S / Q at half weight, backtest as is; trendlab/combo_app.py)
   const COMBOS = [
-    ['20 万円', '9 本', 'FX 7 本（ユーロドル R・T2・L・A・C、ドル円 C・J2）＋日経右肩＋BTC S', '+43%', '-18%', '約 100 回'],
-    ['30 万円', '10 本', '上の 9 本＋US500 右肩', '+45%', '-17%', '約 102 回'],
-    ['50 万円', '13 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2', '+55%', '-19%', ''],
-    ['60 万円', '16 本', '＋ゴールド右肩・銀 Q・US30 Q', '+69%', '-21%', ''],
-    ['100 万円', '18 本', '＋ゴールド S・Q（ロット半分）', '+79%', '-19%', ''],
-    ['300 万円', '19 本（全部）', '＋US30 短い押し目', '+80%', '-19%', ''],
+    ['20 万円', '11 本', 'FX 9 本（ユーロドル R・T2・L・A・C・P、ドル円 C・J2・P）＋日経右肩＋BTC S', '+38%', '-17%', '約 105 回'],
+    ['30 万円', '12 本', '上の 11 本＋US500 右肩', '+39%', '-18%', '約 107 回'],
+    ['50 万円', '16 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2・ゴールド P', '+65%', '-19%', '約 137 回'],
+    ['60 万円', '19 本', '＋ゴールド右肩・銀 Q・US30 Q', '+78%', '-20%', '約 154 回'],
+    ['100 万円', '21 本', '＋ゴールド S・Q（ロット半分）', '+104%', '-25%', '約 217 回'],
+    ['300 万円', '22 本（全部）', '＋US30 短い押し目', '+105%', '-24%', '約 222 回'],
   ];
   function comboTable() {
     const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>
@@ -143,17 +144,18 @@
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
       <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
-        <b>合計（19 本すべて・ゴールド S と Q は半分）</b>：年利 +79%・最大 DD -19%<br>ゴールド S・Q を全量にすると年利 +90%・最大 DD -19%（リスク 0.75% なら +58%・-16% ／ 全量 +65%・-17%）</div>
-      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：リスク 1%・DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。本番の目減り（滑りなど）は入っていない</div>`;
+        <b>合計（22 本すべて・ゴールド S と Q は半分）</b>：年利 +105%・最大 DD -24%<br>ゴールド S・Q を全量にすると年利 +128%・最大 DD -29%（リスク 0.75% なら +75%・-19% ／ 全量 +90%・-24%）<br>
+        参考：P を入れない 19 本は年利 +77%・最大 DD -22%。DD10% で半分のルールを外すと 22 本で最大 DD -33%</div>
+      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：リスク 1%・DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。今の EA のコード（11/2 の H4 の開き・傾きを含む）で 2005 年から回したトレード。本番の目減り（滑り・スワップなど）は入っていない</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
   // US500 右肩 = buy only, above the left shoulder (§103). Checked against real XM trades 2026-10-25 (BTC 0.01 lot, UK100 1 lot = 1 GBP / point)
   const MINLOT_LOSS = [
-    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円', '約 20〜75 pips'], ['日経 右肩', '150 円', '約 1,500 円幅（2.4%）'],
+    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円', '約 20〜75 pips'], ['ユーロドル・ドル円 P（MAクロス後の押し目）', '約 430〜800 円', '約 43〜50 pips'], ['日経 右肩', '150 円', '約 1,500 円幅（2.4%）'],
     ['BTC S', '約 1,900 円', '約 1,200 ドル（1.5%）'], ['US500 右肩', '約 2,000 円', '約 120 ポイント（1.6%）'],
     ['US500 M（短い押し目）', '約 3,300 円', '約 210 ポイント（2.7%）'], ['US30 T（トレンド）', '約 3,900 円', '約 250 ポイント（0.5%）'],
-    ['ゴールド S・Q・L2', '約 4,000〜4,900 円', '約 25〜31 ドル（0.6〜0.75%）'], ['ゴールド 右肩', '約 5,400 円', '約 34 ドル（0.8%）'],
+    ['ゴールド P（MAクロス後の押し目）', '約 3,900 円', '約 25 ドル（0.6%）'], ['ゴールド S・Q・L2', '約 4,000〜4,900 円', '約 25〜31 ドル（0.6〜0.75%）'], ['ゴールド 右肩', '約 5,400 円', '約 34 ドル（0.8%）'],
     ['US30 Q・銀 Q', '約 5,700〜5,800 円', 'US30 約 370 ポイント・銀 約 0.7 ドル'], ['US30 M（短い押し目）', '約 20,800 円', '約 1,300 ポイント（2.5%）']];
   function minLotSection() {
     const rows = MINLOT_LOSS.map(([n, v, w]) => `<div style="padding:7px 0;border-bottom:1px solid #1e293b;font-size:12px"><div style="display:flex;justify-content:space-between;gap:10px"><span>${esc(n)}</span><b style="white-space:nowrap">${esc(v)}</b></div>
@@ -175,7 +177,7 @@
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>📊 検証結果（どれを外すかの目安）</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
       ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。</div>${rows}${comboTable()}
-      <div style="font-size:11px;color:#fbbf24;margin-top:10px;line-height:1.6;border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:8px 10px">📝 本番の方針（2026-10-25）：外す候補の T@US30・DS@JP225・A@EURUSD は本番では OFF で始める。デモの成績を見てから戻すか決める</div>` : ''}</div>`;
+` : ''}</div>`;
   }
   function resSection() {
     const mine = resAll().filter(r => String(r.Account) === S.acc);
