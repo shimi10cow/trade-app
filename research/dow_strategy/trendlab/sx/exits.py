@@ -56,6 +56,7 @@ for _,r in tr.iterrows():
         f[f'risk_{sn}']=(en-sl)*s/a
         for mode in ('zz2','zz1','tp2','tp3','regime','h1sw1'):
             R,j=sim(i,s,en,sl,mode); f[f'{sn}|{mode}']=R-COST/((en-sl)*s)
+            if sn=='sma200': f[f'exit|{mode}']=pd.Timestamp(T[j])
     # pullback shape (M15): impulse since the regime start, then the pullback to now
     c0=np.searchsorted(Ch,np.datetime64(h1r.avail_time.iloc[max(0,k1-200)]))   # fallback window
     reg=np.flatnonzero(rs[:k1+1]!=s); rstart=Ch[reg[-1]] if len(reg) else Ch[0]
