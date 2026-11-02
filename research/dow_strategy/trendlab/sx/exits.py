@@ -20,7 +20,7 @@ def last_piv(TT,KK,PPv,t,kind,entry,side,minrisk):
         j-=1
     return None
 def sim(i,side,entry,sl,mode):
-    risk=(entry-sl)*side; on=False; tp={'tp2':2,'tp3':3}.get(mode)
+    risk=(entry-sl)*side; on=False; tp={'tp2':2,'tp3':3}.get(mode); best=0.0
     t_in=T[i]
     for j in range(i+1,min(n,i+96*30)):
         if (L[j]<=sl) if side==1 else (H[j]>=sl): return (sl-entry)*side/risk, j
@@ -29,6 +29,18 @@ def sim(i,side,entry,sl,mode):
         if mode=='regime':
             k=np.searchsorted(Ch,T[j],side='right')-1
             if k>=0 and rs[k]==-side: return (C[j]-entry)*side/risk, j
+            continue
+        if mode.startswith('hyb'):
+            sw=float(mode[3:]) if not mode.startswith('hybt') else None
+            if not on and fav>=1: on=True
+            best=max(best,fav)
+            use_m15=(best>=sw) if sw is not None else ((T[j]-t_in)/np.timedelta64(1,'h')>=float(mode[4:]))
+            if on:
+                if use_m15: k=np.searchsorted(PT,T[j],side='left')-1; TT,KK,PV=PT,PK,PP
+                else: k=np.searchsorted(HPT,T[j],side='left')-1; TT,KK,PV=HPT,HPK,HPP
+                want='L' if side==1 else 'H'
+                while k>=0 and KK[k]!=want: k-=1
+                if k>=0 and (PV[k]-sl)*side>0 and (PV[k]-C[j])*side<0: sl=PV[k]
             continue
         start={'zz2':2,'zz1':1,'h1sw1':1}.get(mode)
         if start is None: continue
@@ -47,6 +59,7 @@ for _,r in tr.iterrows():
     minr=10*pip
     k1=np.searchsorted(Ch,t,side='right')-1; a=a1[k1]
     sls={'sma200':float(r.initial_sl)}
+    if os.environ.get('ONLY_SMA'): pass
     p=last_piv(PT,PK,PP,t,'L' if s==1 else 'H',en,s,minr); sls['M15山谷']=None if p is None else p-s*0.2*A15[i]
     p=last_piv(HPT,HPK,HPP,t,'L' if s==1 else 'H',en,s,minr); sls['H1山谷']=None if p is None else p-s*0.2*a
     sls['ATR1.5']=en-s*1.5*a; sls['ATR3']=en-s*3*a
@@ -54,7 +67,8 @@ for _,r in tr.iterrows():
     for sn,sl in sls.items():
         if sl is None or (en-sl)*s<minr: continue
         f[f'risk_{sn}']=(en-sl)*s/a
-        for mode in ('zz2','zz1','tp2','tp3','regime','h1sw1'):
+        if os.environ.get('ONLY_SMA') and sn!='sma200': continue
+        for mode in (('zz2','h1sw1','hyb2','hyb3','hyb4','hyb6','hybt48','hybt96') if os.environ.get('ONLY_SMA') else ('zz2','zz1','tp2','tp3','regime','h1sw1')):
             R,j=sim(i,s,en,sl,mode); f[f'{sn}|{mode}']=R-COST/((en-sl)*s)
             if sn=='sma200': f[f'exit|{mode}']=pd.Timestamp(T[j])
     # pullback shape (M15): impulse since the regime start, then the pullback to now
@@ -67,4 +81,4 @@ for _,r in tr.iterrows():
         pl=(L[jh:i+1].min() if s==1 else H[jh:i+1].max())
         imp=(ext-base)*s; f['押し率']=(ext-pl)*s/imp if imp>0 else np.nan; f['推進ATR']=imp/a; f['押しATR']=(ext-pl)*s/a; f['押し本数']=i-jh
     out.append(f)
-pd.DataFrame(out).to_pickle(f'/home/user/trendlab/sx/e_{sym}.pkl'); print('done',sym,len(out),flush=True)
+pd.DataFrame(out).to_pickle(f"/home/user/trendlab/sx/{'h' if os.environ.get('ONLY_SMA') else 'e'}_{sym}.pkl"); print('done',sym,len(out),flush=True)
