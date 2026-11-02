@@ -173,7 +173,10 @@ function trEnsureCols_(T, names) {
 function trWrite_(T, o) {      // o has _row (update) or not (append)
   const full = tradesCollapse_(o, o._row ? o : null);
   trEnsureCols_(T, Object.keys(full).filter(function (k) { return k[0] !== '_'; }));
-  const vals = [T.h.map(function (k) { return full[k] === undefined || full[k] === null ? '' : full[k]; })];
+  const vals = [T.h.map(function (k) {
+    const x = full[k] === undefined || full[k] === null ? '' : full[k];
+    return k === 'Accounts' && /^[\d,\s]+$/.test(String(x)) && String(x).indexOf(',') >= 0 ? "'" + x : x;   // keep "a,b" as text
+  })];
   if (o._row) T.sh.getRange(o._row, 1, 1, T.h.length).setValues(vals);
   else { T.sh.getRange(T.sh.getLastRow() + 1, 1, 1, T.h.length).setValues(vals); o._row = T.sh.getLastRow(); }
   CacheService.getScriptCache().remove(CACHE_KEY);
@@ -184,11 +187,21 @@ function execSheet_() {
   if (!sh) { sh = ss.insertSheet(EXEC_SHEET_); sh.getRange(1, 1, 1, EXEC_HEADERS_.length).setValues([EXEC_HEADERS_]); sh.setFrozenRows(1); }
   return sh;
 }
+// 2026-11-02: Sheets stored ExecIDs such as '70066643:868750533' as time values (hours:minutes), so they never matched the
+// PC's ExecID again (the same deals were added twice, and TradeID was never written). An execution is now identified by
+// Account:Deal (both plain numbers in their own columns), never by the stored ExecID cell; new ExecIDs are written as text.
+function execKey_(o) {
+  const a = String(o.Account === undefined || o.Account === null ? '' : o.Account).trim(), d = String(o.Deal === undefined || o.Deal === null ? '' : o.Deal).trim();
+  return a && d ? a + ':' + d : String(o.ExecID);
+}
 function execRead_() {
   const sh = execSheet_(), n = sh.getLastRow();
   if (n < 2) return {sh: sh, rows: []};
   const v = sh.getRange(2, 1, n - 1, EXEC_HEADERS_.length).getValues();
-  return {sh: sh, rows: v.map(function (r, i) { const o = {_row: i + 2}; EXEC_HEADERS_.forEach(function (k, j) { o[k] = r[j]; }); return o; })};
+  return {sh: sh, rows: v.map(function (r, i) {
+    const o = {_row: i + 2}; EXEC_HEADERS_.forEach(function (k, j) { o[k] = r[j]; });
+    o._rawExecID = o.ExecID; o.ExecID = execKey_(o); return o;
+  })};
 }
 function execSetTradeId_(E, ids, tradeId) {
   const want = {}; ids.forEach(function (x) { want[String(x)] = 1; });
@@ -261,16 +274,17 @@ function impTakeRequest_() {
 
 /** PC: results of one import run. */
 function impBatch_(b) {
-  const E = execRead_(), have = {}; E.rows.forEach(function (r) { have[String(r.ExecID)] = r; });
+  const E = execRead_(), have = {}; E.rows.forEach(function (r) { have[r.ExecID] = r; });
   const now = tradesNow_(), add = [];
   (b.executions || []).forEach(function (x) {
-    if (have[String(x.ExecID)]) return;
-    const o = Object.assign({}, x, {TradeID: '', ImportedAt: now});
+    const key = execKey_(x);
+    if (have[key]) return;
+    const o = Object.assign({}, x, {ExecID: "'" + key, TradeID: '', ImportedAt: now});     // leading ' = stored as text
     add.push(EXEC_HEADERS_.map(function (k) { return o[k] === undefined ? '' : o[k]; }));
-    have[String(x.ExecID)] = o;
+    have[key] = o;
   });
   if (add.length) E.sh.getRange(E.sh.getLastRow() + 1, 1, add.length, EXEC_HEADERS_.length).setValues(add);
-  const E2 = execRead_(), byExec = {}; E2.rows.forEach(function (r) { byExec[String(r.ExecID)] = r; });
+  const E2 = execRead_(), byExec = {}; E2.rows.forEach(function (r) { byExec[r.ExecID] = r; });
   const T = trRead_(); trEnsureCols_(T, ['Accounts', 'ExecCount', 'MergeMode', 'Source', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', 'EntryPrice', 'InitialSLPrice', 'TakeProfitPrice']);
   const byId = {}; T.rows.forEach(function (r) { byId[String(r.EntryID)] = r; });
   let updated = 0, linked = 0, drafts = 0;
@@ -591,6 +605,92 @@ function impCheckLinksOnce(apply) {
   return rep;
 }
 function impCheckLinksApply() { return impCheckLinksOnce(true); }
+
+/** One-time repair (2026-11-02), run from the editor: impExecRepairOnce() first (changes nothing, read the log), then
+ *  impExecRepairApply(). Fixes what the ExecID-as-time bug left behind:
+ *   1. Executions: ExecID rewritten as text (Account:Deal); the same deal twice (10/25 import) -> the later row is deleted
+ *   2. Trades table: Accounts that Sheets turned into one number (370090754370298997) split back into "a,b" with the
+ *      account numbers found in Executions; when that is not possible (a long number lost its last digits), the accounts
+ *      are taken from the executions found in step 3
+ *   3. TradeID, which was never written: each MT5 draft / record / trash row gets back its executions = the positions of the
+ *      same pair, direction and account(s) whose first entry is at the row's entry time, plus the same pair / direction
+ *      entered within the merge hours after it (as the PC groups them). Only written when the number of executions found is
+ *      exactly the row's ExecCount; any other row is listed (unmatched) and left as it is. */
+function impExecRepairOnce(apply) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), E = execRead_(), rep = {apply: !!apply, executions: E.rows.length};
+  // 1. duplicates and ExecID text
+  const seen = {}, dupRows = [], fixId = [];
+  E.rows.forEach(function (r) {
+    if (seen[r.ExecID]) { dupRows.push(r._row); return; }
+    seen[r.ExecID] = r;
+    if (String(r._rawExecID) !== r.ExecID) fixId.push(r);
+  });
+  rep.duplicates = dupRows.length; rep.execIdFixed = fixId.length;
+  // 2. Accounts
+  const known = Object.keys(E.rows.reduce(function (a, r) { a[String(r.Account).trim()] = 1; return a; }, {})).filter(String);
+  const split = function (v) {
+    const s = String(v).replace(/[^\d]/g, ''); if (!s) return null;
+    const out = []; let i = 0;
+    while (i < s.length) {
+      const hit = known.filter(function (k) { return s.substr(i, k.length) === k; }).sort(function (a, b) { return b.length - a.length; })[0];
+      if (!hit) return null; out.push(hit); i += hit.length;
+    }
+    return out;
+  };
+  const T = trRead_(); rep.accountsFixed = []; rep.accountsUnknown = [];
+  T.rows.forEach(function (t) {
+    const v = String(t.Accounts || ''); if (!v || v.indexOf(',') >= 0 || known.indexOf(v.trim()) >= 0) return;
+    const parts = split(v);
+    if (!parts) { rep.accountsUnknown.push({EntryID: t.EntryID, Accounts: v}); t._accUnknown = true; return; }
+    rep.accountsFixed.push({EntryID: t.EntryID, from: v, to: parts.join(',')});
+    if (apply) { t.Accounts = parts.join(','); trWrite_(T, t); }
+  });
+  // 3. TradeID
+  const st = impGet_('IMPORT_SETTINGS', {}), gh = (Number(st.groupHours) || 24) * 3600e3, across = st.mergeAcross !== false;
+  const pos = {};
+  E.rows.forEach(function (r) {
+    if (dupRows.indexOf(r._row) >= 0) return;
+    const k = r.Account + ':' + r.PositionID; (pos[k] = pos[k] || {k: k, acc: String(r.Account).trim(), rs: []}).rs.push(r);
+  });
+  Object.keys(pos).forEach(function (k) {
+    const p = pos[k], ins = p.rs.filter(function (r) { return r.InOut === 'IN' || r.InOut === 'INOUT'; });
+    const first = (ins.length ? ins : p.rs).slice().sort(function (a, b) { return String(a.DealTime) < String(b.DealTime) ? -1 : 1; })[0];
+    p.ms = impDT_(String(first.DealTime)).ms; p.pair = impAppPair_(first.Symbol); p.dir = String(first.Direction).toUpperCase() === 'BUY' ? 'Buy' : 'Sell';
+    p.taken = p.rs.some(function (r) { return r.TradeID; });
+  });
+  const order = {'下書き': 0}; order[IMP_TRASH_] = 2;
+  const cand = T.rows.filter(function (t) { return String(t.Source) === 'MT5' && Number(t.ExecCount) > 0; })
+                     .sort(function (a, b) { return (order[a['ステータス']] === undefined ? 1 : order[a['ステータス']]) - (order[b['ステータス']] === undefined ? 1 : order[b['ステータス']]); });
+  rep.relinked = []; rep.unmatched = [];
+  cand.forEach(function (t) {
+    if (E.rows.some(function (r) { return String(r.TradeID) === String(t.EntryID); })) return;     // already has its executions
+    const accs = t._accUnknown ? null : (split(t.Accounts) || String(t.Accounts || '').split(',')).map(function (x) { return String(x).trim(); }).filter(String);
+    const pair = String(t['PairName（元）'] || t.PairName || '').toUpperCase(), t0 = impEntryMs_(t);
+    const ok = function (p) { return !p.taken && p.pair.toUpperCase() === pair && p.dir === String(t.Direction) && (!accs || accs.indexOf(p.acc) >= 0); };
+    const seed = Object.keys(pos).map(function (k) { return pos[k]; }).filter(function (p) { return ok(p) && Math.abs(p.ms - t0) < 60e3; });
+    let group = [];
+    if (seed.length) group = Object.keys(pos).map(function (k) { return pos[k]; }).filter(function (p) { return ok(p) && p.ms >= t0 - 60e3 && p.ms <= t0 + gh && (across || p.acc === seed[0].acc); });
+    const n = group.reduce(function (a, p) { return a + p.rs.length; }, 0);
+    const line = {EntryID: t.EntryID, status: t['ステータス'], pair: pair, dir: t.Direction, entry: t.EntryDate + ' ' + t.EntryTime, execCount: Number(t.ExecCount), found: n};
+    if (!group.length || n !== Number(t.ExecCount)) { rep.unmatched.push(line); return; }
+    group.forEach(function (p) { p.taken = true; });
+    rep.relinked.push(line);
+    if (t._accUnknown) line.accounts = Object.keys(group.reduce(function (a, p) { a[p.acc] = 1; return a; }, {})).join(',');
+    if (apply) {
+      execSetTradeId_(E, [].concat.apply([], group.map(function (p) { return p.rs.map(function (r) { return r.ExecID; }); })), t.EntryID);
+      if (t._accUnknown) { t.Accounts = line.accounts; delete t._accUnknown; trWrite_(T, t); }
+    }
+  });
+  if (apply) {
+    const col = EXEC_HEADERS_.indexOf('ExecID') + 1;
+    fixId.forEach(function (r) { E.sh.getRange(r._row, col).setNumberFormat('@').setValue(r.ExecID); });
+    dupRows.sort(function (a, b) { return b - a; }).forEach(function (row) { E.sh.deleteRow(row); });
+    CacheService.getScriptCache().remove(CACHE_KEY);
+  }
+  Logger.log(JSON.stringify(rep, null, 1));
+  return rep;
+}
+function impExecRepairApply() { return impExecRepairOnce(true); }
 
 // ------------------------------------------------------------------ time stamps
 /** One-off: rewrite old time stamps to Japan time with the offset (2026-10-24 21:15+09:00). Run once from the editor.
