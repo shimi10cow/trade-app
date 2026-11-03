@@ -67,7 +67,7 @@
   window.eaLiveSetKey = function () { const v = (document.getElementById('eal-key') || {}).value || ''; if (v.trim()) { localStorage.setItem(KEY_LS, v.trim()); load(); } };
   window.eaLiveAcc = function (a) { S.acc = a; localStorage.setItem(ACC_LS, a); render(); };
   window.eaLiveRun = function (on) { const c = cfg(); c.running = on; save(); };
-  window.eaLiveRisk = function (v) { const c = cfg(); c.base_risk = Number(v); c.lot_mode = 'risk'; save(); };
+  window.eaLiveRisk = function (v) { const c = cfg(); c.base_risk = Number(v); save(); };     // keeps the lot mode: in 最小ロット it is the most one trade may lose
   // what the PC's EA code supports (heartbeat Caps): 最小ロット / シグナルのみ予約 are enabled only then (an older PC would ignore them)
   const caps = acc => String(((S.dash && S.dash.status && S.dash.status[acc]) || {}).Caps || '').split(',');
   window.eaLiveLotMode = function (v) {
@@ -164,7 +164,7 @@
       <span>💴 最小ロットで 1 回負けた時の金額（目安）</span><span style="color:#94a3b8">${S.mlOpen ? '▲' : '▼'}</span></button>
       ${S.mlOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">損切りまで行った時の損失。損切り幅は過去のトレードの真ん中の値なので、これより大きい回も小さい回もある。最小ロットのリスク・1% のリスク・OFF を決める目安に。</div>${rows}
         <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6">前提：XM KIWAMI 口座の最小ロット（FX・ゴールド・銀・BTC 0.01、指数 0.1 ＝ 1 ポイントで 0.1 ドル）、2026-10-24 の値段、1 ドル 158.5 円。実際の約定（BTC 0.01・UK100）と合うことを確認済み。金額が大きいのはロットではなく損切り幅が広いため。スタンダード・マイクロ口座や値段が変わると金額も変わる。<br>
-        今の決まり：最小ロットでも損失が口座の 1.5% を超える回は自動で見送り（10 万円なら 1,500 円まで）。</div>` : ''}</div>`;
+        今の決まり：最小ロットでも損失が口座の「リスク」で選んだ % を超える回は自動で見送り（10 万円・1% なら 1,000 円まで、2% なら 2,000 円まで）。</div>` : ''}</div>`;
   }
   function btSection() {
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
@@ -176,7 +176,7 @@
     }).join('');
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>📊 検証結果（どれを外すかの目安）</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
-      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが 1.5% を超える回は自動で見送り。</div>${rows}${comboTable()}
+      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが「リスク」で選んだ % を超える回は自動で見送り。</div>${rows}${comboTable()}
 ` : ''}</div>`;
   }
   function resSection() {
@@ -329,11 +329,11 @@
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
             <button onclick="eaLiveLotMode('risk')" style="${btn};${minLot ? offBtn : neon('#22d3ee', '34,211,238')}">リスク %</button>
             <button onclick="eaLiveLotMode('min')" style="${btn};${minLot ? neon('#fbbf24', '251,191,36') : offBtn}${caps(S.acc).indexOf('min_lot') < 0 ? ';opacity:.5' : ''}">最小ロット</button></div></div>
-        <div style="display:flex;align-items:center;gap:8px;${minLot ? 'opacity:.4' : ''}"><div style="min-width:80px;font-size:12px;color:#94a3b8">リスク</div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">${minLot ? '最大リスク' : 'リスク'}</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${[0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02].map(v =>
-            `<button onclick="eaLiveRisk(${v})" style="${btn};${!minLot && Math.abs(c.base_risk - v) < 1e-9 ? neon('#22d3ee', '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
+            `<button onclick="eaLiveRisk(${v})" style="${btn};${Math.abs(c.base_risk - v) < 1e-9 ? neon(minLot ? '#fbbf24' : '#22d3ee', minLot ? '251,191,36' : '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
         ${!minLot && c.base_risk >= 0.015 ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">月初 3 日・ゴールドの金曜の買いは 1.5 倍（2% なら 1 回 3%）。DD10% で半分を ON のままにしておくのがおすすめ</div>' : ''}
-        ${minLot ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">全 EA が銘柄の最小ロット（例 0.01）で入ります。最小ロットでも損失が口座の 1.5% を超える回は見送り</div>' : ''}
+        ${minLot ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">全 EA が銘柄の最小ロット（例 0.01）で入ります。最小ロットでも損失が口座の「最大リスク」を超える回は見送り</div>' : ''}
         <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">DD10%で半分</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
             <button onclick="${c.dd_half === false ? 'eaLiveDDHalf()' : ''}" style="${btn};${c.dd_half !== false ? neon('#22d3ee', '34,211,238') : offBtn}">ON</button>

@@ -5,7 +5,8 @@ risk per trade = equity x base risk (default 1.0%)
                  x lot weight (gold S / Q: 0.5 by default, 1.0 selectable)
                  x 0.5 while the account is 10% or more below its peak
 lots = that money / (loss per lot if the stop is hit), rounded DOWN to the broker's volume step.
-If even the minimum lot would lose more than MAX_MINLOT_RISK (1.5%) of equity, the trade is skipped (logged, not traded).
+If even the minimum lot would lose more than the chosen base risk of equity (2026-11; before: a fixed 1.5%), the trade is
+skipped (logged, not traded). The app's risk choice (0.5 .. 2%) is that upper limit in both lot modes.
 Prices here are broker prices (not the research price space).
 """
 import math
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-MAX_MINLOT_RISK = 0.015
+MAX_MINLOT_RISK = 0.015          # used only when no base risk is given
 DD_HALF_AT = 0.10
 
 
@@ -49,15 +50,17 @@ def trading_day_of_month(days, t):
 
 def lots_for(spec: SymbolSpec, equity, peak, base_risk, mult, weight, stop_dist, dd_half=True, min_lot=False):
     """Returns (lots, risk_money, note). lots = 0 means skip.
-    min_lot (app: リスク「最小ロット」, 2026-10-25): always the symbol's minimum lot, whatever the risk / multipliers say;
-    still skipped when that lot would lose more than MAX_MINLOT_RISK of the account (same guard as the risk mode)."""
+    min_lot (app: リスク「最小ロット」, 2026-10-25): always the symbol's minimum lot, whatever the risk / multipliers say.
+    In both modes a minimum-lot trade is skipped when it would lose more than base_risk of the account (the app's risk choice
+    is the most one trade may lose at the minimum lot)."""
     if stop_dist <= 0 or equity <= 0:
         return 0.0, 0.0, 'bad stop'
+    cap = float(base_risk) if base_risk and base_risk > 0 else MAX_MINLOT_RISK
     if min_lot:
         per_lot = spec.loss_per_lot(stop_dist)
-        if spec.volume_min * per_lot <= MAX_MINLOT_RISK * equity:
+        if spec.volume_min * per_lot <= cap * equity + 1e-9:
             return round(spec.volume_min, 8), spec.volume_min * per_lot, f'min lot fixed (risk {spec.volume_min * per_lot / equity:.2%})'
-        return 0.0, spec.volume_min * per_lot, f'skip: min lot risk {spec.volume_min * per_lot / equity:.2%} > {MAX_MINLOT_RISK:.1%}'
+        return 0.0, spec.volume_min * per_lot, f'skip: min lot risk {spec.volume_min * per_lot / equity:.2%} > {cap:.2%}'
     dd = 1 - equity / peak if peak > 0 else 0.0
     half = dd_half and dd >= DD_HALF_AT                  # app switch 'DD10%で半分'
     risk = base_risk * mult * weight * (0.5 if half else 1.0)
@@ -66,8 +69,8 @@ def lots_for(spec: SymbolSpec, equity, peak, base_risk, mult, weight, stop_dist,
     lots = math.floor(money / per_lot / spec.volume_step + 1e-9) * spec.volume_step
     lots = min(lots, spec.volume_max)
     if lots < spec.volume_min:
-        if spec.volume_min * per_lot <= MAX_MINLOT_RISK * equity:
+        if spec.volume_min * per_lot <= cap * equity + 1e-9:
             lots = spec.volume_min
             return round(lots, 8), lots * per_lot, f'min lot (risk {lots * per_lot / equity:.2%})'
-        return 0.0, spec.volume_min * per_lot, f'skip: min lot risk {spec.volume_min * per_lot / equity:.2%} > {MAX_MINLOT_RISK:.1%}'
+        return 0.0, spec.volume_min * per_lot, f'skip: min lot risk {spec.volume_min * per_lot / equity:.2%} > {cap:.2%}'
     return round(lots, 8), lots * per_lot, f'risk {risk:.2%}' + (' (DD half)' if half else '')
