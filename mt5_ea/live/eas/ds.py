@@ -20,11 +20,15 @@ from ..core import Frames
 from env_recognition.pivots import atr
 
 ADOPTED = {
-    'JP225': dict(stop='left', exit='tp2', side=None, ln=True),
-    'US500': dict(stop='left', exit='tp2', side=1, ln=True),          # width rule: total -2R but win % / PF up, same DD (user 2026-10-28)
+    'JP225': dict(stop='left', exit='h1s15', side=None, ln=True, old_exit='tp2'),
+    'US500': dict(stop='left', exit='h1s15', side=1, ln=True, old_exit='tp2'),   # width rule: total -2R but win % / PF up, same DD (user 2026-10-28)
     'XAUUSD': dict(stop='shoulder', exit='h1', side=1, ln=True),
 }
 MIN_DEPTH = 4.0
+# 2026-11 (RESEARCH_LOG §161): JP225 / US500 exit 'tp2' (2R target, one per side) -> 'h1s15' (from +1.5R trail to H1 swings, no
+# target, a 2nd position on the same side only while the 1st is already trailing). Trades entered before CUTOVER keep the old
+# management to the end (their broker-side 2R target stays), so a position open at the switch is not touched.
+CUTOVER = pd.Timestamp('2026-11-04 00:00')
 MIN_LN_HOURS = 24.0
 
 
@@ -90,6 +94,7 @@ def cfg_for(stop, ex):
     cfg = dict(trig='all', stop='ref', buf=0.3, win=0.3, one_per_side=True)
     base, _, tm = ex.partition('-t')
     if base == 'h1': cfg.update(exit='h1', act=1.0)
+    elif base == 'h1s15': cfg.update(exit='h1', act=1.5, stack=2); cfg.pop('one_per_side')
     elif base == 'neck': cfg.update(exit='h1', act=99, tp_px=True, tp=3.0)
     elif base.startswith('m15a'): cfg.update(exit='m15', act=float(base[4:]))
     elif base.startswith('hyb'): cfg.update(exit='hyb', act=1.0, sw=float(base[3:]))
@@ -110,15 +115,35 @@ def adopted_filter(e, side, ln_h=None):
     return depth >= MIN_DEPTH and (side is None or e['side'] == side) and (ln_h is None or ln_h >= MIN_LN_HOURS)
 
 
-def run_adopted(F: Frames, sym, entry_bar=True):
-    """The adopted DS for `sym`, as validated: run with ALL setups (so a filtered-out setup can still occupy its side, exactly
-    like the research run), then keep only trades / open positions / pending entries that pass the filter."""
-    a = ADOPTED[sym]
-    evs = setups(F, 'H1')
-    LN = {e['t']: e['ln_h'] for e in evs}                       # setup time -> hours from the left shoulder to the neck
-    r = run_variant(F, 'H1', a['stop'], a['exit'], entry_bar=entry_bar, events=evs)
+def _adopted_once(F, a, exit_, evs, LN, entry_bar):
+    r = run_variant(F, 'H1', a['stop'], exit_, entry_bar=entry_bar, events=evs)
     ok = lambda x: adopted_filter(x, a['side'], LN.get(x['setup_t']) if a.get('ln') else None)
     tr = r['trades']
     if len(tr):
         tr = tr[[ok(dict(tag=t, side=s, setup_t=u)) for t, s, u in zip(tr.tag, tr.side, tr.setup_t)]].reset_index(drop=True)
     return dict(trades=tr, open=[p for p in r['open'] if ok(p)], pending=[p for p in r['pending'] if ok(p)])
+
+
+def run_adopted(F: Frames, sym, entry_bar=True, cutover=None):
+    """The adopted DS for `sym`, as validated: run with ALL setups (so a filtered-out setup can still occupy its side, exactly
+    like the research run), then keep only trades / open positions / pending entries that pass the filter.
+    With an 'old_exit': trades entered before the cutover come from the old exit's run (managed as they were opened), trades
+    from the cutover on from the new one; cutover=False gives the new exit for everything (research / parity)."""
+    a = ADOPTED[sym]
+    evs = setups(F, 'H1')
+    LN = {e['t']: e['ln_h'] for e in evs}                       # setup time -> hours from the left shoulder to the neck
+    new = _adopted_once(F, a, a['exit'], evs, LN, entry_bar)
+    cut = CUTOVER if cutover is None else cutover
+    if not a.get('old_exit') or cut is False:
+        return new
+    old = _adopted_once(F, a, a['old_exit'], evs, LN, entry_bar)
+    before = lambda t: pd.Timestamp(t) < cut
+    tr = [x for x in (old['trades'], new['trades']) if isinstance(x, pd.DataFrame) and len(x)]
+    if tr:
+        o, n = (old['trades'] if len(old['trades']) else None), (new['trades'] if len(new['trades']) else None)
+        parts = ([o[[before(t) for t in o.t]]] if o is not None else []) + ([n[[not before(t) for t in n.t]]] if n is not None else [])
+        tr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    else:
+        tr = pd.DataFrame()
+    return dict(trades=tr, open=[p for p in old['open'] if before(p['t'])] + [p for p in new['open'] if not before(p['t'])],
+                pending=new['pending'])

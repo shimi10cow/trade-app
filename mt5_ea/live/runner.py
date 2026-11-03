@@ -36,7 +36,8 @@ MAGIC_BASE = 770000
 MAGIC = {e.key: MAGIC_BASE + i for i, e in enumerate(ADOPTED)}
 KEY_OF = {v: k for k, v in MAGIC.items()}
 DAILY = {'M@US30', 'M@US500'}
-TP_R = {'DS@JP225': 2.0, 'DS@US500': 2.0}                  # fixed 2R targets (broker-side TP)
+TP_R = {'DS@JP225': 2.0, 'DS@US500': 2.0}                  # fixed 2R targets (broker-side TP), only for entries before TP_UNTIL
+TP_UNTIL = {'DS@JP225': pd.Timestamp('2026-11-04 00:00'), 'DS@US500': pd.Timestamp('2026-11-04 00:00')}   # eas/ds.py CUTOVER: H1 trail after it
 JST = 'Asia/Tokyo'; SERVER_TZ = 'Europe/Athens'
 
 DEFAULT_CONFIG = dict(running=False, base_risk=0.01, eas={e.key: dict(mode='off', weight=e.weight) for e in ADOPTED})
@@ -324,7 +325,7 @@ class Runner:
             sl_x = p.get('sl', p.get('sl0'))
         sl = float(from_space(sym, [sl_x])[0]); dist = abs(px - sl)
         tp = None
-        if key in TP_R:
+        if key in TP_R and pd.Timestamp(p['signal_t']) < TP_UNTIL.get(key, pd.Timestamp.max):
             tp = float(from_space(sym, [x + s * TP_R[key] * abs(x - sl_x)])[0])
         tdm = sizing.trading_day_of_month(days_list, p['signal_t'])
         mult = sizing.calendar_mult(sym, s, p['signal_t'], tdm)
