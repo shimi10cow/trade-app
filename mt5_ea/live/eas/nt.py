@@ -6,11 +6,11 @@ H1 SMA200 slope, SMA200/480 relation, q75, MA ABCD; entry at the signal bar's M1
 Added (all from bars closed at the signal):
   1 daily side   : the H4 close is on the trade side of the H4 SMA1200
   2 H1 MA75 slope: H1 SMA75 - 10 bars earlier on the trade side
-  3 no level bounce: the last 24 H1 lows (highs for sells) did not touch a level within -0.3..+0.5 ATR(H4) while the close is
+  3 no level bounce (off from 2026-11-03): the last 24 H1 lows (highs for sells) did not touch a level within -0.3..+0.5 ATR(H4) while the close is
                    back on the trade side. Levels: the H4 fort, the H4 exit (broken price of the last major H4 reversal),
                    a confirmed H4 swing, a confirmed D1 swing (research sx/feat.py, incl. its choice of one swing of the last 3)
   4 not too deep : H1 close - H1 SMA20 > -0.9 ATR(H1) on the trade side
-  5 impulse      : the move since the H1 regime began <= 6 ATR(H1)
+  5 impulse (off from 2026-11-03): the move since the H1 regime began <= 6 ATR(H1)
   6 H4 opening   : (H4 SMA20 - SMA75) x side / ATR14(H4) < 2.5
   7 EURUSD / USDJPY only: H4 SMA75 10-bar slope x side / ATR14(H4) < 0.35
 Exit: from +1R, the stop follows the last confirmed H1 swing (env_recognition pivots, 1.9 x ATR7) that is below (above) the close.
@@ -37,6 +37,9 @@ COST = {'XAUUSD': 2.5e-4, 'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4}       # per trade,
 SLOPE_SYMS = {'EURUSD', 'USDJPY'}
 SYMBOLS = ('XAUUSD', 'EURUSD', 'USDJPY')
 OPEN_MAX, SLOPE_MAX, IMPULSE_MAX, M20_MIN = 2.5, 0.35, 6.0, -0.9
+# 2026-11-03 (RESEARCH_LOG §173): conditions 3 (level bounce) and 5 (impulse) are off on all three symbols: what they removed
+# was positive on all three (3-symbol total 343 -> 649 trades, t 4.92 -> 5.53, both halves positive). Still logged.
+USE_BAND, USE_IMPULSE = False, False
 DATA = Path(__file__).resolve().parents[1] / 'data'
 M15 = pd.Timedelta(minutes=15)
 
@@ -184,7 +187,8 @@ def config(F: Frames, sym, m15, log=None):
             return False
         hit, m20d = lev(pd.Timestamp(t) + M15, s)
         ip = imp(t, s); op, sl4 = shape(t, s)
-        ok = (not hit) and m20d > M20_MIN and ip <= IMPULSE_MAX and op < OPEN_MAX and (sym not in SLOPE_SYMS or sl4 < SLOPE_MAX)
+        ok = (not (USE_BAND and hit)) and m20d > M20_MIN and (not USE_IMPULSE or ip <= IMPULSE_MAX) and op < OPEN_MAX \
+            and (sym not in SLOPE_SYMS or sl4 < SLOPE_MAX)
         if log is not None:
             log[(pd.Timestamp(t), s)] = dict(band=hit, m20d=m20d, imp=ip, op=op, sl4=sl4, ok=ok)
         return bool(ok)
