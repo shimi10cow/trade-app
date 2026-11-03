@@ -5,6 +5,7 @@ same-kind Dow swings known so far. Good line: angle >= 0.03 ATR per bar, 2nd-poi
 that TF's major Dow trend. Touch = a bar reaching the line (within 0.25 ATR) after price moved >= 1 ATR away; the 3rd-4th touch
 is the setup. Entry: M15 provisional turn in the line direction within 24 h; stop beyond the M15 turn swing + 1.0 ATR(H1)
 (min 10 pips); H1 swing trail from +1R. One position per side. N2: H4 and H1 lines, with the daily side, no H4 triangle.
+Daily side (2026-11-03): the H4 close more than 4 ATR(H4) beyond H4 SMA1200 (was: just beyond it).
 L2 (XAUUSD): the same trades, minus those with the nearest opposing confirmed H4 swing less than 1 ATR(H1) away (room filter,
 research entry_features.py room_h4; applied to the finished trade list like the research).
 Note: like the research, the line start A uses the final known version of each pivot; parity test 2 shows the live effect.
@@ -20,7 +21,9 @@ from env_recognition.pivots import atr
 
 ULOOK = {'H4': 20, 'H1': 40}
 MAXLEN = 500
-N2 = dict(tfs=('H4', 'H1'), nmin=3, nmax=4, min_angle=0.03, depth=(0.3, 0.85), win=24, buf=1.0, exit='h1', dside=0, notri='H4')
+# dside: the H4 close must be more than this many ATR(H4) beyond H4 SMA1200 on the trade side (the daily side).
+# 0 until 2026-11-03; 4 from then (RESEARCH_LOG §169: weak daily trends lose on 11 pairs, DD 16.3 -> 12.8R / 12.7 -> 7.7R)
+N2 = dict(tfs=('H4', 'H1'), nmin=3, nmax=4, min_angle=0.03, depth=(0.3, 0.85), win=24, buf=1.0, exit='h1', dside=4, notri='H4')
 ADOPTED = {'EURUSD': dict(room=None), 'XAUUSD': dict(room=1.0)}
 
 
