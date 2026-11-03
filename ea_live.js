@@ -330,8 +330,9 @@
             <button onclick="eaLiveLotMode('risk')" style="${btn};${minLot ? offBtn : neon('#22d3ee', '34,211,238')}">リスク %</button>
             <button onclick="eaLiveLotMode('min')" style="${btn};${minLot ? neon('#fbbf24', '251,191,36') : offBtn}${caps(S.acc).indexOf('min_lot') < 0 ? ';opacity:.5' : ''}">最小ロット</button></div></div>
         <div style="display:flex;align-items:center;gap:8px;${minLot ? 'opacity:.4' : ''}"><div style="min-width:80px;font-size:12px;color:#94a3b8">リスク</div>
-          <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${[0.005, 0.0075, 0.01, 0.0125].map(v =>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${[0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02].map(v =>
             `<button onclick="eaLiveRisk(${v})" style="${btn};${!minLot && Math.abs(c.base_risk - v) < 1e-9 ? neon('#22d3ee', '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
+        ${!minLot && c.base_risk >= 0.015 ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">月初 3 日・ゴールドの金曜の買いは 1.5 倍（2% なら 1 回 3%）。DD10% で半分を ON のままにしておくのがおすすめ</div>' : ''}
         ${minLot ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">全 EA が銘柄の最小ロット（例 0.01）で入ります。最小ロットでも損失が口座の 1.5% を超える回は見送り</div>' : ''}
         <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">DD10%で半分</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
