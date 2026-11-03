@@ -12,7 +12,7 @@ import sys, pickle, bisect, numpy as np, pandas as pd
 sys.path.insert(0, '/home/user/trade-app'); sys.path.insert(0, '/home/user/trade-app/research')
 from env_recognition.pivots import atr
 sym = sys.argv[1]; TL_ = '/home/user/trendlab'
-COST = {'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4, 'XAUUSD': 2.5e-4, 'XAGUSD': 8e-4, 'US30': 1.5e-4, 'US500': 2e-4, 'JP225': 3e-4, 'BTCUSD': 8e-4}[sym]
+COST = {'GBPUSD': 1.5e-4, 'AUDUSD': 1.3e-4, 'USDCAD': 2e-4, 'USDCHF': 2e-4, 'EURJPY': 2e-4, 'AUDJPY': 2.5e-4, 'CADJPY': 3e-4, 'CHFJPY': 3e-4, 'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4, 'XAUUSD': 2.5e-4, 'XAGUSD': 8e-4, 'US30': 1.5e-4, 'US500': 2e-4, 'JP225': 3e-4, 'BTCUSD': 8e-4}[sym]
 F = pickle.load(open(f'{TL_}/live_frames_{sym}.pkl', 'rb'))
 T = F.T15.to_numpy(); o, h, l, c = F.o, F.h, F.l, F.c; n = len(c)
 C4 = list(F.C4); A4 = atr(F.h4); C1 = np.array(F.C1, dtype='datetime64[ns]'); A1 = F.A1
