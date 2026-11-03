@@ -248,7 +248,7 @@ const EAL_BT_ = {"A@EURUSD":[51.5, 0.305, 1.7], "C@EURUSD":[52.0, 0.385, 1.86], 
   "DS@XAUUSD":[49.2, 0.27, 1.58], "J2@USDJPY":[38.9, 0.491, 1.8], "L2@XAUUSD":[43.1, 0.355, 1.68], "L@EURUSD":[41.8, 0.279, 1.53], "M@US30":[73.8, 0.116, 1.73],
   "M@US500":[76.1, 0.119, 1.76], "Q@US30":[49.3, 0.474, 2.01], "Q@XAGUSD":[41.2, 0.78, 2.39], "Q@XAUUSD":[44.2, 0.189, 1.72], "R@EURUSD":[40.2, 0.325, 1.51],
   "S@BTCUSD":[35.0, 0.686, 2.0], "S@XAUUSD":[37.7, 0.143, 1.48], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[41.4, 0.374, 1.64], "P@XAUUSD":[47.9, 1.381, 3.85],
-  "P@EURUSD":[53.9, 0.574, 2.39], "P@USDJPY":[51.7, 0.432, 1.94]};
+  "P@EURUSD":[53.9, 0.574, 2.39], "P@USDJPY":[51.7, 0.432, 1.94], "RM@EURUSD":[44.7, 0.542, 1.99], "RM@XAUUSD":[56.2, 0.695, 2.56]};
 
 /** Once a day (from eaWatchdog): per account and EA, live results next to the backtest + order quality. Kept in EA_Health only (not in the app). */
 function ealHealth_() {

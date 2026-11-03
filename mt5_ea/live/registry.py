@@ -2,6 +2,7 @@
 2026-11-02 (docs/EA_PLAN_20261102.md): H4 opening gate on C@USDJPY, T@US30, Q@XAGUSD, Q@US30, DS@JP225; H4 MA75 slope gate on
 R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11 (RESEARCH_LOG §158): P's 'not after a long H1 run' gate on C@EURUSD and A@EURUSD, 'no level bounce' gate on T@US30.
+2026-11-03 (RESEARCH_LOG §164-§166): new return move RM@ on EURUSD / XAUUSD (A@EURUSD stays off in the app).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -12,7 +13,7 @@ from typing import Callable
 
 import pandas as pd
 
-from .eas import a as A_, c as C_, ds as DS, j2 as J2, l as L_, nt as NT, q as Q, rsi2 as M, rt as RT, s as S_
+from .eas import a as A_, c as C_, ds as DS, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_
 from .eas.h4gate import gate
 from .eas.pgate import gate as pgate
 from .eas.wave import axis_filter
@@ -56,7 +57,10 @@ ADOPTED = [
     EA('P@XAUUSD', 'XAUUSD', lambda F, env: NT.run(F, 'XAUUSD'), window_days=800, warm_days=400),
     EA('P@EURUSD', 'EURUSD', lambda F, env: NT.run(F, 'EURUSD'), window_days=800, warm_days=400),
     EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), window_days=800, warm_days=400),
+    # RM: return move after a long H4 trend (2026-11-03), appended at the end so the magic numbers stay the same
+    EA('RM@EURUSD', 'EURUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
+    EA('RM@XAUUSD', 'XAUUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 22
+assert len(ADOPTED) == 24
