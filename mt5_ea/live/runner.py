@@ -43,10 +43,11 @@ JST = 'Asia/Tokyo'; SERVER_TZ = 'Europe/Athens'
 DEFAULT_CONFIG = dict(running=False, base_risk=0.01, eas={e.key: dict(mode='off', weight=e.weight) for e in ADOPTED})
 
 
-def compute_symbol(sym, m, warm, keys):
+def compute_symbol(sym, m, warm, keys, w1=None):
     """EA logic for one symbol (pure calculation, no broker access): returns {key: result}. Runs in a worker process."""
     start = m.t.iat[0] + pd.Timedelta(days=warm)
     F = Frames(m, start, h_days=warm, m_days=warm)
+    F.W1 = w1                                         # broker W1 bars in price space (None if not needed / missing)
     env, out = None, {}
     for key in keys:
         if env is None and key not in DAILY:
@@ -144,14 +145,14 @@ class Runner:
         futs = {}
         if pool:
             try:
-                futs = {j['sym']: pool.submit(compute_symbol, j['sym'], j['m'], j['warm'], j['keys']) for j in jobs}
+                futs = {j['sym']: pool.submit(compute_symbol, j['sym'], j['m'], j['warm'], j['keys'], j.get('w1')) for j in jobs}
             except Exception as ex:                       # pool broken: fall back to one by one
                 logging.warning('process pool unavailable (%s): computing one by one', ex)
                 global _POOL
                 _POOL = None; futs = {}
         for j in jobs:
             try:
-                res = futs[j['sym']].result(timeout=600) if j['sym'] in futs else compute_symbol(j['sym'], j['m'], j['warm'], j['keys'])
+                res = futs[j['sym']].result(timeout=600) if j['sym'] in futs else compute_symbol(j['sym'], j['m'], j['warm'], j['keys'], j.get('w1'))
                 report += self._finish_symbol(j, res, eq)
             except Exception as ex:
                 self._symbol_error(j['sym'], ex)
@@ -265,7 +266,17 @@ class Runner:
         m['t'] = m.t.astype('datetime64[us]')               # one time unit everywhere (MT5 gives seconds)
         for z in 'ohlc':
             m[z] = to_space(sym, m[z].to_numpy())
-        return dict(sym=sym, m=m, warm=warm, keys=[e.key for e in run], now=now,
+        w1 = None
+        if any(e.weekly for e in run):
+            try:
+                w1 = self.b.weekly(sym)
+            except Exception as ex:                          # no weekly bars: those EAs skip new entries this cycle
+                logging.warning('%s: no W1 bars (%s)', sym, ex); w1 = None
+            if w1 is not None:
+                w1 = w1.copy()
+                for z in 'ohlc':
+                    w1[z] = to_space(sym, w1[z].to_numpy())
+        return dict(sym=sym, m=m, warm=warm, keys=[e.key for e in run], now=now, w1=w1,
                     days_list=sorted(set(pd.to_datetime(bars.t).dt.normalize())))
 
     def _finish_symbol(self, j, res, eq):

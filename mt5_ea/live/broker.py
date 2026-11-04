@@ -15,11 +15,11 @@ import pandas as pd
 
 from .sizing import SymbolSpec
 
-XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US500': 'US500Cash#', 'US30': 'US30Cash#',
+XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US500': 'US500Cash#', 'US100': 'US100Cash#', 'US30': 'US30Cash#',
               'EURUSD': 'EURUSD#', 'USDJPY': 'USDJPY#', 'BTCUSD': 'BTCUSD#', 'ETHUSD': 'ETHUSD#'}
 # Names differ between XM account types (KIWAMI '#', Standard none, Micro 'micro', demo servers ...): try these bases in order,
 # each with the suffixes below, then fall back to any symbol on the account whose name starts with a base.
-XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'],
+XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'], 'US100': ['US100Cash', 'US100', 'NAS100'],
             'US30': ['US30Cash', 'US30'], 'BTCUSD': ['BTCUSD'], 'ETHUSD': ['ETHUSD'], 'NGAS': ['NGASCash', 'NGAS', 'NATGAS'],
             'OIL': ['OILCash', 'OIL']}
 SUFFIXES = ['#', '', '.', 'micro', '#.']
@@ -88,6 +88,17 @@ class MT5Broker:
         d['t'] = pd.to_datetime(d.time, unit='s').astype('datetime64[us]')   # MT5 encodes server time as if UTC -> naive broker time; [us] like the research data (pandas 3 merges need equal units)
         d = d.rename(columns=dict(open='o', high='h', low='l', close='c'))[['t', 'o', 'h', 'l', 'c', 'spread']]
         return d.iloc[:-1].reset_index(drop=True)           # the last bar is still forming
+
+    def weekly(self, sym, n=1300):
+        """Last n closed W1 bars (t = week open, broker time), for the weekly Dow trend (J2). None when MT5 has none."""
+        mt5 = self.mt5
+        r = mt5.copy_rates_from_pos(self.name(sym), mt5.TIMEFRAME_W1, 0, n)
+        if r is None or len(r) < 10:
+            return None
+        d = pd.DataFrame(r)
+        d['t'] = pd.to_datetime(d.time, unit='s').astype('datetime64[us]')
+        d = d.rename(columns=dict(open='o', high='h', low='l', close='c'))[['t', 'o', 'h', 'l', 'c']]
+        return d.iloc[:-1].reset_index(drop=True)          # the last bar is still forming
 
     def server_now(self, sym='EURUSD'):
         tk = self.mt5.symbol_info_tick(self.name(sym))
@@ -179,6 +190,12 @@ class PaperBroker:
     def bars(self, sym, days):
         d = self.data[sym]; d = d[d.t + pd.Timedelta(minutes=15) <= self.now]
         return d[d.t >= self.now - pd.Timedelta(days=days)].reset_index(drop=True)
+
+    def weekly(self, sym, n=1300):
+        d = self.data[sym].set_index('t')
+        w = d[d.index + pd.Timedelta(minutes=15) <= self.now].resample('W-MON', label='left', closed='left').agg(dict(o='first', h='max', l='min', c='last')).dropna()
+        w = w[w.index + pd.Timedelta(days=7) <= self.now]
+        return w.reset_index().tail(n).reset_index(drop=True)
 
     def server_now(self, sym='EURUSD'):
         return self.now

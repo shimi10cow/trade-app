@@ -25,7 +25,7 @@ TF_LEN = {'D1': pd.Timedelta(days=1), 'H4': pd.Timedelta(hours=4), 'H1': pd.Time
 PIP = 1e-4
 COST = 1.2e-4        # cost per trade in price-space units, as in the research engines
 
-LOG_SYMBOLS = {'XAUUSD', 'XAGUSD', 'US30', 'US500', 'JP225', 'BTCUSD', 'ETHUSD'}
+LOG_SYMBOLS = {'XAUUSD', 'XAGUSD', 'US30', 'US500', 'US100', 'JP225', 'BTCUSD', 'ETHUSD'}
 DIV100_SYMBOLS = {'USDJPY'}
 
 

@@ -3,6 +3,9 @@
 Setup: an M15 provisional turn made BEFORE the M15 major trend turned, with the H4 provisional trend the same way, the H1 major
 trend the same way, and the M15 bar starting between 00:00 and 10:00 broker time. Entry at the next M15 open.
 Stop beyond the provisional protected swing + 0.3 ATR(H1). Exit: H1 swing trail from +1R. Adopted on USDJPY (jt2_h1major+hour0_10).
+2026-11-04 (RESEARCH_LOG §170 / §174): no hour window; instead only when the WEEKLY major Dow trend is the trade's way (J2 rides the
+continuation of the H1 / H4 move; against the weekly trend that move is a correction: those trades were -0.04R in both halves).
+The weekly trend needs ~8 years of weekly bars, so it comes from the broker's W1 bars (F.W1, set by the runner), not from M15.
 """
 import bisect
 
@@ -11,10 +14,12 @@ import pandas as pd
 
 from .. import engine as E
 from ..core import Frames
+from .h4gate import _when
+from env_recognition import dow_trend
 
 E.TRIGGERS.setdefault('now', lambda F: {d: list(range(F.N)) for d in ('up', 'down')})
 CFG = dict(trig='now', stop='ref', buf=0.3, exit='h1', act=1.0, win=1)
-ADOPTED = {'USDJPY': dict(h1='h1major', hours=(0, 10))}
+ADOPTED = {'USDJPY': dict(h1='h1major', hours=None, weekly=True)}
 
 
 def events(F: Frames, h1mode='h1major', hours=(0, 10)):
@@ -45,5 +50,28 @@ def events(F: Frames, h1mode='h1major', hours=(0, 10)):
     return out
 
 
-def run(F: Frames, h1='h1major', hours=(0, 10), entry_bar=True):
-    return E.run(F, events(F, h1, hours), CFG, entry_bar=entry_bar)
+def weekly_trend(w1):
+    """Weekly major Dow trend known at each time: function t -> +1 / -1 / 0 (last weekly bar CLOSED by t; bar t = its open)."""
+    df = w1[['t', 'o', 'h', 'l', 'c']].reset_index(drop=True)
+    R = dow_trend.run(df, 'W1')
+    end = (pd.to_datetime(df.t) + pd.Timedelta(days=7)).to_numpy()
+    tr = np.array([1 if b[0] == 'up' else -1 if b[0] == 'down' else 0 for b in R['bars']])
+
+    def at(t):
+        k = int(np.searchsorted(end, np.datetime64(pd.Timestamp(t)), side='right')) - 1
+        return int(tr[k]) if k >= 0 else 0
+    return at
+
+
+def run(F: Frames, h1='h1major', hours=None, weekly=False, entry_bar=True):
+    r = E.run(F, events(F, h1, hours), CFG, entry_bar=entry_bar)
+    if not weekly:
+        return r
+    w1 = getattr(F, 'W1', None)
+    if w1 is None or len(w1) < 430:          # too few weekly bars (the trend needs ~8 years): manage what is open, no new entries
+        return dict(r, pending=[])
+    wt = weekly_trend(w1); ok = lambda t, s: wt(t) == int(s)
+    tr = r['trades']
+    if isinstance(tr, pd.DataFrame) and len(tr):
+        tr = tr[[ok(t, s) for t, s in zip(tr.t, tr.side)]].reset_index(drop=True)
+    return dict(r, trades=tr, open=[p for p in r['open'] if ok(_when(p), p['side'])], pending=[p for p in r['pending'] if ok(_when(p), p['side'])])

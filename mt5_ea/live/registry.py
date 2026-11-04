@@ -2,6 +2,7 @@
 2026-11-02 (docs/EA_PLAN_20261102.md): H4 opening gate on C@USDJPY, T@US30, Q@XAGUSD, Q@US30, DS@JP225; H4 MA75 slope gate on
 R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11 (RESEARCH_LOG §158): P's 'not after a long H1 run' gate on C@EURUSD and A@EURUSD, 'no level bounce' gate on T@US30.
+2026-11-04 (RESEARCH_LOG §176 / §174): P@US500 / P@US100 (half lot); J2@USDJPY weekly trend instead of the hour window.
 2026-11-03 (RESEARCH_LOG §164-§166): new return move RM@ on EURUSD / XAUUSD (A@EURUSD stays off in the app).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
@@ -29,6 +30,7 @@ class EA:
     window_days: int = 600             # M15 history the live run needs
     warm_days: int = 250               # part of the window only used to build the state
     entry_ok: Callable = field(default=lambda t: True)   # extra check on a new entry's signal time
+    weekly: bool = False               # needs the broker's W1 bars (F.W1)
 
 
 weekdays = lambda t: pd.Timestamp(t).dayofweek < 5
@@ -42,7 +44,7 @@ ADOPTED = [
     EA('A@EURUSD', 'EURUSD', pgate(lambda F, env: A_.run(F, env=env), 'ext')),
     EA('C@EURUSD', 'EURUSD', pgate(lambda F, env: C_.run(F, env=env), 'ext')),
     EA('C@USDJPY', 'USDJPY', gate(lambda F, env: C_.run(F, strength=True, notri=False, env=env), 'open')),
-    EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY'])),
+    EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY']), weekly=True),   # 2026-11-04: weekly trend, no hour window
     EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
     EA('S@BTCUSD', 'BTCUSD', lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD']), entry_ok=weekdays),
     EA('Q@XAUUSD', 'XAUUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
@@ -60,7 +62,10 @@ ADOPTED = [
     # RM: return move after a long H4 trend (2026-11-03), appended at the end so the magic numbers stay the same
     EA('RM@EURUSD', 'EURUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
     EA('RM@XAUUSD', 'XAUUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
+    # P on US indices (2026-11-04, RESEARCH_LOG §176): same rules as P@XAUUSD etc., half lot until it proves itself live
+    EA('P@US500', 'US500', lambda F, env: NT.run(F, 'US500'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
+    EA('P@US100', 'US100', lambda F, env: NT.run(F, 'US100'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 24
+assert len(ADOPTED) == 26

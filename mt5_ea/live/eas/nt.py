@@ -33,9 +33,9 @@ from env_recognition.pivots import atr, pivot_events
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'research' / 'core'))
 import engine_m15 as EM  # noqa: E402
 
-COST = {'XAUUSD': 2.5e-4, 'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4}       # per trade, research price space (USDJPY / 100)
+COST = {'XAUUSD': 2.5e-4, 'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4, 'US500': 2e-4, 'US100': 2e-4}   # per trade, research price space (USDJPY / 100, indices log)
 SLOPE_SYMS = {'EURUSD', 'USDJPY'}
-SYMBOLS = ('XAUUSD', 'EURUSD', 'USDJPY')
+SYMBOLS = ('XAUUSD', 'EURUSD', 'USDJPY', 'US500', 'US100')   # indices from 2026-11-04 (RESEARCH_LOG §176, half lot)
 OPEN_MAX, SLOPE_MAX, IMPULSE_MAX, M20_MIN = 2.5, 0.35, 6.0, -0.9
 # 2026-11-03 (RESEARCH_LOG §173): conditions 3 (level bounce) and 5 (impulse) are off on all three symbols: what they removed
 # was positive on all three (3-symbol total 343 -> 649 trades, t 4.92 -> 5.53, both halves positive). Still logged.
