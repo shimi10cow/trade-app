@@ -2,7 +2,6 @@
 2026-11-02 (docs/EA_PLAN_20261102.md): H4 opening gate on C@USDJPY, T@US30, Q@XAGUSD, Q@US30, DS@JP225; H4 MA75 slope gate on
 R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11 (RESEARCH_LOG §158): P's 'not after a long H1 run' gate on C@EURUSD and A@EURUSD, 'no level bounce' gate on T@US30.
-2026-11-03 (RESEARCH_LOG §169-§174): L / L2 daily side 4 ATR, P without level / impulse, T@US30 without the daily side.
 2026-11-03 (RESEARCH_LOG §164-§166): new return move RM@ on EURUSD / XAUUSD (A@EURUSD stays off in the app).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
@@ -37,7 +36,7 @@ weekdays = lambda t: pd.Timestamp(t).dayofweek < 5
 ADOPTED = [
     EA('R@EURUSD', 'EURUSD', gate(lambda F, env: RT.run(F, 'R2c', env=env), 'slope'), window_days=1100, warm_days=750),   # range score: 3000 H4 bars
     EA('T2@EURUSD', 'EURUSD', lambda F, env: axis_filter(F, RT.run(F, 'T1t', env=env))),
-    EA('T@US30', 'US30', pgate(gate(lambda F, env: RT.run(F, 'T1u', env=env), 'open'), 'band')),   # T1u: no daily side (2026-11-03)
+    EA('T@US30', 'US30', pgate(gate(lambda F, env: RT.run(F, 'T1t', env=env), 'open'), 'band')),
     EA('L@EURUSD', 'EURUSD', lambda F, env: L_.run(F, env=env)),
     EA('L2@XAUUSD', 'XAUUSD', lambda F, env: L_.run(F, room=1.0, env=env)),
     EA('A@EURUSD', 'EURUSD', pgate(lambda F, env: A_.run(F, env=env), 'ext')),

@@ -5,8 +5,7 @@ The engine itself is reused unchanged (it is one causal bar loop over M15); only
 bars. Entry is at the M15 close when the stochastic sequence completes; stop below/above H1 SMA200 (min 10 pips); trail to the
 engine's M15 ZigZag swings after +2R or 240 h.
   R2c (EURUSD)       : existing EA with the long-MA filters + range score > 0.7 and within 3 ATR of H4 SMA200
-  T1u (US30 T from 2026-11-03): T1t without the daily side
-  T1t (EURUSD T2, US30 T until 2026-11-03): no long-MA filters + H1 major Dow agrees + with the daily side + H4 ER200 > 0.10 + no H4 triangle
+  T1t (EURUSD T2, US30 T): no long-MA filters + H1 major Dow agrees + with the daily side + H4 ER200 > 0.10 + no H4 triangle
   T2 (EURUSD)        : T1t trades minus the H4 'third push with a short correction' ones (axis filter, see wave.py)
 Live caveat (R only): the engine's q75 filter compares each signal with ALL earlier qualifying signals since the start of the
 data (research: since 2003). A short live window gives a different quantile, so the live R keeps that history (q75_seed).
@@ -75,13 +74,11 @@ def gates(F: Frames, env: Env):
     return dict(
         R2c=lambda: EM.Config(extra_filter=envf(env='R2', rs_hi=0.7)),
         T1t=lambda: EM.Config(use_long_ma=False, extra_filter=lambda t, s: T0(t, s) and envf(notri='H4')(t, s)),
-        # T1u (US30 T, 2026-11-03, RESEARCH_LOG §174): T1t without the daily side (what it removed was +0.32R in both halves)
-        T1u=lambda: EM.Config(use_long_ma=False, extra_filter=lambda t, s: h1_ok(t, s) and feat(t, s)['er'] > 0.10 and envf(notri='H4')(t, s)),
     )
 
 
 def run(F: Frames, key, env=None, m15=None, seed=True):
-    """key: 'R2c', 'T1t' or 'T1u'. Uses every M15 bar of F (m15_all) like the research engine run.
+    """key: 'R2c' or 'T1t'. Uses every M15 bar of F (m15_all) like the research engine run.
     Returns dict(trades, open, pending) in the common format (t = entry bar time, entry at that bar's close)."""
     env = env or Env(F.m15_all)
     src = F.m15_all if m15 is None else m15
