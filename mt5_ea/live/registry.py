@@ -2,7 +2,7 @@
 2026-11-02 (docs/EA_PLAN_20261102.md): H4 opening gate on C@USDJPY, T@US30, Q@XAGUSD, Q@US30, DS@JP225; H4 MA75 slope gate on
 R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11 (RESEARCH_LOG §158): P's 'not after a long H1 run' gate on C@EURUSD and A@EURUSD, 'no level bounce' gate on T@US30.
-2026-11-04 (RESEARCH_LOG §176 / §174): P@US500 / P@US100 (half lot); J2@USDJPY weekly trend instead of the hour window.
+2026-11-04 (RESEARCH_LOG §176 / §174): P@US500 / P@US100; J2@USDJPY weekly trend instead of the hour window.
 2026-11-03 (RESEARCH_LOG §164-§166): new return move RM@ on EURUSD / XAUUSD (A@EURUSD stays off in the app).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
@@ -58,13 +58,13 @@ ADOPTED = [
     # P: new trend EA (2026-11-02): appended at the end so the existing magic numbers stay the same
     EA('P@XAUUSD', 'XAUUSD', lambda F, env: NT.run(F, 'XAUUSD'), window_days=800, warm_days=400),
     EA('P@EURUSD', 'EURUSD', lambda F, env: NT.run(F, 'EURUSD'), window_days=800, warm_days=400),
-    EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),   # half lot from 2026-11-04 (broker time t 2.30 -> 1.71)
+    EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),   # half lot selectable in the app
     # RM: return move after a long H4 trend (2026-11-03), appended at the end so the magic numbers stay the same
     EA('RM@EURUSD', 'EURUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
     EA('RM@XAUUSD', 'XAUUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
-    # P on US indices (2026-11-04, RESEARCH_LOG §176): same rules as P@XAUUSD etc., half lot until it proves itself live
-    EA('P@US500', 'US500', lambda F, env: NT.run(F, 'US500'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
-    EA('P@US100', 'US100', lambda F, env: NT.run(F, 'US100'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
+    # P on US indices (2026-11-04, RESEARCH_LOG §176): same rules as P@XAUUSD etc. (half lot selectable in the app; the user decides)
+    EA('P@US500', 'US500', lambda F, env: NT.run(F, 'US500'), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
+    EA('P@US100', 'US100', lambda F, env: NT.run(F, 'US100'), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
