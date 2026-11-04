@@ -14,10 +14,10 @@
     {id: 'S', title: 'H4MA押し目買い', code: 'S', desc: 'H4 の MA の向きに、押し目から入る', keys: [['S@XAUUSD', 'XAUUSD', ''], ['S@BTCUSD', 'BTCUSD', ' 買い・平日']]},
     {id: 'Q', title: '静観後のブレイク', code: 'Q', desc: '値動きが小さい時間の後、抜けた方に乗る', keys: [['Q@XAUUSD', 'XAUUSD', ''], ['Q@XAGUSD', 'XAGUSD', ''], ['Q@US30', 'US30', '']]},
     {id: 'DS', title: '右肩', code: 'DS', desc: 'ダブルトップ・ボトムの右肩で、反転を取る', keys: [['DS@JP225', 'JP225', ''], ['DS@US500', 'US500', ' 買い'], ['DS@XAUUSD', 'XAUUSD', ' 買い']]},
-    {id: 'P', title: 'MAクロス後の押し目', code: 'P', desc: 'H1 MA20/75 のクロスで決めたトレンドの 1・2 回目の押しを、M15 ストキャスで入る（日足の向き・H4 が伸びきる前。11/3 から伸びきり・水平線の条件は外した）。+1R から H1 の山谷で追いかける', keys: [['P@XAUUSD', 'XAUUSD', ''], ['P@EURUSD', 'EURUSD', ''], ['P@USDJPY', 'USDJPY', ''], ['P@US500', 'US500', ' ロット半分'], ['P@US100', 'US100', ' ロット半分']]},
+    {id: 'P', title: 'MAクロス後の押し目', code: 'P', desc: 'H1 MA20/75 のクロスで決めたトレンドの 1・2 回目の押しを、M15 ストキャスで入る（日足の向き・H4 が伸びきる前。11/3 から伸びきり・水平線の条件は外した）。+1R から H1 の山谷で追いかける', keys: [['P@XAUUSD', 'XAUUSD', ''], ['P@EURUSD', 'EURUSD', ''], ['P@USDJPY', 'USDJPY', ' ロット半分'], ['P@US500', 'US500', ' ロット半分'], ['P@US100', 'US100', ' ロット半分']]},
     {id: 'M', title: '短い押し目', code: 'M', desc: '大きな流れの向きに、2〜3 本の押しで入る（RSI2・終値で入る）', keys: [['M@US30', 'US30', ''], ['M@US500', 'US500', '']]},
   ];
-  const HALF = {'S@XAUUSD': 1, 'Q@XAUUSD': 1, 'P@US500': 1, 'P@US100': 1};
+  const HALF = {'S@XAUUSD': 1, 'Q@XAUUSD': 1, 'P@US500': 1, 'P@US100': 1, 'P@USDJPY': 1};
   const LIVE_ON = ['R@EURUSD', 'T2@EURUSD', 'L@EURUSD', 'A@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
   const ALL_KEYS = CARDS.flatMap(c => c.keys.map(k => k[0]));
   let S = {acc: localStorage.getItem(ACC_LS) || 'demo', dash: null, sheet: null, saving: '', err: '', res: null};
@@ -124,7 +124,8 @@
     'DS@US500': '買いだけ・左肩の外に損切り。10/28 から細い形は見送り。11/4 から 2R 利確をやめて +1.5R から H1 の山谷で追う（2 つ目は 1 つ目が伸びてから）。PF 1.86→2.16・DD -4→-3R', 'DS@XAUUSD': '買いだけ・右肩の上に損切り（最小ロットのリスクを小さく）。10/28 から左肩→ネックが 24 時間未満の細い形は見送り（検証 2005〜：平均 0.28→0.32R）', 'S@BTCUSD': '買いだけ・土日は入らない',
     'P@XAUUSD': '11/2 追加。11/3 から伸びきり（6ATR）と水平線の条件を外した（3 通貨とも外れていた分がプラス、回数 167→318・合計 +231→+302R、DD 7.8→16.0R）。ゴールドの他の EA と同時に持つことが多い',
     'P@EURUSD': '11/2 追加。11/3 から伸びきり・水平線の条件を外した（回数 89→158、DD 6.0→10.4R）。同じ条件が他の通貨では再現しないので、最初はリスク小さめで確認',
-    'P@USDJPY': '11/2 追加。11/3 から伸びきり・水平線の条件を外した（回数 87→173、DD 6.9→10.8R）。同じ条件が他の通貨では再現しないので、最初はリスク小さめで確認',
+    'P@USDJPY': '11/2 追加。11/3 から伸びきり・水平線の条件を外した（回数 87→173）。11/4 からロット半分：本番と同じサーバー時間のデータでは +0.30R → +0.22R（t 2.30 → 1.71）に下がる',
+
     'RM@EURUSD': 'オフ推奨（11/4）：本番と同じサーバー時間のデータでは効かない（研究 +0.48R → ±0、H4 の区切りがずれると崩れる）。研究 38 回・年 2 回ほど',
 
     'RM@XAUUSD': 'オフ推奨（11/4）：サーバー時間のデータでは +0.60R → +0.35R に下がる。研究 32 回・年 1〜2 回、損切りが広め',
@@ -136,15 +137,15 @@
     'Q@US30': '11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 9.8→7.6R）',
     'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）', 'L2@XAUUSD': '伸びる先に壁がある時は見送り。11/3 から日足のトレンドがはっきりしている時だけ（H4 の 1200 本平均から 4ATR 以上）。DD 12.7→7.7R、合計同じ',
     'L@EURUSD': '11/3 から日足のトレンドがはっきりしている時だけ（H4 の 1200 本平均から 4ATR 以上、弱い時の TL 反発は 11 通貨とも負け）。DD 16.3→12.8R、回数 306→258'};
-  // portfolio combinations (2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 half lot; same method as RESEARCH_LOG §107:
+  // portfolio combinations (2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 / P@USDJPY half lot, RM off; same method as RESEARCH_LOG §107:
   // 1% risk, half at DD 10%, calendar x1.5, gold S / Q at half weight, backtest as is; trendlab/rm/combos.py)
   const COMBOS = [
-    ['20 万円', '10 本', 'FX 8 本（ユーロドル T2・L・C・P・RM、ドル円 C・J2・P）＋日経右肩＋BTC S', '+39%', '-20%', '約 94 回'],
-    ['30 万円', '12 本', '上の 10 本＋US500 右肩・US500 P（ロット半分）', '+43%', '-20%', '約 102 回'],
-    ['50 万円', '16 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2・ゴールド P', '+76%', '-19%', '約 135 回'],
-    ['60 万円', '19 本', '＋ゴールド右肩・銀 Q・US30 Q', '+91%', '-18%', '約 152 回'],
-    ['100 万円', '23 本', '＋ゴールド S・Q（ロット半分）・ゴールド RM・US100 P（ロット半分）', '+116%', '-17%', '約 220 回'],
-    ['300 万円', '24 本（R・A 以外全部）', '＋US30 短い押し目', '+118%', '-17%', '約 225 回'],
+    ['20 万円', '9 本', 'FX 7 本（ユーロドル T2・L・C・P、ドル円 C・J2・P（ロット半分））＋日経右肩＋BTC S', '+37%', '-19%', '約 94 回'],
+    ['30 万円', '11 本', '上の 9 本＋US500 右肩・US500 P（ロット半分）', '+39%', '-19%', '約 102 回'],
+    ['50 万円', '15 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2・ゴールド P', '+75%', '-19%', '約 135 回'],
+    ['60 万円', '18 本', '＋ゴールド右肩・銀 Q・US30 Q', '+88%', '-18%', '約 152 回'],
+    ['100 万円', '21 本', '＋ゴールド S・Q（ロット半分）・US100 P（ロット半分）', '+113%', '-16%', '約 221 回'],
+    ['300 万円', '22 本（R・A・RM 以外全部）', '＋US30 短い押し目', '+115%', '-17%', '約 226 回'],
   ];
   function comboTable() {
     const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>

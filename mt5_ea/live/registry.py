@@ -58,7 +58,7 @@ ADOPTED = [
     # P: new trend EA (2026-11-02): appended at the end so the existing magic numbers stay the same
     EA('P@XAUUSD', 'XAUUSD', lambda F, env: NT.run(F, 'XAUUSD'), window_days=800, warm_days=400),
     EA('P@EURUSD', 'EURUSD', lambda F, env: NT.run(F, 'EURUSD'), window_days=800, warm_days=400),
-    EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), window_days=800, warm_days=400),
+    EA('P@USDJPY', 'USDJPY', lambda F, env: NT.run(F, 'USDJPY'), weight=0.5, weight_choices=(0.5, 1.0), window_days=800, warm_days=400),   # half lot from 2026-11-04 (broker time t 2.30 -> 1.71)
     # RM: return move after a long H4 trend (2026-11-03), appended at the end so the magic numbers stay the same
     EA('RM@EURUSD', 'EURUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
     EA('RM@XAUUSD', 'XAUUSD', lambda F, env: RM.run(F), window_days=800, warm_days=400),
