@@ -5,7 +5,7 @@ R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11-04 (RESEARCH_LOG §176 / §174): P@US500 / P@US100; J2@USDJPY weekly trend instead of the hour window.
 2026-11-03 (RESEARCH_LOG §164-§166): new return move RM@ on EURUSD / XAUUSD (A@EURUSD stays off in the app).
 
-Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (S / Q on gold: half), filters applied to
+Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
 All functions return dict(trades, open, pending) from the research-identical logic (mt5_ea/live/eas/*).
 """
@@ -45,9 +45,9 @@ ADOPTED = [
     EA('C@EURUSD', 'EURUSD', pgate(lambda F, env: C_.run(F, env=env), 'ext')),
     EA('C@USDJPY', 'USDJPY', gate(lambda F, env: C_.run(F, strength=True, notri=False, env=env), 'open')),
     EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY']), weekly=True),   # 2026-11-04: weekly trend, no hour window
-    EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
+    EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD']), weight_choices=(0.5, 1.0)),
     EA('S@BTCUSD', 'BTCUSD', lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD']), entry_ok=weekdays),
-    EA('Q@XAUUSD', 'XAUUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD']), weight=0.5, weight_choices=(0.5, 1.0)),
+    EA('Q@XAUUSD', 'XAUUSD', lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD']), weight_choices=(0.5, 1.0)),
     EA('Q@XAGUSD', 'XAGUSD', gate(lambda F, env: Q.run(F, *Q.ADOPTED['XAGUSD']), 'open')),
     EA('Q@US30', 'US30', gate(lambda F, env: Q.run(F, *Q.ADOPTED['US30']), 'open')),
     EA('M@US30', 'US30', lambda F, env: M.run(F, **M.ADOPTED['US30'])),
