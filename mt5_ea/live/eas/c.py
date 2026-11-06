@@ -7,6 +7,10 @@ re-drawn as the outer tangent over later lower highs. Break = close beyond the l
 Entry: M15 provisional turn within 4 h; stop beyond the M15 turn swing + 1.0 ATR(H1); H1 swing trail from +1R.
 Environment (md4tri): with the daily side (sd > 0), |distance from H4 SMA75| <= 4 ATR, no H4 triangle forming.
 USDJPY only: lines with the correction lasting > 24 M15 bars and slope > 0.03 ATR(M15) per bar.
+H1 SMA75 filter (2026-11-06): skip when the last closed H1 close is beyond H1 SMA75 against the trade by more than 2 ATR(H1)
+(buying far below the H1 average = buying a correction in an H1 downtrend). From the user's trade check of C@EURUSD
+(6 'should not enter' trades); broker-time data 2005-: EURUSD 230 -> 193 trades, +0.42 -> +0.51R, total +97 -> +98R, DD 10.6 -> 8.7R;
+USDJPY 245 -> 225, +0.30 -> +0.37R, total +75 -> +84R; skipped trades <= 0 in both halves on both. FX only (silver/BTC: worse).
 Note: like the research, the line start A uses the final known version of the pivot (pivots can relocate later); the cut test
 (parity test 2) shows whether that changes live trades.
 """
@@ -20,6 +24,7 @@ from ..env import Env
 from env_recognition.pivots import atr
 
 LOOK, DROP, PROM, MAXAB, MAXLEN, IMPW, IMP = 40, 0.6, 1.5, 40, 300, 96, 6.0
+H1DEV = 2.0     # max distance (ATR(H1)) of the H1 close beyond SMA75 against the trade; None = off
 CFG = dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0, dside=0, maxdev=4, notri='H4')
 # USDJPY: the research workspace had no triangle file (results/tri_intervals.csv missing), so its validated C ran WITHOUT the
 # H4-triangle filter; the live USDJPY C does the same (parity test 1: 5 trades differed with the filter on).
@@ -100,11 +105,24 @@ def strong(tag):
     return int(dur) > 24 and float(slope) > 0.03
 
 
-def run(F: Frames, strength=False, entry_bar=True, env=None, notri=True):
+def h1dev_ok(F: Frames, lim=H1DEV):
+    """(t, side) -> False when the last H1 close at signal time t is beyond H1 SMA75 against the side by more than lim ATR(H1)."""
+    c, ma, a = F.h1.c.to_numpy(float), F.H1MA[75], F.A1
+
+    def ok(t, s):
+        k = bisect.bisect_right(F.C1, t) - 1
+        if lim is None or k < 0 or not (np.isfinite(ma[k]) and np.isfinite(a[k]) and a[k] > 0):
+            return True
+        return s * (c[k] - ma[k]) / a[k] > -lim
+    return ok
+
+
+def run(F: Frames, strength=False, entry_bar=True, env=None, notri=True, h1dev=H1DEV):
     """strength (USDJPY): run with every line (as the research did), then keep only trades from strong lines."""
     env = env or Env(F.m15_all)
     cfg = CFG if notri else {k: v for k, v in CFG.items() if k != 'notri'}
-    r = E.run(F, events(F), cfg, env_ok=env.ok, entry_bar=entry_bar)
+    dv = h1dev_ok(F, h1dev)
+    r = E.run(F, events(F), cfg, env_ok=lambda cf, t, s: env.ok(cf, t, s) and dv(t, s), entry_bar=entry_bar)
     if not strength:
         return r
     tr = r['trades']
