@@ -11,6 +11,7 @@ TL = Path(os.environ.get('TRENDLAB', '/home/user/trendlab'))
 REF = pd.read_pickle(TL / 'full/ds_stack.pkl')
 LAB = {'E': 'E H1で追う(+1.5R)・2つ目は1つ目が+1.5R後', 'A': 'A 2R利確・1つまで（今）'}
 for sym in ('JP225', 'US500'):
+    DS.ADOPTED[sym] = {k: v for k, v in DS.ADOPTED[sym].items() if k != 'exits'} | dict(exit='h1s15')   # the 11/4 exit alone (11/7 step: eas/ds.py CUTOVER2)
     F = pickle.load(open(TL / f'live_frames_{sym}.pkl', 'rb')); sh = h4_shape(F.m15_all)
     gate = (lambda tr: tr[[sh(t, s)[0] < 2.5 for t, s in zip(tr.t, tr.side)]]) if sym == 'JP225' else (lambda tr: tr)
     key = lambda d: {(pd.Timestamp(t), int(s)) for t, s in zip(d.t, d.side)}

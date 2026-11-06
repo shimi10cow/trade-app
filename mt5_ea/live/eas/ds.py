@@ -20,8 +20,8 @@ from ..core import Frames
 from env_recognition.pivots import atr
 
 ADOPTED = {
-    'JP225': dict(stop='left', exit='h1s15', side=None, ln=True, old_exit='tp2'),
-    'US500': dict(stop='left', exit='h1s15', side=1, ln=True, old_exit='tp2'),   # width rule: total -2R but win % / PF up, same DD (user 2026-10-28)
+    'JP225': dict(stop='left', exit='h1s15st', side=None, ln=True, old_exit='tp2', exits=(('tp2', None), ('h1s15', 'CUTOVER'), ('h1s15st', 'CUTOVER2'))),
+    'US500': dict(stop='left', exit='h1s15st', side=1, ln=True, old_exit='tp2', exits=(('tp2', None), ('h1s15', 'CUTOVER'), ('h1s15st', 'CUTOVER2'))),   # width rule: total -2R but win % / PF up, same DD (user 2026-10-28)
     'XAUUSD': dict(stop='shoulder', exit='h1', side=1, ln=True),
 }
 MIN_DEPTH = 4.0
@@ -29,6 +29,11 @@ MIN_DEPTH = 4.0
 # target, a 2nd position on the same side only while the 1st is already trailing). Trades entered before CUTOVER keep the old
 # management to the end (their broker-side 2R target stays), so a position open at the switch is not touched.
 CUTOVER = pd.Timestamp('2026-11-04 00:00')
+# 2026-11-07 (user's DS@JP225 trade check): 'h1s15st' = 'h1s15' + one stop step: once an H4 swing low (buy) / high (sell) is
+# confirmed after the entry, the stop moves once to 0.3 ATR(H1) beyond it (before the +1.5R trail). Broker-time data 2017-:
+# JP225 +37R / DD 6.1R / 48 full -1R losses -> +36R / DD 2.8R / 9; US500 +22R / DD 3.0R -> +20R / DD 3.5R, full losses 20 -> 5.
+# Entries before CUTOVER2 keep the 'h1s15' management.
+CUTOVER2 = pd.Timestamp('2026-11-07 00:00')
 MIN_LN_HOURS = 24.0
 
 
@@ -95,6 +100,7 @@ def cfg_for(stop, ex):
     base, _, tm = ex.partition('-t')
     if base == 'h1': cfg.update(exit='h1', act=1.0)
     elif base == 'h1s15': cfg.update(exit='h1', act=1.5, stack=2); cfg.pop('one_per_side')
+    elif base == 'h1s15st': cfg.update(exit='h1', act=1.5, stack=2, step=True, step_buf=0.3); cfg.pop('one_per_side')
     elif base == 'neck': cfg.update(exit='h1', act=99, tp_px=True, tp=3.0)
     elif base.startswith('m15a'): cfg.update(exit='m15', act=float(base[4:]))
     elif base.startswith('hyb'): cfg.update(exit='hyb', act=1.0, sw=float(base[3:]))
@@ -127,23 +133,23 @@ def _adopted_once(F, a, exit_, evs, LN, entry_bar):
 def run_adopted(F: Frames, sym, entry_bar=True, cutover=None):
     """The adopted DS for `sym`, as validated: run with ALL setups (so a filtered-out setup can still occupy its side, exactly
     like the research run), then keep only trades / open positions / pending entries that pass the filter.
-    With an 'old_exit': trades entered before the cutover come from the old exit's run (managed as they were opened), trades
-    from the cutover on from the new one; cutover=False gives the new exit for everything (research / parity)."""
+    Exit changes: each trade is managed by the exit in force when it was entered (a['exits'] = (exit, start) in order; trades
+    entered before a switch keep the earlier management to the end). cutover=False gives the newest exit for everything
+    (research / parity); a Timestamp gives old_exit before it and the newest exit after it (parity tests)."""
     a = ADOPTED[sym]
     evs = setups(F, 'H1')
     LN = {e['t']: e['ln_h'] for e in evs}                       # setup time -> hours from the left shoulder to the neck
-    new = _adopted_once(F, a, a['exit'], evs, LN, entry_bar)
-    cut = CUTOVER if cutover is None else cutover
-    if not a.get('old_exit') or cut is False:
-        return new
-    old = _adopted_once(F, a, a['old_exit'], evs, LN, entry_bar)
-    before = lambda t: pd.Timestamp(t) < cut
-    tr = [x for x in (old['trades'], new['trades']) if isinstance(x, pd.DataFrame) and len(x)]
-    if tr:
-        o, n = (old['trades'] if len(old['trades']) else None), (new['trades'] if len(new['trades']) else None)
-        parts = ([o[[before(t) for t in o.t]]] if o is not None else []) + ([n[[not before(t) for t in n.t]]] if n is not None else [])
-        tr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-    else:
-        tr = pd.DataFrame()
-    return dict(trades=tr, open=[p for p in old['open'] if before(p['t'])] + [p for p in new['open'] if not before(p['t'])],
-                pending=new['pending'])
+    segs = [(ex, globals()[st] if isinstance(st, str) else st) for ex, st in a.get('exits', ((a['exit'], None),))]
+    if cutover is False:
+        segs = [(a['exit'], None)]
+    elif cutover is not None:
+        segs = [(a['old_exit'], None), (a['exit'], cutover)]
+    runs = [_adopted_once(F, a, ex, evs, LN, entry_bar) for ex, _ in segs]
+    if len(runs) == 1:
+        return runs[0]
+    bounds = [st for _, st in segs] + [None]
+    inseg = lambda t, k: (bounds[k] is None or pd.Timestamp(t) >= bounds[k]) and (bounds[k + 1] is None or pd.Timestamp(t) < bounds[k + 1])
+    parts = [r['trades'][[inseg(t, k) for t in r['trades'].t]] for k, r in enumerate(runs) if isinstance(r['trades'], pd.DataFrame) and len(r['trades'])]
+    tr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    opn = [p for k, r in enumerate(runs) for p in r['open'] if inseg(p['t'], k)]
+    return dict(trades=tr, open=opn, pending=runs[-1]['pending'])

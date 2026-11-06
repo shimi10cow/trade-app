@@ -1,7 +1,7 @@
 """Common EA runner, ported from research/dow_strategy/ea_core.py (2026-10-24) to work on a Frames object.
 
 Identical rules to the research engine (setup x trigger x stop x exit, entry at the next M15 open, stop checked before
-targets, trail only tightens). Live additions, which do not change any backtest number:
+targets, trail only tightens; optional one stop step on an H4 swing before the trail, cfg 'step'). Live additions, which do not change any backtest number:
   - entry_bar=True checks the stop on the entry bar too (= research EA_ENTRY_BAR=1, what a broker-side stop does)
   - a signal on the last closed bar becomes a `pending` entry (enter at the next bar's open) instead of being dropped
   - the result also lists the positions still open at the end with their current stop (= the stop to hold at the broker)
@@ -109,6 +109,18 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
             if cfg.get('tmax') and not p['trail'] and (F.M15T[i] - p['t']) >= pd.Timedelta(hours=cfg['tmax']) and \
                     max(p['mfe'], fav / p['risk']) < cfg.get('tmfe', 0.5):
                 p['exit'] = c[i]; p['exit_t'] = F.M15T[i]; p['why'] = 'time'; trades.append(p); continue
+            if cfg.get('step') and not p['trail'] and not p.get('stepped'):
+                # one stop step before the trail (DS, 2026-11-06): once an H4 swing on the trade's side is confirmed after the
+                # entry, move the stop once to beyond it (+ step_buf x ATR(H1)); the normal trail takes over from `act`
+                ts = F.M15T[i] + F.L15; want = 'lo' if s == 1 else 'hi'
+                j = bisect.bisect_right(F.H4PT, ts) - 1
+                while j >= 0 and F.H4P[j][1] != want:
+                    j -= 1
+                if j >= 0 and F.H4PT[j] > p['t']:
+                    k1s = bisect.bisect_right(F.C1, F.CL15[i]) - 1
+                    v = F.H4P[j][2] - s * (F.PIP + cfg.get('step_buf', 0.0) * F.A1[k1s])
+                    if s * (v - p['sl']) > 0 and ((v < c[i]) if s == 1 else (v > c[i])):
+                        p['sl'] = v; p['stepped'] = True
             if not p['trail'] and fav >= act * p['risk']:
                 p['trail'] = True
             if p['trail']:
