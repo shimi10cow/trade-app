@@ -124,7 +124,8 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
             if not p['trail'] and fav >= act * p['risk']:
                 p['trail'] = True
             if p['trail']:
-                src = 'h4' if exit_kind == 'h4' else 'h1' if exit_kind == 'h1' or (exit_kind == 'hyb' and p['mfe'] >= sw) else 'm15'
+                xk = p.get('xk', exit_kind)       # a setup may set its own trail time frame ('xk', J2 2026-11-08)
+                src = 'h4' if xk == 'h4' else 'm15' if xk == 'm15' else 'h1' if exit_kind == 'h1' or (exit_kind == 'hyb' and p['mfe'] >= sw) else 'm15'
                 ts = F.M15T[i] + F.L15; want = 'lo' if s == 1 else 'hi'
                 v = (F.last_swing(F.H4P, F.H4PT, ts, want) if src == 'h4' else
                      F.last_swing(F.H1P, F.H1PT, ts, want) if src == 'h1' else F.last_swing(F.P15, F.P15T, ts, want))
@@ -163,7 +164,8 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
             if s * (entry - sl) < 10 * F.PIP:
                 sl = entry - s * 10 * F.PIP
             pos.append(dict(k=i + 1, t=F.M15T[i + 1], side=s, entry=entry, sl=sl, sl0=sl, risk=s * (entry - sl),
-                            trail=False, mfe=0.0, tag=ev.get('tag', ''), setup_t=ev['t'], tp_px=ev.get('tp_px')))
+                            trail=False, mfe=0.0, tag=ev.get('tag', ''), setup_t=ev['t'], tp_px=ev.get('tp_px'),
+                            **({'xk': ev['xk']} if ev.get('xk') else {})))
     tr = pd.DataFrame(trades)
     if len(tr):
         tr['R'] = (tr.exit - tr.entry) * tr.side / tr.risk - F.COST / tr.risk

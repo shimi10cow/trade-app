@@ -6,6 +6,10 @@ Stop beyond the provisional protected swing + 0.3 ATR(H1). Exit: H1 swing trail 
 2026-11-04 (RESEARCH_LOG §170 / §174): no hour window; instead only when the WEEKLY major Dow trend is the trade's way (J2 rides the
 continuation of the H1 / H4 move; against the weekly trend that move is a correction: those trades were -0.04R in both halves).
 The weekly trend needs ~8 years of weekly bars, so it comes from the broker's W1 bars (F.W1, set by the runner), not from M15.
+2026-11-08 (user's J2 trade check: "decide M15 or H1 exit by the trend stage"): when the H4 major Dow trend is the trade's way and
+already at its 4th leg or later (turn = 1st leg, +1 per breakout), the trail follows M15 swings instead of H1 (late H4 trend: the H1
+turn is often its last push). Broker-time data 2005-: 227 -> 231 trades, total +113 -> +120R, max DD 16.0 -> 14.0R, better in 3 of 4
+quarters. Daily-Dow stages did worse (J2's best trades are in the daily trend's 2nd-3rd leg). Entries before CUTOVER keep the H1 trail.
 """
 import bisect
 
@@ -19,7 +23,8 @@ from env_recognition import dow_trend
 
 E.TRIGGERS.setdefault('now', lambda F: {d: list(range(F.N)) for d in ('up', 'down')})
 CFG = dict(trig='now', stop='ref', buf=0.3, exit='h1', act=1.0, win=1)
-ADOPTED = {'USDJPY': dict(h1='h1major', hours=None, weekly=True)}
+ADOPTED = {'USDJPY': dict(h1='h1major', hours=None, weekly=True, late_legs=4)}
+CUTOVER = pd.Timestamp('2026-11-08 00:00')   # the H4-stage exit applies to entries from here on
 
 
 def events(F: Frames, h1mode='h1major', hours=(0, 10)):
@@ -63,8 +68,35 @@ def weekly_trend(w1):
     return at
 
 
-def run(F: Frames, h1='h1major', hours=None, weekly=False, entry_bar=True):
-    r = E.run(F, events(F, h1, hours), CFG, entry_bar=entry_bar)
+def h4_legs(F: Frames):
+    """(t, side) -> leg of the H4 major Dow trend known at t when it points the side's way (1 = just turned, +1 per breakout),
+    0 when it points the other way."""
+    R = F.R4; n = len(R['bars']); trend = [b[0] for b in R['bars']]; legs = np.zeros(n, int); evs = {}
+    for e in R['events']:
+        if e.get('machine') == 'major' and e['action'] in ('BREAKOUT', 'REVERSAL'):
+            evs.setdefault(e['idx'], []).append(e['action'])
+    cnt = 0
+    for k in range(n):
+        for a in evs.get(k, []):
+            cnt = 1 if a == 'REVERSAL' else cnt + 1
+        if k > 0 and trend[k] != trend[k - 1] and 'REVERSAL' not in evs.get(k, []):
+            cnt = 1
+        legs[k] = cnt
+
+    def at(t, s):
+        k = bisect.bisect_right(F.C4, t) - 1
+        return int(legs[k]) if k >= 0 and trend[k] == ('up' if s == 1 else 'down') else 0
+    return at
+
+
+def run(F: Frames, h1='h1major', hours=None, weekly=False, entry_bar=True, late_legs=None, cutover=None):
+    """late_legs: M15 trail for setups made when the H4 trend is at that leg or later; only from `cutover` (default CUTOVER,
+    False = the whole history, for research / parity)."""
+    ev = events(F, h1, hours)
+    if late_legs:
+        legs = h4_legs(F); cut = CUTOVER if cutover is None else cutover
+        ev = [dict(e, xk='m15') if (cut is False or e['t'] >= cut) and legs(e['t'], e['side']) >= late_legs else e for e in ev]
+    r = E.run(F, ev, CFG, entry_bar=entry_bar)
     if not weekly:
         return r
     w1 = getattr(F, 'W1', None)
