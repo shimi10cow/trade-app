@@ -23,7 +23,8 @@ from env_recognition import dow_trend
 
 E.TRIGGERS.setdefault('now', lambda F: {d: list(range(F.N)) for d in ('up', 'down')})
 CFG = dict(trig='now', stop='ref', buf=0.3, exit='h1', act=1.0, win=1)
-ADOPTED = {'USDJPY': dict(h1='h1major', hours=None, weekly=True, late_legs=4)}
+ADOPTED = {'USDJPY': dict(h1='h1major', hours=None, weekly=True, late_legs=4, lhx=True)}
+LH_CUTOVER = pd.Timestamp('2026-11-08 00:00')   # the lower-high exit (2026-11-07) applies to setups from here in live
 CUTOVER = pd.Timestamp('2026-11-08 00:00')   # the H4-stage exit applies to entries from here on
 
 
@@ -89,13 +90,19 @@ def h4_legs(F: Frames):
     return at
 
 
-def run(F: Frames, h1='h1major', hours=None, weekly=False, entry_bar=True, late_legs=None, cutover=None):
+def run(F: Frames, h1='h1major', hours=None, weekly=False, entry_bar=True, late_legs=None, cutover=None, lhx=False, lh_cutover=None):
     """late_legs: M15 trail for setups made when the H4 trend is at that leg or later; only from `cutover` (default CUTOVER,
-    False = the whole history, for research / parity)."""
+    False = the whole history, for research / parity).
+    lhx (2026-11-07, docs/OPEN_ITEMS.md): once +1R, close at the first confirmed H1 swing high lower than the previous one after
+    the entry (sells: higher low) - USDJPY turns by lower highs; only for setups from `lh_cutover` (default LH_CUTOVER, False = all).
+    2006-: 231 trades +119.8R DD 14.0R -> +133.5R DD 12.5R (both halves better, the 10 largest wins unchanged)."""
     ev = events(F, h1, hours)
     if late_legs:
         legs = h4_legs(F); cut = CUTOVER if cutover is None else cutover
         ev = [dict(e, xk='m15') if (cut is False or e['t'] >= cut) and legs(e['t'], e['side']) >= late_legs else e for e in ev]
+    if lhx:
+        lc = LH_CUTOVER if lh_cutover is None else lh_cutover
+        ev = [dict(e, lhx=True) if (lc is False or e['t'] >= lc) else e for e in ev]
     r = E.run(F, ev, CFG, entry_bar=entry_bar)
     if not weekly:
         return r

@@ -30,7 +30,7 @@ RUN = {
     'S@XAUUSD': lambda F, env: S_.run(F, *S_.ADOPTED['XAUUSD'], entry_bar=False),
     'S@BTCUSD': lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD'], entry_bar=False),
     'Q@XAUUSD': lambda F, env: Q.run(F, *Q.ADOPTED['XAUUSD'], entry_bar=False),
-    'Q@XAGUSD': lambda F, env: Q.run(F, *Q.ADOPTED['XAGUSD'], entry_bar=False),
+    'Q@XAGUSD': lambda F, env: Q.run(F, *Q.OLD_XAGUSD, entry_bar=False),        # the research set of final_trades (before 2026-11-07)
     'Q@US30': lambda F, env: Q.run(F, *Q.ADOPTED['US30'], entry_bar=False),
     'M@US30': lambda F, env: M.run(F, **M.ADOPTED['US30']),
     'M@US500': lambda F, env: M.run(F, **M.ADOPTED['US500']),

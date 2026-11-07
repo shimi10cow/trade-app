@@ -60,6 +60,9 @@ class Config:
     tp_half:bool=False         # True: close half at TP and let the rest trail (default: close all)
     sl_fn:object=None          # optional callable(time, side, entry, default_sl) -> stop price, or None to skip the trade
     trail_start_R:float=2.0    # trailing starts once price has gone this many R in favour (canonical 2R)
+    lh_exit:object=None        # optional (2026-11-07, P@USDJPY): time from which entries get the lower-high exit (None = off, True = all).
+                               # Once the trade has been +1R, a trail pivot of the far side ('H' for buys) confirmed after the entry that is
+                               # lower than the previous one (sells: a higher 'L') closes it at the open of the bar where it becomes known
     trail_close_check:bool=False  # True (new trend EA, 2026-11-02): only trail to a pivot beyond the current close on the safe side, and on the bar
                                # where a new pivot is stored use the one known before it (research sx/exits.py h1sw1)
 CFG=Config()
@@ -321,6 +324,23 @@ def run_pair(pair,cfg=CFG):
         if cfg.use_h4_rsi and np.isfinite(r.h4i) and int(r.h4i)!=last_h4i:
             last_h4i=int(r.h4i); update_rsi_state(r.rsi,rsi_state)
 
+        # 0) lower-high exit (cfg.lh_exit): pivots stored on this bar are known at its open
+        if cfg.lh_exit is not None and positions:
+            new_piv=piv_by_t.get(t,[]); survivors=[]
+            for p in positions:
+                if p.get('lh') and i>p['entry_i']+1:
+                    far='H' if p['side']==1 else 'L'; hit=False
+                    for pv in new_piv:
+                        if pv['kind']==far:
+                            p['lh_x'].append(pv['price'])
+                            if p['lh_mfe']>=1.0 and len(p['lh_x'])>=2 and (p['lh_x'][-1]-p['lh_x'][-2])*p['side']<0: hit=True
+                    if hit:
+                        ex=r.open; R=(ex-p['entry'])*p['side']/p['risk']
+                        if p.get('half_R') is not None: R=0.5*p['half_R']+0.5*R
+                        p.update(exit=ex,ExitTime=t,R=R,exit_i=i,lh_hit=True);closed.append(p);continue
+                survivors.append(p)
+            positions=survivors
+
         # 1) active SL hits for positions opened before this bar
         survivors=[]
         for p in positions:
@@ -339,6 +359,10 @@ def run_pair(pair,cfg=CFG):
                         p.update(exit=tp,ExitTime=t,R=Rtp,exit_i=i,tp_hit=True);closed.append(p);continue
             survivors.append(p)
         positions=survivors
+        if cfg.lh_exit is not None:
+            for p in positions:
+                if p.get('lh') and p['entry_i']<i:
+                    fav=(r.high-p['entry']) if p['side']==1 else (p['entry']-r.low); p['lh_mfe']=max(p['lh_mfe'],fav/p['risk'])
 
         # 2) +2R or delayed 240h activation; use latest already-confirmed pivot, effective this bar only if confirmed before t
         for p in positions:
@@ -453,6 +477,8 @@ def run_pair(pair,cfg=CFG):
             p={'pair':pair,'side':side,'point':point,'regime_id':regime_id,'entry_i':i,'time':t,'entry':entry,
                'initial_sl':sl,'sl':sl,'risk':risk,'trail_on':False,'trail_reason':'','entry_atr':float(r.atr),'B_exception':bool(exc and not rel)}
             if cfg.tp_fn is not None: p['tp']=cfg.tp_fn(t,side,entry,risk)
+            if cfg.lh_exit is not None:
+                p['lh']=bool(cfg.lh_exit is True or t>=cfg.lh_exit); p['lh_x']=[]; p['lh_mfe']=0.0
             positions.append(p);regime_trades[point].append(p)
 
     # mark open at end using last close

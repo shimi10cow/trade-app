@@ -17,7 +17,7 @@ from mt5_ea.live.env import Env  # noqa: E402
 from mt5_ea.live.registry import ADOPTED  # noqa: E402
 
 TL = Path(os.environ.get('TRENDLAB', '/home/user/trendlab'))
-GATED = {'C@USDJPY': 'open', 'T@US30': 'open', 'Q@XAGUSD': 'open', 'Q@US30': 'open', 'DS@JP225': 'open', 'R@EURUSD': 'slope'}
+GATED = {'C@USDJPY': 'open', 'T@US30': 'open', 'Q@US30': 'open', 'DS@JP225': 'open', 'R@EURUSD': 'slope'}   # Q@XAGUSD: no gate from 2026-11-07
 
 
 def main(sym):

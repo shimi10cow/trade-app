@@ -35,6 +35,9 @@ import engine_m15 as EM  # noqa: E402
 
 COST = {'XAUUSD': 2.5e-4, 'EURUSD': 1.2e-4, 'USDJPY': 1.5e-4, 'US500': 2e-4, 'US100': 2e-4}   # per trade, research price space (USDJPY / 100, indices log)
 SLOPE_SYMS = {'EURUSD', 'USDJPY'}
+# lower-high exit (2026-11-07, docs/OPEN_ITEMS.md): USDJPY only, for entries from this time in live (USDJPY turns by lower highs).
+# 2005-: 176 trades +38.6R DD 13.5R -> +46.4R DD 12.7R (both halves better, the 10 largest wins unchanged)
+LH_FROM = {'USDJPY': pd.Timestamp('2026-11-08 00:00')}
 SYMBOLS = ('XAUUSD', 'EURUSD', 'USDJPY', 'US500', 'US100')   # indices from 2026-11-04 (RESEARCH_LOG §176, half lot)
 OPEN_MAX, SLOPE_MAX, IMPULSE_MAX, M20_MIN = 2.5, 0.35, 6.0, -0.9
 # 2026-11-03 (RESEARCH_LOG §173): conditions 3 (level bounce) and 5 (impulse) are off on all three symbols: what they removed
@@ -196,10 +199,12 @@ def config(F: Frames, sym, m15, log=None):
                      trail_pivots=_h1_pivots(h1, m.time.to_numpy()))
 
 
-def run(F: Frames, sym, env=None, m15=None, seed=True, log=None):
-    """Returns dict(trades, open, pending) like rt.run (t = signal bar time, entry at that bar's close)."""
+def run(F: Frames, sym, env=None, m15=None, seed=True, log=None, lh=None):
+    """Returns dict(trades, open, pending) like rt.run (t = signal bar time, entry at that bar's close).
+    lh: lower-high exit from this time (None = LH_FROM[sym] if any, True = the whole history, False = off)."""
     src = F.m15_all if m15 is None else m15
     cfg = config(F, sym, src, log)
+    cfg.lh_exit = (LH_FROM.get(sym) if lh is None else (None if lh is False else lh))
     if seed:
         cfg.q75_seed = q75_seed(sym, src.t.iat[0])
     d = src.rename(columns=dict(t='time', o='open', h='high', l='low', c='close'))[['time', 'open', 'high', 'low', 'close']].copy()
@@ -213,6 +218,8 @@ def run(F: Frames, sym, env=None, m15=None, seed=True, log=None):
         return dict(trades=pd.DataFrame(), open=[], pending=[])
     tr = tr.rename(columns=dict(time='t', ExitTime='exit_t', initial_sl='sl0'))
     tr['R'] = tr.R - COST.get(sym, 1.2e-4) / tr.risk
+    if 'lh_hit' in tr:
+        tr['why'] = np.where(tr.lh_hit.fillna(False).astype(bool), 'lh', None)
     last_i = len(d) - 1
     is_open = tr.get('open_end', pd.Series(False, index=tr.index)).fillna(False).astype(bool)
     closed = tr[~is_open & (pd.to_datetime(tr.t) >= F.START)].reset_index(drop=True)

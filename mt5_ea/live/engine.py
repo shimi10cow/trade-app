@@ -70,6 +70,13 @@ def stop_ref(F, kind, i, s, ev=None):
         return v if np.isfinite(v) else None
     if kind == 'ref':
         return None if ev is None else ev.get('ref')
+    if kind == 'far':
+        # trendline EAs (2026-11-07): the farther of the M15 turn swing and the event's line at this bar's close
+        r = F.R15['prov_bars'][i][1]
+        if r is None or ev is None or ev.get('line_at') is None:
+            return r
+        v = ev['line_at'](ts)
+        return min(r, v) if s == 1 else max(r, v)
     raise ValueError(kind)
 
 
@@ -79,7 +86,7 @@ def link(F, events, trig, win=24):
         d = 'up' if ev['side'] == 1 else 'down'
         i0 = F.CL15.searchsorted(ev['t']); i1 = F.CL15.searchsorted(ev['t'] + pd.Timedelta(hours=ev.get('win', win)))
         lst = tg[d]; j = bisect.bisect_left(lst, i0)
-        if j < len(lst) and lst[j] < i1:
+        if j < len(lst) and lst[j] < i1 and (ev.get('ok') is None or ev['ok'](lst[j])):   # 'ok': the setup's own check on its first trigger
             out.setdefault(lst[j], []).append(ev)
     return out
 
@@ -109,6 +116,20 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
             if cfg.get('tmax') and not p['trail'] and (F.M15T[i] - p['t']) >= pd.Timedelta(hours=cfg['tmax']) and \
                     max(p['mfe'], fav / p['risk']) < cfg.get('tmfe', 0.5):
                 p['exit'] = c[i]; p['exit_t'] = F.M15T[i]; p['why'] = 'time'; trades.append(p); continue
+            if cfg.get('lhx') or p.get('lhx'):
+                # lower-high exit (USDJPY J2, 2026-11-07): once the trade has been +1R, a confirmed H1 swing high lower than the
+                # previous one confirmed after the entry (sells: a higher swing low) closes it at this bar's close
+                if 'lh_j' not in p:
+                    p['lh_j'] = bisect.bisect_right(F.H1PT, F.CL15[p['k'] - 1]); p['lh_x'] = []
+                opp, hit = ('hi' if s == 1 else 'lo'), False
+                while p['lh_j'] < len(F.H1PT) and F.H1PT[p['lh_j']] <= F.CL15[i]:
+                    q = F.H1P[p['lh_j']]; p['lh_j'] += 1
+                    if q[1] == opp:
+                        p['lh_x'].append(q[2])
+                        if p['mfe'] >= 1.0 and len(p['lh_x']) >= 2 and (p['lh_x'][-1] - p['lh_x'][-2]) * s < 0:
+                            hit = True
+                if hit:
+                    p['exit'] = c[i]; p['exit_t'] = F.M15T[i]; p['why'] = 'lh'; trades.append(p); continue
             if cfg.get('step') and not p['trail'] and not p.get('stepped'):
                 # one stop step before the trail (DS, 2026-11-06): once an H4 swing on the trade's side is confirmed after the
                 # entry, move the stop once to beyond it (+ step_buf x ATR(H1)); the normal trail takes over from `act`
@@ -165,7 +186,7 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
                 sl = entry - s * 10 * F.PIP
             pos.append(dict(k=i + 1, t=F.M15T[i + 1], side=s, entry=entry, sl=sl, sl0=sl, risk=s * (entry - sl),
                             trail=False, mfe=0.0, tag=ev.get('tag', ''), setup_t=ev['t'], tp_px=ev.get('tp_px'),
-                            **({'xk': ev['xk']} if ev.get('xk') else {})))
+                            **({'xk': ev['xk']} if ev.get('xk') else {}), **({'lhx': True} if ev.get('lhx') else {})))
     tr = pd.DataFrame(trades)
     if len(tr):
         tr['R'] = (tr.exit - tr.entry) * tr.side / tr.risk - F.COST / tr.risk
