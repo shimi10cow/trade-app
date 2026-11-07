@@ -28,10 +28,16 @@ ADOPTED = {
 }
 OLD_XAGUSD = (0.8, 24, 'any', 'dow', 'ref', 'h4')        # the setting before 2026-11-07 (parity of old results)
 RUN_MAX = {'XAUUSD': 3.0, 'XAGUSD': 3.0, 'BTCUSD': 3.0}
+# 2026-11-07 (docs/OPEN_ITEMS.md, silver Q loss review): silver only, skip a breakout whose stop would be far - the range did not
+# really contract: s * (breakout close - range middle) / ATR14(H1) + 0.3 >= FAR_MAX (= the stop distance in ATR(H1)). Silver
+# reverts (variance ratio 0.990 vs gold 1.012), so a break out of a wide range is often a fake; on gold / BTC the wide ones still
+# pay (+0.25 / +0.63R) and stay. 2005-: 351 trades +122R DD 15.1R -> 254 +140R DD 7.3R, PF 1.61 -> 2.04. Setups from FAR_FROM.
+FAR_MAX = {'XAGUSD': 3.5}
+FAR_FROM = {'XAGUSD': pd.Timestamp('2026-11-09 00:00')}
 E.TRIGGERS.setdefault('now', lambda F: {d: list(range(F.N)) for d in ('up', 'down')})
 
 
-def events(F: Frames, vq, n, d, run_max=None):
+def events(F: Frames, vq, n, d, run_max=None, far_max=None, far_from=None):
     h1 = F.h1.reset_index(drop=True)
     pc = h1.c.shift(); tr = np.maximum(h1.h - h1.l, np.maximum((h1.h - pc).abs(), (h1.l - pc).abs()))
     ATR = tr.rolling(14).mean(); VR = (ATR / ATR.rolling(1000, min_periods=300).median()).to_numpy()
@@ -55,9 +61,11 @@ def events(F: Frames, vq, n, d, run_max=None):
             last[s] = i
             if run_max is not None and i >= 25 and (C[i - 1] - C[i - 25]) * s / ATR.iloc[i] >= run_max:
                 continue                     # no quiet pause before the breakout: the market had already moved
+            if far_max is not None and (far_from is None or t >= far_from) and s * (C[i] - (HH[i] + LL[i]) / 2) / ATR.iloc[i] + 0.3 >= far_max:
+                continue                     # the range did not contract: the stop (range middle) would be far
             ev.append(dict(t=t, side=s, tag='q', ref=(HH[i] + LL[i]) / 2, win=12))
     return ev
 
 
-def run(F: Frames, vq, n, d, trig, stop, ex, entry_bar=True, run_max=None):
-    return E.run(F, events(F, vq, n, d, run_max), dict(trig=trig, stop=stop, buf=0.3, exit=ex, act=1.0, win=12), entry_bar=entry_bar)
+def run(F: Frames, vq, n, d, trig, stop, ex, entry_bar=True, run_max=None, far_max=None, far_from=None):
+    return E.run(F, events(F, vq, n, d, run_max, far_max, far_from), dict(trig=trig, stop=stop, buf=0.3, exit=ex, act=1.0, win=12), entry_bar=entry_bar)

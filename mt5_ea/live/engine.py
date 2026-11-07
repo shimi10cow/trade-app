@@ -1,7 +1,8 @@
 """Common EA runner, ported from research/dow_strategy/ea_core.py (2026-10-24) to work on a Frames object.
 
 Identical rules to the research engine (setup x trigger x stop x exit, entry at the next M15 open, stop checked before
-targets, trail only tightens; optional one stop step on an H4 swing before the trail, cfg 'step'). Live additions, which do not change any backtest number:
+targets, trail only tightens; optional one stop step on an H4 swing before the trail, cfg 'step'; optional level-break exits,
+cfg 'd1sw' / 'h4sw', 2026-11-07). Live additions, which do not change any backtest number:
   - entry_bar=True checks the stop on the entry bar too (= research EA_ENTRY_BAR=1, what a broker-side stop does)
   - a signal on the last closed bar becomes a `pending` entry (enter at the next bar's open) instead of being dropped
   - the result also lists the positions still open at the end with their current stop (= the stop to hold at the broker)
@@ -80,6 +81,30 @@ def stop_ref(F, kind, i, s, ev=None):
     raise ValueError(kind)
 
 
+def _levels(F):
+    """Cached levels for the d1sw / h4sw exits: daily swing lows / highs with the time they are known (the day after the day
+    that confirmed them), the M15 bars that end a day (the bar whose next bar falls on another day by close time; the last bar
+    only when the day is really over) and the M15 bars that close an H4 bar, H4 swing lows / highs (available H4 index, index, price)."""
+    lv = F.__dict__.get('_lv')
+    if lv is not None:
+        return lv
+    from env_recognition import dow_trend
+    m = F.m15_all.set_index('t'); D = m.resample('1D').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
+    RD = dow_trend.run(D[['t', 'o', 'h', 'l', 'c']], 'D1'); TD = pd.DatetimeIndex(pd.to_datetime(D.t))
+    def known(kind):
+        x = sorted((TD[e['available_idx']] + pd.Timedelta('1D'), e['price']) for e in RD['pivot_events'] if e['kind'] == kind)
+        return [a for a, _ in x], [b for _, b in x]
+    CL = pd.DatetimeIndex(F.CL15); day = CL.normalize()
+    last_end = (CL[-1] + F.L15).normalize() != day[-1] if len(CL) else False
+    dend = {int(i) for i in np.where(np.r_[day[1:] != day[:-1], last_end])[0]}
+    C4 = pd.DatetimeIndex(F.C4); pos = CL.get_indexer(C4)
+    piv4 = lambda kind: sorted(((e['available_idx'], e['idx'], e['price']) for e in F.R4['pivot_events'] if e['kind'] == kind), key=lambda x: x[0])
+    lv = dict(dlo=known('lo'), dhi=known('hi'), dend=dend, h4end={int(i): k for k, i in enumerate(pos) if i >= 0}, C4=C4,
+              lo4=piv4('lo'), hi4=piv4('hi'))
+    F.__dict__['_lv'] = lv
+    return lv
+
+
 def link(F, events, trig, win=24):
     tg = _trigger(F, trig); out = {}
     for ev in events:
@@ -130,6 +155,26 @@ def run(F: Frames, events, cfg, env_ok=None, entry_bar=True):
                             hit = True
                 if hit:
                     p['exit'] = c[i]; p['exit_t'] = F.M15T[i]; p['why'] = 'lh'; trades.append(p); continue
+            if cfg.get('d1sw') or cfg.get('h4sw') is not None:
+                # level-break exits (index H4 turn EA, 2026-11-07): close at this bar's close when
+                #  d1sw: the day closes below the latest confirmed daily swing low that is above the current stop (sells mirrored)
+                #  h4sw: once the trade has been +h4sw R, an H4 bar closes below the latest H4 swing low formed after the entry
+                lv = _levels(F); hit = None
+                if cfg.get('d1sw') and i in lv['dend'] and F.CL15[i] > p['t']:
+                    T_, P_ = lv['dlo'] if s == 1 else lv['dhi']
+                    j = bisect.bisect_right(T_, F.CL15[i]) - 1
+                    if j >= 0 and s * (P_[j] - p['sl']) > 0 and s * (c[i] - P_[j]) < 0:
+                        hit = 'd1low'
+                if hit is None and cfg.get('h4sw') is not None and i in lv['h4end'] and p['mfe'] >= cfg['h4sw']:
+                    k4 = lv['h4end'][i]
+                    if 'k0' not in p:
+                        p['k0'] = int(lv['C4'].searchsorted(p['t'], side='right'))
+                    if k4 >= p['k0']:
+                        piv = [x for x in (lv['lo4'] if s == 1 else lv['hi4']) if x[0] <= k4 and x[1] >= p['k0'] - 1]
+                        if piv and s * (c[i] - piv[-1][2]) < 0:
+                            hit = 'swlow'
+                if hit:
+                    p['exit'] = c[i]; p['exit_t'] = F.M15T[i]; p['why'] = hit; trades.append(p); continue
             if cfg.get('step') and not p['trail'] and not p.get('stepped'):
                 # one stop step before the trail (DS, 2026-11-06): once an H4 swing on the trade's side is confirmed after the
                 # entry, move the stop once to beyond it (+ step_buf x ATR(H1)); the normal trail takes over from `act`

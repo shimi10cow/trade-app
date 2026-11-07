@@ -1,4 +1,4 @@
-"""Live-window check for the 2026-11-07 EAs (DL@EURUSD / DL@USDJPY / HL@EURUSD / Q@BTCUSD / Q@XAGUSD): run each one the way the
+"""Live-window check for the 2026-11-07 EAs (DL@EURUSD / DL@USDJPY / HL@EURUSD / Q@BTCUSD / Q@XAGUSD / IX@ / S@XAUUSD): run each one the way the
 runner does (last window_days of M15, Frames warm-up warm_days) at several cut points and compare the entries in the last `span`
 days before each cut with the full-history run.
 Usage: python -m mt5_ea.live.tests.window_new DL@EURUSD [n_cuts]
@@ -21,9 +21,10 @@ TL = Path(os.environ.get('TRENDLAB', '/home/user/trendlab'))
 
 def main(key, n_cuts=8, span=120):
     e = BY_KEY[key]; sym = e.symbol
-    FF = pickle.load(open(TL / 'tz' / f'frames_{sym}.pkl', 'rb')); m = FF.m15_all.copy(); m['t'] = pd.to_datetime(m.t)
+    sub = 'idx' if sym in ('US30', 'US500', 'US100', 'JP225') else 'tz'
+    FF = pickle.load(open(TL / sub / f'frames_{sym}.pkl', 'rb')); m = FF.m15_all.copy(); m['t'] = pd.to_datetime(m.t)
     r = e.run(FF, Env(FF.m15_all)); full = pd.concat([r['trades'], pd.DataFrame(r['open'])], ignore_index=True)
-    first = pd.Timestamp('2019-01-01' if sym == 'BTCUSD' else '2009-01-01')
+    first = pd.Timestamp('2019-01-01' if sym in ('BTCUSD', 'US30', 'US500', 'US100', 'JP225') else '2009-01-01')
     cuts = pd.date_range(first, m.t.iat[-1] - pd.Timedelta(days=30), periods=n_cuts)
     same = only_w = only_f = 0
     for cut in cuts:
