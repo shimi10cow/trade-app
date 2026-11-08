@@ -165,10 +165,11 @@
     return `<div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">組み合わせの結果（口座の大きさごと）</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
-      <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">今の全体（29 本すべて）</div>
+      <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">全体（29 本すべて）</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">リスク</th><th>年利</th><th>最大 DD</th></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">0.5%</td><td style="color:#4ade80">+100%</td><td style="color:#f87171">-13.1%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1%</td><td style="color:#4ade80">+227%</td><td style="color:#f87171">-18.9%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1.5%</td><td style="color:#4ade80">+397%</td><td style="color:#f87171">-24.1%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">2%</td><td style="color:#4ade80">+567%</td><td style="color:#f87171">-30.8%</td></tr></table>
-      <div style="font-size:11px;color:#cbd5e1;margin-top:6px">年 +153R・最大 DD 26.8R・負けた月 15%（2017 年 7 月〜）</div>`;
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px">${[['トレード数', '3,188 回'], ['勝ち・負け', '1,424 勝 1,764 敗'], ['勝率', '44.7%'], ['月のトレード', '約 29 回'], ['負けた月', '15%'], ['年あたり', '+153R'], ['平均', '+0.45R'], ['最大 DD', '26.8R']].map(([a, b]) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:6px 8px"><div style="font-size:10px;color:#94a3b8">${a}</div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-top:2px">${b}</div></div>`).join('')}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:6px">2017 年 7 月〜2026 年 10 月のバックテスト（コスト込み・1 回 1R）</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
@@ -189,24 +190,21 @@
         今の決まり：最小ロットでも損失が口座の「リスク」で選んだ % を超える回は自動で見送り（10 万円・1% なら 1,000 円まで、2% なら 2,000 円まで）。</div>` : ''}</div>`;
   }
   function featSection() {
-    const rows = ALL_KEYS.filter(k => EA_DESC[k]).map(k => `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
-        <div style="font-size:12px;font-weight:700">${esc(eaName(k))}</div>
-        <div style="font-size:11px;color:#cbd5e1;margin-top:3px;line-height:1.6">${esc(EA_DESC[k])}</div></div>`).join('');
-    return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveFT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
-      <span>📘 EA の特徴</span><span style="color:#94a3b8">${S.ftOpen ? '▲' : '▼'}</span></button>
-      ${S.ftOpen ? rows : ''}</div>`;
-  }
-  function btSection() {
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
       const x = BTX[k], weak = x[7] < 1.4;
       return `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
         <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><b>${esc(eaName(k))}</b><span style="color:#94a3b8;font-size:11px">${MIN_ACC[k]} 万円〜${weak ? ' · <span style="color:#f87171">外す候補</span>' : ''}</span></div>
-        <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${x[0]}〜${x[1]} · ${x[2]} 回（${x[3]} 勝 ${x[4]} 敗）· 勝率 ${x[5]}% · 平均 ${x[6]}R · PF ${x[7]} · 最大 DD ${x[8]}R · 年 +${x[10]}R</div></div>`;
+        <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${x[0]}〜${x[1]} · ${x[2]} 回（${x[3]} 勝 ${x[4]} 敗）· 勝率 ${x[5]}% · 平均 ${x[6]}R · PF ${x[7]} · 最大 DD ${x[8]}R · 年 +${x[10]}R</div>
+        ${EA_DESC[k] ? `<div style="font-size:10px;color:#64748b;margin-top:3px;line-height:1.6">${esc(EA_DESC[k])}</div>` : ''}</div>`;
     }).join('');
+    return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveFT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
+      <span>📘 EA の特徴</span><span style="color:#94a3b8">${S.ftOpen ? '▲' : '▼'}</span></button>
+      ${S.ftOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットで 1 回負けても口座の 1% 以下になる額。</div>${rows}` : ''}</div>`;
+  }
+  function btSection() {
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
       <span>📊 検証結果</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
-      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットで 1 回負けても口座の 1% 以下になる額。</div>${rows}${comboTable()}
-` : ''}</div>`;
+      ${S.btOpen ? comboTable() : ''}</div>`;
   }
   function resSection() {
     const mine = resAll().filter(r => String(r.Account) === S.acc);
