@@ -9,8 +9,8 @@ MT5 は 1 つにつき 1 口座しかログインできない。EA はどの MT5
 
 | EA | 口座 | 使う MT5 |
 |---|---|---|
-| デモ | 75610829（XMTrading-MT5 3） | `C:\Program Files\XMTrading MT5`（`EA_DEMO_MT5_PATH`） |
-| リアル | 370102382（XMTrading-MT5 2） | `C:\Users\81805\TradeEA\MT5_real`（`EA_REAL_MT5_PATH`、XM の MT5 をフォルダごとコピーしたもの） |
+| デモ | デモ口座（XMTrading-MT5 3） | `C:\Program Files\XMTrading MT5`（`EA_DEMO_MT5_PATH`） |
+| リアル | リアル口座・極（XMTrading-MT5 2） | `C:\Users\81805\TradeEA\MT5_real`（`EA_REAL_MT5_PATH`、XM の MT5 をフォルダごとコピーしたもの） |
 
 - どちらの MT5 でも**口座を切り替えない**（切り替えると、その EA は口座番号の確認で止まる）
 - それぞれの MT5 でパスワードを保存し、**アルゴ取引ボタンを ON** にしておく
