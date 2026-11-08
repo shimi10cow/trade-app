@@ -60,15 +60,47 @@ _POOL = None
 
 
 def _pool():
-    """Worker processes for the per-symbol calculation (EA_WORKERS, default: CPU cores - 1, at most 8; 1 = no pool)."""
+    """Worker processes for the per-symbol calculation (EA_WORKERS, default: CPU cores - 1, at most 4; 1 = no pool).
+    At most 4 by default (2026-11-08): the demo and live terminals each run a pool, and each worker holds years of M15 bars,
+    so 8 + 8 workers ran the PC out of memory ('Unable to allocate'). Workers are replaced every 20 jobs to give memory back."""
     global _POOL
-    n = int(os.getenv('EA_WORKERS') or max(1, min(8, (os.cpu_count() or 2) - 1)))
+    n = int(os.getenv('EA_WORKERS') or max(1, min(4, (os.cpu_count() or 2) - 1)))
     if n <= 1:
         return None
     if _POOL is None:
         from concurrent.futures import ProcessPoolExecutor
-        _POOL = ProcessPoolExecutor(max_workers=n)
+        try:
+            _POOL = ProcessPoolExecutor(max_workers=n, max_tasks_per_child=20)   # Python 3.11+
+        except TypeError:
+            _POOL = ProcessPoolExecutor(max_workers=n)
     return _POOL
+
+
+def _reset_pool():
+    """Drop the worker processes (after running out of memory, a stuck job or a broken pool): the next step starts fresh ones."""
+    global _POOL
+    if _POOL is not None:
+        try:
+            _POOL.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
+    _POOL = None
+
+
+def _err_text(ex):
+    """Readable error text: some errors (a timeout) have no message of their own."""
+    from concurrent.futures import TimeoutError as FutTimeout
+    if isinstance(ex, (FutTimeout, TimeoutError)):
+        return '計算が 10 分で終わらなかった（次の足でやり直す）'
+    if isinstance(ex, MemoryError):
+        return f'PC のメモリ不足（次の足でやり直す）: {ex}'
+    return str(ex) or type(ex).__name__
+
+
+def _needs_reset(ex):
+    from concurrent.futures import TimeoutError as FutTimeout
+    from concurrent.futures.process import BrokenProcessPool
+    return isinstance(ex, (MemoryError, FutTimeout, TimeoutError, BrokenProcessPool)) or 'Unable to allocate' in str(ex)
 
 
 def to_jst(t):
@@ -142,7 +174,7 @@ class Runner:
             except Exception as ex:
                 self._symbol_error(sym, ex)
         pool = _pool() if len(jobs) > 1 else None
-        futs = {}
+        futs = {}; reset = False
         if pool:
             try:
                 futs = {j['sym']: pool.submit(compute_symbol, j['sym'], j['m'], j['warm'], j['keys'], j.get('w1')) for j in jobs}
@@ -156,6 +188,10 @@ class Runner:
                 report += self._finish_symbol(j, res, eq)
             except Exception as ex:
                 self._symbol_error(j['sym'], ex)
+                if _needs_reset(ex):
+                    reset = True
+        if reset:
+            _reset_pool()
         try:
             report += self._step_reservations(eq)
         except Exception as ex:
@@ -242,8 +278,9 @@ class Runner:
 
     def _symbol_error(self, sym, ex):
         logging.error('%s step failed: %s', sym, ex, exc_info=ex)
-        self.notify('error', f'EA {sym}: {ex}')
-        gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'{sym}: {ex}'[:500]))
+        msg = _err_text(ex)
+        self.notify('error', f'EA {sym}: {msg}')
+        gas.enqueue('eaLog', dict(account=self.kind, level='error', message=f'{sym}: {type(ex).__name__}: {msg}'[:500]))
 
     def _prepare_symbol(self, sym, eas):
         """Broker side before the calculation: bars, which EAs run now. None = nothing new for this symbol."""
