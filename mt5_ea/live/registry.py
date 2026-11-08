@@ -8,6 +8,7 @@ R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 (Q@XAGUSD without the H4 gate, Q@US30 off in the app); lower-high exit on J2@USDJPY / P@USDJPY for new entries.
 2026-11-07 later (docs/OPEN_ITEMS.md): IX@US30 / US500 / US100 / JP225 (index H4 turn after a down trend, one rule for the four);
 gold S stop +0.5 ATR / trail from +2R / skip after a 1 ATR run, silver Q far-stop skip (both for entries from 2026-11-09).
+2026-11-08 (docs/OPEN_ITEMS.md): CA@AUDJPY (AUDJPY-only C with the H4 Dow trend, eas/ca.py); C@USDJPY H4 triangle skip on.
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -18,7 +19,7 @@ from typing import Callable
 
 import pandas as pd
 
-from .eas import a as A_, c as C_, ds as DS, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
+from .eas import a as A_, c as C_, ca as CA, ds as DS, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
 from .eas.h4gate import gate
 from .eas.pgate import gate as pgate
 from .eas.wave import axis_filter
@@ -80,7 +81,9 @@ ADOPTED = [
     EA('IX@US500', 'US500', lambda F, env: IX.run(F), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
     EA('IX@US100', 'US100', lambda F, env: IX.run(F), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
     EA('IX@JP225', 'JP225', lambda F, env: IX.run(F), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
+    # 2026-11-08: AUDJPY-only C with the H4 Dow trend (eas/ca.py), appended so the magic numbers stay the same
+    EA('CA@AUDJPY', 'AUDJPY', lambda F, env: CA.run(F, env=env), window_days=800, warm_days=400),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 34
+assert len(ADOPTED) == 35

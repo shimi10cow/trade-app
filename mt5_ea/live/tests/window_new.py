@@ -1,4 +1,4 @@
-"""Live-window check for the 2026-11-07 EAs (DL@EURUSD / DL@USDJPY / HL@EURUSD / Q@BTCUSD / Q@XAGUSD / IX@ / S@XAUUSD): run each one the way the
+"""Live-window check for the 2026-11-07 EAs (DL@EURUSD / DL@USDJPY / HL@EURUSD / Q@BTCUSD / Q@XAGUSD / IX@ / S@XAUUSD; CA@AUDJPY 2026-11-08): run each one the way the
 runner does (last window_days of M15, Frames warm-up warm_days) at several cut points and compare the entries in the last `span`
 days before each cut with the full-history run.
 Usage: python -m mt5_ea.live.tests.window_new DL@EURUSD [n_cuts]

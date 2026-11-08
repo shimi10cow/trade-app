@@ -16,7 +16,7 @@ import pandas as pd
 from .sizing import SymbolSpec
 
 XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US500': 'US500Cash#', 'US100': 'US100Cash#', 'US30': 'US30Cash#',
-              'EURUSD': 'EURUSD#', 'USDJPY': 'USDJPY#', 'BTCUSD': 'BTCUSD#', 'ETHUSD': 'ETHUSD#'}
+              'EURUSD': 'EURUSD#', 'USDJPY': 'USDJPY#', 'AUDJPY': 'AUDJPY#', 'BTCUSD': 'BTCUSD#', 'ETHUSD': 'ETHUSD#'}
 # Names differ between XM account types (KIWAMI '#', Standard none, Micro 'micro', demo servers ...): try these bases in order,
 # each with the suffixes below, then fall back to any symbol on the account whose name starts with a base.
 XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'], 'US100': ['US100Cash', 'US100', 'NAS100'],

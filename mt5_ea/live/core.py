@@ -2,7 +2,7 @@
 
 Same numbers as the research workspaces (research/dow_strategy/dow_turn_ea.py + ea_core.py):
   - M15 bars in broker time (XM server time), prices in the research price space
-    (FX as quoted; USDJPY / 100; gold, silver, indices, crypto as natural log rounded to 6 decimals)
+    (FX as quoted; USDJPY / AUDJPY / 100; gold, silver, indices, crypto as natural log rounded to 6 decimals)
   - H1 / H4 / D1 = M15 resampled with label='left', closed='left' (env_recognition.data.load 'long')
   - Dow runs (env_recognition.dow_trend.run) on each frame; ATR = env_recognition.pivots.atr
 Built on a recent window only: the Dow machines agree with the full-history run after 100-200 bars
@@ -26,7 +26,7 @@ PIP = 1e-4
 COST = 1.2e-4        # cost per trade in price-space units, as in the research engines
 
 LOG_SYMBOLS = {'XAUUSD', 'XAGUSD', 'US30', 'US500', 'US100', 'JP225', 'BTCUSD', 'ETHUSD'}
-DIV100_SYMBOLS = {'USDJPY'}
+DIV100_SYMBOLS = {'USDJPY', 'AUDJPY'}
 
 
 def to_space(sym, px):
