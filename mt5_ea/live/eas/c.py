@@ -27,8 +27,10 @@ LOOK, DROP, PROM, MAXAB, MAXLEN, IMPW, IMP = 40, 0.6, 1.5, 40, 300, 96, 6.0
 H1DEV = 2.0     # max distance (ATR(H1)) of the H1 close beyond SMA75 against the trade; None = off
 CFG = dict(trig='dow', stop='m15turn', buf=1.0, exit='h1', act=1.0, dside=0, maxdev=4, notri='H4')
 # USDJPY: the research workspace had no triangle file (results/tri_intervals.csv missing), so its validated C ran WITHOUT the
-# H4-triangle filter; the live USDJPY C does the same (parity test 1: 5 trades differed with the filter on).
-ADOPTED = {'EURUSD': dict(strength=False, notri=True), 'USDJPY': dict(strength=True, notri=False)}
+# H4-triangle filter, and the live USDJPY C did the same until 2026-11-08. 2026-11-08 (user: the C EAs on EURUSD / USDJPY / AUDJPY
+# use the same triangle skip): on, broker time 2005-: 228 -> 224 trades, the 4 skipped -0.93R on average (both halves -),
+# +0.35 -> +0.37R, total +79.9 -> +83.6R, max DD 11.1R both. AUDJPY research: 3 skipped, all losers.
+ADOPTED = {'EURUSD': dict(strength=False, notri=True), 'USDJPY': dict(strength=True, notri=True)}
 
 
 def lines(F: Frames):

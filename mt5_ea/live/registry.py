@@ -47,7 +47,7 @@ ADOPTED = [
     EA('L2@XAUUSD', 'XAUUSD', lambda F, env: L_.run(F, room=1.0, env=env)),
     EA('A@EURUSD', 'EURUSD', pgate(lambda F, env: A_.run(F, env=env), 'ext')),
     EA('C@EURUSD', 'EURUSD', pgate(lambda F, env: C_.run(F, env=env), 'ext')),
-    EA('C@USDJPY', 'USDJPY', gate(lambda F, env: C_.run(F, strength=True, notri=False, env=env), 'open')),
+    EA('C@USDJPY', 'USDJPY', gate(lambda F, env: C_.run(F, strength=True, notri=True, env=env), 'open')),   # 2026-11-08: H4 triangle skip on (as EURUSD)
     EA('J2@USDJPY', 'USDJPY', lambda F, env: J2.run(F, **J2.ADOPTED['USDJPY']), weekly=True),   # 2026-11-04: weekly trend, no hour window
     EA('S@XAUUSD', 'XAUUSD', lambda F, env: S_.run_adopted(F, 'XAUUSD'), weight_choices=(0.5, 1.0)),   # 2026-11-07: stop +0.5, trail from +2R, run skip (new entries)
     EA('S@BTCUSD', 'BTCUSD', lambda F, env: S_.run(F, *S_.ADOPTED['BTCUSD']), entry_ok=weekdays),
