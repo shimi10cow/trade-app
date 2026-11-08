@@ -6,13 +6,12 @@
   const CARDS = [
     {id: 'R', title: 'レンジ', code: 'R', desc: 'H4 がもみ合いの時だけ、ダウの高値・安値の更新で入る', keys: [['R@EURUSD', 'EURUSD', '']]},
     {id: 'T', title: 'トレンド・ダウ', code: 'T2・T', desc: '日足 MA の向きに H4 がトレンドの時、H1 ダウの向きに M15 で入る（H4 が三角持ち合いの時は見送り）', keys: [['T2@EURUSD', 'EURUSD', ' T2'], ['T@US30', 'US30', ' T']]},
-    {id: 'L', title: '推進TL反発', code: 'L・L2', desc: 'H4・H1 の推進 TL に 3〜4 回目に触れて、M15 が転換したら入る（ゴールドの L2 は伸びる先に壁がある時も見送り）', keys: [['L@EURUSD', 'EURUSD', ' L オフ推奨'], ['L2@XAUUSD', 'XAUUSD', ' L2 オフ推奨']]},
     {id: 'RM', title: '長いトレンド後のリターンムーブ', code: 'RM', desc: 'H4 の長いトレンド（50 本以上）が転換した後、1ATR 以上離れて戻ってきたところで、M15 のダウ転換で入る（少し割り込むのは 0.5ATR まで OK）。+2R から M15 の山谷で追いかける', keys: [['RM@EURUSD', 'EURUSD', ''], ['RM@XAUUSD', 'XAUUSD', '']]},
     {id: 'A', title: 'リターンムーブ', code: 'A', desc: 'ブレイクした後、戻ってきた所で入る（伸びすぎは見送り）', keys: [['A@EURUSD', 'EURUSD', '']]},
     {id: 'C', title: 'M15調整TL抜け', code: 'C', desc: 'M15 の調整 TL を抜けたら入る', keys: [['C@EURUSD', 'EURUSD', ''], ['C@USDJPY', 'USDJPY', ' 調整が長い時']]},
     {id: 'J2', title: 'H1 ダウ転換', code: 'J2', desc: 'H1 の高値・安値の流れが変わったら入る', keys: [['J2@USDJPY', 'USDJPY', '']]},
     {id: 'S', title: 'H4MA押し目買い', code: 'S', desc: 'H4 の MA の向きに、押し目から入る（ゴールドは 11/9 から、直前 24 本で 1ATR 以上上がっていたら見送り）', keys: [['S@XAUUSD', 'XAUUSD', ''], ['S@BTCUSD', 'BTCUSD', ' 買い・平日']]},
-    {id: 'Q', title: '静観後のブレイク', code: 'Q', desc: '値動きが小さい時間の後、直近 24 本の高値・安値を抜けた方に乗る（H1 MA75 の向き）。11/7 から金・銀・BTC で同じ設定、抜ける前の 24 本ですでに 3ATR 以上動いていたら見送り', keys: [['Q@XAUUSD', 'XAUUSD', ''], ['Q@XAGUSD', 'XAGUSD', ''], ['Q@BTCUSD', 'BTCUSD', ''], ['Q@US30', 'US30', ' オフ推奨']]},
+    {id: 'Q', title: '静観後のブレイク', code: 'Q', desc: '値動きが小さい時間の後、直近 24 本の高値・安値を抜けた方に乗る（H1 MA75 の向き）。11/7 から金・銀・BTC で同じ設定、抜ける前の 24 本ですでに 3ATR 以上動いていたら見送り', keys: [['Q@XAUUSD', 'XAUUSD', ''], ['Q@XAGUSD', 'XAGUSD', ''], ['Q@BTCUSD', 'BTCUSD', '']]},
     {id: 'DS', title: '右肩', code: 'DS', desc: 'ダブルトップ・ボトムの右肩で、反転を取る', keys: [['DS@JP225', 'JP225', ''], ['DS@US500', 'US500', ' 買い'], ['DS@XAUUSD', 'XAUUSD', ' 買い']]},
     {id: 'P', title: 'MAクロス後の押し目', code: 'P', desc: 'H1 MA20/75 のクロスで決めたトレンドの 1・2 回目の押しを、M15 ストキャスで入る（日足の向き・H4 が伸びきる前。11/3 から伸びきり・水平線の条件は外した）。+1R から H1 の山谷で追いかける', keys: [['P@XAUUSD', 'XAUUSD', ''], ['P@EURUSD', 'EURUSD', ''], ['P@USDJPY', 'USDJPY', ''], ['P@US500', 'US500', ''], ['P@US100', 'US100', '']]},
     {id: 'IX', title: '指数の H4 転換', code: 'IX', desc: 'H4 が下降トレンド（安値を 2 回切り下げ）になった後、H4 のダウが上に転換するか、ダブルボトムのネックを抜けた H4 の終値で買う。損切りは底の下、+2R から H1 の山谷で追い、+1R の後は H4 の押し安値割れ・日足の押し安値割れで決済。4 指数で 1 つの銘柄として見る', keys: [['IX@US30', 'US30', ' 買い'], ['IX@US500', 'US500', ' 買い'], ['IX@US100', 'US100', ' 買い'], ['IX@JP225', 'JP225', ' 買い']]},
@@ -22,8 +21,9 @@
   ];
   const HALF = {'S@XAUUSD': 1, 'Q@XAUUSD': 1, 'P@US500': 1, 'P@US100': 1, 'P@USDJPY': 1, 'IX@US30': 1, 'IX@US500': 1, 'IX@US100': 1, 'IX@JP225': 1};   // half / full selectable
   const HALF_DEFAULT = {};                                      // half by default
-  const LIVE_ON = ['R@EURUSD', 'T2@EURUSD', 'L@EURUSD', 'A@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
+  const LIVE_ON = ['R@EURUSD', 'T2@EURUSD', 'A@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
   const ALL_KEYS = CARDS.flatMap(c => c.keys.map(k => k[0]));
+  const REMOVED = ['L@EURUSD', 'L2@XAUUSD', 'Q@US30'];   // 2026-11-07: off for good, not shown
   let S = {acc: localStorage.getItem(ACC_LS) || 'demo', dash: null, sheet: null, saving: '', err: '', res: null};
   try { S.dash = JSON.parse(localStorage.getItem(CACHE_LS) || 'null'); } catch (e) {}
 
@@ -38,6 +38,8 @@
     const c = S.dash.config[S.acc];
     // an EA added after this config was saved (e.g. P@ on 2026-11-02) starts OFF: it never trades until switched on here
     ALL_KEYS.forEach(k => { if (!c.eas[k]) c.eas[k] = Object.assign(defaultConfig(S.acc).eas[k], {mode: 'off'}); });
+    // EAs removed from the app (still in the live registry for the magic numbers): always saved as off
+    REMOVED.forEach(k => { c.eas[k] = {mode: 'off', on: false, weight: 1}; });
     return c;
   }
   const appKey = () => localStorage.getItem(KEY_LS) || '';
@@ -112,9 +114,9 @@
   }
   // ---------- 検証結果 (research, R after costs; min account = where the min lot risk is 1% or less, RESEARCH_LOG §107)
   // [from, to, trades, wins, losses, win %, avg R, PF, max DD (R), trades / year, R / year]
-  const BTX = {"A@EURUSD":[2006,2026,68,35,33,51.5,0.305,1.7,7.1,3.3,1.0],"C@EURUSD":[2005,2026,225,117,108,52.0,0.385,1.86,9.8,10.8,4.2],"C@USDJPY":[2005,2026,239,101,138,42.3,0.271,1.5,14.0,11.2,3.0],"DS@JP225":[2017,2026,125,50,75,40.0,0.284,1.96,2.8,13.4,3.8],"DS@US500":[2017,2026,57,24,33,42.1,0.357,2.2,3.5,6.2,2.2],"DS@XAUUSD":[2005,2026,189,93,96,49.2,0.27,1.58,6.2,9.0,2.4],"J2@USDJPY":[2006,2026,234,97,137,41.5,0.565,2.01,13.6,11.5,6.5],"L2@XAUUSD":[2005,2026,181,80,101,44.2,0.489,1.98,7.7,8.5,4.1],"L@EURUSD":[2005,2026,258,107,151,41.5,0.224,1.41,12.8,12.1,2.7],"M@US30":[2015,2026,107,79,28,73.8,0.12,1.73,2.6,9.9,1.1],"M@US500":[2017,2026,88,67,21,76.1,0.12,1.76,4.0,9.7,1.2],"Q@US30":[2016,2026,75,37,38,49.3,0.474,2.01,7.6,7.0,3.3],"Q@XAGUSD":[2005,2026,254,104,150,40.9,0.553,2.04,7.3,12.2,6.7],"Q@XAUUSD":[2005,2026,457,204,253,44.6,0.545,2.04,14.3,21.0,11.4],"R@EURUSD":[2005,2026,102,41,61,40.2,0.325,1.51,10.9,5.0,1.6],"S@BTCUSD":[2017,2026,280,98,182,35.0,0.69,2.0,17.9,30.3,20.8],"S@XAUUSD":[2005,2026,410,146,264,35.6,0.498,1.78,11.8,19.0,9.5],"T2@EURUSD":[2005,2026,377,155,222,41.1,0.4,1.67,17.6,17.4,6.9],"T@US30":[2015,2026,128,53,75,41.4,0.374,1.64,13.0,11.8,4.4],"P@XAUUSD":[2005,2026,318,154,164,48.4,0.95,3.0,16.0,14.9,14.1],"P@EURUSD":[2005,2026,158,81,77,51.3,0.373,1.81,10.4,7.4,2.8],"P@USDJPY":[2005,2026,178,76,102,42.7,0.266,1.5,13.3,8.2,2.2],"RM@EURUSD":[2005,2026,38,17,21,44.7,0.542,1.99,5.4,1.8,1.0],"RM@XAUUSD":[2005,2026,32,18,14,56.2,0.695,2.56,3.0,1.5,1.1],"P@US500":[2017,2026,128,65,63,50.8,0.332,1.71,9.9,13.9,4.6],"P@US100":[2017,2026,122,62,60,50.8,0.347,1.76,7.9,13.3,4.6],"DL@EURUSD":[2005,2026,44,26,18,59.1,0.249,1.59,3.8,2.0,0.5],"DL@USDJPY":[2005,2026,46,25,21,54.3,0.322,1.76,4.3,2.1,0.7],"HL@EURUSD":[2005,2026,89,47,42,52.8,1.32,4.19,4.4,4.2,5.5],"Q@BTCUSD":[2017,2026,332,130,202,39.2,0.845,2.52,13.6,36.2,30.6],"IX@US30":[2018,2026,48,25,23,52.1,0.242,1.65,3.4,5.5,1.3],"IX@US500":[2017,2026,50,29,21,58.0,0.252,1.81,3.7,5.4,1.4],"IX@US100":[2017,2026,52,31,21,59.6,0.406,2.25,6.3,5.6,2.3],"IX@JP225":[2017,2026,58,34,24,58.6,0.357,2.14,3.5,6.3,2.3]};
-  const MIN_ACC = {'R@EURUSD': 20, 'T2@EURUSD': 20, 'L@EURUSD': 20, 'A@EURUSD': 20, 'C@EURUSD': 20, 'C@USDJPY': 20, 'J2@USDJPY': 20, 'DS@JP225': 20, 'S@BTCUSD': 20,
-    'DS@US500': 30, 'M@US500': 50, 'T@US30': 50, 'L2@XAUUSD': 50, 'DS@XAUUSD': 60, 'Q@XAGUSD': 60, 'Q@US30': 60, 'S@XAUUSD': 100, 'Q@XAUUSD': 100, 'M@US30': 300,
+  const BTX = {"A@EURUSD":[2006,2026,68,35,33,51.5,0.305,1.7,7.1,3.3,1.0],"C@EURUSD":[2005,2026,225,117,108,52.0,0.385,1.86,9.8,10.8,4.2],"C@USDJPY":[2005,2026,239,101,138,42.3,0.271,1.5,14.0,11.2,3.0],"DS@JP225":[2017,2026,125,50,75,40.0,0.284,1.96,2.8,13.4,3.8],"DS@US500":[2017,2026,57,24,33,42.1,0.357,2.2,3.5,6.2,2.2],"DS@XAUUSD":[2005,2026,189,93,96,49.2,0.27,1.58,6.2,9.0,2.4],"J2@USDJPY":[2006,2026,234,97,137,41.5,0.565,2.01,13.6,11.5,6.5],"M@US30":[2015,2026,107,79,28,73.8,0.12,1.73,2.6,9.9,1.1],"M@US500":[2017,2026,88,67,21,76.1,0.12,1.76,4.0,9.7,1.2],"Q@XAGUSD":[2005,2026,254,104,150,40.9,0.553,2.04,7.3,12.2,6.7],"Q@XAUUSD":[2005,2026,457,204,253,44.6,0.545,2.04,14.3,21.0,11.4],"R@EURUSD":[2005,2026,102,41,61,40.2,0.325,1.51,10.9,5.0,1.6],"S@BTCUSD":[2017,2026,280,98,182,35.0,0.69,2.0,17.9,30.3,20.8],"S@XAUUSD":[2005,2026,410,146,264,35.6,0.498,1.78,11.8,19.0,9.5],"T2@EURUSD":[2005,2026,377,155,222,41.1,0.4,1.67,17.6,17.4,6.9],"T@US30":[2015,2026,128,53,75,41.4,0.374,1.64,13.0,11.8,4.4],"P@XAUUSD":[2005,2026,318,154,164,48.4,0.95,3.0,16.0,14.9,14.1],"P@EURUSD":[2005,2026,158,81,77,51.3,0.373,1.81,10.4,7.4,2.8],"P@USDJPY":[2005,2026,178,76,102,42.7,0.266,1.5,13.3,8.2,2.2],"RM@EURUSD":[2005,2026,38,17,21,44.7,0.542,1.99,5.4,1.8,1.0],"RM@XAUUSD":[2005,2026,32,18,14,56.2,0.695,2.56,3.0,1.5,1.1],"P@US500":[2017,2026,128,65,63,50.8,0.332,1.71,9.9,13.9,4.6],"P@US100":[2017,2026,122,62,60,50.8,0.347,1.76,7.9,13.3,4.6],"DL@EURUSD":[2005,2026,44,26,18,59.1,0.249,1.59,3.8,2.0,0.5],"DL@USDJPY":[2005,2026,46,25,21,54.3,0.322,1.76,4.3,2.1,0.7],"HL@EURUSD":[2005,2026,89,47,42,52.8,1.32,4.19,4.4,4.2,5.5],"Q@BTCUSD":[2017,2026,332,130,202,39.2,0.845,2.52,13.6,36.2,30.6],"IX@US30":[2018,2026,48,25,23,52.1,0.242,1.65,3.4,5.5,1.3],"IX@US500":[2017,2026,50,29,21,58.0,0.252,1.81,3.7,5.4,1.4],"IX@US100":[2017,2026,52,31,21,59.6,0.406,2.25,6.3,5.6,2.3],"IX@JP225":[2017,2026,58,34,24,58.6,0.357,2.14,3.5,6.3,2.3]};
+  const MIN_ACC = {'R@EURUSD': 20, 'T2@EURUSD': 20, 'A@EURUSD': 20, 'C@EURUSD': 20, 'C@USDJPY': 20, 'J2@USDJPY': 20, 'DS@JP225': 20, 'S@BTCUSD': 20,
+    'DS@US500': 30, 'M@US500': 50, 'T@US30': 50, 'DS@XAUUSD': 60, 'Q@XAGUSD': 60, 'S@XAUUSD': 100, 'Q@XAUUSD': 100, 'M@US30': 300,
     'P@USDJPY': 20, 'P@EURUSD': 20, 'P@XAUUSD': 50, 'RM@EURUSD': 20, 'RM@XAUUSD': 100, 'P@US500': 30, 'P@US100': 70,
     'DL@EURUSD': 20, 'DL@USDJPY': 20, 'HL@EURUSD': 20, 'Q@BTCUSD': 20, 'IX@JP225': 20, 'IX@US500': 35, 'IX@US30': 190, 'IX@US100': 310};   // IX: rough, from the median stop (2.4-3.6% of the price)
   const BT_NOTE = {
@@ -149,18 +151,16 @@
     'P@US100': '11/4 追加（ロット半分も選べる）：XM 2017〜 122 回・PF 1.76・DD 7.9R。US500 の P とは月の相関 +0.02 で別々に動く。全体の悪い月に +15R。損切りが広め（最近は 1 回 約 170 ポイント）',
     'J2@USDJPY': '11/4 から時間帯（0〜10 時）の条件をやめて、週足のトレンドと同じ向きだけ（週足と逆は調整の途中で、前後半とも ±0）。回数ほぼ同じ 236→218、DD 21.8→15.0R、合計 +92→+112R。週足は MT5 の週足（約 25 年分）で判定。11/8 から、H4 のトレンドが 4 段目以降の時は M15 の山谷で決済（終盤は早めに逃げる。合計 +113→+120R、DD 16.0→14.0R）。11/8 から、+1R の後に H1 の高値が切り下がったら決済（売りは安値の切り上げ。ドル円は切り下げで転換する）',
     'Q@XAGUSD': '11/7 から金と同じ設定（H4 の伸びきりの条件は外した）。11/9 から、損切り（レンジの真ん中）が 3.5ATR(H1) 以上遠いブレイクは見送り（レンジが縮んでいない＝銀は戻りやすくだましになりやすい）。2005〜：351 回 +122R DD 15.1R → 254 回 +140R DD 7.3R',
-    'Q@US30': '11/7 からオフ推奨：同じ設定だと +8R、上位 5 回を除くとマイナス',
-    'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）', 'L2@XAUUSD': '11/7 からオフ（ゴールドの EA が多く、外しても全体はほぼ変わらない）',
-    'L@EURUSD': '11/7 からオフ（H4 トレンドライン HL@EURUSD に作り直した）',};
-  // portfolio combinations (2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 full lot, RM off; same method as RESEARCH_LOG §107:
+    'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）',};
+  // portfolio combinations (2026-11-08: broker-time data 2017-07.., the 27 EAs except R / A / RM, live lot rules; earlier note 2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 full lot, RM off; same method as RESEARCH_LOG §107:
   // 1% risk, half at DD 10%, calendar x1.5, all full lot, backtest as is; trendlab/rm/combos.py)
   const COMBOS = [
-    ['20 万円', '9 本', 'FX 7 本（ユーロドル T2・L・C・P、ドル円 C・J2・P）＋日経右肩＋BTC S', '+39%', '-20%', '約 94 回'],
-    ['30 万円', '11 本', '上の 9 本＋US500 右肩・US500 P', '+43%', '-20%', '約 102 回'],
-    ['50 万円', '15 本', '＋US500 短い押し目・US30 トレンド・ゴールド L2・ゴールド P', '+77%', '-19%', '約 135 回'],
-    ['60 万円', '18 本', '＋ゴールド右肩・銀 Q・US30 Q', '+91%', '-18%', '約 152 回'],
-    ['100 万円', '21 本', '＋ゴールド S・Q・US100 P', '+137%', '-19%', '約 221 回'],
-    ['300 万円', '22 本（R・A・RM 以外全部）', '＋US30 短い押し目', '+139%', '-19%', '約 226 回'],
+    ['20 万円', '13 本', 'FX 9 本（ユーロドル T2・C・P・DL・HL、ドル円 C・J2・P・DL）＋日経 右肩・日経 IX＋BTC S・Q', '+150%', '-15%', '約 167 回'],
+    ['30 万円', '15 本', '上の 13 本＋US500 右肩・US500 P', '+157%', '-15%', '約 187 回'],
+    ['50 万円', '19 本', '＋US500 IX・US500 短い押し目・US30 トレンド・ゴールド P', '+203%', '-17%', '約 228 回'],
+    ['100 万円', '24 本', '＋ゴールド S・Q・右肩・銀 Q・US100 P', '+276%', '-19%', '約 306 回'],
+    ['200 万円', '25 本', '＋US30 IX', '+281%', '-19%', '約 311 回'],
+    ['350 万円', '27 本（R・A・RM 以外全部）', '＋US100 IX・US30 短い押し目', '+293%', '-19%', '約 327 回'],
   ];
   function comboTable() {
     const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>
@@ -169,21 +169,21 @@
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
       <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
-        <b>11/7 の見直し後の全体（24 本：R・A・RM・L・L2・US30 Q 以外、全部通常ロット）</b><br>
+        <b>11/7 の見直し後の全体（27 本：R・A・RM 以外全部、通常ロット）</b><br>
         2017 年 7 月〜：リスク 0.5% 年利 +125%・最大 DD -11.5% ／ 1% +293%・-18.5% ／ 1.5% +518%・-22.7% ／ 2% +763%・-27.2%<br>
         年 +162R・最大 DD 23.5R・負けた月 13%・負けた年なし（一番悪い年 +73R）。見直し前（指数 IX なし・S と銀 Q は前の形）は 1% +268%・-18.8%<br>
         利益の割合：BTC 35%・ゴールド 19%・ユーロドル 15%・ドル円 8%・指数 約 17%・銀 5%</div>
-      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。サーバー時間のデータで今の EA のコードを回したトレード（指数は 2017 年から）。上の口座ごとの表は 11/3 時点の組み合わせ。本番の目減り（滑り・スワップなど）は入っていない</div>`;
+      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。サーバー時間のデータで今の EA のコードを回したトレード（指数は 2017 年から）。口座ごとの表は、最小ロットのリスクが 1% 以下になる EA だけを入れた組み合わせ（IX の最小口座は目安）。本番の目減り（滑り・スワップなど）は入っていない</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
   // US500 右肩 = buy only, above the left shoulder (§103). Checked against real XM trades 2026-10-25 (BTC 0.01 lot, UK100 1 lot = 1 GBP / point)
   const MINLOT_LOSS = [
-    ['FX（ユーロドル R・T2・L・A・C、ドル円 C・J2）', '330〜740 円', '約 20〜75 pips'], ['ユーロドル・ドル円 P（MAクロス後の押し目）', '約 430〜800 円', '約 43〜50 pips'], ['日経 右肩', '150 円', '約 1,500 円幅（2.4%）'],
-    ['BTC S', '約 1,900 円', '約 1,200 ドル（1.5%）'], ['US500 右肩', '約 2,000 円', '約 120 ポイント（1.6%）'],
+    ['FX（ユーロドル T2・C・DL・HL、ドル円 C・J2・DL）', '330〜740 円', '約 20〜75 pips'], ['ユーロドル・ドル円 P（MAクロス後の押し目）', '約 430〜800 円', '約 43〜50 pips'], ['日経 右肩', '150 円', '約 1,500 円幅（2.4%）'],
+    ['BTC S・Q', '約 1,900 円', '約 1,200 ドル（1.5%）'], ['日経 IX（指数の H4 転換）', '約 200 円', '価格の約 3.6%'], ['US500 IX', '約 3,400 円', '価格の約 2.7%'], ['US30 IX', '約 1.9 万円', '価格の約 2.4%'], ['US100 IX', '約 3 万円', '価格の約 3.0%'], ['US500 右肩', '約 2,000 円', '約 120 ポイント（1.6%）'],
     ['US500 M（短い押し目）', '約 3,300 円', '約 210 ポイント（2.7%）'], ['US30 T（トレンド）', '約 3,900 円', '約 250 ポイント（0.5%）'],
-    ['ゴールド P（MAクロス後の押し目）', '約 3,900 円', '約 25 ドル（0.6%）'], ['ゴールド S・Q・L2', '約 4,000〜4,900 円', '約 25〜31 ドル（0.6〜0.75%）'], ['ゴールド 右肩', '約 5,400 円', '約 34 ドル（0.8%）'],
-    ['US30 Q・銀 Q', '約 5,700〜5,800 円', 'US30 約 370 ポイント・銀 約 0.7 ドル'], ['US30 M（短い押し目）', '約 20,800 円', '約 1,300 ポイント（2.5%）']];
+    ['ゴールド P（MAクロス後の押し目）', '約 3,900 円', '約 25 ドル（0.6%）'], ['ゴールド S・Q', '約 4,000〜4,900 円', '約 25〜31 ドル（0.6〜0.75%）'], ['ゴールド 右肩', '約 5,400 円', '約 34 ドル（0.8%）'],
+    ['銀 Q', '約 5,800 円', '約 0.7 ドル'], ['US30 M（短い押し目）', '約 20,800 円', '約 1,300 ポイント（2.5%）']];
   function minLotSection() {
     const rows = MINLOT_LOSS.map(([n, v, w]) => `<div style="padding:7px 0;border-bottom:1px solid #1e293b;font-size:12px"><div style="display:flex;justify-content:space-between;gap:10px"><span>${esc(n)}</span><b style="white-space:nowrap">${esc(v)}</b></div>
       <div style="font-size:10px;color:#64748b;margin-top:2px">損切り幅（真ん中）${esc(w)}</div></div>`).join('');
@@ -383,7 +383,7 @@
 
   // ---------- EA trades outside the EA tab: home (open), history (closed), analysis (per EA vs backtest), detail
   // Backtest per EA (research feat/final_trades.pkl, R after costs): trades, per year, win %, average R, PF, data from
-  const BT = {"A@EURUSD":{"n":68,"py":3.3,"wr":51.5,"avgR":0.305,"pf":1.7,"since":"2006"},"C@EURUSD":{"n":225,"py":10.8,"wr":52.0,"avgR":0.385,"pf":1.86,"since":"2005"},"C@USDJPY":{"n":239,"py":11.2,"wr":42.3,"avgR":0.271,"pf":1.5,"since":"2005"},"DS@JP225":{"n":125,"py":13.4,"wr":40.0,"avgR":0.284,"pf":1.96,"since":"2017"},"DS@US500":{"n":57,"py":6.2,"wr":42.1,"avgR":0.357,"pf":2.2,"since":"2017"},"DS@XAUUSD":{"n":189,"py":9.0,"wr":49.2,"avgR":0.27,"pf":1.58,"since":"2005"},"J2@USDJPY":{"n":234,"py":11.5,"wr":41.5,"avgR":0.565,"pf":2.01,"since":"2006"},"L2@XAUUSD":{"n":181,"py":8.5,"wr":44.2,"avgR":0.489,"pf":1.98,"since":"2005"},"L@EURUSD":{"n":258,"py":12.1,"wr":41.5,"avgR":0.224,"pf":1.41,"since":"2005"},"M@US30":{"n":107,"py":9.9,"wr":73.8,"avgR":0.116,"pf":1.73,"since":"2015"},"M@US500":{"n":88,"py":9.7,"wr":76.1,"avgR":0.119,"pf":1.76,"since":"2017"},"Q@US30":{"n":75,"py":7.0,"wr":49.3,"avgR":0.474,"pf":2.01,"since":"2016"},"Q@XAGUSD":{"n":254,"py":12.2,"wr":40.9,"avgR":0.553,"pf":2.04,"since":"2005"},"Q@XAUUSD":{"n":457,"py":21.0,"wr":44.6,"avgR":0.545,"pf":2.04,"since":"2005"},"R@EURUSD":{"n":102,"py":5.0,"wr":40.2,"avgR":0.325,"pf":1.51,"since":"2005"},"S@BTCUSD":{"n":280,"py":30.3,"wr":35.0,"avgR":0.686,"pf":2.0,"since":"2017"},"S@XAUUSD":{"n":410,"py":19.0,"wr":35.6,"avgR":0.498,"pf":1.78,"since":"2005"},"T2@EURUSD":{"n":377,"py":17.4,"wr":41.1,"avgR":0.397,"pf":1.67,"since":"2005"},"T@US30":{"n":128,"py":11.8,"wr":41.4,"avgR":0.374,"pf":1.64,"since":"2015"},"P@XAUUSD":{"n":318,"py":14.9,"wr":48.4,"avgR":0.95,"pf":3.0,"since":"2005"},"P@EURUSD":{"n":158,"py":7.4,"wr":51.3,"avgR":0.373,"pf":1.81,"since":"2005"},"P@USDJPY":{"n":178,"py":8.2,"wr":42.7,"avgR":0.266,"pf":1.5,"since":"2005"},"RM@EURUSD":{"n":38,"py":1.8,"wr":44.7,"avgR":0.542,"pf":1.99,"since":"2005"},"RM@XAUUSD":{"n":32,"py":1.5,"wr":56.2,"avgR":0.695,"pf":2.56,"since":"2005"},"P@US500":{"n":128,"py":13.9,"wr":50.8,"avgR":0.332,"pf":1.71,"since":"2017"},"P@US100":{"n":122,"py":13.3,"wr":50.8,"avgR":0.347,"pf":1.76,"since":"2017"},"DL@EURUSD":{"n":44,"py":2.0,"wr":59.1,"avgR":0.249,"pf":1.59,"since":"2005"},"DL@USDJPY":{"n":46,"py":2.1,"wr":54.3,"avgR":0.322,"pf":1.76,"since":"2005"},"HL@EURUSD":{"n":89,"py":4.2,"wr":52.8,"avgR":1.32,"pf":4.19,"since":"2005"},"Q@BTCUSD":{"n":332,"py":36.2,"wr":39.2,"avgR":0.845,"pf":2.52,"since":"2017"},"IX@US30":{"n":48,"py":5.5,"wr":52.1,"avgR":0.242,"pf":1.65,"since":"2018"},"IX@US500":{"n":50,"py":5.4,"wr":58.0,"avgR":0.252,"pf":1.81,"since":"2017"},"IX@US100":{"n":52,"py":5.6,"wr":59.6,"avgR":0.406,"pf":2.25,"since":"2017"},"IX@JP225":{"n":58,"py":6.3,"wr":58.6,"avgR":0.357,"pf":2.14,"since":"2017"}};
+  const BT = {"A@EURUSD":{"n":68,"py":3.3,"wr":51.5,"avgR":0.305,"pf":1.7,"since":"2006"},"C@EURUSD":{"n":225,"py":10.8,"wr":52.0,"avgR":0.385,"pf":1.86,"since":"2005"},"C@USDJPY":{"n":239,"py":11.2,"wr":42.3,"avgR":0.271,"pf":1.5,"since":"2005"},"DS@JP225":{"n":125,"py":13.4,"wr":40.0,"avgR":0.284,"pf":1.96,"since":"2017"},"DS@US500":{"n":57,"py":6.2,"wr":42.1,"avgR":0.357,"pf":2.2,"since":"2017"},"DS@XAUUSD":{"n":189,"py":9.0,"wr":49.2,"avgR":0.27,"pf":1.58,"since":"2005"},"J2@USDJPY":{"n":234,"py":11.5,"wr":41.5,"avgR":0.565,"pf":2.01,"since":"2006"},"M@US30":{"n":107,"py":9.9,"wr":73.8,"avgR":0.116,"pf":1.73,"since":"2015"},"M@US500":{"n":88,"py":9.7,"wr":76.1,"avgR":0.119,"pf":1.76,"since":"2017"},"Q@XAGUSD":{"n":254,"py":12.2,"wr":40.9,"avgR":0.553,"pf":2.04,"since":"2005"},"Q@XAUUSD":{"n":457,"py":21.0,"wr":44.6,"avgR":0.545,"pf":2.04,"since":"2005"},"R@EURUSD":{"n":102,"py":5.0,"wr":40.2,"avgR":0.325,"pf":1.51,"since":"2005"},"S@BTCUSD":{"n":280,"py":30.3,"wr":35.0,"avgR":0.686,"pf":2.0,"since":"2017"},"S@XAUUSD":{"n":410,"py":19.0,"wr":35.6,"avgR":0.498,"pf":1.78,"since":"2005"},"T2@EURUSD":{"n":377,"py":17.4,"wr":41.1,"avgR":0.397,"pf":1.67,"since":"2005"},"T@US30":{"n":128,"py":11.8,"wr":41.4,"avgR":0.374,"pf":1.64,"since":"2015"},"P@XAUUSD":{"n":318,"py":14.9,"wr":48.4,"avgR":0.95,"pf":3.0,"since":"2005"},"P@EURUSD":{"n":158,"py":7.4,"wr":51.3,"avgR":0.373,"pf":1.81,"since":"2005"},"P@USDJPY":{"n":178,"py":8.2,"wr":42.7,"avgR":0.266,"pf":1.5,"since":"2005"},"RM@EURUSD":{"n":38,"py":1.8,"wr":44.7,"avgR":0.542,"pf":1.99,"since":"2005"},"RM@XAUUSD":{"n":32,"py":1.5,"wr":56.2,"avgR":0.695,"pf":2.56,"since":"2005"},"P@US500":{"n":128,"py":13.9,"wr":50.8,"avgR":0.332,"pf":1.71,"since":"2017"},"P@US100":{"n":122,"py":13.3,"wr":50.8,"avgR":0.347,"pf":1.76,"since":"2017"},"DL@EURUSD":{"n":44,"py":2.0,"wr":59.1,"avgR":0.249,"pf":1.59,"since":"2005"},"DL@USDJPY":{"n":46,"py":2.1,"wr":54.3,"avgR":0.322,"pf":1.76,"since":"2005"},"HL@EURUSD":{"n":89,"py":4.2,"wr":52.8,"avgR":1.32,"pf":4.19,"since":"2005"},"Q@BTCUSD":{"n":332,"py":36.2,"wr":39.2,"avgR":0.845,"pf":2.52,"since":"2017"},"IX@US30":{"n":48,"py":5.5,"wr":52.1,"avgR":0.242,"pf":1.65,"since":"2018"},"IX@US500":{"n":50,"py":5.4,"wr":58.0,"avgR":0.252,"pf":1.81,"since":"2017"},"IX@US100":{"n":52,"py":5.6,"wr":59.6,"avgR":0.406,"pf":2.25,"since":"2017"},"IX@JP225":{"n":58,"py":6.3,"wr":58.6,"avgR":0.357,"pf":2.14,"since":"2017"}};
   const ACC_JA = {demo: 'デモ', live: '本番'};
   let V = {histAcc: 'demo', anAcc: 'demo'};
   function eaName(key) {
