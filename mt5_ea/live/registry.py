@@ -9,6 +9,7 @@ R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 2026-11-07 later (docs/OPEN_ITEMS.md): IX@US30 / US500 / US100 / JP225 (index H4 turn after a down trend, one rule for the four);
 gold S stop +0.5 ATR / trail from +2R / skip after a 1 ATR run, silver Q far-stop skip (both for entries from 2026-11-09).
 2026-11-08 (docs/OPEN_ITEMS.md): CA@AUDJPY (AUDJPY-only C with the H4 Dow trend, eas/ca.py); C@USDJPY H4 triangle skip on.
+2026-11-08 later: Q@AUDJPY (FX Q, eas/q.py run_fx).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -83,7 +84,8 @@ ADOPTED = [
     EA('IX@JP225', 'JP225', lambda F, env: IX.run(F), weight_choices=(0.5, 1.0), window_days=800, warm_days=400),
     # 2026-11-08: AUDJPY-only C with the H4 Dow trend (eas/ca.py), appended so the magic numbers stay the same
     EA('CA@AUDJPY', 'AUDJPY', lambda F, env: CA.run(F, env=env), window_days=800, warm_days=400),
+    EA('Q@AUDJPY', 'AUDJPY', lambda F, env: Q.run_fx(F, env=env), window_days=800, warm_days=400),   # 2026-11-08: FX Q (H4 Dow way, daily side)
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 35
+assert len(ADOPTED) == 36
