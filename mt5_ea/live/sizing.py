@@ -1,7 +1,7 @@
 """Lot size and risk rules for the live EAs (2026-10-24, docs/EA_SYSTEM_PLAN.md / RESEARCH_LOG §98-102, §106).
 
 risk per trade = equity x base risk (default 1.0%)
-                 x calendar multiplier (1.5 on the first 3 trading days of the month, and on gold Friday buys)
+                 x calendar multiplier (1.0 from 2026-11-08: flat; was 1.5 on the first 3 trading days of the month and on gold Friday buys)
                  x lot weight (gold S / Q: 0.5 by default, 1.0 selectable)
                  x 0.5 while the account is 10% or more below its peak
 lots = that money / (loss per lot if the stop is hit), rounded DOWN to the broker's volume step.
@@ -32,8 +32,16 @@ class SymbolSpec:
         return stop_dist / self.tick_size * self.tick_value
 
 
+CALENDAR_BOOST = False   # 2026-11-08 (docs/OPEN_ITEMS.md D14): flat lots. The x1.5 on the first 3 trading days and on gold Friday buys
+                         # had no consistent edge (month-start trades were worse than other days over the last 10 years and the sign
+                         # flipped year to year; gold Friday buys were better from 2016 but worse 2005-2015); the gain in the compound
+                         # result was the extra lot size (= base risk 1.08%). True brings the old rule back.
+
+
 def calendar_mult(symbol, side, t, trading_day_of_month):
-    """t = signal time (broker time); trading_day_of_month = 1 for the month's first trading day of that symbol."""
+    """t = signal time (broker time); trading_day_of_month = 1 for the month's first trading day of that symbol. 1.0 unless CALENDAR_BOOST."""
+    if not CALENDAR_BOOST:
+        return 1.0
     if trading_day_of_month <= 3:
         return 1.5
     if symbol == 'XAUUSD' and side == 1 and pd.Timestamp(t).dayofweek == 4:

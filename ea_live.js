@@ -146,14 +146,14 @@
     'CA@AUDJPY': '11/8 追加（豪ドル円の専用）：C と同じ入り方で、H4 ダウの向き（1〜4 段目）・日足 200 日線の向き・H4 三角持ち合いの外だけ。損切りは M15 転換点の 1.0ATR(H1) 外。+1.5R までは H4 の押し安値割れ（H4 の終値）だけで決済、+1.5R から M15 の山谷で追う。研究データ（サーバー時間）2005〜：231 回・DD 7.4R・前後半とも +。今の 27 本との月の相関 −0.05、全体の悪い月に +0.58R/月',
     'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）。11/8 から H4 の三角持ち合いの中は見送り（ユーロドルと同じ。20 年で外れるのは 4 回・平均 −0.93R）。数字は 11/8 にサーバー時間・今のルールで計算し直し',};
   // portfolio combinations (2026-11-08 later: + CA@AUDJPY and Q@AUDJPY in the FX tier, C@USDJPY with the triangle skip; same method gives 27 EAs 118/154/222/224/234%, the old table 119/155/224/227/238%) (2026-11-08: broker-time data 2017-07.., all 27 EAs in the app, live lot rules; earlier note 2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 full lot, RM off; same method as RESEARCH_LOG §107:
-  // 1% risk, half at DD 10%, calendar x1.5, all full lot, backtest as is; trendlab/rm/combos.py)
+  // 1% risk, half at DD 10%, flat lots (no calendar x1.5 from 2026-11-08, D14), all full lot, backtest as is; trendlab/rm/combos.py)
   const COMBOS = [
-    ['20 万円', '15 本', 'FX 11 本（ユーロドル T2・C・P・DL・HL、ドル円 C・J2・P・DL、豪ドル円 CA・Q）＋日経 右肩・日経 IX＋BTC S・Q', '+131%', '-17%', '約 182 回'],
-    ['30 万円', '17 本', '上の 15 本＋US500 右肩・US500 P', '+130%', '-19%', '約 202 回'],
-    ['50 万円', '21 本', '＋US500 IX・US500 短い押し目・US30 トレンド・ゴールド P', '+171%', '-20%', '約 243 回'],
-    ['100 万円', '26 本', '＋ゴールド S・Q・右肩・銀 Q・US100 P', '+249%', '-20%', '約 321 回'],
-    ['200 万円', '27 本', '＋US30 IX', '+246%', '-21%', '約 326 回'],
-    ['350 万円', '29 本（全部）', '＋US100 IX・US30 短い押し目', '+258%', '-19%', '約 341 回'],
+    ['20 万円', '15 本', 'FX 11 本（ユーロドル T2・C・P・DL・HL、ドル円 C・J2・P・DL、豪ドル円 CA・Q）＋日経 右肩・日経 IX＋BTC S・Q', '+123%', '-16%', '約 182 回'],
+    ['30 万円', '17 本', '上の 15 本＋US500 右肩・US500 P', '+122%', '-19%', '約 202 回'],
+    ['50 万円', '21 本', '＋US500 IX・US500 短い押し目・US30 トレンド・ゴールド P', '+159%', '-18%', '約 243 回'],
+    ['100 万円', '26 本', '＋ゴールド S・Q・右肩・銀 Q・US100 P', '+216%', '-19%', '約 321 回'],
+    ['200 万円', '27 本', '＋US30 IX', '+219%', '-21%', '約 326 回'],
+    ['350 万円', '29 本（全部）', '＋US100 IX・US30 短い押し目', '+227%', '-19%', '約 341 回'],
   ];
   function comboTable() {
     const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>
@@ -162,13 +162,15 @@
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
       <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
+        <b>今の全体（29 本、11/8 からロットはフラット）</b>：0.5% +100%・-13.1% ／ 1% +227%・-18.9% ／ 1.5% +397%・-24.1% ／ 2% +567%・-30.8%<br>
+        <span style="color:#94a3b8">月初 3 日・ゴールドの金曜の買いの 1.5 倍は 11/8 にやめた（その日のトレードが特に良いわけではなく、増えていたのはロットの分。リスク 1.08% にすればほぼ同じ）。下は 1.5 倍があった時の値</span><br>
         <b>11/7 の見直し後の全体（27 本すべて、通常ロット、スワップ・コスト込み）</b><br>
         2017 年 7 月〜：リスク 0.5% 年利 +105%・最大 DD -13.5% ／ 1% +238%・-19.2% ／ 1.5% +389%・-25.4% ／ 2% +564%・-34.3%<br>
         年 +146R・最大 DD 26.7R・負けた月 16%・負けた年なし（一番悪い年 +61R）。スワップ・コストなしなら 1% +293%・-18.5%<br>
         利益の割合：BTC 32%・ゴールド 22%・ユーロドル 17%・指数 16%・ドル円 8%・銀 5%<br>
         <b>11/8 豪ドル円 CA を足すと（28 本）</b>：1% 年利 +234%→+249%・最大 DD -19% のまま（同じ計算で比べた値）。豪ドル円と 27 本の月の相関 -0.05、27 本の悪い月に +0.58R/月<br>
         <b>さらに豪ドル円 Q を足すと（29 本）</b>：0.5% +111%・-13.4% ／ 1% +258%・-19.2% ／ 1.5% +440%・-25.8% ／ 2% +649%・-34.7%</div>
-      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：DD10% で半分・月初 3 日とゴールドの金曜の買いは 1.5 倍。サーバー時間のデータで今の EA のコードを回したトレード（指数は 2017 年から）。指数（Cash）と BTC は XM のスワップ（今の率、指数 買い 年約 -6.5%・日経 -3.3%、BTC 買い 年約 -26%・売り -10%）、BTC のスプレッドは 0.08%（2022〜24 年の実データ、直近は 0.03% 前後）、銀は 0.05% を入れた。ユーロドル・ドル円・ゴールド・銀は極口座でスワップなし。口座ごとの表は、最小ロットのリスクが 1% 以下になる EA だけを入れた組み合わせ（IX の最小口座は目安）。滑りは入っていない</div>`;
+      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：DD10% で半分（上の表・一番上の行はロット フラット、それより下の行は月初 3 日とゴールドの金曜の買いを 1.5 倍にしていた時の値）。サーバー時間のデータで今の EA のコードを回したトレード（指数は 2017 年から）。指数（Cash）と BTC は XM のスワップ（今の率、指数 買い 年約 -6.5%・日経 -3.3%、BTC 買い 年約 -26%・売り -10%）、BTC のスプレッドは 0.08%（2022〜24 年の実データ、直近は 0.03% 前後）、銀は 0.05% を入れた。ユーロドル・ドル円・ゴールド・銀は極口座でスワップなし。口座ごとの表は、最小ロットのリスクが 1% 以下になる EA だけを入れた組み合わせ（IX の最小口座は目安）。滑りは入っていない</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
@@ -354,7 +356,7 @@
         <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">${minLot ? '最大リスク' : 'リスク'}</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">${[0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02].map(v =>
             `<button onclick="eaLiveRisk(${v})" style="${btn};${Math.abs(c.base_risk - v) < 1e-9 ? neon(minLot ? '#fbbf24' : '#22d3ee', minLot ? '251,191,36' : '34,211,238') : offBtn}">${+(v * 100).toFixed(2)}%</button>`).join('')}</div></div>
-        ${!minLot && c.base_risk >= 0.015 ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">月初 3 日・ゴールドの金曜の買いは 1.5 倍（2% なら 1 回 3%）。DD10% で半分を ON のままにしておくのがおすすめ</div>' : ''}
+        ${!minLot && c.base_risk >= 0.015 ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">DD10% で半分を ON のままにしておくのがおすすめ</div>' : ''}
         ${minLot ? '<div style="font-size:10px;color:#fbbf24;margin-top:-4px">全 EA が銘柄の最小ロット（例 0.01）で入ります。最小ロットでも損失が口座の「最大リスク」を超える回は見送り</div>' : ''}
         <div style="display:flex;align-items:center;gap:8px"><div style="min-width:80px;font-size:12px;color:#94a3b8">DD10%で半分</div>
           <div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
