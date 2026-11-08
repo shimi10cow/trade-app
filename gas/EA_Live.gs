@@ -244,13 +244,12 @@ function ealResSave_(b) {
 /** Hourly time trigger (add in the editor: Triggers > eaWatchdog, every hour). Telegram once when an EA PC stopped
  * sending heartbeats for over 2 hours, and once when it comes back. Needs Script properties TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
 // Backtest per EA (research, R after costs): win %, average R, PF. Same numbers as the app (ea_live.js BT).
-const EAL_BT_ = { "C@EURUSD":[52.0, 0.385, 1.86], "C@USDJPY":[42.3, 0.271, 1.5], "DS@JP225":[40.0, 0.284, 1.96], "DS@US500":[42.1, 0.357, 2.2],
-  "DS@XAUUSD":[49.2, 0.27, 1.58], "J2@USDJPY":[41.5, 0.565, 2.01], "M@US30":[73.8, 0.116, 1.73],
-  "M@US500":[76.1, 0.119, 1.76], "Q@XAGUSD":[40.9, 0.553, 2.04], "Q@XAUUSD":[44.6, 0.545, 2.04],
-  "S@BTCUSD":[35.0, 0.686, 2.0], "S@XAUUSD":[35.6, 0.498, 1.78], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[41.4, 0.374, 1.64], "P@XAUUSD":[48.4, 0.95, 3.0],
-  "P@EURUSD":[51.3, 0.373, 1.81], "P@USDJPY":[42.7, 0.266, 1.5], "P@US500":[50.8, 0.332, 1.71],
-  "P@US100":[50.8, 0.347, 1.76], "DL@EURUSD":[59.1, 0.249, 1.59], "DL@USDJPY":[54.3, 0.322, 1.76], "HL@EURUSD":[52.8, 1.32, 4.19], "Q@BTCUSD":[39.2, 0.845, 2.52],
-  "IX@US30":[52.1, 0.242, 1.65], "IX@US500":[58.0, 0.252, 1.81], "IX@US100":[59.6, 0.406, 2.25], "IX@JP225":[58.6, 0.357, 2.14]};
+const EAL_BT_ = {"C@EURUSD":[52.0, 0.385, 1.86], "C@USDJPY":[42.3, 0.271, 1.5], "DS@JP225":[39.5, 0.255, 1.83], "DS@US500":[42.1, 0.259, 1.78], "DS@XAUUSD":[49.2, 0.27, 1.58],
+  "J2@USDJPY":[41.5, 0.565, 2.01], "M@US30":[71.4, 0.077, 1.41], "M@US500":[76.4, 0.132, 1.85], "Q@XAGUSD":[40.6, 0.512, 1.92], "Q@XAUUSD":[44.6, 0.545, 2.04],
+  "S@BTCUSD":[33.2, 0.581, 1.82], "S@XAUUSD":[35.6, 0.498, 1.78], "T2@EURUSD":[41.1, 0.397, 1.67], "T@US30":[40.6, 0.304, 1.49], "P@XAUUSD":[48.4, 0.95, 3.0],
+  "P@EURUSD":[51.3, 0.373, 1.81], "P@USDJPY":[42.7, 0.266, 1.5], "P@US500":[49.2, 0.254, 1.53], "P@US100":[50.8, 0.298, 1.64], "DL@EURUSD":[59.1, 0.249, 1.59],
+  "DL@USDJPY":[54.3, 0.322, 1.76], "HL@EURUSD":[52.8, 1.32, 4.19], "Q@BTCUSD":[37.7, 0.728, 2.19], "IX@US30":[52.1, 0.143, 1.35], "IX@US500":[56.0, 0.144, 1.43],
+  "IX@US100":[59.6, 0.331, 1.97], "IX@JP225":[58.6, 0.311, 1.96]};
 
 /** Once a day (from eaWatchdog): per account and EA, live results next to the backtest + order quality. Kept in EA_Health only (not in the app). */
 function ealHealth_() {
