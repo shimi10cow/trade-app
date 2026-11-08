@@ -82,6 +82,7 @@
   window.eaLiveDDHalf = function () { const c = cfg(); c.dd_half = c.dd_half === false; save(); };
   window.eaLiveAllOn = function () { const c = cfg(); ALL_KEYS.forEach(k => { c.eas[k].on = true; if (c.eas[k].mode === 'off') c.eas[k].mode = 'auto'; }); save(); };
   window.eaLiveBT = function () { S.btOpen = !S.btOpen; render(); };
+  window.eaLiveFT = function () { S.ftOpen = !S.ftOpen; render(); };
   window.eaLiveML = function () { S.mlOpen = !S.mlOpen; render(); };
   window.eaLiveNotify = function (k) { const c = cfg(); c.notify = c.notify || {}; c.notify[k] = c.notify[k] === false; save(); };
   window.eaLiveOpen = function (id) { S.sheet = id; render(); };
@@ -116,35 +117,38 @@
     'DS@US500': 30, 'M@US500': 50, 'T@US30': 50, 'DS@XAUUSD': 60, 'Q@XAGUSD': 60, 'S@XAUUSD': 100, 'Q@XAUUSD': 100, 'M@US30': 300,
     'P@USDJPY': 20, 'P@EURUSD': 20, 'P@XAUUSD': 50, 'P@US500': 30, 'P@US100': 70,
     'DL@EURUSD': 20, 'DL@USDJPY': 20, 'HL@EURUSD': 20, 'Q@BTCUSD': 20, 'IX@JP225': 20, 'IX@US500': 40, 'IX@US30': 220, 'IX@US100': 140};   // IX (2026-11-08 recheck): median stop of 2023- trades x prices 2026-11 x 0.1 lot (Cash: 1 lot = 1 / point), 158.5 JPY/USD; US100 was 3x too high before
-  const BT_NOTE = {
-    'IX@JP225': '11/7 追加：US30 の IX と同じルール。損切り 価格の約 3.6%',
-    'IX@US100': '11/7 追加：US30 の IX と同じルール。損切り 価格の約 3.0%（最小ロットで 1 回 約 1.4 万円。前の表示の約 3 万円は計算の誤り）',
-    'IX@US500': '11/7 追加：US30 の IX と同じルール。損切り 価格の約 2.7%',
-    'IX@US30': '11/7 追加（ロット半分も選べる）：4 指数（US30・US500・US100・日経）を 1 つの銘柄として見る。4 本合わせて 2017〜 208 回・勝率 57%・PF 1.97・年 +7.1R・DD 8.5R、上位 5% を除いても +0.21R。3 指数が同時に負けた（-3R）ことが 3 回。最小ロットの損失が大きい（損切り 価格の約 2.4%）。保有が長い（中央 13 日）ので XM の買いのスワップ（年約 -6.5%、日経 -3.3%）を入れると 1 回 -0.05〜-0.11R：4 本で平均 +0.32→+0.24R、年 +7.1→+5.3R（上の数字はスワップ込み）',
-    'HL@EURUSD': '11/7 追加：年 4 回ほど・勝率 53%・PF 4.2・DD 4.4R。1 回あたりの利益が大きい',
-    'DL@USDJPY': '11/7 追加：年 2 回ほど（本番の作りで 38 回 +21R → 46 回 +15R）',
-    'DL@EURUSD': '11/7 追加：年 2 回ほど。研究では線が割れた日を外していたので、本番の作り（その日も入る）では成績が少し下がる（40 回 +15R → 44 回 +11R）',
-    'Q@BTCUSD': '11/7 追加：金・銀と同じ設定。2017〜 332 回・PF 2.52・DD 13.6R。BTC は極口座でもスワップがかかる（土日も毎日、年 買い約 -26%・売り約 -10%）が保有が短く 1 回 -0.06R：平均 +0.84→+0.78R、スプレッド 0.08%（2022〜24 年の XM の実データ、厳しめ）も入れて +0.73R（上の数字はスワップ・コスト込み）',
-    'T@US30': '11/2 から H4 が伸びきった時（開き 2.5 以上）、11 月から水平線で跳ね返った直後も見送り（PF 1.21→1.64・DD 19.5→13.0R）',
-    'DS@JP225': '左肩の外に損切り。10/28 から左肩→ネックが 24 時間未満の細い形、11/2 から H4 が伸びきった時は見送り。11/4 から 2R 利確をやめて +1.5R から H1 の山谷で追う（2 つ目は 1 つ目が +1.5R 伸びてから）。11/7 から、入った後に H4 の山谷ができたら損切りを 1 段（その 0.3ATR 外へ）上げる（-1R の負け 48→9 回、DD 6.1→2.8R、合計ほぼ同じ、勝率 53→40%）',
-    'C@EURUSD': '11 月から H1 のトレンドが 6ATR 以上伸びきった後は見送り（その時の調整線抜けは最後の一押しになりやすい。合計 +60→+87R・PF 1.37→1.86）',
-    'S@XAUUSD': '11/9 から（それより前に入ったポジションは今のまま）：損切りの余裕 0.3→0.5ATR(H1)、+1R→+2R から H1 の山谷で追う、直前 24 本の H1 で 1ATR 以上上がっていたら見送り（押し目買いなので、上がっている途中では入らない）。2005〜：626 回 +195R DD 29.7R → 410 回 +204R DD 11.8R。P・Q と同じ上昇で一緒に勝つことが減った（月の相関 S−P 0.37→0.14）',
+  const EA_DESC = {
+    "T2@EURUSD": "日足と H4 がトレンドの時、H1 のダウの向きへの押し目を M15 ストキャスで拾う（H4 の 3 回目の押しは見送り）。伸びたら H1 の山谷で追う",
+    "T@US30": "T2 と同じ入り方（H4 が伸びきった時・水平線で跳ねた直後は見送り）。伸びたら H1 の山谷で追う",
+    "C@EURUSD": "M15 で大きく伸びた後の調整トレンドラインを抜けて、M15 が転換したら入る（日足の向きだけ。H1 で伸びきった後は見送り）。損切りは M15 の転換点の外、+1R から H1 の山谷で追う",
+    "C@USDJPY": "C と同じ入り方で、調整が長く線が強い時だけ（H4 の MA が開きすぎ・三角持ち合いの中は見送り）。+1R から H1 の山谷で追う",
+    "CA@AUDJPY": "C と同じ入り方で、H4 ダウの向き（1〜4 段目）と日足の向きの時だけ。損切りは M15 の転換点の外。+1.5R までは H4 の押し安値割れで決済、+1.5R から M15 の山谷で追う",
+    "J2@USDJPY": "H1 のダウ転換の出だしに、M15 の仮の転換で乗る（週足と同じ向きだけ）。+1R の後に H1 の高値が切り下がったら決済、H4 の 4 段目以降は M15 の山谷で追う",
+    "S@XAUUSD": "H4 と H1 の MA の向きがそろった時、押し目で M15 が転換したら買う（直前 24 本で 1ATR 以上上がっていたら見送り）。+2R から H1 の山谷で追う",
+    "S@BTCUSD": "S と同じ入り方で、BTC の買いだけ（土日は入らない）。伸びたら H1 の山谷で追う",
+    "Q@XAUUSD": "値動きが小さい時間の後、直近 24 本の H1 の高値・安値を終値で抜けた方に乗る（H1 MA75 の向き。直前に大きく動いていたら見送り）。損切りはレンジの真ん中の外、+1R から H1 の山谷で追う",
+    "Q@XAGUSD": "ゴールドの Q と同じ入り方（損切りが遠すぎるブレイクは見送り）。+1R から H1 の山谷で追う",
+    "Q@BTCUSD": "ゴールドの Q と同じ入り方。+1R から H1 の山谷で追う",
+    "Q@AUDJPY": "Q と同じ入り方で、H4 ダウと日足の向きの時だけ（H4 の MA75 から離れすぎていたら見送り）。+1.5R までは H4 の押し安値割れで決済、+1.5R から H1 の山谷で追う",
+    "DS@JP225": "H1 のダウ転換の後、ダブルトップ・ボトムの右肩で M15 が転換したら入る。損切りは左肩の外、H4 の山谷ができたら 1 段上げる。+1.5R から H1 の山谷で追う",
+    "DS@US500": "日経の右肩と同じ入り方で、買いだけ。損切りは左肩の外。+1.5R から H1 の山谷で追う",
+    "DS@XAUUSD": "右肩の入り方で、買いだけ。損切りは右肩の外。+1R から H1 の山谷で追う",
+    "P@XAUUSD": "H1 の MA20 と MA75 のクロスで決めたトレンドの 1・2 回目の押しを、M15 ストキャスで入る（日足の向き・H4 が伸びきる前）。+1R から H1 の山谷で追う",
+    "P@EURUSD": "ゴールドの P と同じ入り方。+1R から H1 の山谷で追う",
+    "P@USDJPY": "ゴールドの P と同じ入り方。+1R から H1 の山谷で追う。+1R の後に H1 の高値が切り下がったら決済",
+    "P@US500": "ゴールドの P と同じ入り方。+1R から H1 の山谷で追う",
+    "P@US100": "ゴールドの P と同じ入り方。+1R から H1 の山谷で追う",
+    "DL@EURUSD": "日足のトレンドラインから 0.5ATR(日足) 以内に来た時、H1 が SMA20 の順側なら、M15 のダウ転換でトレンドの向きに入る。損切りは M15 の転換点とラインの外、+1R から M15 の山谷で追う",
+    "DL@USDJPY": "ユーロドルの DL と同じ入り方",
+    "HL@EURUSD": "H4 のトレンドラインから 1ATR(H4) 以内で、M15 の調整ラインを抜けたら入る（H4 ダウが逆・急すぎる線は見送り）。損切りは M15 の転換点とラインの外、+1R から H1 の山谷で追う",
+    "M@US30": "日足で 200 日線より上の時、RSI(2) が 10 未満の短い押し目を買い、5 日線を超えたら決済",
+    "M@US500": "US30 の M と同じ入り方",
+    "IX@US30": "H4 が下降トレンドになった後、H4 のダウが上に転換するか、ダブルボトムのネックを抜けた H4 の終値で買う。損切りは底の下。+1R の後は H4 の押し安値割れで決済、+2R から H1 の山谷で追う",
+    "IX@US500": "US30 の IX と同じ入り方",
+    "IX@US100": "US30 の IX と同じ入り方",
+    "IX@JP225": "US30 の IX と同じ入り方"
+    };
 
-    'Q@XAUUSD': '11/7 から金・銀・BTC で同じ設定、抜ける前の 24 本ですでに 3ATR 以上動いていたら見送り（じわじわ一方向に動いた後のブレイクを外す）。2005〜：724 回 +284R DD 26.5R → 457 回 +249R DD 14.3R',
-
-    'M@US30': '最小ロットのリスクが大きく、300 万円未満では見送りが多い',
-    'DS@US500': '買いだけ・左肩の外に損切り。10/28 から細い形は見送り。11/4 から 2R 利確をやめて +1.5R から H1 の山谷で追う（2 つ目は 1 つ目が伸びてから）。11/7 から H4 の山谷ができたら損切りを 1 段上げる（-1R の負け 20→5 回、合計・DD ほぼ同じ）', 'DS@XAUUSD': '買いだけ・右肩の上に損切り（最小ロットのリスクを小さく）。10/28 から左肩→ネックが 24 時間未満の細い形は見送り（検証 2005〜：平均 0.28→0.32R）', 'S@BTCUSD': '買いだけ・土日は入らない。BTC は極口座でもスワップがかかる（土日も毎日、年 買い約 -26%）が保有が短く 1 回 -0.09R：平均 +0.72→+0.63R、スプレッド 0.08%（2022〜24 年の XM の実データ、厳しめ）も入れて +0.58R（上の数字はスワップ・コスト込み）',
-    'P@XAUUSD': '11/2 追加。11/3 から伸びきり（6ATR）と水平線の条件を外した（3 通貨とも外れていた分がプラス、回数 167→318・合計 +231→+302R、DD 7.8→16.0R）。ゴールドの他の EA と同時に持つことが多い',
-    'P@EURUSD': '11/2 追加。11/3 から伸びきり・水平線の条件を外した（回数 89→158、DD 6.0→10.4R）。同じ条件が他の通貨では再現しないので、最初はリスク小さめで確認',
-    'P@USDJPY': '11/2 追加。11/3 から伸びきり・水平線の条件を外した。11/8 から、+1R の後に H1 の高値が切り下がったら決済（ドル円は切り下げで転換する）。ロット半分も選べる',
-
-    'P@US500': '11/4 追加（ロット半分も選べる）：P と同じルールのまま US500 でも効いた（XM 2017〜 128 回・PF 1.71・DD 9.9R、研究データでも同じ）。今の EA との月の相関 -0.06、全体の悪い月に +7R。データが 9 年と短い',
-    'P@US100': '11/4 追加（ロット半分も選べる）：XM 2017〜 122 回・PF 1.76・DD 7.9R。US500 の P とは月の相関 +0.02 で別々に動く。全体の悪い月に +15R。損切りが広め（最近は 1 回 約 170 ポイント）',
-    'J2@USDJPY': '11/4 から時間帯（0〜10 時）の条件をやめて、週足のトレンドと同じ向きだけ（週足と逆は調整の途中で、前後半とも ±0）。回数ほぼ同じ 236→218、DD 21.8→15.0R、合計 +92→+112R。週足は MT5 の週足（約 25 年分）で判定。11/8 から、H4 のトレンドが 4 段目以降の時は M15 の山谷で決済（終盤は早めに逃げる。合計 +113→+120R、DD 16.0→14.0R）。11/8 から、+1R の後に H1 の高値が切り下がったら決済（売りは安値の切り上げ。ドル円は切り下げで転換する）',
-    'Q@XAGUSD': '11/7 から金と同じ設定（H4 の伸びきりの条件は外した）。11/9 から、損切り（レンジの真ん中）が 3.5ATR(H1) 以上遠いブレイクは見送り（レンジが縮んでいない＝銀は戻りやすくだましになりやすい）。2005〜：351 回 +122R DD 15.1R → 254 回 +140R DD 7.3R',
-    'Q@AUDJPY': '11/8 追加（FX の Q）：金・銀・BTC の Q と同じ入り方で、H4 ダウの向き・日足 200 日線の向きの時だけ（円の通貨は H4 の向きでだけ Q が効く）。損切りはレンジの真ん中の外、+1.5R までは H4 の押し安値割れ（H4 の終値）だけで決済、+1.5R から H1 の山谷で追う（豪ドル円は押しが深い）。H4 の MA75 から 4ATR 以上離れている時は見送り（C と同じ。チャートの確認で「伸びすぎ・レンジからのブレイクではない」と出た所）。研究データ（サーバー時間）2005〜：111 回・+0.68R・DD 9.2R・前後半とも +。CA との月の相関 +0.29、全体とは +0.10。ドル円の Q は今のドル円の EA と重なり全体の DD を増やすので入れていない',
-    'CA@AUDJPY': '11/8 追加（豪ドル円の専用）：C と同じ入り方で、H4 ダウの向き（1〜4 段目）・日足 200 日線の向き・H4 三角持ち合いの外だけ。損切りは M15 転換点の 1.0ATR(H1) 外。+1.5R までは H4 の押し安値割れ（H4 の終値）だけで決済、+1.5R から M15 の山谷で追う。研究データ（サーバー時間）2005〜：231 回・DD 7.4R・前後半とも +。今の 27 本との月の相関 −0.05、全体の悪い月に +0.58R/月',
-    'C@USDJPY': '調整が長く傾きが強い時だけ。11/2 から H4 が伸びきった時（開き 2.5 以上）は見送り（DD 16.6→14.0R）。11/8 から H4 の三角持ち合いの中は見送り（ユーロドルと同じ。20 年で外れるのは 4 回・平均 −0.93R）。数字は 11/8 にサーバー時間・今のルールで計算し直し',};
   // portfolio combinations (2026-11-08 later: + CA@AUDJPY and Q@AUDJPY in the FX tier, C@USDJPY with the triangle skip; same method gives 27 EAs 118/154/222/224/234%, the old table 119/155/224/227/238%) (2026-11-08: broker-time data 2017-07.., all 27 EAs in the app, live lot rules; earlier note 2026-11-03: live-code trades with all gates, R@EURUSD and A@EURUSD off, RM@ added, L / L2 daily side 4 ATR, P without the level / impulse conditions, J2 weekly trend, P@US500 / P@US100 full lot, RM off; same method as RESEARCH_LOG §107:
   // 1% risk, half at DD 10%, flat lots (no calendar x1.5 from 2026-11-08, D14), all full lot, backtest as is; trendlab/rm/combos.py)
   const COMBOS = [
@@ -161,16 +165,10 @@
     return `<div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">組み合わせの結果（口座の大きさごと）</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
-      <div style="font-size:11px;color:#cbd5e1;margin-top:10px;line-height:1.6;background:#0f172a;border:1px solid #26364f;border-radius:8px;padding:8px 10px">
-        <b>今の全体（29 本、11/8 からロットはフラット）</b>：0.5% +100%・-13.1% ／ 1% +227%・-18.9% ／ 1.5% +397%・-24.1% ／ 2% +567%・-30.8%<br>
-        <span style="color:#94a3b8">月初 3 日・ゴールドの金曜の買いの 1.5 倍は 11/8 にやめた（その日のトレードが特に良いわけではなく、増えていたのはロットの分。リスク 1.08% にすればほぼ同じ）。下は 1.5 倍があった時の値</span><br>
-        <b>11/7 の見直し後の全体（27 本すべて、通常ロット、スワップ・コスト込み）</b><br>
-        2017 年 7 月〜：リスク 0.5% 年利 +105%・最大 DD -13.5% ／ 1% +238%・-19.2% ／ 1.5% +389%・-25.4% ／ 2% +564%・-34.3%<br>
-        年 +146R・最大 DD 26.7R・負けた月 16%・負けた年なし（一番悪い年 +61R）。スワップ・コストなしなら 1% +293%・-18.5%<br>
-        利益の割合：BTC 32%・ゴールド 22%・ユーロドル 17%・指数 16%・ドル円 8%・銀 5%<br>
-        <b>11/8 豪ドル円 CA を足すと（28 本）</b>：1% 年利 +234%→+249%・最大 DD -19% のまま（同じ計算で比べた値）。豪ドル円と 27 本の月の相関 -0.05、27 本の悪い月に +0.58R/月<br>
-        <b>さらに豪ドル円 Q を足すと（29 本）</b>：0.5% +111%・-13.4% ／ 1% +258%・-19.2% ／ 1.5% +440%・-25.8% ／ 2% +649%・-34.7%</div>
-      <div style="font-size:10px;color:#64748b;margin-top:6px">条件：DD10% で半分（上の表・一番上の行はロット フラット、それより下の行は月初 3 日とゴールドの金曜の買いを 1.5 倍にしていた時の値）。サーバー時間のデータで今の EA のコードを回したトレード（指数は 2017 年から）。指数（Cash）と BTC は XM のスワップ（今の率、指数 買い 年約 -6.5%・日経 -3.3%、BTC 買い 年約 -26%・売り -10%）、BTC のスプレッドは 0.08%（2022〜24 年の実データ、直近は 0.03% 前後）、銀は 0.05% を入れた。ユーロドル・ドル円・ゴールド・銀は極口座でスワップなし。口座ごとの表は、最小ロットのリスクが 1% 以下になる EA だけを入れた組み合わせ（IX の最小口座は目安）。滑りは入っていない</div>`;
+      <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">今の全体（29 本すべて）</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
+        <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">リスク</th><th>年利</th><th>最大 DD</th></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">0.5%</td><td style="color:#4ade80">+100%</td><td style="color:#f87171">-13.1%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1%</td><td style="color:#4ade80">+227%</td><td style="color:#f87171">-18.9%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1.5%</td><td style="color:#4ade80">+397%</td><td style="color:#f87171">-24.1%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">2%</td><td style="color:#4ade80">+567%</td><td style="color:#f87171">-30.8%</td></tr></table>
+      <div style="font-size:11px;color:#cbd5e1;margin-top:6px">年 +153R・最大 DD 26.8R・負けた月 15%（2017 年 7 月〜）</div>`;
   }
   // money lost by one losing trade at the minimum lot (research RESEARCH_LOG §102-104: median stop width, XM KIWAMI specs, prices 2026-10-24, 1 USD = 158.5 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);
@@ -190,17 +188,24 @@
         <div style="font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.6">前提：XM KIWAMI 口座の最小ロット（FX・ゴールド・銀・BTC 0.01、指数 0.1 ＝ 1 ポイントで 0.1 ドル）、2026-10-24 の値段、1 ドル 158.5 円。実際の約定（BTC 0.01・UK100）と合うことを確認済み。金額が大きいのはロットではなく損切り幅が広いため。スタンダード・マイクロ口座や値段が変わると金額も変わる。<br>
         今の決まり：最小ロットでも損失が口座の「リスク」で選んだ % を超える回は自動で見送り（10 万円・1% なら 1,000 円まで、2% なら 2,000 円まで）。</div>` : ''}</div>`;
   }
+  function featSection() {
+    const rows = ALL_KEYS.filter(k => EA_DESC[k]).map(k => `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
+        <div style="font-size:12px;font-weight:700">${esc(eaName(k))}</div>
+        <div style="font-size:11px;color:#cbd5e1;margin-top:3px;line-height:1.6">${esc(EA_DESC[k])}</div></div>`).join('');
+    return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveFT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
+      <span>📘 EA の特徴</span><span style="color:#94a3b8">${S.ftOpen ? '▲' : '▼'}</span></button>
+      ${S.ftOpen ? rows : ''}</div>`;
+  }
   function btSection() {
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
       const x = BTX[k], weak = x[7] < 1.4;
       return `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
         <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><b>${esc(eaName(k))}</b><span style="color:#94a3b8;font-size:11px">${MIN_ACC[k]} 万円〜${weak ? ' · <span style="color:#f87171">外す候補</span>' : ''}</span></div>
-        <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${x[0]}〜${x[1]} · ${x[2]} 回（${x[3]} 勝 ${x[4]} 敗）· 勝率 ${x[5]}% · 平均 ${x[6]}R · PF ${x[7]} · 最大 DD ${x[8]}R · 年 ${x[9]} 回 / +${x[10]}R</div>
-        ${BT_NOTE[k] ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">${esc(BT_NOTE[k])}</div>` : ''}</div>`;
+        <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${x[0]}〜${x[1]} · ${x[2]} 回（${x[3]} 勝 ${x[4]} 敗）· 勝率 ${x[5]}% · 平均 ${x[6]}R · PF ${x[7]} · 最大 DD ${x[8]}R · 年 +${x[10]}R</div></div>`;
     }).join('');
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaLiveBT()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
-      <span>📊 検証結果（どれを外すかの目安）</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
-      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットのリスクが口座の 1% 以下になる額。それより小さい口座では、最小ロットのリスクが「リスク」で選んだ % を超える回は自動で見送り。</div>${rows}${comboTable()}
+      <span>📊 検証結果</span><span style="color:#94a3b8">${S.btOpen ? '▲' : '▼'}</span></button>
+      ${S.btOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0 2px;line-height:1.5">バックテスト（コスト込み・1 回 1R）。「◯万円〜」は最小ロットで 1 回負けても口座の 1% 以下になる額。</div>${rows}${comboTable()}
 ` : ''}</div>`;
   }
   function resSection() {
@@ -367,8 +372,9 @@
             `<button onclick="eaLiveNotify('${k}')" style="${btn};${n[k] !== false ? neon('#22d3ee', '34,211,238') : offBtn}">${l}</button>`).join('')}</div></div>
         ${S.saving || S.err ? `<div style="font-size:11px;color:${/でき|失敗|通信/.test(S.saving + S.err) ? '#f87171' : '#94a3b8'}">${esc(S.saving || S.err)}</div>` : ''}
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><div style="font-size:12px;font-weight:700;color:#94a3b8">EA 一覧</div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#94a3b8">${onCount} / 19 が ON</span>${onCount < 19 ? `<button onclick="eaLiveAllOn()" style="${btn};${offBtn};padding:4px 9px;font-size:11px">すべて ON</button>` : ''}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><div style="font-size:12px;font-weight:700;color:#94a3b8">EA 一覧</div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#94a3b8">${onCount} / ${ALL_KEYS.length} が ON</span>${onCount < ALL_KEYS.length ? `<button onclick="eaLiveAllOn()" style="${btn};${offBtn};padding:4px 9px;font-size:11px">すべて ON</button>` : ''}</div></div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${cards}</div>
+      ${featSection()}
       ${btSection()}
       ${minLotSection()}
       ${resSection()}
