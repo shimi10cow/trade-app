@@ -12,7 +12,8 @@ one-per-range rule, as in the research). On XAUUSD / XAGUSD / BTCUSD (new); Q@US
 magic numbers stay the same). 2005-: XAUUSD 724 trades +284R DD 26.5R -> 455 +243R DD 14.3R; XAGUSD 112 +106R -> 351 +122R;
 BTCUSD 2017-: 334 trades +278R PF 2.49 DD 13.6R (docs/OPEN_ITEMS.md).
 2026-11-08 FX Q (run_fx, AUDJPY; docs/OPEN_ITEMS.md D13): the same setups (gold setting + run_max 3) with the H4 major Dow trend the
-trade's way (any leg; on the yen pairs Q only works with the H4 trend) and the daily side (H4 close beyond H4 SMA1200); stop the range
+trade's way (any leg; on the yen pairs Q only works with the H4 trend), the daily side (H4 close beyond H4 SMA1200) and not stretched
+(H4 close within 4 ATR(H4) of H4 SMA75, from the chart check); stop the range
 middle + 0.3 ATR(H1); exit: until +1.5R only an H4 close below the latest H4 swing low formed after the entry (engine h4sw=0), from
 +1.5R the H1 swing trail (AUDJPY pulls back deep: an H1 trail from +1R leaves too early; an M15 trail cut the moves in half).
 Research data -> server time, 2005-2026: AUDJPY 159 trades +0.53R PF 1.90 max DD 9.2R, both halves +0.52 / +0.54. USDJPY with the same
@@ -78,7 +79,10 @@ def run(F: Frames, vq, n, d, trig, stop, ex, entry_bar=True, run_max=None, far_m
     return E.run(F, events(F, vq, n, d, run_max, far_max, far_from), dict(trig=trig, stop=stop, buf=0.3, exit=ex, act=1.0, win=12), entry_bar=entry_bar)
 
 
-FX_CFG = dict(trig='now', stop='ref', buf=0.3, win=12, exit='h1', act=1.5, h4sw=0.0, dside=0)
+# 2026-11-08 later (the user's chart check of Q@AUDJPY: 8 'should not enter' trades, all stretched trends - not a break out of a quiet
+# range): skip when the H4 close is more than 4 ATR(H4) from H4 SMA75 (C's stretch rule on EURUSD / USDJPY). 159 -> 111 trades, +0.53 ->
+# +0.68R, both halves better (+0.52 / +0.54 -> +0.82 / +0.56), top 5% excluded +0.07 -> +0.20, max DD 9.2R (5 ATR: +0.68R too, 3 ATR: +0.51R).
+FX_CFG = dict(trig='now', stop='ref', buf=0.3, win=12, exit='h1', act=1.5, h4sw=0.0, dside=0, maxdev=4)
 
 
 def run_fx(F: Frames, env=None, entry_bar=True):
