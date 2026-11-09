@@ -74,8 +74,25 @@ class MT5Broker:
         return broker_name.rstrip('#').replace('Cash', '')
 
     def spec(self, sym):
-        i = self.mt5.symbol_info(self.name(sym))
-        return SymbolSpec(i.volume_min, i.volume_step, i.volume_max, i.trade_tick_size, i.trade_tick_value)
+        """Lot limits and the money per tick per 1 lot in the ACCOUNT currency.
+        2026-11-09: on the XM JPY accounts GOLD#'s trade_tick_value came back in USD (0.01 lot with a $65 stop was taken as
+        65 JPY instead of ~10,300 JPY: lots 158x too big on the demo, the minimum-lot check passed on the live account).
+        So the tick value is taken from MT5's own profit calculation (order_calc_profit, account currency) and the
+        symbol_info value is used only when that calculation is not available."""
+        name = self.name(sym); i = self.mt5.symbol_info(name)
+        tv = i.trade_tick_value
+        try:
+            tk = self.mt5.symbol_info_tick(name); px = (tk.bid if tk else 0) or i.bid
+            n = 1000                                            # 1000 ticks, so rounding of the profit does not matter
+            pr = self.mt5.order_calc_profit(self.mt5.ORDER_TYPE_BUY, name, 1.0, px, px + n * i.trade_tick_size) if px else None
+            if pr is not None and pr > 0:
+                calc = pr / n
+                if tv <= 0 or abs(calc / tv - 1) > 0.05:
+                    logging.warning('%s: tick value %s from symbol_info, %s from order_calc_profit -> using %s', sym, tv, calc, calc)
+                tv = calc
+        except Exception as ex:
+            logging.warning('%s: order_calc_profit failed (%s), using symbol_info tick value %s', sym, ex, tv)
+        return SymbolSpec(i.volume_min, i.volume_step, i.volume_max, i.trade_tick_size, tv)
 
     # ---- data
     def bars(self, sym, days):
