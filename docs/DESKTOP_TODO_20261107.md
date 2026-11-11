@@ -147,3 +147,9 @@ PC でやることは下の 1〜5。決めたことの中身は `docs/OPEN_ITEMS
 - 原因：XM の円口座で GOLD# の `trade_tick_value` がドルのまま返ってきた（ドル円の分 約 158 倍ずれる）。
 - 直したこと（`mt5_ea/live/broker.py` の spec）：1 ティックの金額を MT5 の `order_calc_profit`（口座の通貨で計算される）から取る。symbol_info の値と 5% 以上違う時はログに WARNING を出す。全銘柄に効く。
 - PC の作業：main を取り込んで EA を再起動。ログに「tick value … from symbol_info, … from order_calc_profit」の WARNING が出た銘柄を報告（どの銘柄がずれていたかの確認）。
+
+## 2026-11-11 経済指標の通知を今の EA に移した
+
+- 前は古い EA（`mt5_ea/main.py`）が送っていた。今の EA（`main_live`）にはこの機能がなく、古い EA を止めると指標の通知が来なかった。
+- 今の EA の `mt5_ea/live/calendar.py`：1 分ごとに GAS から EA_Calendar_Reminders を読み（読めない時は前回の一覧のファイル）、NotifyMinutes 前に Telegram に 1 回送る。デモと本番の両方の EA が動かすが、データのフォルダに印のファイルを先に作った方だけが送る（2 通にならない）。送ったら EA_Log に「指標通知: …」を残す。
+- PC の作業：main を取り込んで、デモ・本番の EA を再起動。**古い `mt5_ea/main.py` が動いていたら止める**（両方動くと 2 通来る）。アプリで数分後の指標の通知を 1 つ作り、Telegram に届くこと・live.log に `calendar reminder sent` が出ることを確認。

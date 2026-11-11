@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from mt5_ea import telegram_notify as telegram  # noqa: E402
 from mt5_ea.live import gas, tg_stop  # noqa: E402
 from mt5_ea.live.broker import MT5Broker  # noqa: E402
+from mt5_ea.live.calendar import CalendarReminders  # noqa: E402
 from mt5_ea.live.runner import MAGIC, Runner  # noqa: E402
 
 LOG = Path(os.getenv('EA_LOG_FILE') or Path(__file__).with_name('live.log'))
@@ -75,6 +76,7 @@ def main():
     note('info', f'EA 起動 {kind} 口座 {a["login"]}')
     last_hb = 0.0; last_slot = None
     relay = tg_stop.Relay(kind).start()           # one EA process reads Telegram (long polling), all read its local file
+    cal = CalendarReminders(relay.dir)            # economic event reminders (both processes run it; each event is sent once)
     while True:
         try:
             now = b.server_now() or pd.Timestamp.utcnow().tz_localize(None)
@@ -88,6 +90,10 @@ def main():
                 last_slot = slot
             if time.time() - last_hb >= HEARTBEAT_SEC:
                 R.heartbeat(); last_hb = time.time()
+            try:
+                cal.step(lambda t: telegram.send('calendar', t, dict(notifyCalendar=True)))
+            except Exception as ex:
+                logging.warning('calendar reminders failed: %s', ex)
             gas.flush()
             cmds = relay.pending(R.state)                    # Telegram emergency stop: commands arrive through the local file (tg_stop.Relay)
             if cmds:
