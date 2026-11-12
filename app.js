@@ -6301,7 +6301,8 @@ function openNewIdeaModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
-  document.getElementById('idea-category').value = 'マインド';
+  let lastCat = 'マインド'; try { lastCat = localStorage.getItem('ideaLastCategory_v1') || lastCat; } catch (e) {}
+  document.getElementById('idea-category').value = lastCat;   // the last category used (EAのネタ stays selected for quick notes)
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
   renderIdeaImageSlots('new');
@@ -6318,7 +6319,7 @@ async function saveNewIdea() {
   const data = {
     '日付': document.getElementById('idea-date').value,
     '本文': document.getElementById('idea-text').value,
-    'カテゴリ': document.getElementById('idea-category').value || 'その他',
+    'カテゴリ': (function () { const v = document.getElementById('idea-category').value || 'その他'; try { localStorage.setItem('ideaLastCategory_v1', v); } catch (e) {} return v; })(),
     '画像URL':  imgs[0] || '',
     '画像URL2': imgs[1] || '',
     '画像URL3': imgs[2] || '',
