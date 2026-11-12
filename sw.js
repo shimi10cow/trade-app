@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v233';
+const CACHE_NAME = 'trade-app-v234';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -26,6 +26,7 @@ self.addEventListener('fetch', event => {
     url.pathname.endsWith('/index.html') ||
     url.pathname.endsWith('/app.js') ||
     url.pathname.endsWith('/ea_live.js') ||
+    url.pathname.endsWith('/ea_ideas.js') ||
     url.pathname.endsWith('/mt5_tab.js') ||
     url.pathname.endsWith('/style.css');
 

@@ -6102,7 +6102,7 @@ function showToast(msg) {
 
 function renderIdeas() {
   const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';
-  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み')
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && i['カテゴリ'] !== 'EAのネタ')   // EAのネタ: the 🎯 取りたい所 notebook (ea_ideas.js)
     .filter(i => categoryFilter === 'all' || (i['カテゴリ'] || 'その他') === categoryFilter);
 
   const list = document.getElementById('idea-list');
@@ -6302,7 +6302,8 @@ function openNewIdeaModal() {
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
   let lastCat = 'マインド'; try { lastCat = localStorage.getItem('ideaLastCategory_v1') || lastCat; } catch (e) {}
-  document.getElementById('idea-category').value = lastCat;   // the last category used (EAのネタ stays selected for quick notes)
+  if (lastCat === 'EAのネタ') lastCat = 'マインド';
+  document.getElementById('idea-category').value = lastCat;   // the last category used
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
   renderIdeaImageSlots('new');
