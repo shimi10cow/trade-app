@@ -289,6 +289,16 @@
         <button onclick="eaLiveMCRun()" style="${btn};margin-top:10px;padding:11px;font-size:13px;${neon('#38bdf8', '56,189,248')}">▶ 実行</button>
         ${res}` : ''}</div>`;
   }
+  function sigSection() {
+    if (!(S.dash && S.dash.signals)) return '';
+    const list = sigAll().filter(g => String(g.Account) === S.acc).slice(-15).reverse();
+    const rows = list.map(g => `<div onclick="eaLiveSignal('${esc(g.SigID)}')" style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
+        <div><b>${esc(g.EA)}</b> ${dirJa(g.Direction)}<div style="color:#94a3b8;font-size:11px">${esc(String(g.Time).slice(5, 16))} · ${esc(sigWhy(g.Status))}${markIcon(g) ? ' · ' + markIcon(g) : ''}</div></div>
+        <div style="color:#64748b;font-size:11px;text-align:right">${esc(g.Symbol)}<br>${esc(g.Price)}</div></div>`).join('');
+    return `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px">入らなかったシグナル（最近）</div>
+      <div class="ea-card" style="padding:4px 12px">${rows || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">ここ 60 日はありません</div>'}
+        <div style="font-size:10px;color:#64748b;padding:6px 0">全体停止中・最小ロットで見送りなどで入らなかったもの。タップで判定を付けられる。</div></div>`;
+  }
   function resSection() {
     const mine = resAll().filter(r => String(r.Account) === S.acc);
     const wait = mine.filter(r => r.Status === 'WAIT'), recent = mine.filter(r => r.Status !== 'WAIT').slice(-5).reverse();
@@ -399,7 +409,7 @@
       .sort((x, y) => String(y.EntryTime || y.SignalTime).localeCompare(String(x.EntryTime || x.SignalTime))).slice(0, 15).map(t => {   // newest first
       const pr = Number(t.Profit), col = t.Status === 'OPEN' ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
       return `<div onclick="eaLiveTrade('${esc(t.TradeID)}')" style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:8px 2px;border-bottom:1px solid #1e293b;font-size:12px">
-        <div><b>${esc(t.EA)}</b> ${t.Direction === 'BUY' ? '買い' : '売り'}<div style="color:#94a3b8;font-size:11px">${esc(String(t.EntryTime).slice(5, 16))} · ${esc(t.Lot)} lot${t.Comment ? ' · 💬' : ''}</div></div>
+        <div><b>${esc(t.EA)}</b> ${t.Direction === 'BUY' ? '買い' : '売り'}<div style="color:#94a3b8;font-size:11px">${esc(String(t.EntryTime).slice(5, 16))} · ${esc(t.Lot)} lot${markIcon(t) ? ' · ' + markIcon(t) : ''}</div></div>
         <div style="text-align:right;color:${col};font-weight:700">${t.Status === 'OPEN' ? '保有中' : yen(t.Profit)}<div style="font-size:11px;color:#94a3b8">${t.R !== '' && t.R != null ? Number(t.R).toFixed(2) + 'R' : ''}</div></div></div>`;
     }).join('') || '<div style="color:#94a3b8;font-size:12px;padding:10px 0">まだ EA のトレードはありません</div>';
     let sheet = '';
@@ -462,6 +472,7 @@
       ${resSection()}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-top:8px">EA のトレード（最近）</div>
       <div class="ea-card" style="padding:4px 12px">${trades}</div>
+      ${sigSection()}
     </div>${sheet}${resSheet()}`;
   }
 
@@ -490,7 +501,7 @@
           <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
           ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
         <div style="font-weight:700;font-size:15px;color:${col}">${open ? '' : R}</div></div>
-        <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}${t.Comment ? ' · 💬' : ''}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
+        <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}${markIcon(t) ? ' · ' + markIcon(t) : ''}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
   }
   const EA_PIP = sym => /JPY/.test(sym) ? 0.01 : /XAU/.test(sym) ? 0.1 : /XAG/.test(sym) ? 0.01 : /BTC|ETH|US30|US500|US100|JP225/.test(sym) ? 1 : 0.0001;
@@ -574,6 +585,70 @@
     return `<div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">${list.map((x, i) => `<div><div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:4px">📈 ${x[0]}</div>
       <img src="${esc(getImageUrl(x[1], 1000))}" referrerpolicy="no-referrer" loading="lazy" onclick='openLightbox(${JSON.stringify(big[i])}, ${JSON.stringify(big)}, ${i})' style="width:100%;border-radius:8px;border:1px solid #334155;cursor:zoom-in"></div>`).join('')}</div>`;
   }
+  // ---------- the trader's mark on an EA trade or on a signal that was not traded (2026-11-12) ----------
+  const VERDICTS = [['ok', 'OK', '#4ade80', '74,222,128'], ['ng', '入らない方がいい', '#f87171', '248,113,113'], ['maybe', '迷う', '#fbbf24', '251,191,36']];
+  const MARK_TAGS = ['伸びすぎ', 'レンジの中', '上位足が逆', '指標の前後', '損切りが遠い', 'その他'];
+  const VERDICT_ICON = {ok: '✅', ng: '⛔', maybe: '❔'};
+  const markIcon = x => (VERDICT_ICON[x && x.Verdict] || '') + (x && x.Comment ? '💬' : '');
+  function markEditor(x, onSave, saved) {
+    const tags = String(x.Tags || '').split(',').filter(Boolean);
+    const vb = ([v, l, col, rgb]) => `<button type="button" data-v="${v}" data-col="${col}" data-rgb="${rgb}" onclick="eaLiveMarkV(this)" style="${btn};padding:8px 4px;font-size:12px;${x.Verdict === v ? neon(col, rgb) : offBtn}">${l}</button>`;
+    const tb = t => `<button type="button" data-t="${t}" data-on="${tags.indexOf(t) >= 0 ? 1 : 0}" onclick="eaLiveMarkT(this)" style="border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;${tags.indexOf(t) >= 0 ? neon('#22d3ee', '34,211,238') : offBtn}">${t}</button>`;
+    return `<div id="eal-mark" data-verdict="${esc(x.Verdict || '')}" style="margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">📝 判定</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${VERDICTS.map(vb).join('')}</div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">理由（いくつでも）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${MARK_TAGS.map(tb).join('')}</div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">💬 コメント</div>
+      <textarea id="eal-trade-comment" rows="3" maxlength="2000" class="form-input" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="気付いたこと・入り方の良し悪しなど">${esc(x.Comment || '')}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="eal-trade-comment-msg" style="font-size:11px;color:#64748b">${saved || ''}</span>
+        <button onclick="${onSave}" style="${btn};width:auto;padding:8px 16px;${neon('#22d3ee', '34,211,238')}">保存</button></div></div>`;
+  }
+  window.eaLiveMarkV = function (el) {          // one verdict at a time; tapping the chosen one clears it
+    const box = document.getElementById('eal-mark'), v = box.dataset.verdict === el.dataset.v ? '' : el.dataset.v;
+    box.dataset.verdict = v;
+    box.querySelectorAll('button[data-v]').forEach(b => b.setAttribute('style', `${btn};padding:8px 4px;font-size:12px;${b.dataset.v === v ? neon(b.dataset.col, b.dataset.rgb) : offBtn}`));
+  };
+  window.eaLiveMarkT = function (el) {
+    const on = el.dataset.on !== '1'; el.dataset.on = on ? '1' : '0';
+    el.setAttribute('style', `border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;${on ? neon('#22d3ee', '34,211,238') : offBtn}`);
+  };
+  function markValue() {
+    const box = document.getElementById('eal-mark');
+    return {verdict: box ? box.dataset.verdict || '' : '', tags: box ? [...box.querySelectorAll('button[data-t]')].filter(b => b.dataset.on === '1').map(b => b.dataset.t).join(',') : ''};
+  }
+  const sigAll = () => (S.dash && S.dash.signals) || [];
+  window.eaLiveSignal = function (id) {
+    const g = sigAll().find(x => String(x.SigID) === String(id)); if (!g) return;
+    const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
+    const old = document.getElementById('eal-trade-modal'); if (old) old.remove();
+    const m = document.createElement('div'); m.id = 'eal-trade-modal'; m.className = 'modal-overlay active';
+    m.onclick = e => { if (e.target === m) m.remove(); };
+    m.innerHTML = `<div class="modal-content"><div class="modal-header"><div class="modal-title">${esc(eaName(g.EA))}（入らなかったシグナル）</div><div class="modal-close" onclick="document.getElementById('eal-trade-modal').remove()">✕</div></div><div class="modal-body">
+      ${row('口座', ACC_JA[g.Account] || esc(g.Account))}${row('時刻', jst(g.Time))}${row('銘柄・向き', esc(g.Symbol) + ' ' + dirJa(g.Direction))}
+      ${row('値段', esc(g.Price))}${row('損切り', esc(Number(g.SL) ? Number(g.SL).toPrecision(6) : g.SL))}${row('入らなかった理由', esc(sigWhy(g.Status)))}
+      ${markEditor(g, `eaLiveSaveSignal('${esc(g.SigID)}')`, '')}
+      <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
+    document.body.appendChild(m);
+  };
+  function sigWhy(st) {
+    st = String(st || '');
+    if (/全体停止中/.test(st)) return '全体停止中';
+    const m = st.match(/min lot risk ([\d.]+%) > ([\d.]+%)/); if (m) return `最小ロットでも ${m[1]}（上限 ${m[2]}）`;
+    return st || '—';
+  }
+  window.eaLiveSaveSignal = async function (id) {
+    const ta = document.getElementById('eal-trade-comment'), msg = document.getElementById('eal-trade-comment-msg'); if (!ta) return;
+    const g = sigAll().find(x => String(x.SigID) === String(id)), mk = markValue();
+    msg.textContent = '保存中…'; msg.style.color = '#94a3b8';
+    try {
+      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaSignalMark', key: appKey(), sigId: id, signal: g, comment: ta.value, verdict: mk.verdict, tags: mk.tags})}).then(x => x.json());
+      if (!r || r.success === false) throw new Error(/Unknown action|bad action|not allowed/.test(String(r && r.error)) ? 'GAS をデプロイすると使えます' : ((r && r.error) || '保存できませんでした'));
+      if (g) { g.Comment = ta.value; g.Verdict = mk.verdict; g.Tags = mk.tags; }
+      try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
+      msg.textContent = '保存しました'; msg.style.color = '#4ade80'; render();
+    } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }
+  };
   window.eaLiveTrade = function (id) {
     const t = allTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
     const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
@@ -587,21 +662,19 @@
       ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
       ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
       ${imgs(t)}
-      <div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">💬 コメント</div>
-        <textarea id="eal-trade-comment" rows="4" maxlength="2000" class="form-input" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="気付いたこと・入り方の良し悪しなど">${esc(t.Comment || '')}</textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="eal-trade-comment-msg" style="font-size:11px;color:#64748b">${t.CommentAt ? '保存 ' + jst(t.CommentAt) : ''}</span>
-          <button onclick="eaLiveSaveComment('${esc(t.TradeID)}')" style="${btn};width:auto;padding:8px 16px;${neon('#22d3ee', '34,211,238')}">保存</button></div></div>
+      ${markEditor(t, `eaLiveSaveComment('${esc(t.TradeID)}')`, t.CommentAt ? '保存 ' + jst(t.CommentAt) : '')}
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
   };
   // the trader's comment on an EA trade (EA_Trades.Comment, GAS eaTradeComment)
   window.eaLiveSaveComment = async function (id) {
     const ta = document.getElementById('eal-trade-comment'), msg = document.getElementById('eal-trade-comment-msg'); if (!ta) return;
+    const mk = markValue();
     msg.textContent = '保存中…'; msg.style.color = '#94a3b8';
     try {
-      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaTradeComment', key: appKey(), tradeId: id, comment: ta.value})}).then(x => x.json());
+      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaTradeComment', key: appKey(), tradeId: id, comment: ta.value, verdict: mk.verdict, tags: mk.tags})}).then(x => x.json());
       if (!r || r.success === false) throw new Error(/Unknown action/.test(String(r && r.error)) ? 'GAS をデプロイすると使えます' : ((r && r.error) || '保存できませんでした'));
-      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
+      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; t.Verdict = mk.verdict; t.Tags = mk.tags; const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
       try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
       msg.textContent = '保存しました'; msg.style.color = '#4ade80'; render(); refreshViews();
     } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }

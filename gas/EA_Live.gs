@@ -21,12 +21,13 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage'],   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags'],   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
+  sigmarks: ['SigID', 'Account', 'EA', 'Symbol', 'Direction', 'Price', 'SL', 'Status', 'SignalTime', 'Verdict', 'Tags', 'Comment', 'UpdatedAt'],   // marks on signals that were not traded (2026-11-12)
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
 };
-const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health'};
+const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health', sigmarks: 'EA_SignalMarks'};
 
 function eaSetupKeys() {
   const p = PropertiesService.getScriptProperties();
@@ -65,7 +66,7 @@ function ealAuth_(body, who) {
 }
 
 const EAL_EA_ACTIONS_ = {eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
-const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
+const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -74,7 +75,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -154,7 +155,8 @@ function ealDashboard_(b) {
   const status = {}; ealRows_('status').forEach(r => { delete r._row; status[r.Account] = r; });
   const res = ealRows_('res').filter(r => r.Status === 'WAIT' || String(r.UpdatedAt).slice(0, 10) >= Utilities.formatDate(new Date(Date.now() - 30 * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd'))
     .map(r => { delete r._row; return r; });
-  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1},
+  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1, marks: 1},
+          signals: ealSignals_(60),
           daily: ealRows_('daily').slice(-800).map(r => { delete r._row; return r; })};
 }
 
@@ -179,7 +181,38 @@ function ealTradeImage_(b) {
 function ealTradeComment_(b) {
   const r = ealRows_('trades').find(x => String(x.TradeID) === String(b.tradeId));
   if (!r) throw new Error('trade not found');
-  ealWriteRow_('trades', r._row, Object.assign({}, r, {Comment: String(b.comment || '').slice(0, 2000), CommentAt: ealNow_()}));
+  const upd = {Comment: String(b.comment || '').slice(0, 2000), CommentAt: ealNow_()};
+  if (b.verdict !== undefined) upd.Verdict = ealVerdict_(b.verdict);
+  if (b.tags !== undefined) upd.Tags = ealTags_(b.tags);
+  ealWriteRow_('trades', r._row, Object.assign({}, r, upd));
+  return {success: true};
+}
+
+/** The trader's mark: 'ok' (OK) / 'ng' (入らない方がいい) / 'maybe' (迷う) / '' (none); tags joined by commas. */
+function ealVerdict_(v) { v = String(v || ''); return ['ok', 'ng', 'maybe'].indexOf(v) >= 0 ? v : ''; }
+function ealTags_(t) { return (Array.isArray(t) ? t : String(t || '').split(',')).map(x => String(x).trim()).filter(Boolean).slice(0, 10).join(',').slice(0, 300); }
+
+/** Signals that were not traded (EA_Log level 'signal', last `days` days), with the trader's marks (EA_SignalMarks). */
+function ealSignals_(days) {
+  const cut = Utilities.formatDate(new Date(Date.now() - days * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd');
+  const marks = {}; ealRows_('sigmarks').forEach(r => { marks[String(r.SigID)] = r; });
+  const sh = ealSheet_('log'), n = sh.getLastRow(); if (n < 2) return [];
+  return sh.getRange(2, 1, n - 1, EAL_.log.length).getValues().filter(r => r[2] === 'signal' && String(r[0]).slice(0, 10) >= cut).map(r => {
+    const time = r[0] instanceof Date ? Utilities.formatDate(r[0], 'Asia/Tokyo', 'yyyy-MM-dd HH:mm') + '+09:00' : String(r[0]);
+    const p = String(r[4] || '').split(' '), id = time + '|' + r[1] + '|' + r[3], m = marks[id] || {};
+    return {SigID: id, Time: time, Account: r[1], EA: r[3], Symbol: p[0] || '', Direction: p[1] || '', Price: p[2] || '', SL: p[4] || '',
+            Status: p.slice(5).join(' '), Verdict: m.Verdict || '', Tags: m.Tags || '', Comment: m.Comment || ''};
+  });
+}
+
+/** App: mark a signal that was not traded. The signal's details are copied, so the mark outlives the 90-day log. */
+function ealSignalMark_(b) {
+  const id = String(b.sigId || ''); if (!id) throw new Error('sigId required');
+  const old = ealRows_('sigmarks').find(x => String(x.SigID) === id), s = b.signal || {};
+  ealWriteRow_('sigmarks', old ? old._row : null, Object.assign({}, old || {}, {SigID: id, Account: s.Account || (old && old.Account) || '', EA: s.EA || (old && old.EA) || '',
+    Symbol: s.Symbol || (old && old.Symbol) || '', Direction: s.Direction || (old && old.Direction) || '', Price: s.Price || (old && old.Price) || '',
+    SL: s.SL || (old && old.SL) || '', Status: s.Status || (old && old.Status) || '', SignalTime: s.Time || (old && old.SignalTime) || '',
+    Verdict: ealVerdict_(b.verdict), Tags: ealTags_(b.tags), Comment: String(b.comment || '').slice(0, 2000), UpdatedAt: ealNow_()}));
   return {success: true};
 }
 
