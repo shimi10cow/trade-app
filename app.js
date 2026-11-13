@@ -6102,7 +6102,7 @@ function showToast(msg) {
 
 function renderIdeas() {
   const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';
-  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && i['カテゴリ'] !== 'EAのネタ')   // EAのネタ: the 🎯 取りたい所 notebook (ea_ideas.js)
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && i['カテゴリ'] !== 'EAのネタ')   // EAのネタ: the 📌 取りたい所 notebook (ea_ideas.js)
     .filter(i => categoryFilter === 'all' || (i['カテゴリ'] || 'その他') === categoryFilter);
 
   const list = document.getElementById('idea-list');

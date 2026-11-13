@@ -1,4 +1,4 @@
-/* 🎯 取りたい所（EA のネタ帳）2026-11-12
+/* 📌 取りたい所（EA のネタ帳）2026-11-12
  * Spots on the chart an EA should take, saved while looking at the phone's MT5: direction + shape buttons, up to 3 screenshots
  * (the crosshair on the bar gives symbol / time / price for the later analysis) and a short note.
  * Stored in the Ideas sheet (category 'EAのネタ') through the existing saveIdea / deleteIdea, so no GAS change is needed.
@@ -51,7 +51,7 @@
     if (!m) {
       m = document.createElement('div'); m.id = 'modal-ea-ideas'; m.className = 'modal-overlay active';
       m.onclick = e => { if (e.target === m) closeEAIdeas(); };
-      m.innerHTML = `<div class="modal-content" style="max-height:92vh;overflow-y:auto"><div class="modal-header"><div class="modal-title">🎯 取りたい所</div>
+      m.innerHTML = `<div class="modal-content" style="max-height:92vh;overflow-y:auto"><div class="modal-header"><div class="modal-title">📌 取りたい所</div>
         <div class="modal-close" onclick="closeEAIdeas()">✕</div></div><div class="modal-body" id="ea-idea-body"></div></div>`;
       document.body.appendChild(m);
     }
