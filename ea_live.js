@@ -589,8 +589,50 @@
   const VERDICTS = [['ok', 'OK', '#4ade80', '74,222,128'], ['ng', '入らない方がいい', '#f87171', '248,113,113'], ['maybe', '迷う', '#fbbf24', '251,191,36']];
   const MARK_TAGS = ['伸びすぎ', 'レンジの中', '上位足が逆', '指標の前後', '損切りが遠い', 'その他'];
   const VERDICT_ICON = {ok: '✅', ng: '⛔', maybe: '❔'};
-  const markIcon = x => (VERDICT_ICON[x && x.Verdict] || '') + (x && x.Comment ? '💬' : '');
-  function markEditor(x, onSave, saved) {
+  const markIcon = x => (VERDICT_ICON[x && x.Verdict] || '') + (x && (x.ExitVerdict || x.ExitTags || x.ExitWantImage) ? '🚪' : '') + (x && x.Comment ? '💬' : '');
+  // the exit (closed trades only): how it went and where the exit should have been, plus a screenshot with the crosshair there
+  const EXIT_VERDICTS = [['good', '良い決済', '#4ade80', '74,222,128'], ['early', '早すぎた', '#fbbf24', '251,191,36'], ['late', '遅すぎた', '#fb923c', '251,146,60'],
+                         ['tight', '損切りが浅い', '#f87171', '248,113,113'], ['wide', '損切りが深い', '#c084fc', '192,132,252']];
+  const EXIT_TAGS = ['M15 の押し安値割れ', 'H1 の押し安値割れ', 'H4 の押し安値割れ', '抵抗帯の手前', '前の高値・安値', 'H1 MA 割れ', 'ダウの転換', 'ライン割れ', 'その他'];
+  function exitEditor(t) {
+    const tags = String(t.ExitTags || '').split(',').filter(Boolean), img = t.ExitWantImage || '';
+    const vb = ([v, l, col, rgb]) => `<button type="button" data-v="${v}" data-col="${col}" data-rgb="${rgb}" onclick="eaLiveExitV(this)" style="${btn};padding:8px 4px;font-size:12px;${t.ExitVerdict === v ? neon(col, rgb) : offBtn}">${l}</button>`;
+    const tb = x => `<button type="button" data-t="${x}" data-on="${tags.indexOf(x) >= 0 ? 1 : 0}" onclick="eaLiveMarkT(this)" style="border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;${tags.indexOf(x) >= 0 ? neon('#22d3ee', '34,211,238') : offBtn}">${x}</button>`;
+    return `<div id="eal-exit" data-verdict="${esc(t.ExitVerdict || '')}" data-img="${esc(img)}" style="margin-top:16px;padding-top:12px;border-top:1px solid #334155">
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">🚪 決済の判定</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${EXIT_VERDICTS.map(vb).join('')}</div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">本当はどこで決済したかったか（いくつでも・売りは戻り高値超え）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${EXIT_TAGS.map(tb).join('')}</div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">決済したかった所のスクショ（十字線をその足に）</div>
+      <div id="eal-exit-img">${exitImgHtml(img)}</div></div>`;
+  }
+  function exitImgHtml(img, busy) {
+    const show = img && typeof getImageUrl === 'function' ? (String(img).startsWith('data:') ? img : getImageUrl(img, 800)) : img;
+    return `${img ? `<div style="position:relative;margin-bottom:6px"><img src="${esc(show)}" referrerpolicy="no-referrer" style="width:100%;border-radius:8px;border:1px solid #334155">
+        <button type="button" onclick="eaLiveExitImgRm()" style="position:absolute;top:6px;right:6px;border:0;border-radius:6px;background:rgba(15,23,42,.85);color:#f87171;font-size:12px;padding:4px 8px">✕ 外す</button></div>` : ''}
+      <input type="file" id="eal-exit-file" accept="image/*" style="display:none" onchange="eaLiveExitImg(event)">
+      <button type="button" ${busy ? 'disabled' : ''} onclick="document.getElementById('eal-exit-file').click()" style="${btn};padding:10px;${offBtn}">📷 ${img ? '画像を変える' : '画像を追加'}${busy ? ' ⏳' : ''}</button>`;
+  }
+  window.eaLiveExitV = function (el) {
+    const box = document.getElementById('eal-exit'), v = box.dataset.verdict === el.dataset.v ? '' : el.dataset.v;
+    box.dataset.verdict = v;
+    box.querySelectorAll('button[data-v]').forEach(b => b.setAttribute('style', `${btn};padding:8px 4px;font-size:12px;${b.dataset.v === v ? neon(b.dataset.col, b.dataset.rgb) : offBtn}`));
+  };
+  window.eaLiveExitImgRm = function () { const box = document.getElementById('eal-exit'); box.dataset.img = ''; document.getElementById('eal-exit-img').innerHTML = exitImgHtml(''); };
+  window.eaLiveExitImg = function (ev) {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    const box = document.getElementById('eal-exit'), r = new FileReader();
+    r.onload = async e => {
+      box.dataset.busy = '1'; document.getElementById('eal-exit-img').innerHTML = exitImgHtml(e.target.result, true);
+      let ref = '';
+      try { ref = await uploadImageSmart(e.target.result, 'eaexit_' + Date.now() + '.jpg'); } catch (err) {}
+      box.dataset.busy = '';
+      if (ref && !String(ref).startsWith('data:')) { box.dataset.img = ref; document.getElementById('eal-exit-img').innerHTML = exitImgHtml(ref); }
+      else { if (typeof showToast === 'function') showToast('⚠️ 画像のアップロードに失敗しました'); document.getElementById('eal-exit-img').innerHTML = exitImgHtml(box.dataset.img); }
+    };
+    r.readAsDataURL(f);
+  };
+  function markEditor(x, onSave, saved, extra) {
     const tags = String(x.Tags || '').split(',').filter(Boolean);
     const vb = ([v, l, col, rgb]) => `<button type="button" data-v="${v}" data-col="${col}" data-rgb="${rgb}" onclick="eaLiveMarkV(this)" style="${btn};padding:8px 4px;font-size:12px;${x.Verdict === v ? neon(col, rgb) : offBtn}">${l}</button>`;
     const tb = t => `<button type="button" data-t="${t}" data-on="${tags.indexOf(t) >= 0 ? 1 : 0}" onclick="eaLiveMarkT(this)" style="border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;${tags.indexOf(t) >= 0 ? neon('#22d3ee', '34,211,238') : offBtn}">${t}</button>`;
@@ -599,6 +641,7 @@
       <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${VERDICTS.map(vb).join('')}</div>
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">理由（いくつでも）</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${MARK_TAGS.map(tb).join('')}</div>
+      ${extra || ''}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">💬 コメント</div>
       <textarea id="eal-trade-comment" rows="3" maxlength="2000" class="form-input" style="width:100%;box-sizing:border-box;resize:vertical" placeholder="気付いたこと・入り方の良し悪しなど">${esc(x.Comment || '')}</textarea>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="eal-trade-comment-msg" style="font-size:11px;color:#64748b">${saved || ''}</span>
@@ -615,7 +658,9 @@
   };
   function markValue() {
     const box = document.getElementById('eal-mark');
-    return {verdict: box ? box.dataset.verdict || '' : '', tags: box ? [...box.querySelectorAll('button[data-t]')].filter(b => b.dataset.on === '1').map(b => b.dataset.t).join(',') : ''};
+    const ex = document.getElementById('eal-exit'), on = el => [...el.querySelectorAll('button[data-t]')].filter(b => b.dataset.on === '1').map(b => b.dataset.t);
+    return {verdict: box ? box.dataset.verdict || '' : '', tags: box ? [...box.querySelectorAll('button[data-t]')].filter(b => b.dataset.on === '1' && !(ex && ex.contains(b))).map(b => b.dataset.t).join(',') : '',
+            exit: ex ? {verdict: ex.dataset.verdict || '', tags: on(ex).join(','), img: ex.dataset.img || '', busy: !!ex.dataset.busy} : null};
   }
   const sigAll = () => (S.dash && S.dash.signals) || [];
   window.eaLiveSignal = function (id) {
@@ -662,7 +707,7 @@
       ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
       ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
       ${imgs(t)}
-      ${markEditor(t, `eaLiveSaveComment('${esc(t.TradeID)}')`, t.CommentAt ? '保存 ' + jst(t.CommentAt) : '')}
+      ${markEditor(t, `eaLiveSaveComment('${esc(t.TradeID)}')`, t.CommentAt ? '保存 ' + jst(t.CommentAt) : '', t.Status === 'CLOSED' ? exitEditor(t) : '')}
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
   };
@@ -670,11 +715,15 @@
   window.eaLiveSaveComment = async function (id) {
     const ta = document.getElementById('eal-trade-comment'), msg = document.getElementById('eal-trade-comment-msg'); if (!ta) return;
     const mk = markValue();
+    if (mk.exit && mk.exit.busy) { msg.textContent = '画像をアップロード中です'; msg.style.color = '#fbbf24'; return; }
     msg.textContent = '保存中…'; msg.style.color = '#94a3b8';
     try {
-      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaTradeComment', key: appKey(), tradeId: id, comment: ta.value, verdict: mk.verdict, tags: mk.tags})}).then(x => x.json());
+      const body = {action: 'eaTradeComment', key: appKey(), tradeId: id, comment: ta.value, verdict: mk.verdict, tags: mk.tags};
+      if (mk.exit) Object.assign(body, {exitVerdict: mk.exit.verdict, exitTags: mk.exit.tags, exitImage: mk.exit.img});
+      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
       if (!r || r.success === false) throw new Error(/Unknown action/.test(String(r && r.error)) ? 'GAS をデプロイすると使えます' : ((r && r.error) || '保存できませんでした'));
-      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; t.Verdict = mk.verdict; t.Tags = mk.tags; const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
+      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; t.Verdict = mk.verdict; t.Tags = mk.tags;
+        if (mk.exit) Object.assign(t, {ExitVerdict: mk.exit.verdict, ExitTags: mk.exit.tags, ExitWantImage: mk.exit.img}); const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
       try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
       msg.textContent = '保存しました'; msg.style.color = '#4ade80'; render(); refreshViews();
     } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }

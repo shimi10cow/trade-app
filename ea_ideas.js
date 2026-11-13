@@ -8,7 +8,7 @@
   const CAT = 'EAのネタ';
   const DIRS = ['買い', '売り'];
   const SHAPES = ['抵抗帯反発', '推進トレンドライン', '調整ライン抜け', 'H1MAあり', 'M15ダウ転換', 'M15ライン抜け', 'レンジ抜け', 'ダブルボトム・トップ', '伸びの途中'];   // several can be chosen (2026-11-12)
-  const st = {dir: '', shapes: [], imgs: [], busy: 0, view: null};
+  const st = {dir: '', shapes: [], imgs: [], busy: 0, view: null, editId: ''};   // editId: the saved entry being edited
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const ideas = () => ((typeof App !== 'undefined' && App.data && App.data.ideas) || []).filter(i => i['カテゴリ'] === CAT);   // App is a top-level const in app.js (not on window)
   const parse = t => {
@@ -29,7 +29,9 @@
         <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700">${esc([p.dir, p.shape].filter(Boolean).join(' · ') || '（未選択）')}</div>
           <div style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(x['日付'] || '').slice(0, 10))}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`;
     }).join('');
-    return `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">向き</div><div style="display:flex;gap:8px">${d}</div>
+    const ed = st.editId ? ideas().find(i => String(i.id) === String(st.editId)) : null;
+    return `${ed ? `<div style="font-size:13px;font-weight:800;color:#fbbf24;margin-bottom:10px">✏️ 編集中（${esc(String(ed['日付'] || '').slice(0, 10))} の分）</div>` : ''}
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px">向き</div><div style="display:flex;gap:8px">${d}</div>
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:14px 0 6px">形（いくつでも）</div><div style="display:flex;flex-wrap:wrap;gap:6px">${s}</div>
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:14px 0 6px">画像（MT5 のスクショ・十字線を入りたい足に）</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">${im}</div>
@@ -37,9 +39,10 @@
         <button type="button" class="btn-secondary" ${st.busy ? 'disabled' : ''} onclick="document.getElementById('ea-idea-file').click()" style="width:100%;margin-top:8px;padding:12px;font-size:14px">📷 画像を追加${st.busy ? ' ⏳' : ''}</button>` : ''}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:14px 0 6px">一言（任意）</div>
       <input id="ea-idea-note" class="form-input" style="width:100%;box-sizing:border-box" maxlength="300" placeholder="例：ここ入りたかった" value="${esc(st.note || '')}" oninput="eaIdeaNote(this.value)">
-      <button type="button" class="btn-primary" onclick="eaIdeaSave()" style="width:100%;margin-top:14px;padding:14px;font-size:15px">保存</button>
+      <button type="button" class="btn-primary" onclick="eaIdeaSave()" style="width:100%;margin-top:14px;padding:14px;font-size:15px">${ed ? '更新する' : '保存'}</button>
+      ${ed ? `<button type="button" class="btn-secondary" onclick="eaIdeaCancelEdit()" style="width:100%;margin-top:8px;padding:12px;font-size:14px">やめる</button>` : `
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:20px 0 4px">ためたもの（${ideas().length}）</div>
-      ${list || '<div style="font-size:12px;color:#64748b;padding:8px 0">まだありません</div>'}`;
+      ${list || '<div style="font-size:12px;color:#64748b;padding:8px 0">まだありません</div>'}`}`;
   }
   function paint() { const b = document.getElementById('ea-idea-body'); if (b) b.innerHTML = body(); }
 
@@ -77,18 +80,21 @@
     if (!st.imgs.length && !st.dir && !st.shapes.length && !(st.note || '').trim()) { showToast('何か 1 つ入れてください'); return; }
     const imgs = st.imgs.filter(u => !String(u).startsWith('data:'));
     const now = new Date(), pad = n => String(n).padStart(2, '0');
+    const ed = st.editId ? ideas().find(i => String(i.id) === String(st.editId)) : null;
     const data = {
-      '日付': `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-      '本文': `向き: ${st.dir}\n形: ${SHAPES.filter(x => st.shapes.indexOf(x) >= 0).join('・')}\n${(st.note || '').trim()}`,
-      'カテゴリ': CAT, '画像URL': imgs[0] || '', '画像URL2': imgs[1] || '', '画像URL3': imgs[2] || '', 'ステータス': '未解決', 'お気に入り': ''
+      '日付': ed ? ed['日付'] : `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+      '本文': `向き: ${st.dir}\n形: ${SHAPES.filter(x => st.shapes.indexOf(x) >= 0).concat(st.shapes.filter(x => SHAPES.indexOf(x) < 0)).join('・')}\n${(st.note || '').trim()}`,   // shapes from an older button list are kept
+      'カテゴリ': CAT, '画像URL': imgs[0] || '', '画像URL2': imgs[1] || '', '画像URL3': imgs[2] || '', 'ステータス': (ed && ed['ステータス']) || '未解決', 'お気に入り': (ed && ed['お気に入り']) || ''
     };
     showLoader();
     try {
-      const res = await gasPostQueued({action: 'saveIdea', data: data}, '取りたい所の保存');
+      const res = ed ? await gasPostQueued({action: 'updateIdea', ideaId: ed.id, data: data}, '取りたい所の更新')
+                     : await gasPostQueued({action: 'saveIdea', data: data}, '取りたい所の保存');
       if (res && res.success) {
-        if (!res.queued) App.data.ideas.push(Object.assign({id: res.id}, data));
-        Object.assign(st, {dir: '', shapes: [], imgs: [], note: ''}); paint();
-        showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
+        if (ed) Object.assign(ed, data);
+        else if (!res.queued) App.data.ideas.push(Object.assign({id: res.id}, data));
+        Object.assign(st, {dir: '', shapes: [], imgs: [], note: '', editId: ''}); paint();
+        showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : ed ? '更新しました ✅' : '保存しました ✅');
       } else showToast('⚠️ 保存できませんでした: ' + ((res && res.error) || ''));
     } catch (e) { showToast('⚠️ 保存エラー: ' + e.message); }
     hideLoader();
@@ -103,10 +109,19 @@
       <div style="font-size:12px;color:#94a3b8;margin:4px 0 10px">${esc(String(x['日付'] || '').slice(0, 10))}</div>
       ${p.note ? `<div style="font-size:13px;line-height:1.6;margin-bottom:10px;white-space:pre-wrap">${esc(p.note)}</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:10px">${urls.map((u, i) => `<img src="${esc(typeof getImageUrl === 'function' ? getImageUrl(u, 1000) : u)}" referrerpolicy="no-referrer" onclick='openLightbox(${JSON.stringify(big[i])}, ${JSON.stringify(big)}, ${i})' style="width:100%;border-radius:8px;border:1px solid #334155;cursor:zoom-in">`).join('')}</div>
-      <button type="button" onclick="eaIdeaDelete('${esc(x.id)}')" style="width:100%;margin-top:16px;padding:12px;border-radius:8px;border:1px solid #7f1d1d;background:#1f1315;color:#f87171;font-weight:700">🗑️ 削除</button>
+      <button type="button" class="btn-primary" onclick="eaIdeaEdit('${esc(x.id)}')" style="width:100%;margin-top:16px;padding:12px;font-size:14px">✏️ 編集</button>
+      <button type="button" onclick="eaIdeaDelete('${esc(x.id)}')" style="width:100%;margin-top:8px;padding:12px;border-radius:8px;border:1px solid #7f1d1d;background:#1f1315;color:#f87171;font-weight:700">🗑️ 削除</button>
       <div id="ea-idea-del-ask"></div>`;
   };
   window.eaIdeaBack = function () { paint(); };
+  window.eaIdeaEdit = function (id) {                     // load a saved entry into the form (direction / shapes / images / note)
+    const x = ideas().find(i => String(i.id) === String(id)); if (!x) return;
+    const p = parse(x['本文']);
+    Object.assign(st, {editId: x.id, dir: p.dir, shapes: p.shape ? p.shape.split('・').filter(Boolean) : [],
+                       imgs: [x['画像URL'], x['画像URL2'], x['画像URL3']].filter(Boolean), note: p.note});
+    paint(); const b = document.getElementById('modal-ea-ideas'); if (b && b.firstChild) b.firstChild.scrollTop = 0;
+  };
+  window.eaIdeaCancelEdit = function () { Object.assign(st, {dir: '', shapes: [], imgs: [], note: '', editId: ''}); paint(); };
   window.eaIdeaDelete = async function (id) {
     const ask = document.getElementById('ea-idea-del-ask');
     if (ask && !ask.dataset.ok) {                          // confirm in the page (no confirm() dialog)

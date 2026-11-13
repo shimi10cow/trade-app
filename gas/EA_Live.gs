@@ -21,7 +21,7 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags'],   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags', 'ExitVerdict', 'ExitTags', 'ExitWantImage'],   // Exit*: the trader's view of the exit (2026-11-13)   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   sigmarks: ['SigID', 'Account', 'EA', 'Symbol', 'Direction', 'Price', 'SL', 'Status', 'SignalTime', 'Verdict', 'Tags', 'Comment', 'UpdatedAt'],   // marks on signals that were not traded (2026-11-12)
@@ -184,6 +184,9 @@ function ealTradeComment_(b) {
   const upd = {Comment: String(b.comment || '').slice(0, 2000), CommentAt: ealNow_()};
   if (b.verdict !== undefined) upd.Verdict = ealVerdict_(b.verdict);
   if (b.tags !== undefined) upd.Tags = ealTags_(b.tags);
+  if (b.exitVerdict !== undefined) upd.ExitVerdict = ['good', 'early', 'late', 'tight', 'wide'].indexOf(String(b.exitVerdict)) >= 0 ? String(b.exitVerdict) : '';
+  if (b.exitTags !== undefined) upd.ExitTags = ealTags_(b.exitTags);
+  if (b.exitImage !== undefined) upd.ExitWantImage = String(b.exitImage || '').slice(0, 500);
   ealWriteRow_('trades', r._row, Object.assign({}, r, upd));
   return {success: true};
 }
