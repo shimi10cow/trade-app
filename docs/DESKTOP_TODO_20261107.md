@@ -161,3 +161,4 @@ PC でやることは下の 1〜5。決めたことの中身は `docs/OPEN_ITEMS
 - コード：`mt5_ea/live/eas/h4lines.py`（新しいファイル）、`mt5_ea/live/eas/rt.py`、`mt5_ea/live/registry.py`。T@US30 は変わらない。
 - PC の作業：main を取り込んで EA を再起動（「新EA 更新」）。確認したい時は `python -m mt5_ea.live.tests.parity_t2lines`（362 / 299、新しく 7、線が 1R 以内 0 と出れば OK。数分かかる）。
 - アプリ：キャッシュ v238・`ea_live.js?v=20261114a`（T2 の説明に見送りを追記）。
+- 追記（同日）：アプリの成績の数字を新しい T2 に差し替え（キャッシュ v239・`ea_live.js?v=20261114b`）。**GAS の `EA_Live.gs` の EAL_BT_ の T2 の数字も変えたので、貼り直してデプロイ**（勝率 42.2%・平均 +0.533R・PF 1.91）。
