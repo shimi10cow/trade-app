@@ -20,7 +20,7 @@ from typing import Callable
 
 import pandas as pd
 
-from .eas import a as A_, c as C_, ca as CA, ds as DS, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
+from .eas import a as A_, c as C_, ca as CA, ds as DS, h4lines as H4L, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
 from .eas.h4gate import gate
 from .eas.pgate import gate as pgate
 from .eas.wave import axis_filter
@@ -43,7 +43,7 @@ weekdays = lambda t: pd.Timestamp(t).dayofweek < 5
 
 ADOPTED = [
     EA('R@EURUSD', 'EURUSD', gate(lambda F, env: RT.run(F, 'R2c', env=env), 'slope'), window_days=1100, warm_days=750),   # range score: 3000 H4 bars
-    EA('T2@EURUSD', 'EURUSD', lambda F, env: axis_filter(F, RT.run(F, 'T1t', env=env))),
+    EA('T2@EURUSD', 'EURUSD', lambda F, env: axis_filter(F, RT.run(F, 'T1t', env=env, sl_fn=H4L.near_skip(F)))),   # H4 line within 1R ahead: skip (2026-11-15~)
     EA('T@US30', 'US30', pgate(gate(lambda F, env: RT.run(F, 'T1t', env=env), 'open'), 'band')),
     EA('L@EURUSD', 'EURUSD', lambda F, env: L_.run(F, env=env)),
     EA('L2@XAUUSD', 'XAUUSD', lambda F, env: L_.run(F, room=1.0, env=env)),

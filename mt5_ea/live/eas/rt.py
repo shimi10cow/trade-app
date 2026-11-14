@@ -77,12 +77,15 @@ def gates(F: Frames, env: Env):
     )
 
 
-def run(F: Frames, key, env=None, m15=None, seed=True):
+def run(F: Frames, key, env=None, m15=None, seed=True, sl_fn=None):
     """key: 'R2c' or 'T1t'. Uses every M15 bar of F (m15_all) like the research engine run.
+    sl_fn: optional engine sl_fn(t, side, entry, sl) -> stop or None (skip; T2's H4-line skip, eas/h4lines.py).
     Returns dict(trades, open, pending) in the common format (t = entry bar time, entry at that bar's close)."""
     env = env or Env(F.m15_all)
     src = F.m15_all if m15 is None else m15
     cfg = gates(F, env)[key]()
+    if sl_fn is not None:
+        cfg.sl_fn = sl_fn
     if key == 'R2c' and seed:
         cfg.q75_seed = q75_seed(src.t.iat[0])        # live: the research q75 history from before this window
     tr, d = _run_engine(src, cfg)

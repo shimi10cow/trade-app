@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v237';
+const CACHE_NAME = 'trade-app-v238';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
