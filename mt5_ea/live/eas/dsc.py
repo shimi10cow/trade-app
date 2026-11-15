@@ -13,9 +13,13 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
            line broken - H4 correction line not yet broken (near) + H1 impulse line when no H4 one; trade only >= 2
   Entry  : the first M15 Dow break (close beyond the M15 swing before the latest counter swing) from the top's bar on, within 2 days;
            stop beyond that counter swing by 0.05 ATR(H4)
-  Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B on H4, C on M15, W on H4 then H1 from +3R
+  Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B and C on H4, W on H1 then M15 from +5R, A on H4
+           then H1 from +3R
            (buffer 0.1 / 0.05 / 0.02 ATR(H4) for H4 / H1 / M15); 60 days at most
   One position per level (while it is open).
+2026-11-16 (docs/OPEN_ITEMS.md D19, lab over 20 years): the level must be a band with >= 2 H4 swings (the user's boxes); C exits on H4,
+W on H1 then M15 from +5R; W valley < 6 ATR; new scene A = an older level (born before the last H4 major reversal) with such a band,
+exit H4 then H1 from +3R.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
 """
 import numpy as np
@@ -25,7 +29,8 @@ from ..core import Frames
 
 TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
 SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
-SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H4'), (3, 'H1')]}
+SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'H4')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')]}
+TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
 H = np.timedelta64(1, 'h'); DAY = np.timedelta64(1, 'D'); M15 = np.timedelta64(15, 'm'); BASE = np.datetime64('2000-01-01T00:00', 'ns')
 
@@ -263,7 +268,7 @@ def _scene(cx: _Ctx, r):
         kb = int(np.searchsorted(cx.T4, np.datetime64(t2))); A = cx.a4[kb]; A4 = (s * (r['entry'] - r['st0'])) / r['risk_atr']
         ext = max(p1, p2) if typ == 'DT' else min(p1, p2)
         dtop2 = (p2 - p1) / A4 * (1 if typ == 'DT' else -1); depth = abs(ext - r['level']) / A
-        return 'W' if (-0.5 <= dtop2 <= 0) and depth < 4.5 and 4 <= rise < 8 else None
+        return 'W' if (-0.5 <= dtop2 <= 0) and depth < 6 and 4 <= rise < 8 else None
     F = cx.F; C4 = cx.C4; s = r['side']; t = np.datetime64(r['t']); k = int(np.searchsorted(C4, t, side='right')) - 1
     ev = [e for e in F.R4['events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL']
     ek = np.array([e['idx'] for e in ev]); eto = [e['to'] for e in ev]; et = C4[ek] if len(ek) else np.array([], dtype='datetime64[ns]')
@@ -273,6 +278,8 @@ def _scene(cx: _Ctx, r):
     n_since = sum(1 for tt, kk in pb if kk == lk and tlast < tt <= born)
     if n_since == 1:
         return 'B'
+    if n_since == 0:
+        return 'A'                     # 2026-11-16: an older level (born before the last H4 major reversal), a band touched >= 2 times
     if n_since < 2:
         return None
     jj = int(np.searchsorted(ek, k, side='right')) - 1
@@ -345,6 +352,13 @@ def _score(cx: _Ctx, r):
     return out
 
 
+def _touches(cx: _Ctx, r, q):
+    """H4 swings within 0.25 ATR(H4) of the level in the 90 days before the top (A at the M15 Dow entry)"""
+    te = cx.TM[q] + M15; k = int(np.searchsorted(cx.C4, te, side='right')) - 1; A = cx.a4[k]; P = cx.raw['H4']; tt0 = np.datetime64(r['ttop'])
+    m = np.nonzero((P[3] < tt0) & (P[3] >= tt0 - 90 * DAY))[0]
+    return int((np.abs(P[2][m] - r['level']) <= 0.25 * A).sum())
+
+
 # ---------------------------------------------------------------- M15 Dow entry (add_feat25)
 def _dow_entry(cx: _Ctx, r):
     s = r['side']; P = cx.raw['M15']; TM, MC = cx.TM, cx.MC; CLm = TM + M15
@@ -381,6 +395,8 @@ def signals(F: Frames, start=None):
             if de is None:
                 continue
             q, ent, st = de
+            if _touches(cx, r, q) < TOUCH_MIN:
+                continue
             out.append(dict(r, **sp, scene=sc, q=q, sig_t=pd.Timestamp(cx.TM[q] + M15), dow_entry=float(ent), dow_stop=float(st),
                             lvl_key=(r['side'], round(r['level'], 8))))
     return cx, out

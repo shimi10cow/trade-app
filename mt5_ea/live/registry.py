@@ -13,6 +13,7 @@ gold S stop +0.5 ATR / trail from +2R / skip after a 1 ATR run, silver Q far-sto
 2026-11-15 (docs/OPEN_ITEMS.md D19): DB@ / DC@ / DW@ on the 7 FX pairs (eas/dsc.py: H4 level + M15 Dow turn scored by the user's lines;
 B = 1st level after an H4 major reversal, H4 swing trail; C = shallow pullback level, M15 swing trail; W = double top / bottom neck,
 H4 then H1 trail from +3R). USDJPY kept but can be switched off in the app (the user doubts it).
+2026-11-16: D@ rules updated (band >= 2 H4 swings, C exits on H4, W on H1 then M15 from +5R) and scene A added as DA@ (optional).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -110,7 +111,15 @@ ADOPTED = [
     EA('DB@AUDUSD', 'AUDUSD', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
     EA('DC@AUDUSD', 'AUDUSD', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
     EA('DW@AUDUSD', 'AUDUSD', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    # 2026-11-16: D@ scene A (an older level with a band touched >= 2 times), optional, appended so the magic numbers stay the same
+    EA('DA@EURUSD', 'EURUSD', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@USDJPY', 'USDJPY', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@AUDJPY', 'AUDJPY', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@EURJPY', 'EURJPY', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@GBPJPY', 'GBPJPY', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@GBPUSD', 'GBPUSD', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DA@AUDUSD', 'AUDUSD', lambda F, env, _s='A': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 57
+assert len(ADOPTED) == 64
