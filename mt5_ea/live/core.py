@@ -26,7 +26,7 @@ PIP = 1e-4
 COST = 1.2e-4        # cost per trade in price-space units, as in the research engines
 
 LOG_SYMBOLS = {'XAUUSD', 'XAGUSD', 'US30', 'US500', 'US100', 'JP225', 'BTCUSD', 'ETHUSD'}
-DIV100_SYMBOLS = {'USDJPY', 'AUDJPY'}
+DIV100_SYMBOLS = {'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY'}
 
 
 def to_space(sym, px):

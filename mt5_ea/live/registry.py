@@ -10,6 +10,9 @@ R@EURUSD; new trend EA P@ on XAUUSD / EURUSD / USDJPY.
 gold S stop +0.5 ATR / trail from +2R / skip after a 1 ATR run, silver Q far-stop skip (both for entries from 2026-11-09).
 2026-11-08 (docs/OPEN_ITEMS.md): CA@AUDJPY (AUDJPY-only C with the H4 Dow trend, eas/ca.py); C@USDJPY H4 triangle skip on.
 2026-11-08 later: Q@AUDJPY (FX Q, eas/q.py run_fx).
+2026-11-15 (docs/OPEN_ITEMS.md D19): DB@ / DC@ / DW@ on the 7 FX pairs (eas/dsc.py: H4 level + M15 Dow turn scored by the user's lines;
+B = 1st level after an H4 major reversal, H4 swing trail; C = shallow pullback level, M15 swing trail; W = double top / bottom neck,
+H4 then H1 trail from +3R). USDJPY kept but can be switched off in the app (the user doubts it).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
 NEW entries only (BTC: no Saturday / Sunday entries), and how much M15 history the EA needs.
@@ -20,7 +23,7 @@ from typing import Callable
 
 import pandas as pd
 
-from .eas import a as A_, c as C_, ca as CA, ds as DS, h4lines as H4L, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
+from .eas import a as A_, c as C_, ca as CA, ds as DS, dsc as DSC, h4lines as H4L, ix as IX, j2 as J2, l as L_, nt as NT, q as Q, rm as RM, rsi2 as M, rt as RT, s as S_, tl as TL
 from .eas.h4gate import gate
 from .eas.pgate import gate as pgate
 from .eas.wave import axis_filter
@@ -85,7 +88,29 @@ ADOPTED = [
     # 2026-11-08: AUDJPY-only C with the H4 Dow trend (eas/ca.py), appended so the magic numbers stay the same
     EA('CA@AUDJPY', 'AUDJPY', lambda F, env: CA.run(F, env=env), window_days=800, warm_days=400),
     EA('Q@AUDJPY', 'AUDJPY', lambda F, env: Q.run_fx(F, env=env), window_days=800, warm_days=400),   # 2026-11-08: FX Q (H4 Dow way, daily side)
+    # 2026-11-15: D@ (eas/dsc.py), B / C / W on the 7 FX pairs, appended so the magic numbers stay the same
+    EA('DB@EURUSD', 'EURUSD', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@EURUSD', 'EURUSD', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@EURUSD', 'EURUSD', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@USDJPY', 'USDJPY', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@USDJPY', 'USDJPY', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@USDJPY', 'USDJPY', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@AUDJPY', 'AUDJPY', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@AUDJPY', 'AUDJPY', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@AUDJPY', 'AUDJPY', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@EURJPY', 'EURJPY', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@EURJPY', 'EURJPY', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@EURJPY', 'EURJPY', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@GBPJPY', 'GBPJPY', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@GBPJPY', 'GBPJPY', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@GBPJPY', 'GBPJPY', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@GBPUSD', 'GBPUSD', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@GBPUSD', 'GBPUSD', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@GBPUSD', 'GBPUSD', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DB@AUDUSD', 'AUDUSD', lambda F, env, _s='B': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DC@AUDUSD', 'AUDUSD', lambda F, env, _s='C': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DW@AUDUSD', 'AUDUSD', lambda F, env, _s='W': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 36
+assert len(ADOPTED) == 57

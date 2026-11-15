@@ -1,0 +1,431 @@
+"""D@B / D@C / D@W: H4 level + M15 Dow turn, scored by the user's lines (2026-11-15, docs/OPEN_ITEMS.md D18 / D19,
+docs/DISCRETIONARY_RULES.md). Ported from the research scratch scripts rz18 / rz20 / prep2 / feat_core / add_imp1 / add_feat25 /
+strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUDUSD).
+
+  Levels : H4 protected levels (押し安値・戻り高値, major and provisional Dow machines, 365 days, until an H4 close beyond) and
+           double top / bottom necks (two H4 tops within 2 ATR, 6..60 H4 bars apart, valley >= 1 ATR, the first H4 close beyond the
+           neck within 30 bars of the 2nd top; alive 30 days)
+  Setup  : a confirmed M15 swing (top) within 0.3 ATR(H4) inside .. 0.6 ATR beyond a level, then an M15 close beyond the M15 swing
+           before the top (the neck) within 24 h -> the setup bar (the research entry)
+  Scenes : B = the 1st protected level after an H4 major reversal, C = a later one with the pullback < 23.6 % of the H4 trend leg,
+           W = a double top / bottom neck (2nd top 0..0.5 ATR inside the 1st, valley < 4.5 ATR, the move before 4..8 ATR)
+  Score  : 1 + 2 H4 impulse line effective + D1 impulse line + H1 MA + M15 line broken - opposite level within 2R - steep H4 impulse
+           line broken - H4 correction line not yet broken (near) + H1 impulse line when no H4 one; trade only >= 2
+  Entry  : the first M15 Dow break (close beyond the M15 swing before the latest counter swing) from the top's bar on, within 2 days;
+           stop beyond that counter swing by 0.05 ATR(H4)
+  Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B on H4, C on M15, W on H4 then H1 from +3R
+           (buffer 0.1 / 0.05 / 0.02 ATR(H4) for H4 / H1 / M15); 60 days at most
+  One position per level (while it is open).
+Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
+"""
+import numpy as np
+import pandas as pd
+
+from ..core import Frames
+
+TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
+SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
+SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H4'), (3, 'H1')]}
+BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
+H = np.timedelta64(1, 'h'); DAY = np.timedelta64(1, 'D'); M15 = np.timedelta64(15, 'm'); BASE = np.datetime64('2000-01-01T00:00', 'ns')
+
+
+def _atr(b):
+    pc = b.c.shift()
+    return pd.concat([b.h - b.l, (b.h - pc).abs(), (b.l - pc).abs()], axis=1).max(axis=1).rolling(14).mean().to_numpy()
+
+
+def _piv(P, PT, T_, Hh, Ll):
+    """confirmed pivots -> (confirm time, kind, price, bar time)"""
+    ct = np.asarray(PT, dtype='datetime64[ns]'); kd = np.array([q[1] for q in P]); pp = np.array([q[2] for q in P], dtype=float); bt = ct.copy()
+    for n in range(len(pp)):
+        j = int(np.searchsorted(T_, ct[n], side='right')) - 1; lo = max(0, j - 60)
+        arr = (Ll if kd[n] == 'lo' else Hh)[lo:j + 1]; m = np.nonzero(np.isclose(arr, pp[n]))[0]
+        if len(m):
+            bt[n] = T_[lo + m[-1]]
+        else:
+            w0 = max(0, j - 24); w = (Ll if kd[n] == 'lo' else Hh)[w0:j + 1]
+            if len(w):
+                jj = int(np.argmin(w) if kd[n] == 'lo' else np.argmax(w)); bt[n] = T_[w0 + jj]; pp[n] = w[jj]
+    return ct, kd, pp, bt
+
+
+def _mk(TB, dur):
+    """calendar time -> bar time (bars evenly spaced, weekends skipped)"""
+    TB = np.asarray(TB, dtype='datetime64[ns]'); dur = np.timedelta64(dur, 'ns'); n = len(TB)
+
+    def f(t):
+        t = np.asarray(t, dtype='datetime64[ns]'); i = np.clip(np.searchsorted(TB, t, side='right') - 1, 0, n - 1); off = t - TB[i]
+        off = np.where((i == n - 1) | (off < np.timedelta64(0, 'ns')), off, np.minimum(off, dur))
+        return BASE + i.astype('int64') * dur + off
+    return f
+
+
+def _lines(P, kind, sg, t0, t1, TM, MC, A, tol=0.5):
+    """lines from the extreme of the window through later pivots of `kind`, closes kept on the right side (tol ATR)."""
+    idx = np.nonzero((P[1] == kind) & (P[3] >= t0) & (P[3] <= t1) & (P[0] <= t1))[0]
+    if len(idx) < 2:
+        return []
+    a = idx[int(np.argmax(P[2][idx]) if sg > 0 else np.argmin(P[2][idx]))]; out = []
+    for b in idx:
+        if P[3][b] <= P[3][a]:
+            continue
+        sl = (P[2][b] - P[2][a]) / ((P[3][b] - P[3][a]) / H)
+        ka = int(np.searchsorted(TM, P[3][a])); kb = int(np.searchsorted(TM, P[3][b]))
+        lv = P[2][a] + sl * ((TM[ka:kb + 1] - P[3][a]) / H)
+        if ((MC[ka:kb + 1] - lv) * sg > tol * A).sum() > 0:
+            continue
+        out.append((a, b, sl))
+    return out
+
+
+def _steepest(c, sg):
+    return max(c, key=lambda x: -sg * x[2]) if c else None
+
+
+def _imp_lines(P, kind, s, te, win, CT, CC, A, tol, minsl, HIx, LOx, TX, conf):
+    """impulse lines (2nd point confirmed by a rally of `conf` ATR and a new high, span >= 2 days)"""
+    idx = np.nonzero((P[1] == kind) & (P[0] <= te) & (P[3] >= te - win))[0]; out = []
+    k = int(np.searchsorted(CT, te, side='right')) - 1
+    for ia in range(len(idx)):
+        for ib in range(ia + 1, len(idx)):
+            a, b = idx[ia], idx[ib]
+            if s * (P[2][b] - P[2][a]) <= 0:
+                continue
+            u = (P[3][b] - P[3][a]) / DAY
+            if u <= 0:
+                continue
+            sl = (P[2][b] - P[2][a]) / u
+            if s * sl < minsl * A:
+                continue
+            jb = int(np.searchsorted(TX, P[3][b])); je = int(np.searchsorted(TX, te))
+            if je <= jb + 1:
+                continue
+            rally = (HIx[jb:je].max() - P[2][b]) if s > 0 else (P[2][b] - LOx[jb:je].min())
+            if rally < conf * A:
+                continue
+            ja = int(np.searchsorted(TX, P[3][a])); prior = HIx[ja:jb + 1].max() if s > 0 else LOx[ja:jb + 1].min()
+            if s * ((HIx[jb:je].max() if s > 0 else LOx[jb:je].min()) - prior) <= 0:
+                continue
+            if u < 2:
+                continue
+            ka = int(np.searchsorted(CT, P[3][a])); lv = P[2][a] + sl * ((CT[ka:k + 1] - P[3][a]) / DAY)
+            broken = bool(((CC[ka:k + 1] - lv) * s < -tol * A).any())
+            vv = P[2][a] + sl * ((P[3][idx] - P[3][a]) / DAY); nt = int((np.abs(P[2][idx] - vv) <= 0.3 * A).sum())
+            out.append(dict(a=a, b=b, sl=sl, broken=broken, nt=nt, tb=P[3][b]))
+    return out
+
+
+class _Ctx:
+    """everything the rules need from a Frames object, built once"""
+
+    def __init__(self, F: Frames):
+        self.F = F
+        h4 = F.h4.reset_index(drop=True); h1 = F.h1.reset_index(drop=True); m = F.m15_all.reset_index(drop=True)
+        self.h4, self.h1 = h4, h1
+        self.a4, self.a1 = _atr(h4), _atr(h1)
+        self.T4 = h4.t.to_numpy(dtype='datetime64[ns]'); self.C4 = np.asarray(F.C4, dtype='datetime64[ns]')
+        self.H4h, self.H4l, self.c4 = h4.h.to_numpy(), h4.l.to_numpy(), h4.c.to_numpy()
+        self.T1 = h1.t.to_numpy(dtype='datetime64[ns]'); self.C1 = np.asarray(F.C1, dtype='datetime64[ns]')
+        self.H1h, self.H1l, self.c1 = h1.h.to_numpy(), h1.l.to_numpy(), h1.c.to_numpy()
+        self.CL = np.asarray(F.CL15, dtype='datetime64[ns]'); self.TB = np.asarray(F.M15T, dtype='datetime64[ns]')
+        self.O, self.Hm, self.Lm, self.Cm = (np.asarray(x) for x in (F.o, F.h, F.l, F.c))
+        self.TM = m.t.to_numpy(dtype='datetime64[ns]'); self.MH, self.ML, self.MC = m.h.to_numpy(), m.l.to_numpy(), m.c.to_numpy()
+        self.raw = {'H4': _piv(F.H4P, F.H4PT, self.T4, self.H4h, self.H4l), 'H1': _piv(F.H1P, F.H1PT, self.T1, self.H1h, self.H1l),
+                    'M15': _piv(F.P15, F.P15T, self.TB, self.Hm, self.Lm)}
+        self.S = {'H4': _mk(self.T4, 4 * H), 'H1': _mk(self.T1, H), 'M15': _mk(self.TB, M15)}
+        self.PP = {tf: (self.S[tf](P[0]), P[1], P[2], self.S[tf](P[3])) for tf, P in self.raw.items()}
+        cc = {'H4': (self.C4, self.c4), 'H1': (self.C1, self.c1), 'M15': (self.CL, self.Cm)}
+        self.CS = {tf: (self.S[tf](c[0]), c[1]) for tf, c in cc.items()}
+        self.s20 = h1.c.rolling(20).mean().to_numpy(); self.s75 = h1.c.rolling(75).mean().to_numpy()
+        self.PROV = [b[0] for b in F.R4['prov_bars']]
+        self.PV = sorted([(self.C4[e['idx']], e['to']) for e in F.R4['all_events'] if e.get('action') == 'REVERSAL' and e.get('machine') == 'prov'])
+        # daily bars from H4, 3-bar fractals
+        d1 = h4.assign(d=h4.t.dt.floor('D')).groupby('d').agg(h=('h', 'max'), l=('l', 'min'), c=('c', 'last')).reset_index()
+        Td = d1.d.to_numpy(dtype='datetime64[ns]'); hd, ld, cd = d1.h.to_numpy(), d1.l.to_numpy(), d1.c.to_numpy(); pts = []
+        for i in range(3, len(d1) - 3):
+            if ld[i] < ld[i - 3:i].min() and ld[i] <= ld[i + 1:i + 4].min(): pts.append((Td[i] + 4 * DAY, 'lo', ld[i], Td[i]))
+            if hd[i] > hd[i - 3:i].max() and hd[i] >= hd[i + 1:i + 4].max(): pts.append((Td[i] + 4 * DAY, 'hi', hd[i], Td[i]))
+        pts.sort(key=lambda x: x[3]); sd = _mk(Td, DAY); self.S['D1'] = sd
+        self.Pdr = tuple(np.array([x[j] for x in pts]) for j in range(4))
+        self.Pd = (sd(self.Pdr[0]), self.Pdr[1], self.Pdr[2], sd(self.Pdr[3])) if pts else self.Pdr
+        s50 = pd.Series(cd).rolling(50).mean().to_numpy()
+        self.Td, self.Tds, self.cd, self.hd, self.ld, self.ad, self.k50 = Td, sd(Td), cd, hd, ld, _atr(d1), s50 - np.roll(s50, 10)
+
+
+# ---------------------------------------------------------------- levels and setups (rz18 / rz20)
+def _levels(cx: _Ctx, dt: bool):
+    F = cx.F; C4 = cx.C4; LVL = {}
+    for e in F.R4['all_events']:
+        if e.get('action') != 'breakout_protect' or e.get('machine') not in ('major', 'prov'):
+            continue
+        kd = 'lo' if e['trend'] == 'up' else 'hi'
+        LVL.setdefault((kd, round(e['prot_price'], 8)), (C4[e['idx']], kd, e['prot_price'], e['prot_anchor'], 'prot', 365))
+    if dt:
+        LVL = {}
+        P4 = cx.raw['H4']; T4 = cx.T4
+        for top_k, sgn in (('hi', 1), ('lo', -1)):
+            idx = np.nonzero(P4[1] == top_k)[0]
+            for a, b in zip(idx[:-1], idx[1:]):
+                ka = int(np.searchsorted(T4, P4[3][a])); kb = int(np.searchsorted(T4, P4[3][b]))
+                if not (6 <= kb - ka <= 60):
+                    continue
+                Aa = cx.a4[kb]; p1, p2 = P4[2][a], P4[2][b]
+                if not np.isfinite(Aa) or abs(p2 - p1) > DTOL * Aa:
+                    continue
+                seg = (cx.H4l if sgn > 0 else cx.H4h)[ka:kb + 1]; jn = int(np.argmin(seg) if sgn > 0 else np.argmax(seg)); neck = seg[jn]
+                if sgn * (min(p1, p2) if sgn > 0 else max(p1, p2)) - sgn * neck < DDEP * Aa:
+                    continue
+                kc = int(np.searchsorted(C4, P4[0][b])); ext = max(p1, p2) if sgn > 0 else min(p1, p2); born = None
+                for k in range(kc, min(kc + 30, len(cx.c4))):
+                    if sgn * (cx.c4[k] - ext) > 0:
+                        break
+                    if sgn * (cx.c4[k] - neck) < 0:
+                        born = k; break
+                if born is None:
+                    continue
+                k0 = max(0, ka - 60)
+                rise = sgn * (ext - ((cx.H4l if sgn > 0 else cx.H4h)[k0:ka + 1].min() if sgn > 0 else cx.H4h[k0:ka + 1].max())) / Aa
+                LVL[('dt', top_k, round(neck, 8), str(P4[3][b]))] = (C4[born], top_k, float(neck),
+                                                                     ('DT' if sgn > 0 else 'DB', P4[3][a], float(p1), P4[3][b], float(p2), rise), 'dt', 30)
+    LV = sorted(LVL.values(), key=lambda x: x[0])
+    dead = []
+    for ct, kd, p, *_ in LV:
+        ds = 1 if kd == 'hi' else -1; k0 = int(np.searchsorted(C4, ct, side='right')); hit = np.nonzero(ds * (cx.c4[k0:] - p) > 0)[0]
+        dead.append(C4[k0 + hit[0]] if len(hit) else np.datetime64('2100-01-01'))
+    return LV, np.array(dead, dtype='datetime64[ns]')
+
+
+def _setups(cx: _Ctx, dt: bool, start):
+    LV, lvl_dead = _levels(cx, dt)
+    if not LV:
+        return []
+    lvl_t = np.array([x[0] for x in LV]); lvl_k = np.array([x[1] for x in LV]); lvl_p = np.array([x[2] for x in LV]); lvl_age = np.array([x[5] for x in LV])
+    P15 = cx.raw['M15']; CL, TB, Hm, Lm, Cm = cx.CL, cx.TB, cx.Hm, cx.Lm, cx.Cm; n15 = len(CL); done = set(); rows = []
+    # opposite levels for "an opposite level within 2R" come from the protected levels in both cases
+    if dt:                              # rz20: the protected levels and the necks together
+        LVp, deadp = _levels(cx, False); LVp = LVp + LV; deadp = np.concatenate([deadp, lvl_dead])
+    else:
+        LVp, deadp = LV, lvl_dead
+    pt = np.array([x[0] for x in LVp]); pk = np.array([x[1] for x in LVp]); pp = np.array([x[2] for x in LVp])
+    for q in range(len(P15[0])):
+        ct, kd, top, tbar = P15[0][q], P15[1][q], P15[2][q], P15[3][q]
+        if ct < start:
+            continue
+        s = -1 if kd == 'hi' else 1
+        k4 = int(np.searchsorted(cx.C4, ct, side='right')) - 1; A = cx.a4[k4]; lk = 'hi' if s < 0 else 'lo'
+        al = np.nonzero((lvl_k == lk) & (lvl_t < tbar) & (lvl_dead > tbar) & (lvl_t > tbar - lvl_age * DAY))[0]
+        if not len(al):
+            continue
+        d = (top - lvl_p[al]) * (-s) / A; okl = al[(d >= -TOL) & (d <= 0.6)]
+        if not len(okl):
+            continue
+        L = okl[np.argmin(np.abs((top - lvl_p[okl]) / A))]; level = lvl_p[L]; key = (s, L, str(tbar)[:13])
+        if key in done:
+            continue
+        pre = np.nonzero((P15[1] == ('lo' if s < 0 else 'hi')) & (P15[3] < tbar))[0]
+        if not len(pre):
+            continue
+        neck = P15[2][pre[-1]]; i0 = int(np.searchsorted(CL, ct, side='left')); ent_i = None
+        for i in range(i0, min(i0 + 96, n15 - 1)):
+            if (Hm[i] > top) if s < 0 else (Lm[i] < top):
+                break
+            if s * (Cm[i] - neck) > 0:
+                ent_i = i; break
+        if ent_i is None:
+            continue
+        done.add(key)
+        k1 = int(np.searchsorted(cx.C1, CL[ent_i], side='right')) - 1; ent = Cm[ent_i]
+        far = max(top, level) if s < 0 else min(top, level); st0 = far - s * 0.1 * cx.a1[k1]; risk = s * (ent - st0)
+        if not (0.05 * A <= risk):
+            continue
+        t = CL[ent_i]
+        lows = np.nonzero((P15[1] == ('lo' if s < 0 else 'hi')) & (P15[3] < tbar))[0][-2:]; m15line = False
+        if len(lows) == 2 and s * (P15[2][lows[1]] - P15[2][lows[0]]) < 0:
+            ta, pa, tb_, pb = P15[3][lows[0]], P15[2][lows[0]], P15[3][lows[1]], P15[2][lows[1]]; hrs = (tb_ - ta) / H
+            if hrs > 0:
+                m15line = bool(s * (ent - (pb + (pb - pa) / hrs * ((TB[ent_i] - tb_) / H))) > 0)
+        ke1 = int(np.searchsorted(cx.C1, t, side='right')) - 1
+        ma = bool(s * (cx.s20[k1] - cx.s75[k1]) > 0) or bool(s * (cx.s75[ke1] - cx.s75[ke1 - 5]) > 0)
+        op = np.nonzero((pk == ('hi' if s > 0 else 'lo')) & (pt < t) & (deadp > t) & (pt > t - 365 * DAY))[0]; risk_ahead = False
+        if len(op):
+            ah = (pp[op] - ent) * s; ah = ah[ah > 0]; risk_ahead = bool(len(ah) and ah.min() <= 2 * risk)
+        rows.append(dict(t=pd.Timestamp(t), side=s, level=float(level), top=float(top), ttop=pd.Timestamp(tbar), lvl_born=pd.Timestamp(lvl_t[L]),
+                         anchor=LV[L][3], src=LV[L][4], entry=float(ent), st0=float(st0), risk_atr=float(risk / A), m15line=m15line, ma=ma,
+                         risk_ahead=risk_ahead, k4=k4))
+    return rows
+
+
+# ---------------------------------------------------------------- scenes (prep2)
+def _scene(cx: _Ctx, r):
+    if r['src'] == 'dt':
+        typ, t1, p1, t2, p2, rise = r['anchor']; s = r['side']
+        kb = int(np.searchsorted(cx.T4, np.datetime64(t2))); A = cx.a4[kb]; A4 = (s * (r['entry'] - r['st0'])) / r['risk_atr']
+        ext = max(p1, p2) if typ == 'DT' else min(p1, p2)
+        dtop2 = (p2 - p1) / A4 * (1 if typ == 'DT' else -1); depth = abs(ext - r['level']) / A
+        return 'W' if (-0.5 <= dtop2 <= 0) and depth < 4.5 and 4 <= rise < 8 else None
+    F = cx.F; C4 = cx.C4; s = r['side']; t = np.datetime64(r['t']); k = int(np.searchsorted(C4, t, side='right')) - 1
+    ev = [e for e in F.R4['events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL']
+    ek = np.array([e['idx'] for e in ev]); eto = [e['to'] for e in ev]; et = C4[ek] if len(ek) else np.array([], dtype='datetime64[ns]')
+    pb = [(C4[e['idx']], 'lo' if e['trend'] == 'up' else 'hi') for e in F.R4['all_events'] if e.get('action') == 'breakout_protect' and e.get('machine') == 'major']
+    j = int(np.searchsorted(et, t, side='right')) - 1; tlast = et[j] if j >= 0 else np.datetime64('1900-01-01')
+    lk = 'lo' if s > 0 else 'hi'; born = np.datetime64(r['lvl_born'])
+    n_since = sum(1 for tt, kk in pb if kk == lk and tlast < tt <= born)
+    if n_since == 1:
+        return 'B'
+    if n_since < 2:
+        return None
+    jj = int(np.searchsorted(ek, k, side='right')) - 1
+    if jj >= 1 and (eto[jj] == 'up') == (s > 0):
+        a, b = ek[jj - 1], ek[jj]; org = (cx.H4l[a:b + 1].min() if s > 0 else cx.H4h[a:b + 1].max())
+        ext = (cx.H4h[b:k + 1].max() if s > 0 else cx.H4l[b:k + 1].min()); leg = s * (ext - org)
+        ret4 = s * (ext - r['top']) / leg if leg > 0 else np.nan
+        if ret4 < 0.236:
+            return 'C'
+    return None
+
+
+# ---------------------------------------------------------------- score parts (feat_core.trade, add_imp1)
+def _score(cx: _Ctx, r):
+    s = r['side']; te = np.datetime64(r['t']); k = int(np.searchsorted(cx.C4, te, side='right')) - 1; A = cx.a4[k]; risk = s * (r['entry'] - r['st0'])
+    S = cx.S; kind = 'hi' if s > 0 else 'lo'; out = {}
+    # correction lines (H4 / H1 / M15) from the pullback's extreme since the level was born
+    k4 = int(np.searchsorted(cx.T4, np.datetime64(r['lvl_born'])))
+    if k4 >= k or k4 < 0:
+        k4 = max(0, k - 60)
+    seg = (cx.H4h if s > 0 else cx.H4l)[k4:k + 1]; cst = cx.T4[k4 + int(np.argmax(seg) if s > 0 else np.argmin(seg))]; D = {}
+    for tf in ('H4', 'H1', 'M15'):
+        P = cx.PP[tf]; CT, Cc = cx.CS[tf]; ts = S[tf](te)
+        t0 = S[tf](max(cst, te - 2 * DAY)) if tf == 'M15' else S[tf](cst - 4 * H)
+        cl = [x for x in _lines(P, kind, s, t0, ts, CT, Cc, A) if s * (P[2][x[1]] - P[2][x[0]]) < 0]; b = _steepest(cl, s)
+        D[tf] = np.nan if not b else s * ((P[2][b[0]] + b[2] * ((ts - P[3][b[0]]) / H)) - r['entry']) / risk
+    m3 = 0.3 / r['risk_atr']
+    h4near = (not np.isnan(D['H4'])) and (D['H4'] >= -m3) and D['H4'] < 2
+    # H4 impulse line
+    S4 = S['H4']; ts = S4(te); e = int(np.searchsorted(cx.TM, te)); w = max(0, e - 96)
+    jx = w + int(np.argmin(cx.ML[w:e]) if s > 0 else np.argmax(cx.MH[w:e])); ext = (cx.ML if s > 0 else cx.MH)[jx]; text = S4(cx.TM[jx])
+    want = 'up' if s > 0 else 'down'; cand = [tt for tt, to in cx.PV if to == want and tt < te]
+    t0 = max((cand[-1] - 10 * DAY) if cand else te - 60 * DAY, te - 120 * DAY)
+    P = cx.PP['H4']; C4s, c4 = cx.CS['H4']; T4s = S4(cx.T4); win = ts - S4(t0)
+    L = _imp_lines(P, 'lo' if s > 0 else 'hi', s, ts, win, C4s, c4, A, 0.3, 0.2, cx.H4h, cx.H4l, T4s, 1.0); ok = [x for x in L if not x['broken']]
+    imp4 = False
+    if ok:
+        c = max(ok, key=lambda x: (x['nt'], x['tb'])); v = P[2][c['a']] + c['sl'] * ((text - P[3][c['a']]) / DAY); imp4 = bool(abs(s * (ext - v) / A) <= 1.0)
+    L5 = _imp_lines(P, 'lo' if s > 0 else 'hi', s, ts, win, C4s, c4, A, 0.5, 0.2, cx.H4h, cx.H4l, T4s, 1.0)
+    st = sorted(L5, key=lambda x: (x['tb'], s * x['sl']), reverse=True); impbrk = False
+    if st and st[0]['broken']:
+        sb = st[0]; vnow = P[2][sb['a']] + sb['sl'] * ((ts - P[3][sb['a']]) / DAY); jb = int(np.searchsorted(T4s, P[3][sb['b']])); je = int(np.searchsorted(T4s, ts))
+        lowest = (cx.H4l[jb + 1:je].min() if s > 0 else cx.H4h[jb + 1:je].max()) if je > jb + 1 else P[2][sb['b']]
+        impbrk = bool(s * (r['entry'] - vnow) <= 0 and s * (lowest - P[2][sb['b']]) < 0)
+    # D1 impulse line
+    Pd = cx.Pd; kd = int(np.searchsorted(cx.Td + DAY, te, side='right')) - 1; Ad = cx.ad[kd]
+    exd = (cx.ld if s > 0 else cx.hd)[max(0, kd - 2):kd + 1]; exd = exd.min() if s > 0 else exd.max(); tds = S['D1'](te)
+    Ld = _imp_lines(Pd, 'lo' if s > 0 else 'hi', s, tds, 90 * DAY, cx.Tds + DAY, cx.cd, Ad, 0.5, 0.02, cx.hd, cx.ld, cx.Tds, 1.0) if len(Pd[0]) else []
+    okd = []
+    for x in Ld:
+        if (x['tb'] - Pd[3][x['a']]) / DAY < 10:
+            continue
+        ja = int(np.searchsorted(cx.Tds, Pd[3][x['a']])); jb = int(np.searchsorted(cx.Tds, Pd[3][x['b']]))
+        if ((cx.hd[ja:jb + 1].max() - Pd[2][x['b']]) if s > 0 else (Pd[2][x['b']] - cx.ld[ja:jb + 1].min())) >= Ad:
+            okd.append(x)
+    okn = [x for x in okd if not x['broken']]; cdl = max(okn, key=lambda x: (x['tb'], -s * x['sl'])) if okn else None; impd = False
+    if cdl:
+        v = Pd[2][cdl['a']] + cdl['sl'] * ((cx.Tds[kd] - Pd[3][cdl['a']]) / DAY); impd = bool(abs(s * (exd - v) / Ad) <= 0.5 and s * cx.k50[kd] > 0)
+    # H1 impulse line when no H4 one can be drawn (+1)
+    imp1 = False
+    if not any(not x['broken'] for x in L):
+        S1 = S['H1']; P1 = cx.PP['H1']
+        L1 = _imp_lines(P1, 'lo' if s > 0 else 'hi', s, S1(te), 15 * DAY, cx.CS['H1'][0], cx.CS['H1'][1], A, 0.2, 0.3, cx.H1h, cx.H1l, S1(cx.T1), 0.5)
+        ok1 = [x for x in L1 if not x['broken']]
+        if ok1:
+            c = max(ok1, key=lambda x: (x['nt'], x['tb'])); v = P1[2][c['a']] + c['sl'] * ((S1(cx.TM[jx]) - P1[3][c['a']]) / DAY)
+            imp1 = bool(abs(s * (ext - v)) <= 0.5 * A)
+    out = dict(imp4=imp4, impd=impd, impbrk=impbrk, h4near=h4near, imp1=imp1)
+    out['score'] = 1 + 2 * imp4 + impd + r['ma'] + r['m15line'] - r['risk_ahead'] - impbrk - h4near + imp1
+    return out
+
+
+# ---------------------------------------------------------------- M15 Dow entry (add_feat25)
+def _dow_entry(cx: _Ctx, r):
+    s = r['side']; P = cx.raw['M15']; TM, MC = cx.TM, cx.MC; CLm = TM + M15
+    tq0 = np.datetime64(r['ttop']); q0 = int(np.searchsorted(TM, tq0)); q1 = min(int(np.searchsorted(TM, tq0 + 2 * DAY)), len(TM) - 1)
+    k = int(np.searchsorted(cx.C4, np.datetime64(r['t']), side='right')) - 1; A = cx.a4[k]
+    ctr, base = ('lo', 'hi') if s > 0 else ('hi', 'lo')
+    for q in range(q0 + 1, q1):
+        tq = CLm[q - 1]; okp = np.nonzero((P[0] <= tq) & (P[3] >= tq0 - 12 * H))[0]
+        ic = [x for x in okp if P[1][x] == ctr]
+        if not ic:
+            continue
+        ic = ic[-1]; ib = [x for x in okp if P[1][x] == base and P[3][x] < P[3][ic]]
+        if not ib:
+            continue
+        lvl = P[2][ib[-1]]
+        if s * (MC[q] - lvl) > 0 and s * (MC[q - 1] - lvl) <= 0:
+            ent = MC[q]; st = P[2][ic] - s * 0.05 * A
+            return (q, ent, st) if s * (ent - st) > 0 else None
+    return None
+
+
+def signals(F: Frames, start=None):
+    """all scored setups with their scene and M15 Dow entry: list of dict(t, side, scene, entry, stop, level_key, q)"""
+    cx = _Ctx(F); start = np.datetime64(start if start is not None else F.START); out = []
+    for dt in (False, True):
+        for r in _setups(cx, dt, start):
+            sc = _scene(cx, r)
+            if sc is None:
+                continue
+            sp = _score(cx, r)
+            if sp['score'] < SCORE_MIN:
+                continue
+            de = _dow_entry(cx, r)
+            if de is None:
+                continue
+            q, ent, st = de
+            out.append(dict(r, **sp, scene=sc, q=q, sig_t=pd.Timestamp(cx.TM[q] + M15), dow_entry=float(ent), dow_stop=float(st),
+                            lvl_key=(r['side'], round(r['level'], 8))))
+    return cx, out
+
+
+def run(F: Frames, scene, env=None, start=None, horizon_days=60):
+    """dict(trades, open, pending) for one scene ('B' / 'C' / 'W'); entries at the M15 Dow break bar's close (research; `t` = that
+    close time); a signal on the last closed bar is `pending` (signal_t = its open time, enter at the next open with the stop `sl`).
+    Closed trades: why = 'stop' (trailed stop hit) or 'time' (60 days, the runner closes the position)."""
+    cache = F.__dict__.setdefault('_dsc', {})                 # B / C / W share one pass over the setups
+    if start not in cache:
+        cache[start] = signals(F, start)
+    cx, sig = cache[start]
+    sig = sorted([x for x in sig if x['scene'] == scene], key=lambda x: (x['sig_t'], x['side']))
+    TM, MH, ML, MC = cx.TM, cx.MH, cx.ML, cx.MC; last = len(TM) - 1; busy = {}; seen = set(); trades, opened, pending = [], [], []
+    for x in sig:
+        key = (x['sig_t'], x['side'])
+        if key in seen:
+            continue
+        seen.add(key)
+        if x['lvl_key'] in busy and busy[x['lvl_key']] > np.datetime64(x['sig_t']):
+            continue
+        s = x['side']; q0 = x['q'] + 1; ent, st = x['dow_entry'], x['dow_stop']; risk = s * (ent - st)
+        k = int(np.searchsorted(cx.C4, np.datetime64(x['sig_t']), side='right')) - 1; A = cx.a4[k]
+        if x['q'] == last:
+            pending.append(dict(signal_t=pd.Timestamp(TM[x['q']]), side=s, sl=st, entry=ent, scene=scene, tag=f"D{scene} score {int(x['score'])}")); continue
+        q1 = min(int(np.searchsorted(TM, TM[x['q']] + horizon_days * DAY)), last + 1); best = 0.0; tf_i = 0; sch = SCHEME[scene]; ex = None
+        for q in range(q0, q1):
+            if (ML[q] <= st) if s > 0 else (MH[q] >= st):
+                ex = st; break
+            best = max(best, s * ((MH[q] if s > 0 else ML[q]) - ent) / risk)
+            while tf_i + 1 < len(sch) and best >= sch[tf_i + 1][0]:
+                tf_i += 1
+            tf = sch[tf_i][1]; P = cx.raw[tf]
+            idx = np.nonzero((P[1] == ('lo' if s > 0 else 'hi')) & (P[0] <= TM[q] + M15) & (P[3] >= np.datetime64(x['sig_t'])))[0]
+            if len(idx):
+                cand = P[2][idx[-1]] - s * BUF[tf] * A
+                if s * (cand - st) > 0:
+                    st = cand
+        rec = dict(t=x['sig_t'], side=s, scene=scene, entry=ent, stop0=x['dow_stop'], risk=risk, score=int(x['score']), level=x['level'])
+        if ex is None and q1 > last:
+            opened.append(dict(rec, sl=st)); busy[x['lvl_key']] = np.datetime64('2100-01-01'); continue
+        why = 'stop'
+        if ex is None:
+            ex = MC[q1 - 1]; q = q1 - 1; why = 'time'
+        R = s * (ex - ent) / risk - cx.F.COST / risk
+        trades.append(dict(rec, exit=float(ex), exit_t=pd.Timestamp(TM[q]), R=float(R), why=why)); busy[x['lvl_key']] = TM[q]
+    return dict(trades=pd.DataFrame(trades), open=opened, pending=pending)
