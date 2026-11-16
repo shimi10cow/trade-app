@@ -15,7 +15,7 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
            stop beyond that counter swing by 0.05 ATR(H4)
   Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B on H4, C on M15, W on H1 then M15 from +5R, A on H4
            then H1 from +3R
-           (buffer 0.1 / 0.05 / 0.02 ATR(H4) for H4 / H1 / M15); 60 days at most
+           (buffer 0.1 / 0.05 / 0.02 ATR(H4) for H4 / H1 / M15); no time limit (the 60-day limit was removed 2026-11-17)
   One position per level (while it is open).
 2026-11-16 (docs/OPEN_ITEMS.md D19, lab over 20 years): the level must be a band with >= 2 H4 swings (the user's boxes); C exits on M15 (H4 made more but 3 trades
 were > 100 % of its profit; M15 keeps +0.26R/trade without the top 5 %, 2026-11-16),
@@ -429,10 +429,10 @@ def signals(F: Frames, start=None, kind='h4'):
     return cx, out
 
 
-def run(F: Frames, scene, env=None, start=None, horizon_days=60):
+def run(F: Frames, scene, env=None, start=None, horizon_days=None):
     """dict(trades, open, pending) for one scene ('B' / 'C' / 'W'); entries at the M15 Dow break bar's close (research; `t` = that
     close time); a signal on the last closed bar is `pending` (signal_t = its open time, enter at the next open with the stop `sl`).
-    Closed trades: why = 'stop' (trailed stop hit) or 'time' (60 days, the runner closes the position)."""
+    Closed trades: why = 'stop' (trailed stop hit); 'time' only when horizon_days is given (no limit by default since 2026-11-17)."""
     cache = F.__dict__.setdefault('_dsc', {})                 # B / C / W share one pass over the setups
     kind = 'd1' if scene == 'Y' else 'h4'
     if (start, kind) not in cache:
@@ -459,7 +459,8 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=60):
         k = int(np.searchsorted(cx.C4, np.datetime64(x['sig_t']), side='right')) - 1; A = cx.a4[k]
         if x['q'] == last:
             pending.append(dict(signal_t=pd.Timestamp(TM[x['q']]), side=s, sl=st, entry=ent, scene=scene, tag=f"D{scene} score {int(x['score'])}")); continue
-        q1 = min(int(np.searchsorted(TM, TM[x['q']] + horizon_days * DAY)), last + 1); best = 0.0; tf_i = 0; sch = SCHEME[scene]; ex = None
+        q1 = last + 1 if horizon_days is None else min(int(np.searchsorted(TM, TM[x['q']] + horizon_days * DAY)), last + 1);   # 2026-11-17: no 60-day limit
+        best = 0.0; tf_i = 0; sch = SCHEME[scene]; ex = None
         for q in range(q0, q1):
             if (ML[q] <= st) if s > 0 else (MH[q] >= st):
                 ex = st; break
