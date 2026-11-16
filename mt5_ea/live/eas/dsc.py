@@ -21,6 +21,9 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
 were > 100 % of its profit; M15 keeps +0.26R/trade without the top 5 %, 2026-11-16),
 W on H1 then M15 from +5R; W valley < 6 ATR; new scene A = an older level (born before the last H4 major reversal) with such a band,
 exit H4 then H1 from +3R.
+2026-11-17 (user): an H4 line (protected level / neck) dies only when a whole H4 candle, open and close, is beyond it (a close a little
+beyond keeps it), and the line must still be alive at the entry (B / C / W over 20 years: 438 trades +0.90R, +394R, PF 2.70, DD -9.0R,
+2 losing years, vs 410 trades +0.87R before). DY@ keeps the H4-close rule.
 DY@ (scene 'Y', 2026-11-16, DISCRETIONARY_RULES §13): the levels are every D1 swing (3-bar fractal, 365 days) instead, the band needs
 >= 4 H4 swings, no scene / score, the M15 Dow turn within 3 days, exit H4 then H1 from +3R.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
@@ -134,7 +137,7 @@ class _Ctx:
         self.h4, self.h1 = h4, h1
         self.a4, self.a1 = _atr(h4), _atr(h1)
         self.T4 = h4.t.to_numpy(dtype='datetime64[ns]'); self.C4 = np.asarray(F.C4, dtype='datetime64[ns]')
-        self.H4h, self.H4l, self.c4 = h4.h.to_numpy(), h4.l.to_numpy(), h4.c.to_numpy()
+        self.H4h, self.H4l, self.c4, self.o4 = h4.h.to_numpy(), h4.l.to_numpy(), h4.c.to_numpy(), h4.o.to_numpy()
         self.T1 = h1.t.to_numpy(dtype='datetime64[ns]'); self.C1 = np.asarray(F.C1, dtype='datetime64[ns]')
         self.H1h, self.H1l, self.c1 = h1.h.to_numpy(), h1.l.to_numpy(), h1.c.to_numpy()
         self.CL = np.asarray(F.CL15, dtype='datetime64[ns]'); self.TB = np.asarray(F.M15T, dtype='datetime64[ns]')
@@ -204,7 +207,10 @@ def _levels(cx: _Ctx, dt: bool, kind='h4'):
     LV = sorted(LVL.values(), key=lambda x: x[0])
     dead = []
     for ct, kd, p, *_ in LV:
-        ds = 1 if kd == 'hi' else -1; k0 = int(np.searchsorted(C4, ct, side='right')); hit = np.nonzero(ds * (cx.c4[k0:] - p) > 0)[0]
+        ds = 1 if kd == 'hi' else -1; k0 = int(np.searchsorted(C4, ct, side='right')); beyond = ds * (cx.c4[k0:] - p) > 0
+        if kind == 'h4':                # 2026-11-17: an H4 line dies only when a whole H4 candle (open and close) is beyond it
+            beyond &= ds * (cx.o4[k0:] - p) > 0
+        hit = np.nonzero(beyond)[0]
         dead.append(C4[k0 + hit[0]] if len(hit) else np.datetime64('2100-01-01'))
     return LV, np.array(dead, dtype='datetime64[ns]')
 
@@ -263,7 +269,7 @@ def _setups(cx: _Ctx, dt: bool, start, kind='h4'):
         op = np.nonzero((pk == ('hi' if s > 0 else 'lo')) & (pt < t) & (deadp > t) & (pt > t - 365 * DAY))[0]; risk_ahead = False
         if len(op):
             ah = (pp[op] - ent) * s; ah = ah[ah > 0]; risk_ahead = bool(len(ah) and ah.min() <= 2 * risk)
-        rows.append(dict(t=pd.Timestamp(t), side=s, level=float(level), top=float(top), ttop=pd.Timestamp(tbar), lvl_born=pd.Timestamp(lvl_t[L]),
+        rows.append(dict(t=pd.Timestamp(t), side=s, level=float(level), top=float(top), ttop=pd.Timestamp(tbar), lvl_born=pd.Timestamp(lvl_t[L]), lvl_dead=pd.Timestamp(lvl_dead[L]),
                          anchor=LV[L][3], src=LV[L][4], entry=float(ent), st0=float(st0), risk_atr=float(risk / A), m15line=m15line, ma=ma,
                          risk_ahead=risk_ahead, k4=k4))
     return rows
@@ -439,6 +445,8 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=60):
         seen.add(key)
         if x['lvl_key'] in busy and busy[x['lvl_key']] > np.datetime64(x['sig_t']):
             continue
+        if kind == 'h4' and np.datetime64(x['lvl_dead']) <= np.datetime64(x['sig_t']):
+            continue                   # 2026-11-17: the line must still be alive at the entry
         s = x['side']; q0 = x['q'] + 1; ent, st = x['dow_entry'], x['dow_stop']; risk = s * (ent - st)
         k = int(np.searchsorted(cx.C4, np.datetime64(x['sig_t']), side='right')) - 1; A = cx.a4[k]
         if x['q'] == last:
