@@ -21,6 +21,8 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
 were > 100 % of its profit; M15 keeps +0.26R/trade without the top 5 %, 2026-11-16),
 W on H1 then M15 from +5R; W valley < 6 ATR; new scene A = an older level (born before the last H4 major reversal) with such a band,
 exit H4 then H1 from +3R.
+DY@ (scene 'Y', 2026-11-16, DISCRETIONARY_RULES §13): the levels are every D1 swing (3-bar fractal, 365 days) instead, the band needs
+>= 4 H4 swings, no scene / score, the M15 Dow turn within 3 days, exit H4 then H1 from +3R.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
 """
 import numpy as np
@@ -30,7 +32,8 @@ from ..core import Frames
 
 TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
 SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
-SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')]}
+SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')], 'Y': [(0, 'H4'), (3, 'H1')]}
+Y_TOUCH_MIN, Y_DOW_DAYS = 4, 3     # DY@ (2026-11-16): D1 swing bands with >= 4 H4 swings, the M15 Dow turn within 3 days
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
 H = np.timedelta64(1, 'h'); DAY = np.timedelta64(1, 'D'); M15 = np.timedelta64(15, 'm'); BASE = np.datetime64('2000-01-01T00:00', 'ns')
@@ -160,13 +163,17 @@ class _Ctx:
 
 
 # ---------------------------------------------------------------- levels and setups (rz18 / rz20)
-def _levels(cx: _Ctx, dt: bool):
+def _levels(cx: _Ctx, dt: bool, kind='h4'):
     F = cx.F; C4 = cx.C4; LVL = {}
     for e in F.R4['all_events']:
         if e.get('action') != 'breakout_protect' or e.get('machine') not in ('major', 'prov'):
             continue
         kd = 'lo' if e['trend'] == 'up' else 'hi'
         LVL.setdefault((kd, round(e['prot_price'], 8)), (C4[e['idx']], kd, e['prot_price'], e['prot_anchor'], 'prot', 365))
+    if kind == 'd1':                   # DY@: every D1 swing (3-bar fractal), alive 365 days until an H4 close beyond
+        LVL = {}; Pr = cx.Pdr
+        for j in range(len(Pr[0])):
+            LVL.setdefault((Pr[1][j], round(float(Pr[2][j]), 8)), (Pr[0][j], Pr[1][j], float(Pr[2][j]), Pr[3][j], 'd1', 365))
     if dt:
         LVL = {}
         P4 = cx.raw['H4']; T4 = cx.T4
@@ -202,8 +209,8 @@ def _levels(cx: _Ctx, dt: bool):
     return LV, np.array(dead, dtype='datetime64[ns]')
 
 
-def _setups(cx: _Ctx, dt: bool, start):
-    LV, lvl_dead = _levels(cx, dt)
+def _setups(cx: _Ctx, dt: bool, start, kind='h4'):
+    LV, lvl_dead = _levels(cx, dt, kind)
     if not LV:
         return []
     lvl_t = np.array([x[0] for x in LV]); lvl_k = np.array([x[1] for x in LV]); lvl_p = np.array([x[2] for x in LV]); lvl_age = np.array([x[5] for x in LV])
@@ -361,9 +368,9 @@ def _touches(cx: _Ctx, r, q):
 
 
 # ---------------------------------------------------------------- M15 Dow entry (add_feat25)
-def _dow_entry(cx: _Ctx, r):
+def _dow_entry(cx: _Ctx, r, days=2):
     s = r['side']; P = cx.raw['M15']; TM, MC = cx.TM, cx.MC; CLm = TM + M15
-    tq0 = np.datetime64(r['ttop']); q0 = int(np.searchsorted(TM, tq0)); q1 = min(int(np.searchsorted(TM, tq0 + 2 * DAY)), len(TM) - 1)
+    tq0 = np.datetime64(r['ttop']); q0 = int(np.searchsorted(TM, tq0)); q1 = min(int(np.searchsorted(TM, tq0 + days * DAY)), len(TM) - 1)
     k = int(np.searchsorted(cx.C4, np.datetime64(r['t']), side='right')) - 1; A = cx.a4[k]
     ctr, base = ('lo', 'hi') if s > 0 else ('hi', 'lo')
     for q in range(q0 + 1, q1):
@@ -381,9 +388,20 @@ def _dow_entry(cx: _Ctx, r):
     return None
 
 
-def signals(F: Frames, start=None):
+def signals(F: Frames, start=None, kind='h4'):
     """all scored setups with their scene and M15 Dow entry: list of dict(t, side, scene, entry, stop, level_key, q)"""
     cx = _Ctx(F); start = np.datetime64(start if start is not None else F.START); out = []
+    if kind == 'd1':                   # DY@: no scene, no score; the band needs >= Y_TOUCH_MIN H4 swings
+        for r in _setups(cx, False, start, 'd1'):
+            de = _dow_entry(cx, r, Y_DOW_DAYS)
+            if de is None:
+                continue
+            q, ent, st = de
+            if _touches(cx, r, q) < Y_TOUCH_MIN:
+                continue
+            out.append(dict(r, score=0, scene='Y', q=q, sig_t=pd.Timestamp(cx.TM[q] + M15), dow_entry=float(ent), dow_stop=float(st),
+                            lvl_key=(r['side'], round(r['level'], 8))))
+        return cx, out
     for dt in (False, True):
         for r in _setups(cx, dt, start):
             sc = _scene(cx, r)
@@ -408,9 +426,10 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=60):
     close time); a signal on the last closed bar is `pending` (signal_t = its open time, enter at the next open with the stop `sl`).
     Closed trades: why = 'stop' (trailed stop hit) or 'time' (60 days, the runner closes the position)."""
     cache = F.__dict__.setdefault('_dsc', {})                 # B / C / W share one pass over the setups
-    if start not in cache:
-        cache[start] = signals(F, start)
-    cx, sig = cache[start]
+    kind = 'd1' if scene == 'Y' else 'h4'
+    if (start, kind) not in cache:
+        cache[(start, kind)] = signals(F, start, kind)
+    cx, sig = cache[(start, kind)]
     sig = sorted([x for x in sig if x['scene'] == scene], key=lambda x: (x['sig_t'], x['side']))
     TM, MH, ML, MC = cx.TM, cx.MH, cx.ML, cx.MC; last = len(TM) - 1; busy = {}; seen = set(); trades, opened, pending = [], [], []
     for x in sig:
