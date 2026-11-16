@@ -21,6 +21,8 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
 were > 100 % of its profit; M15 keeps +0.26R/trade without the top 5 %, 2026-11-16),
 W on H1 then M15 from +5R; W valley < 6 ATR; new scene A = an older level (born before the last H4 major reversal) with such a band,
 exit H4 then H1 from +3R.
+2026-11-17 (user): B / C skip an entry when the last provisional H4 Dow reversal (a close through the provisional protected swing)
+went the other way - a pattern restart does not count (B+C 193 -> 167 trades, +0.90R -> +1.11R/trade, DD -10.8R -> -7.3R).
 2026-11-17 (user): an H4 line (protected level / neck) dies only when a whole H4 candle, open and close, is beyond it (a close a little
 beyond keeps it), and the line must still be alive at the entry (B / C / W over 20 years: 438 trades +0.90R, +394R, PF 2.70, DD -9.0R,
 2 losing years, vs 410 trades +0.87R before). DY@ keeps the H4-close rule.
@@ -438,6 +440,8 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=60):
     cx, sig = cache[(start, kind)]
     sig = sorted([x for x in sig if x['scene'] == scene], key=lambda x: (x['sig_t'], x['side']))
     TM, MH, ML, MC = cx.TM, cx.MH, cx.ML, cx.MC; last = len(TM) - 1; busy = {}; seen = set(); trades, opened, pending = [], [], []
+    pv = sorted((cx.C4[e['idx']], e['to']) for e in cx.F.R4['all_events'] if e.get('machine') == 'prov' and e['action'] == 'REVERSAL')
+    pvt = np.array([a for a, _ in pv], dtype='datetime64[ns]'); pvto = [b for _, b in pv]
     for x in sig:
         key = (x['sig_t'], x['side'])
         if key in seen:
@@ -447,6 +451,10 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=60):
             continue
         if kind == 'h4' and np.datetime64(x['lvl_dead']) <= np.datetime64(x['sig_t']):
             continue                   # 2026-11-17: the line must still be alive at the entry
+        if scene in ('B', 'C'):        # 2026-11-17: skip when the last provisional H4 Dow reversal (close through the provisional
+            j = int(np.searchsorted(pvt, np.datetime64(x['sig_t']), side='right')) - 1     # protected swing) went against us
+            if j >= 0 and (pvto[j] == 'up') != (x['side'] > 0):
+                continue
         s = x['side']; q0 = x['q'] + 1; ent, st = x['dow_entry'], x['dow_stop']; risk = s * (ent - st)
         k = int(np.searchsorted(cx.C4, np.datetime64(x['sig_t']), side='right')) - 1; A = cx.a4[k]
         if x['q'] == last:
