@@ -13,11 +13,12 @@ strat_trades (the 7 FX pairs EURUSD, USDJPY, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUD
            line broken - H4 correction line not yet broken (near) + H1 impulse line when no H4 one; trade only >= 2
   Entry  : the first M15 Dow break (close beyond the M15 swing before the latest counter swing) from the top's bar on, within 2 days;
            stop beyond that counter swing by 0.05 ATR(H4)
-  Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B and C on H4, W on H1 then M15 from +5R, A on H4
+  Exit   : no take-profit; stop trailed to confirmed swings formed after the entry: B on H4, C on M15, W on H1 then M15 from +5R, A on H4
            then H1 from +3R
            (buffer 0.1 / 0.05 / 0.02 ATR(H4) for H4 / H1 / M15); 60 days at most
   One position per level (while it is open).
-2026-11-16 (docs/OPEN_ITEMS.md D19, lab over 20 years): the level must be a band with >= 2 H4 swings (the user's boxes); C exits on H4,
+2026-11-16 (docs/OPEN_ITEMS.md D19, lab over 20 years): the level must be a band with >= 2 H4 swings (the user's boxes); C exits on M15 (H4 made more but 3 trades
+were > 100 % of its profit; M15 keeps +0.26R/trade without the top 5 %, 2026-11-16),
 W on H1 then M15 from +5R; W valley < 6 ATR; new scene A = an older level (born before the last H4 major reversal) with such a band,
 exit H4 then H1 from +3R.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
@@ -29,7 +30,7 @@ from ..core import Frames
 
 TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
 SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
-SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'H4')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')]}
+SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')]}
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
 H = np.timedelta64(1, 'h'); DAY = np.timedelta64(1, 'D'); M15 = np.timedelta64(15, 'm'); BASE = np.datetime64('2000-01-01T00:00', 'ns')
