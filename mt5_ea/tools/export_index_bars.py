@@ -63,7 +63,9 @@ def main():
     print('symbols:', ', '.join(syms))
     if a.list:
         return
-    OUT.mkdir(parents=True, exist_ok=True); man = {}
+    OUT.mkdir(parents=True, exist_ok=True)
+    mf = OUT / 'manifest.json'   # 2026-11-17: keep the entries of earlier runs (FX crosses are added next to the indices)
+    man = json.loads(mf.read_text(encoding='utf-8')) if mf.exists() else {}
     for sym in syms:
         mt5.symbol_select(sym, True)
         for tf_name, tf, piece in (('D1', mt5.TIMEFRAME_D1, 3000), ('M15', mt5.TIMEFRAME_M15, 120)):

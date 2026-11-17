@@ -87,3 +87,12 @@ MT5 の「気配値表示」で右クリック →「銘柄」から、次の 4 
 
 - B・C は、H4 の仮のダウの直近の転換が逆向きなら入らない。D@ は 60 日たっても決済しない（損切りで決済されるまで持つ）
 - やること：「新EA 更新」だけ。GAS・アプリは今回は触らなくてよい
+
+## 11/17 追加：FX のクロス通貨のデータを書き出す（研究用、注文はしない）
+今の H4 の反発の形を、まだ使っていない FX で確かめるため。
+
+1. MT5 の「ツール → オプション → チャート」で「チャートの最大バー数」を「Unlimited」にする（前回と同じ）
+2. リポジトリを最新にして、PC で次を実行（XM の MT5 にログインした状態、読むだけ）：
+   `py -m mt5_ea.tools.export_index_bars --path "<EA用 MT5 の terminal64.exe>" --symbols AUDCAD#,AUDCHF#,AUDNZD#,EURAUD#,EURCAD#,EURCHF#,EURGBP#,EURNZD#,GBPAUD#,GBPCAD#,GBPCHF#,GBPNZD#,NZDCAD#,NZDCHF#,NZDJPY#,NZDUSD#,CADCHF#`
+   （1 通貨 数分、全部で 30 分〜1 時間ほど。CADCHF# は無ければ bars 0 と出るだけ）
+3. 出てきた `research/data/index_bars/` の `<通貨>_D1.csv.gz`・`<通貨>_M15.csv.gz` と `manifest.json` を、前回と同じブランチ `data/broker-bars` に追加してプッシュ（manifest は前回の分も残るように直した）
