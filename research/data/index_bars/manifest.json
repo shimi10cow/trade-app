@@ -166,5 +166,208 @@
   "bars": 683239,
   "first": "1994-12-28 00:00:00",
   "last": "2026-11-06 23:45:00"
+ },
+ "AUDCAD_D1": {
+  "symbol": "AUDCAD#",
+  "bars": 1810,
+  "first": "2020-01-02",
+  "last": "2026-11-17"
+ },
+ "AUDCAD_M15": {
+  "symbol": "AUDCAD#",
+  "bars": 170974,
+  "first": "2020-01-02 09:00:00",
+  "last": "2026-11-17 16:15:00"
+ },
+ "AUDCHF_D1": {
+  "symbol": "AUDCHF#",
+  "bars": 5203,
+  "first": "2007-05-08",
+  "last": "2026-11-17"
+ },
+ "AUDCHF_M15": {
+  "symbol": "AUDCHF#",
+  "bars": 207699,
+  "first": "2007-05-08 00:00:00",
+  "last": "2026-11-17 16:15:00"
+ },
+ "AUDNZD_D1": {
+  "symbol": "AUDNZD#",
+  "bars": 5203,
+  "first": "2007-07-04",
+  "last": "2026-11-17"
+ },
+ "AUDNZD_M15": {
+  "symbol": "AUDNZD#",
+  "bars": 207748,
+  "first": "2007-07-04 00:00:00",
+  "last": "2026-11-17 16:15:00"
+ },
+ "EURAUD_D1": {
+  "symbol": "EURAUD#",
+  "bars": 5203,
+  "first": "2007-06-08",
+  "last": "2026-11-17"
+ },
+ "EURAUD_M15": {
+  "symbol": "EURAUD#",
+  "bars": 207790,
+  "first": "2007-06-08 00:00:00",
+  "last": "2026-11-17 16:15:00"
+ },
+ "EURCAD_D1": {
+  "symbol": "EURCAD#",
+  "bars": 682,
+  "first": "2024-04-15",
+  "last": "2026-11-17"
+ },
+ "EURCAD_M15": {
+  "symbol": "EURCAD#",
+  "bars": 46596,
+  "first": "2025-01-02 08:00:00",
+  "last": "2026-11-17 17:30:00"
+ },
+ "EURCHF_D1": {
+  "symbol": "EURCHF#",
+  "bars": 174,
+  "first": "2025-01-02",
+  "last": "2026-11-17"
+ },
+ "EURCHF_M15": {
+  "symbol": "EURCHF#",
+  "bars": 36745,
+  "first": "2024-03-07 00:00:00",
+  "last": "2026-11-17 17:30:00"
+ },
+ "EURGBP_D1": {
+  "symbol": "EURGBP#",
+  "bars": 1,
+  "first": "2025-05-26",
+  "last": "2025-05-26"
+ },
+ "EURGBP_M15": {
+  "symbol": "EURGBP#",
+  "bars": 0,
+  "error": "(-1, 'Terminal: Call failed')"
+ },
+ "EURNZD_D1": {
+  "symbol": "EURNZD#",
+  "bars": 5203,
+  "first": "2007-05-11",
+  "last": "2026-11-17"
+ },
+ "EURNZD_M15": {
+  "symbol": "EURNZD#",
+  "bars": 207680,
+  "first": "2007-05-11 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "GBPAUD_D1": {
+  "symbol": "GBPAUD#",
+  "bars": 5203,
+  "first": "2007-05-08",
+  "last": "2026-11-17"
+ },
+ "GBPAUD_M15": {
+  "symbol": "GBPAUD#",
+  "bars": 207754,
+  "first": "2007-05-08 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "GBPCAD_D1": {
+  "symbol": "GBPCAD#",
+  "bars": 5203,
+  "first": "2007-06-08",
+  "last": "2026-11-17"
+ },
+ "GBPCAD_M15": {
+  "symbol": "GBPCAD#",
+  "bars": 207774,
+  "first": "2007-06-08 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "GBPCHF_D1": {
+  "symbol": "GBPCHF#",
+  "bars": 8638,
+  "first": "1994-01-12",
+  "last": "2026-11-17"
+ },
+ "GBPCHF_M15": {
+  "symbol": "GBPCHF#",
+  "bars": 682172,
+  "first": "1994-09-09 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "GBPNZD_D1": {
+  "symbol": "GBPNZD#",
+  "bars": 5203,
+  "first": "2007-05-29",
+  "last": "2026-11-17"
+ },
+ "GBPNZD_M15": {
+  "symbol": "GBPNZD#",
+  "bars": 207651,
+  "first": "2007-05-29 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "NZDCAD_D1": {
+  "symbol": "NZDCAD#",
+  "bars": 5203,
+  "first": "2007-05-10",
+  "last": "2026-11-17"
+ },
+ "NZDCAD_M15": {
+  "symbol": "NZDCAD#",
+  "bars": 207784,
+  "first": "2007-05-10 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "NZDCHF_D1": {
+  "symbol": "NZDCHF#",
+  "bars": 5203,
+  "first": "2007-06-07",
+  "last": "2026-11-17"
+ },
+ "NZDCHF_M15": {
+  "symbol": "NZDCHF#",
+  "bars": 207560,
+  "first": "2007-06-07 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "NZDJPY_D1": {
+  "symbol": "NZDJPY#",
+  "bars": 5203,
+  "first": "2007-06-08",
+  "last": "2026-11-17"
+ },
+ "NZDJPY_M15": {
+  "symbol": "NZDJPY#",
+  "bars": 207762,
+  "first": "2007-06-08 00:00:00",
+  "last": "2026-11-17 17:15:00"
+ },
+ "NZDUSD_D1": {
+  "symbol": "NZDUSD#",
+  "bars": 5203,
+  "first": "2007-06-08",
+  "last": "2026-11-17"
+ },
+ "NZDUSD_M15": {
+  "symbol": "NZDUSD#",
+  "bars": 207782,
+  "first": "2007-06-08 00:00:00",
+  "last": "2026-11-17 17:30:00"
+ },
+ "CADCHF_D1": {
+  "symbol": "CADCHF#",
+  "bars": 8597,
+  "first": "1994-01-12",
+  "last": "2026-11-17"
+ },
+ "CADCHF_M15": {
+  "symbol": "CADCHF#",
+  "bars": 472850,
+  "first": "1994-09-09 00:00:00",
+  "last": "2026-11-17 17:30:00"
  }
 }
