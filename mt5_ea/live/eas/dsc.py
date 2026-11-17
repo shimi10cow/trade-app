@@ -369,9 +369,11 @@ def _score(cx: _Ctx, r):
 
 
 def _touches(cx: _Ctx, r, q):
-    """H4 swings within 0.25 ATR(H4) of the level in the 90 days before the top (A at the M15 Dow entry)"""
+    """H4 swings within 0.25 ATR(H4) of the level in the 90 days before the top (A at the M15 Dow entry).
+    2026-11-17: only swings already confirmed at the entry (P[0] <= entry time). Live only ever has confirmed swings, so this changes
+    the backtest only (it used to count the swing still forming at the touch)."""
     te = cx.TM[q] + M15; k = int(np.searchsorted(cx.C4, te, side='right')) - 1; A = cx.a4[k]; P = cx.raw['H4']; tt0 = np.datetime64(r['ttop'])
-    m = np.nonzero((P[3] < tt0) & (P[3] >= tt0 - 90 * DAY))[0]
+    m = np.nonzero((P[3] < tt0) & (P[3] >= tt0 - 90 * DAY) & (P[0] <= te))[0]
     return int((np.abs(P[2][m] - r['level']) <= 0.25 * A).sum())
 
 
