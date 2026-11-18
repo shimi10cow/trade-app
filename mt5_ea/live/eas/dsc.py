@@ -47,7 +47,7 @@ SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A'
 # <= 30 days after the last H4 major reversal, H4 impulse line not broken, no H4 close beyond the line since it was born, line alive,
 # provisional Dow not against, deepest wick beyond the line <= 1.0 ATR(H4), no unbroken opposite H4 impulse line; M15 Dow turn within 3 days
 R_TOUCH_MIN, R_DAYS, R_WICK, R_DOW_DAYS = 2, 30, 1.0, 3
-R_V = False                         # optional V filter (an M15 higher low / lower high after the top before the entry); undecided, off
+R_V = False                         # optional V filter (an M15 higher low / lower high after the top before the entry); 2026-11-18 user: off
 Y_TOUCH_MIN, Y_DOW_DAYS = 4, 3     # DY@ (2026-11-16): D1 swing bands with >= 4 H4 swings, the M15 Dow turn within 3 days
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
