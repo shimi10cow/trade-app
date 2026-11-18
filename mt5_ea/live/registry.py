@@ -16,7 +16,8 @@ H4 then H1 trail from +3R). USDJPY kept but can be switched off in the app (the 
 2026-11-16: DY@ (D1 swing bands, scene 'Y') added, off by default.
 2026-11-18: DR@ (eas/dsc.py scene 'R', H4 押し安値 / 戻り高値 rebound, DISCRETIONARY_RULES §14-17) on 17 symbols, off until the app turns it on.
 2026-11-18: DX@ (eas/dsc.py scene 'X', H4 gateway return move, DISCRETIONARY_RULES §18) on 13 symbols (indices buy only), off until the app turns it on;
-D@ on USDJPY: W only (DB@USDJPY / DC@USDJPY switched off in the app).
+D@ on USDJPY: W only (DB@USDJPY / DC@USDJPY switched off in the app). DA@ / DY@ are not used (hidden and always off in the app;
+kept here only so the magic numbers stay the same).
 2026-11-16: D@ rules updated (band >= 2 H4 swings, C exits on H4, W on H1 then M15 from +5R) and scene A added as DA@ (optional).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
