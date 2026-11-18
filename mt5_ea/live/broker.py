@@ -17,7 +17,8 @@ from .sizing import SymbolSpec
 
 XM_SYMBOLS = {'XAUUSD': 'GOLD#', 'XAGUSD': 'SILVER#', 'JP225': 'JP225Cash#', 'US500': 'US500Cash#', 'US100': 'US100Cash#', 'US30': 'US30Cash#',
               'EURUSD': 'EURUSD#', 'USDJPY': 'USDJPY#', 'AUDJPY': 'AUDJPY#', 'BTCUSD': 'BTCUSD#', 'ETHUSD': 'ETHUSD#',
-              'EURJPY': 'EURJPY#', 'GBPJPY': 'GBPJPY#', 'GBPUSD': 'GBPUSD#', 'AUDUSD': 'AUDUSD#'}   # 2026-11-15: D@ EAs (eas/dsc.py)
+              'EURJPY': 'EURJPY#', 'GBPJPY': 'GBPJPY#', 'GBPUSD': 'GBPUSD#', 'AUDUSD': 'AUDUSD#',   # 2026-11-15: D@ EAs (eas/dsc.py)
+              'USDCHF': 'USDCHF#', 'USDCAD': 'USDCAD#', 'CADJPY': 'CADJPY#', 'CHFJPY': 'CHFJPY#'}   # 2026-11-18: DR@
 # Names differ between XM account types (KIWAMI '#', Standard none, Micro 'micro', demo servers ...): try these bases in order,
 # each with the suffixes below, then fall back to any symbol on the account whose name starts with a base.
 XM_BASES = {'XAUUSD': ['GOLD', 'XAUUSD'], 'XAGUSD': ['SILVER', 'XAGUSD'], 'JP225': ['JP225Cash', 'JP225'], 'US500': ['US500Cash', 'US500'], 'US100': ['US100Cash', 'US100', 'NAS100'],

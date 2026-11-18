@@ -28,6 +28,10 @@ beyond keeps it), and the line must still be alive at the entry (B / C / W over 
 2 losing years, vs 410 trades +0.87R before). DY@ keeps the H4-close rule.
 DY@ (scene 'Y', 2026-11-16, DISCRETIONARY_RULES §13): the levels are every D1 swing (3-bar fractal, 365 days) instead, the band needs
 >= 4 H4 swings, no scene / score, the M15 Dow turn within 3 days, exit H4 then H1 from +3R.
+DR@ (scene 'R', 2026-11-18, DISCRETIONARY_RULES §14-17): the H4 major protected swings (押し安値 / 戻り高値) only, >= 2 confirmed H4 swings,
+<= 30 days after the last H4 major reversal, no broken H4 impulse line, no H4 close beyond the line since it was born, provisional Dow not
+against, wick beyond <= 1.0 ATR, no unbroken opposite H4 impulse line; no score; M15 Dow turn within 3 days; exit H4 then H1 from +3R.
+17 symbols (not USDJPY; not the other FX crosses, EU indices, oil, gas: tested out of sample and failed). Research parity: 221 / 221 trades.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
 """
 import numpy as np
@@ -37,7 +41,13 @@ from ..core import Frames
 
 TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
 SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
-SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')], 'Y': [(0, 'H4'), (3, 'H1')]}
+SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')], 'Y': [(0, 'H4'), (3, 'H1')],
+          'R': [(0, 'H4'), (3, 'H1')]}
+# DR@ (scene 'R', 2026-11-18, DISCRETIONARY_RULES §14-17): H4 major protected swing (押し安値 / 戻り高値), >= 2 confirmed H4 swings on it,
+# <= 30 days after the last H4 major reversal, H4 impulse line not broken, no H4 close beyond the line since it was born, line alive,
+# provisional Dow not against, deepest wick beyond the line <= 1.0 ATR(H4), no unbroken opposite H4 impulse line; M15 Dow turn within 3 days
+R_TOUCH_MIN, R_DAYS, R_WICK, R_DOW_DAYS = 2, 30, 1.0, 3
+R_V = False                         # optional V filter (an M15 higher low / lower high after the top before the entry); undecided, off
 Y_TOUCH_MIN, Y_DOW_DAYS = 4, 3     # DY@ (2026-11-16): D1 swing bands with >= 4 H4 swings, the M15 Dow turn within 3 days
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
@@ -175,6 +185,12 @@ def _levels(cx: _Ctx, dt: bool, kind='h4'):
             continue
         kd = 'lo' if e['trend'] == 'up' else 'hi'
         LVL.setdefault((kd, round(e['prot_price'], 8)), (C4[e['idx']], kd, e['prot_price'], e['prot_anchor'], 'prot', 365))
+    if kind == 'r':                    # DR@: major protected swings only
+        LVL = {}
+        for e in F.R4['all_events']:
+            if e.get('action') == 'breakout_protect' and e.get('machine') == 'major':
+                kd = 'lo' if e['trend'] == 'up' else 'hi'
+                LVL.setdefault((kd, round(e['prot_price'], 8)), (C4[e['idx']], kd, float(e['prot_price']), None, 'prot', 365))
     if kind == 'd1':                   # DY@: every D1 swing (3-bar fractal), alive 365 days until an H4 close beyond
         LVL = {}; Pr = cx.Pdr
         for j in range(len(Pr[0])):
@@ -210,7 +226,7 @@ def _levels(cx: _Ctx, dt: bool, kind='h4'):
     dead = []
     for ct, kd, p, *_ in LV:
         ds = 1 if kd == 'hi' else -1; k0 = int(np.searchsorted(C4, ct, side='right')); beyond = ds * (cx.c4[k0:] - p) > 0
-        if kind == 'h4':                # 2026-11-17: an H4 line dies only when a whole H4 candle (open and close) is beyond it
+        if kind in ('h4', 'r'):         # 2026-11-17: an H4 line dies only when a whole H4 candle (open and close) is beyond it
             beyond &= ds * (cx.o4[k0:] - p) > 0
         hit = np.nonzero(beyond)[0]
         dead.append(C4[k0 + hit[0]] if len(hit) else np.datetime64('2100-01-01'))
@@ -398,9 +414,58 @@ def _dow_entry(cx: _Ctx, r, days=2):
     return None
 
 
+def _signals_r(cx: _Ctx, start):
+    """DR@ setups (scene 'R'); same filters as the research form2 (scratchpad q20/form2.py, touch_confirmed=True)"""
+    F = cx.F; out = []
+    rv = np.array([cx.C4[e['idx']] for e in F.R4['events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL'], dtype='datetime64[ns]')
+    pv = sorted((cx.C4[e['idx']], e['to']) for e in F.R4['all_events'] if e.get('machine') == 'prov' and e['action'] == 'REVERSAL')
+    pvt = np.array([a for a, _ in pv], dtype='datetime64[ns]'); pvto = [b for _, b in pv]
+    S4 = cx.S['H4']; P4 = cx.PP['H4']; C4s, c4s = cx.CS['H4']; T4s = S4(cx.T4)
+    for r in _setups(cx, False, start, 'r'):
+        de = _dow_entry(cx, r, R_DOW_DAYS)
+        if de is None:
+            continue
+        q, ent, stp = de; te = cx.TM[q] + M15
+        n = _touches(cx, r, q)
+        if n < R_TOUCH_MIN:
+            continue
+        j = int(np.searchsorted(rv, te, side='right')) - 1
+        if j < 0 or (te - rv[j]) / DAY > R_DAYS:
+            continue
+        if np.datetime64(r['lvl_dead']) <= te:
+            continue
+        sp = _score(cx, dict(r, entry=float(ent)))
+        if sp['impbrk']:
+            continue
+        s_ = r['side']; lv = r['level']; k = int(np.searchsorted(cx.C4, te, side='right')) - 1; A = cx.a4[k]
+        kb = int(np.searchsorted(cx.C4, np.datetime64(r['lvl_born']), side='right')); kt = int(np.searchsorted(cx.C4, te, side='right'))
+        if (s_ * (cx.c4[kb:kt] - lv) < 0).any():
+            continue                   # an H4 close beyond the line since it was born
+        w_ = (cx.H4l if s_ > 0 else cx.H4h)[kb:kt]
+        if len(w_) and max(0.0, float(np.max(-s_ * (w_ - lv)))) / A > R_WICK:
+            continue
+        jp = int(np.searchsorted(pvt, te, side='right')) - 1
+        if jp >= 0 and (pvto[jp] == 'up') != (s_ > 0):
+            continue                   # provisional Dow against
+        ts = S4(te); so = -s_
+        L = _imp_lines(P4, 'lo' if so > 0 else 'hi', so, ts, ts - S4(te - 60 * DAY), C4s, c4s, A, 0.3, 0.2, cx.H4h, cx.H4l, T4s, 1.0)
+        if any(not y['broken'] for y in L):
+            continue                   # an opposite H4 impulse line still unbroken
+        if R_V:
+            P15 = cx.raw['M15']; tt0 = np.datetime64(r['ttop'])
+            hl = np.nonzero((P15[1] == ('lo' if s_ > 0 else 'hi')) & (P15[3] > tt0) & (P15[0] <= te))[0]
+            if not (len(hl) and (s_ * (P15[2][hl] - r['top']) > 0).any()):
+                continue
+        out.append(dict(r, score=n, scene='R', q=q, sig_t=pd.Timestamp(te), dow_entry=float(ent), dow_stop=float(stp),
+                        lvl_key=(r['side'], round(r['level'], 8))))
+    return out
+
+
 def signals(F: Frames, start=None, kind='h4'):
     """all scored setups with their scene and M15 Dow entry: list of dict(t, side, scene, entry, stop, level_key, q)"""
     cx = _Ctx(F); start = np.datetime64(start if start is not None else F.START); out = []
+    if kind == 'r':
+        return cx, _signals_r(cx, start)
     if kind == 'd1':                   # DY@: no scene, no score; the band needs >= Y_TOUCH_MIN H4 swings
         for r in _setups(cx, False, start, 'd1'):
             de = _dow_entry(cx, r, Y_DOW_DAYS)
@@ -436,7 +501,7 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=None):
     close time); a signal on the last closed bar is `pending` (signal_t = its open time, enter at the next open with the stop `sl`).
     Closed trades: why = 'stop' (trailed stop hit); 'time' only when horizon_days is given (no limit by default since 2026-11-17)."""
     cache = F.__dict__.setdefault('_dsc', {})                 # B / C / W share one pass over the setups
-    kind = 'd1' if scene == 'Y' else 'h4'
+    kind = 'd1' if scene == 'Y' else ('r' if scene == 'R' else 'h4')
     if (start, kind) not in cache:
         cache[(start, kind)] = signals(F, start, kind)
     cx, sig = cache[(start, kind)]

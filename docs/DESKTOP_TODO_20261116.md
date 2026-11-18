@@ -96,3 +96,10 @@ MT5 の「気配値表示」で右クリック →「銘柄」から、次の 4 
    `py -m mt5_ea.tools.export_index_bars --path "<EA用 MT5 の terminal64.exe>" --symbols AUDCAD#,AUDCHF#,AUDNZD#,EURAUD#,EURCAD#,EURCHF#,EURGBP#,EURNZD#,GBPAUD#,GBPCAD#,GBPCHF#,GBPNZD#,NZDCAD#,NZDCHF#,NZDJPY#,NZDUSD#,CADCHF#`
    （1 通貨 数分、全部で 30 分〜1 時間ほど。CADCHF# は無ければ bars 0 と出るだけ）
 3. 出てきた `research/data/index_bars/` の `<通貨>_D1.csv.gz`・`<通貨>_M15.csv.gz` と `manifest.json` を、前回と同じブランチ `data/broker-bars` に追加してプッシュ（manifest は前回の分も残るように直した）
+
+## 追加（11/18）：DR@（H4 押し安値・戻り高値の反発）を足した
+
+- 新しい EA **DR@**（17 銘柄：EURUSD・GBPUSD・USDCHF・USDCAD・AUDUSD・EURJPY・GBPJPY・CADJPY・CHFJPY・AUDJPY・US30・US500・US100・JP225・XAUUSD・XAGUSD・BTCUSD）。アプリでオンにするまでは動かない（初期はオフ）。マジックナンバーは今までの EA の後ろに足したので、今のものは変わらない
+- **新しい銘柄が 4 つ**：USDCHF・USDCAD・CADJPY・CHFJPY。MT5 の気配値表示に出しておく（KIWAMI なら `USDCHF#` など）。`python -m mt5_ea.live.check_symbols` で 4 つとも見つかるか確かめる
+- やること：「新EA 更新」・GAS の貼り直し（`EAL_BT_` に DR@ の 17 本を足した）・アプリを開き直す（キャッシュ v245・`ea_live.js?v=20261118a`）
+- 動いている EA・取り込みは止めなくてよい（DR@ をオンにするまで何も変わらない）
