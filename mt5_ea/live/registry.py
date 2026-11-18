@@ -15,6 +15,8 @@ B = 1st level after an H4 major reversal, H4 swing trail; C = shallow pullback l
 H4 then H1 trail from +3R). USDJPY kept but can be switched off in the app (the user doubts it).
 2026-11-16: DY@ (D1 swing bands, scene 'Y') added, off by default.
 2026-11-18: DR@ (eas/dsc.py scene 'R', H4 押し安値 / 戻り高値 rebound, DISCRETIONARY_RULES §14-17) on 17 symbols, off until the app turns it on.
+2026-11-18: DX@ (eas/dsc.py scene 'X', H4 gateway return move, DISCRETIONARY_RULES §18) on 13 symbols (indices buy only), off until the app turns it on;
+D@ on USDJPY: W only (DB@USDJPY / DC@USDJPY switched off in the app).
 2026-11-16: D@ rules updated (band >= 2 H4 swings, C exits on H4, W on H1 then M15 from +5R) and scene A added as DA@ (optional).
 
 Each entry: key (EA@SYMBOL), symbol, the function that runs it on Frames, lot weight (full by default; half selectable in the app), filters applied to
@@ -147,7 +149,21 @@ ADOPTED = [
     EA('DR@XAUUSD', 'XAUUSD', lambda F, env, _s='R': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
     EA('DR@XAGUSD', 'XAGUSD', lambda F, env, _s='R': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
     EA('DR@BTCUSD', 'BTCUSD', lambda F, env, _s='R': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    # 2026-11-18: DX@ = H4 gateway return move (eas/dsc.py scene 'X'); indices buy only; appended so the magic numbers stay the same
+    EA('DX@EURUSD', 'EURUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@GBPUSD', 'GBPUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@AUDUSD', 'AUDUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@EURJPY', 'EURJPY', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@GBPJPY', 'GBPJPY', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@AUDJPY', 'AUDJPY', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@XAUUSD', 'XAUUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@XAGUSD', 'XAGUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@BTCUSD', 'BTCUSD', lambda F, env, _s='X': DSC.run(F, _s, env=env), window_days=900, warm_days=500),
+    EA('DX@US30', 'US30', lambda F, env, _s='X': DSC.run(F, _s, env=env, sides=(1,)), window_days=900, warm_days=500),
+    EA('DX@US500', 'US500', lambda F, env, _s='X': DSC.run(F, _s, env=env, sides=(1,)), window_days=900, warm_days=500),
+    EA('DX@US100', 'US100', lambda F, env, _s='X': DSC.run(F, _s, env=env, sides=(1,)), window_days=900, warm_days=500),
+    EA('DX@JP225', 'JP225', lambda F, env, _s='X': DSC.run(F, _s, env=env, sides=(1,)), window_days=900, warm_days=500),
 ]
 BY_KEY = {e.key: e for e in ADOPTED}
 SYMBOLS = sorted({e.symbol for e in ADOPTED})
-assert len(ADOPTED) == 88
+assert len(ADOPTED) == 101

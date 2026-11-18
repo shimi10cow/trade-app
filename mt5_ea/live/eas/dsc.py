@@ -32,6 +32,8 @@ DR@ (scene 'R', 2026-11-18, DISCRETIONARY_RULES §14-17): the H4 major protected
 <= 30 days after the last H4 major reversal, no broken H4 impulse line, no H4 close beyond the line since it was born, provisional Dow not
 against, wick beyond <= 1.0 ATR, no unbroken opposite H4 impulse line; no score; M15 Dow turn within 3 days; exit H4 then H1 from +3R.
 17 symbols (not USDJPY; not the other FX crosses, EU indices, oil, gas: tested out of sample and failed). Research parity: 221 / 221 trades.
+DX@ (scene 'X', 2026-11-18): H4 gateway return move (see the X_ constants); 13 symbols, indices buy only (run(..., sides=(1,))).
+Research parity 108 / 108 trades (+1.01R); live window 28 / 29 entries the same.
 Lines are measured in bar time (the chart skips weekends, as MT5 draws them).
 """
 import numpy as np
@@ -42,11 +44,19 @@ from ..core import Frames
 TOL, DTOL, DDEP, SCORE_MIN = 0.3, 2.0, 1.0, 2
 SYMBOLS = ('EURUSD', 'USDJPY', 'AUDJPY', 'EURJPY', 'GBPJPY', 'GBPUSD', 'AUDUSD')
 SCHEME = {'B': [(0, 'H4')], 'C': [(0, 'M15')], 'W': [(0, 'H1'), (5, 'M15')], 'A': [(0, 'H4'), (3, 'H1')], 'Y': [(0, 'H4'), (3, 'H1')],
-          'R': [(0, 'H4'), (3, 'H1')]}
+          'R': [(0, 'H4'), (3, 'H1')], 'X': [(0, 'H4'), (3, 'H1')]}
 # DR@ (scene 'R', 2026-11-18, DISCRETIONARY_RULES §14-17): H4 major protected swing (押し安値 / 戻り高値), >= 2 confirmed H4 swings on it,
 # <= 30 days after the last H4 major reversal, H4 impulse line not broken, no H4 close beyond the line since it was born, line alive,
 # provisional Dow not against, deepest wick beyond the line <= 1.0 ATR(H4), no unbroken opposite H4 impulse line; M15 Dow turn within 3 days
 R_TOUCH_MIN, R_DAYS, R_WICK, R_DOW_DAYS = 2, 30, 1.0, 3
+# DX@ (scene 'X', 2026-11-18, DISCRETIONARY_RULES §17-18): H4 gateway return move. After an H4 major reversal the gateway is the broken
+# protected swing; track the candle extreme after the break; in the return move enter at the M15 Dow turn (close back through the last M15
+# counter swing after the extreme), one per return move. Filters: bounce extreme within +-1 ATR of the gateway, origin->gateway < 5 ATR,
+# >= 2 H4 swings on the gateway (90 days), no H4 close back beyond it, provisional Dow not against, no unbroken opposite impulse line,
+# D score >= 2, H1 MA75 sloping our way with the H1 close beyond it, D1 Dow not against, D1 SMA75 sloping our way with the D1 close beyond
+# it, not a double bottom / top reversal (second extreme within 0.5 ATR of the lowest low / highest high before the break). Stop: gateway
+# + 0.1 ATR; exit H4 then H1 from +3R; one position per gateway (re-entry after the stop is fine).
+X_DAYS, X_GW, X_ORG, X_TOUCH, X_SCORE, X_DBL = 30, 1.0, 5.0, 2, 2, 0.5
 R_V = False                         # optional V filter (an M15 higher low / lower high after the top before the entry); 2026-11-18 user: off
 Y_TOUCH_MIN, Y_DOW_DAYS = 4, 3     # DY@ (2026-11-16): D1 swing bands with >= 4 H4 swings, the M15 Dow turn within 3 days
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
@@ -461,11 +471,110 @@ def _signals_r(cx: _Ctx, start):
     return out
 
 
+def _signals_x(cx: _Ctx, start):
+    """DX@ setups (scene 'X'); same steps as the research (scratchpad q20: dx3.py, dx3f.py, dx3tp.py, d1ma2.py, dbot2.py, dx_line.py)"""
+    F = cx.F; out = []; allev = F.R4['all_events']
+    rv = [e for e in allev if e.get('machine') == 'major' and e['action'] == 'REVERSAL']
+    rp = {e['idx']: e for e in allev if e.get('machine') == 'major' and str(e['action']).startswith('reversal_protect')}
+    rvt = np.array([cx.C4[e['idx']] for e in rv], dtype='datetime64[ns]')
+    pv = sorted((cx.C4[e['idx']], e['to']) for e in allev if e.get('machine') == 'prov' and e['action'] == 'REVERSAL')
+    pvt = np.array([a for a, _ in pv], dtype='datetime64[ns]'); pvto = [b for _, b in pv]
+    LV, dead = _levels(cx, False); lt = np.array([x[0] for x in LV]); lk = np.array([x[1] for x in LV]); lp = np.array([x[2] for x in LV])
+    S4 = cx.S['H4']; P4 = cx.PP['H4']; C4s, c4s = cx.CS['H4']; T4s = S4(cx.T4); P4r = cx.raw['H4']; P15 = cx.raw['M15']
+    conf, kinds, prices, tops = P15; TM, MC, MH, ML = cx.TM, cx.MC, cx.MH, cx.ML; CLm = TM + M15
+    s75d = pd.Series(cx.cd).rolling(75).mean().to_numpy(); Pdr = cx.Pdr
+    for j, e in enumerate(rv):
+        tr = rvt[j]
+        if tr < start:
+            continue
+        s = 1 if e['to'] == 'up' else -1; G = float(e['broken_price']); kr = e['idx']
+        O = float(rp[kr]['prot_price']) if kr in rp and rp[kr].get('prot_price') is not None else None
+        # double bottom / top before the break: lowest low (highest high) since the gateway formed, then a second one within 0.5 ATR
+        ka = int(e['broken_anchor']) if e.get('broken_anchor') is not None else max(0, kr - 60)
+        seg = (cx.H4l if s > 0 else cx.H4h)[ka:kr + 1]; jx = ka + int(np.argmin(seg) if s > 0 else np.argmax(seg)); O2 = float(seg.min() if s > 0 else seg.max())
+        mm = np.nonzero((P4r[1] == ('lo' if s > 0 else 'hi')) & (P4r[3] > cx.T4[jx]) & (P4r[0] <= tr))[0]; px = P4r[2][mm]
+        if ((s * (px - O2) > 0) & (np.abs(px - O2) <= X_DBL * cx.a4[kr])).any():
+            continue
+        if O is None or abs(G - O) / cx.a4[kr] >= X_ORG:
+            continue
+        tend = min(rvt[j + 1] if j + 1 < len(rv) else np.datetime64('2100-01-01'), tr + X_DAYS * DAY)
+        q = int(np.searchsorted(TM, tr)); qend = int(np.searchsorted(TM, tend))
+        ext = None; ext_q = None; used = False
+        sl = np.nonzero((tops >= tr - DAY) & (tops <= tend))[0]; c_, k_, p_, t_ = conf[sl], kinds[sl], prices[sl], tops[sl]
+        while q < min(qend, len(TM) - 1):
+            te = CLm[q]; k = int(np.searchsorted(cx.C4, te, side='right')) - 1
+            if k >= 1 and cx.C4[k] <= te and -s * (cx.c4[k] - G) > 0 and -s * (cx.o4[k] - G) > 0 and cx.C4[k] > tr:
+                break                          # the gateway died (a whole H4 candle back beyond it)
+            lq = ML[q] if s < 0 else MH[q]
+            if ext is None or (s < 0 and lq < ext) or (s > 0 and lq > ext):
+                ext = lq; ext_q = q; used = False
+            if not used and ext_q is not None:
+                m = (c_ <= te) & (t_ > TM[ext_q]); ic = np.nonzero(m & (k_ == ('lo' if s < 0 else 'hi')))[0]; io = np.nonzero(m & (k_ == ('hi' if s < 0 else 'lo')))[0]
+                if len(ic) and len(io):
+                    lv = p_[ic[-1]]
+                    if s * (MC[q] - lv) > 0 and s * (MC[q - 1] - lv) <= 0:
+                        used = True; A = cx.a4[k]; bseg = (MH if s < 0 else ML)[ext_q:q + 1]; jt = ext_q + int(np.argmax(bseg) if s < 0 else np.argmin(bseg))
+                        bh = float(bseg.max() if s < 0 else bseg.min()); stp = bh - s * 0.05 * A; ent = float(MC[q]); risk = s * (ent - stp)
+                        x = _x_ok(cx, s, te, tr, G, A, k, bh, stp, ent, risk, TM[jt], P4r, P15, pvt, pvto, lt, lk, lp, dead, S4, P4, C4s, c4s, T4s, Pdr, s75d)
+                        if x is not None:
+                            gs = G - s * 0.1 * A
+                            if s * (ent - gs) > 0.05 * A:
+                                out.append(dict(side=s, level=G, scene='X', q=q, sig_t=pd.Timestamp(te), dow_entry=ent, dow_stop=float(gs), score=x,
+                                                lvl_key=('X', s, str(tr)), lvl_dead=pd.Timestamp('2100-01-01')))
+            q += 1
+    return out
+
+
+def _x_ok(cx, s, te, tr, G, A, k, bh, stp, ent, risk, ttop, P4r, P15, pvt, pvto, lt, lk, lp, dead, S4, P4, C4s, c4s, T4s, Pdr, s75d):
+    """DX@ filters for one candidate; returns the D score when it passes, else None"""
+    if risk <= 0.05 * A or not (-X_GW <= -s * (bh - G) / A <= X_GW):
+        return None
+    m = np.nonzero((P4r[3] < te) & (P4r[3] >= te - 90 * DAY) & (P4r[0] <= te))[0]
+    if int((np.abs(P4r[2][m] - G) <= 0.25 * A).sum()) < X_TOUCH:
+        return None
+    kb = int(np.searchsorted(cx.C4, tr, side='right')); kt = int(np.searchsorted(cx.C4, te, side='right'))
+    if (-s * (cx.c4[kb:kt] - G) > 0).any():
+        return None
+    jp = int(np.searchsorted(pvt, te, side='right')) - 1
+    if jp >= 0 and (pvto[jp] == 'up') != (s > 0):
+        return None
+    k1 = int(np.searchsorted(cx.C1, te, side='right')) - 1
+    if not (s * (cx.s75[k1] - cx.s75[max(0, k1 - 5)]) > 0 and s * (cx.c1[k1] - cx.s75[k1]) > 0):
+        return None
+    mk = Pdr[0] <= te; kk = Pdr[1][mk]; vv = Pdr[2][mk]; hh = vv[kk == 'hi'][-2:]; ll = vv[kk == 'lo'][-2:]; d1 = 0
+    if len(hh) == 2 and len(ll) == 2:
+        d1 = 1 if (hh[1] > hh[0] and ll[1] > ll[0]) else (-1 if (hh[1] < hh[0] and ll[1] < ll[0]) else 0)
+    if d1 * s < 0:
+        return None
+    kd = int(np.searchsorted(cx.Td + DAY, te, side='right')) - 1
+    if kd < 10 or not np.isfinite(s75d[kd - 10]) or not (s * (s75d[kd] - s75d[kd - 10]) > 0 and s * (cx.cd[kd] - s75d[kd]) > 0):
+        return None
+    ts = S4(te); so = -s
+    L = _imp_lines(P4, 'lo' if so > 0 else 'hi', so, ts, ts - S4(te - 60 * DAY), C4s, c4s, A, 0.3, 0.2, cx.H4h, cx.H4l, T4s, 1.0)
+    if any(not y['broken'] for y in L):
+        return None
+    # D score (as dsc._setups / _score) with the bounce-extreme stop
+    k1t = int(np.searchsorted(cx.C1, np.datetime64(ttop), side='right')) - 1
+    ma = bool(s * (cx.s20[k1t] - cx.s75[k1t]) > 0) or bool(s * (cx.s75[k1] - cx.s75[k1 - 5]) > 0)
+    lows = np.nonzero((P15[1] == ('lo' if s < 0 else 'hi')) & (P15[3] < ttop))[0][-2:]; m15line = False
+    if len(lows) == 2 and s * (P15[2][lows[1]] - P15[2][lows[0]]) < 0:
+        ta, pa, tb_, pb = P15[3][lows[0]], P15[2][lows[0]], P15[3][lows[1]], P15[2][lows[1]]; hrs = (tb_ - ta) / H
+        if hrs > 0:
+            m15line = bool(s * (ent - (pb + (pb - pa) / hrs * ((te - M15 - tb_) / H))) > 0)
+    op = np.nonzero((lk == ('hi' if s > 0 else 'lo')) & (lt < te) & (dead > te) & (lt > te - 365 * DAY))[0]; ra = False
+    if len(op):
+        ah = (lp[op] - ent) * s; ah = ah[ah > 0]; ra = bool(len(ah) and ah.min() / risk <= 2)
+    sp = _score(cx, dict(side=s, t=pd.Timestamp(te), entry=ent, st0=stp, risk_atr=risk / A, lvl_born=pd.Timestamp(tr), ma=ma, m15line=m15line, risk_ahead=ra))
+    return int(sp['score']) if sp['score'] >= X_SCORE else None
+
+
 def signals(F: Frames, start=None, kind='h4'):
     """all scored setups with their scene and M15 Dow entry: list of dict(t, side, scene, entry, stop, level_key, q)"""
     cx = _Ctx(F); start = np.datetime64(start if start is not None else F.START); out = []
     if kind == 'r':
         return cx, _signals_r(cx, start)
+    if kind == 'x':
+        return cx, _signals_x(cx, start)
     if kind == 'd1':                   # DY@: no scene, no score; the band needs >= Y_TOUCH_MIN H4 swings
         for r in _setups(cx, False, start, 'd1'):
             de = _dow_entry(cx, r, Y_DOW_DAYS)
@@ -496,16 +605,16 @@ def signals(F: Frames, start=None, kind='h4'):
     return cx, out
 
 
-def run(F: Frames, scene, env=None, start=None, horizon_days=None):
+def run(F: Frames, scene, env=None, start=None, horizon_days=None, sides=None):
     """dict(trades, open, pending) for one scene ('B' / 'C' / 'W'); entries at the M15 Dow break bar's close (research; `t` = that
     close time); a signal on the last closed bar is `pending` (signal_t = its open time, enter at the next open with the stop `sl`).
     Closed trades: why = 'stop' (trailed stop hit); 'time' only when horizon_days is given (no limit by default since 2026-11-17)."""
     cache = F.__dict__.setdefault('_dsc', {})                 # B / C / W share one pass over the setups
-    kind = 'd1' if scene == 'Y' else ('r' if scene == 'R' else 'h4')
+    kind = {'Y': 'd1', 'R': 'r', 'X': 'x'}.get(scene, 'h4')
     if (start, kind) not in cache:
         cache[(start, kind)] = signals(F, start, kind)
     cx, sig = cache[(start, kind)]
-    sig = sorted([x for x in sig if x['scene'] == scene], key=lambda x: (x['sig_t'], x['side']))
+    sig = sorted([x for x in sig if x['scene'] == scene and (sides is None or x['side'] in sides)], key=lambda x: (x['sig_t'], x['side']))   # sides: DX@ indices buy only
     TM, MH, ML, MC = cx.TM, cx.MH, cx.ML, cx.MC; last = len(TM) - 1; busy = {}; seen = set(); trades, opened, pending = [], [], []
     pv = sorted((cx.C4[e['idx']], e['to']) for e in cx.F.R4['all_events'] if e.get('machine') == 'prov' and e['action'] == 'REVERSAL')
     pvt = np.array([a for a, _ in pv], dtype='datetime64[ns]'); pvto = [b for _, b in pv]
