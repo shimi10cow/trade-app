@@ -62,18 +62,30 @@ _POOL = None
 def _pool():
     """Worker processes for the per-symbol calculation (EA_WORKERS, default: CPU cores - 1, at most 4; 1 = no pool).
     At most 4 by default (2026-11-08): the demo and live terminals each run a pool, and each worker holds years of M15 bars,
-    so 8 + 8 workers ran the PC out of memory ('Unable to allocate'). Workers are replaced every 20 jobs to give memory back."""
+    so 8 + 8 workers ran the PC out of memory ('Unable to allocate').
+    2026-11-20: no max_tasks_per_child any more. On Python 3.11 a worker leaving after its 20th job can leave a queued job with
+    nobody to run it: with 14 symbols on 2 workers that was every 3rd bar (every 45 minutes), always the last job (BTCUSD),
+    reproduced in a plain test. Instead the pool is closed cleanly at the end of every step (_close_pool), which also gives
+    the memory back; a new step starts fresh workers (a few seconds)."""
     global _POOL
     n = int(os.getenv('EA_WORKERS') or max(1, min(4, (os.cpu_count() or 2) - 1)))
     if n <= 1:
         return None
     if _POOL is None:
         from concurrent.futures import ProcessPoolExecutor
-        try:
-            _POOL = ProcessPoolExecutor(max_workers=n, max_tasks_per_child=20)   # Python 3.11+
-        except TypeError:
-            _POOL = ProcessPoolExecutor(max_workers=n)
+        _POOL = ProcessPoolExecutor(max_workers=n)
     return _POOL
+
+
+def _close_pool():
+    """End of a step: let the workers finish and exit (every job is done by then), so memory goes back to the PC."""
+    global _POOL
+    if _POOL is not None:
+        try:
+            _POOL.shutdown(wait=True)
+        except Exception:
+            pass
+    _POOL = None
 
 
 SYMBOL_TIMEOUT = 600                   # seconds to wait for one symbol's result (2026-11-19: per symbol again)
@@ -209,6 +221,8 @@ class Runner:
                     reset = True
         if reset:
             _reset_pool()
+        else:
+            _close_pool()
         try:
             report += self._step_reservations(eq)
         except Exception as ex:
