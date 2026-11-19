@@ -76,14 +76,23 @@ def _pool():
     return _POOL
 
 
+STEP_TIMEOUT = 600                     # seconds for all symbols of one step together (2026-11-19)
+
+
 def _reset_pool():
     """Drop the worker processes (after running out of memory, a stuck job or a broken pool): the next step starts fresh ones."""
     global _POOL
     if _POOL is not None:
+        procs = list(getattr(_POOL, '_processes', {}).values())    # a stuck worker never ends by itself: end it (2026-11-19)
         try:
             _POOL.shutdown(wait=False, cancel_futures=True)
         except Exception:
             pass
+        for pr in procs:
+            try:
+                pr.terminate()
+            except Exception:
+                pass
     _POOL = None
 
 
@@ -91,7 +100,7 @@ def _err_text(ex):
     """Readable error text: some errors (a timeout) have no message of their own."""
     from concurrent.futures import TimeoutError as FutTimeout
     if isinstance(ex, (FutTimeout, TimeoutError)):
-        return '計算が 10 分で終わらなかった（次の足でやり直す）'
+        return '計算が時間内に終わらなかった（計算役を作り直して、次の足でやり直す）'
     if isinstance(ex, MemoryError):
         return f'PC のメモリ不足（次の足でやり直す）: {ex}'
     return str(ex) or type(ex).__name__
@@ -182,9 +191,17 @@ class Runner:
                 logging.warning('process pool unavailable (%s): computing one by one', ex)
                 global _POOL
                 _POOL = None; futs = {}
+        # 2026-11-19: one deadline for the whole step (was 10 minutes per symbol: one stuck worker held the EA for 40-50 minutes, symbol
+        # after symbol). After a stuck job only the results already finished are taken; the rest retry on the next bar with fresh workers.
+        deadline = time.monotonic() + STEP_TIMEOUT
         for j in jobs:
             try:
-                res = futs[j['sym']].result(timeout=600) if j['sym'] in futs else compute_symbol(j['sym'], j['m'], j['warm'], j['keys'], j.get('w1'))
+                if j['sym'] in futs:
+                    if reset and not futs[j['sym']].done():
+                        logging.warning('%s: skipped this bar (calculation workers are being restarted)', j['sym']); continue
+                    res = futs[j['sym']].result(timeout=max(0.0, deadline - time.monotonic()))
+                else:
+                    res = compute_symbol(j['sym'], j['m'], j['warm'], j['keys'], j.get('w1'))
                 report += self._finish_symbol(j, res, eq)
             except Exception as ex:
                 self._symbol_error(j['sym'], ex)
