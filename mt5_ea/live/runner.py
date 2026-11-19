@@ -76,7 +76,7 @@ def _pool():
     return _POOL
 
 
-STEP_TIMEOUT = 600                     # seconds for all symbols of one step together (2026-11-19)
+SYMBOL_TIMEOUT = 600                   # seconds to wait for one symbol's result (2026-11-19: per symbol again)
 
 
 def _reset_pool():
@@ -191,15 +191,15 @@ class Runner:
                 logging.warning('process pool unavailable (%s): computing one by one', ex)
                 global _POOL
                 _POOL = None; futs = {}
-        # 2026-11-19: one deadline for the whole step (was 10 minutes per symbol: one stuck worker held the EA for 40-50 minutes, symbol
-        # after symbol). After a stuck job only the results already finished are taken; the rest retry on the next bar with fresh workers.
-        deadline = time.monotonic() + STEP_TIMEOUT
+        # 2026-11-19: up to 10 minutes per symbol as before (a step-wide 10 minutes was too short with 2 workers: a normal step takes
+        # about 4 minutes and a heavy one more). After the first timeout (a stuck worker) only the results already finished are taken
+        # and the rest retry on the next bar with fresh workers - one stuck worker used to hold the EA for 40-50 minutes, symbol after symbol.
         for j in jobs:
             try:
                 if j['sym'] in futs:
                     if reset and not futs[j['sym']].done():
                         logging.warning('%s: skipped this bar (calculation workers are being restarted)', j['sym']); continue
-                    res = futs[j['sym']].result(timeout=max(0.0, deadline - time.monotonic()))
+                    res = futs[j['sym']].result(timeout=SYMBOL_TIMEOUT)
                 else:
                     res = compute_symbol(j['sym'], j['m'], j['warm'], j['keys'], j.get('w1'))
                 report += self._finish_symbol(j, res, eq)
