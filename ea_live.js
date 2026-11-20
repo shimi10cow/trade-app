@@ -540,10 +540,21 @@
       const tab = a => `<button class="toggle-btn ${V.histAcc === a ? 'active' : ''}" onclick="eaLiveHistAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
       let xs = rawTrades().filter(t => String(t.Account) === V.histAcc && t.Status !== 'OPEN');
       const cardOf = k => /^RES:/.test(String(k)) ? 'RES' : ((CARDS.find(c => c.keys.some(x => x[0] === k)) || {}).id || '');
-      const have = [...new Set(xs.map(t => cardOf(t.EA)))];
-      const chip = (id, label) => `<button class="toggle-btn ${(V.histEA || '') === id ? 'active' : ''}" onclick="eaLiveHistEA('${id}')" style="flex:none;font-size:11px;padding:6px 10px;white-space:nowrap">${label}</button>`;
-      const chips = `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">${chip('', 'すべて')}${CARDS.filter(c => have.includes(c.id)).map(c => chip(c.id, c.title)).join('')}${have.includes('RES') ? chip('RES', '予約') : ''}</div>`;
-      if (V.histEA) xs = xs.filter(t => cardOf(t.EA) === V.histEA);
+      // 2026-11-20: every EA family is a chip (with its count, dimmed when none yet) + 旧 EA (keys no longer in the app);
+      // a family with several EAs gets a second row per symbol (D@: B / C / W x symbol)
+      const cnt = {}; xs.forEach(t => { const c = cardOf(t.EA) || 'OLD'; cnt[c] = (cnt[c] || 0) + 1; });
+      const chip = (id, label, n, on, fn) => `<button class="toggle-btn ${on ? 'active' : ''}" onclick="${fn}('${id}')" style="flex:none;font-size:11px;padding:5px 9px;white-space:nowrap${n ? '' : ';opacity:.4'}">${label}${n ? ' <span style="color:#94a3b8">' + n + '</span>' : ''}</button>`;
+      const famLabel = c => c.id === 'D' ? 'D@' : c.code;
+      let chips = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chip('', 'すべて', xs.length, !V.histEA, 'eaLiveHistEA')}${CARDS.map(c => chip(c.id, famLabel(c), cnt[c.id] || 0, V.histEA === c.id, 'eaLiveHistEA')).join('')}${cnt.OLD ? chip('OLD', '旧 EA', cnt.OLD, V.histEA === 'OLD', 'eaLiveHistEA') : ''}</div>`;
+      const card = CARDS.find(c => c.id === V.histEA);
+      if (V.histEA) xs = xs.filter(t => (cardOf(t.EA) || 'OLD') === V.histEA);
+      if (card && card.keys.length > 1) {
+        const kc = {}; xs.forEach(t => { kc[t.EA] = (kc[t.EA] || 0) + 1; });
+        const keyLabel = k => { const [e, sym] = String(k).split('@'); return (card.id === 'D' ? e.slice(1) + ' ' : '') + sym; };
+        chips += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;padding-left:8px;border-left:2px solid #334155">${chip('', '銘柄すべて', xs.length, !V.histKey, 'eaLiveHistKey')}${card.keys.map(k => chip(k[0], keyLabel(k[0]), kc[k[0]] || 0, V.histKey === k[0], 'eaLiveHistKey')).join('')}</div>`;
+        if (V.histKey) xs = xs.filter(t => String(t.EA) === V.histKey);
+      }
+      if (V.histEA === 'OLD') chips += `<div style="font-size:10px;color:#64748b;margin:-2px 0 8px">今はアプリに無い EA（外した・名前を変えた EA）のトレード</div>`;
       xs = xs.filter(t => { const d = String(t.EntryTime || '').slice(0, 10); if (f && f.fPeriod === 'custom') { if (f.dFrom && d < f.dFrom) return false; if (f.dTo && d > f.dTo) return false; } return true; });
       const exN = xs.filter(isEx).length, all = xs; xs = xs.filter(t => !isEx(t));
       const sumR = xs.reduce((a, t) => a + (Number(t.R) || 0), 0), sumP = xs.reduce((a, t) => a + (Number(t.Profit) || 0), 0), w = xs.filter(t => Number(t.R) > 0).length;
@@ -583,7 +594,8 @@
     const mb = document.getElementById('monthly-ea-stats');
     if (mb && mb.dataset.ym && document.getElementById('modal-monthly')?.classList.contains('active') && typeof renderMonthlyEAStats_ === 'function') renderMonthlyEAStats_(mb.dataset.ym);
   }
-  window.eaLiveHistEA = id => { V.histEA = id; if (typeof renderHistoryList === 'function') renderHistoryList(); };
+  window.eaLiveHistEA = id => { V.histEA = id; V.histKey = ''; if (typeof renderHistoryList === 'function') renderHistoryList(); };
+  window.eaLiveHistKey = k => { V.histKey = k; if (typeof renderHistoryList === 'function') renderHistoryList(); };
   window.eaLiveHistAcc = a => { V.histAcc = a; if (typeof renderHistoryList === 'function') renderHistoryList(); };
   window.eaLiveAnAcc = a => { V.anAcc = a; const an = document.getElementById('eal-analysis'); if (an) an.innerHTML = window.eaLive.analysisHtml(V.anKind); };
   // entry / exit charts drawn by the EA PC (EA_Trades.EntryImage / ExitImage, Drive links); tap = large view
