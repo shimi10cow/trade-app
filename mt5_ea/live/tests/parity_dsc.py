@@ -1,4 +1,5 @@
-"""Usage: DSC_RESEARCH=<folder with F_<SYM>_d9.pkl and new_trades_u.pkl> python -m mt5_ea.live.tests.parity_dsc [SYM ...]
+"""2026-11-20: B now skips entries >= 2.0 ATR(H4) from the level (dsc.B_FAR); the research list predates it, so B differs by those trades.
+Usage: DSC_RESEARCH=<folder with F_<SYM>_d9.pkl and new_trades_u.pkl> python -m mt5_ea.live.tests.parity_dsc [SYM ...]
 2026-11-17: H4 lines now die on a whole-candle break and the line must be alive at the entry; the research copy (scratch deadmode.py body)
 and the live code match on all B 133 / C 60 / W 245 trades.
 2026-11-15 result: 263 of the 264 research trades reproduced with the same R (live 286 trades, +172.8R vs research +164.7R:

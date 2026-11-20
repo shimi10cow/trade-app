@@ -178,3 +178,7 @@ MT5 の「気配値表示」で右クリック →「銘柄」から、次の 4 
 - DR@ で使う USDCHF#・USDCAD#・CADJPY#・CHFJPY# の、極口座（リアル）でのスワップ設定を MT5 から読む（注文・設定変更はしない）。
   `mt5.symbol_info(名前)` の swap_mode・swap_long・swap_short・swap_rollover3days を 4 通貨分。比べるため EURUSD# も 1 行。
 - swap_mode が 0（スワップなし）ならそのまま。0 以外なら値をクラウドに渡して、DR@ の成績に入れて計算し直す。
+
+## 2026-11-20（追加 2）：D@ の B に見送り条件（EA の再起動が必要）
+- `dsc.py`：D@ の B は、入りが帯から H4 の ATR 2 本分以上離れていたら見送る（`B_FAR = 2.0`）。C・W・DR@・DX@ は変わらない。
+- 「新EA 更新」で main を最新に → デモ・リアルの EA を再起動。起動時の確認が OK なら終わり。

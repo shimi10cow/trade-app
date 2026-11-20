@@ -60,6 +60,7 @@ X_DAYS, X_GW, X_ORG, X_TOUCH, X_SCORE, X_DBL = 30, 1.0, 5.0, 2, 2, 0.5
 R_V = False                         # optional V filter (an M15 higher low / lower high after the top before the entry); 2026-11-18 user: off
 Y_TOUCH_MIN, Y_DOW_DAYS = 4, 3     # DY@ (2026-11-16): D1 swing bands with >= 4 H4 swings, the M15 Dow turn within 3 days
 TOUCH_MIN = 2                      # 2026-11-16: the level must hold >= 2 H4 swings (within 0.25 ATR, 90 days before the top)
+B_FAR = 2.0                        # 2026-11-20 (user): B skips an entry >= 2.0 ATR(H4) from the level (a late entry after the bounce, DISCRETIONARY_RULES 11/20)
 BUF = {'H4': 0.1, 'H1': 0.05, 'M15': 0.02}
 H = np.timedelta64(1, 'h'); DAY = np.timedelta64(1, 'D'); M15 = np.timedelta64(15, 'm'); BASE = np.datetime64('2000-01-01T00:00', 'ns')
 
@@ -633,6 +634,8 @@ def run(F: Frames, scene, env=None, start=None, horizon_days=None, sides=None):
                 continue
         s = x['side']; q0 = x['q'] + 1; ent, st = x['dow_entry'], x['dow_stop']; risk = s * (ent - st)
         k = int(np.searchsorted(cx.C4, np.datetime64(x['sig_t']), side='right')) - 1; A = cx.a4[k]
+        if scene == 'B' and s * (ent - x['level']) / A >= B_FAR:
+            continue
         if x['q'] == last:
             pending.append(dict(signal_t=pd.Timestamp(TM[x['q']]), side=s, sl=st, entry=ent, scene=scene, tag=f"D{scene} score {int(x['score'])}")); continue
         q1 = last + 1 if horizon_days is None else min(int(np.searchsorted(TM, TM[x['q']] + horizon_days * DAY)), last + 1);   # 2026-11-17: no 60-day limit
