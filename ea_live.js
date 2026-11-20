@@ -494,18 +494,20 @@
     const sym = k.split('@')[1] || '';
     return card ? card.title + ' ' + sym : k;
   }
-  const allTrades = () => ((S.dash && S.dash.trades) || []).filter(t => !/^RES:/.test(String(t.EA)));   // reservations are recorded as 裁量 trades (Trades)
+  const rawTrades = () => ((S.dash && S.dash.trades) || []).filter(t => !/^RES:/.test(String(t.EA)));   // reservations are recorded as 裁量 trades (Trades)
+  const isEx = t => !!String(t.Excluded || '').trim();      // 2026-11-20: left out of every result by the trader (wrong lot ...)
+  const allTrades = () => rawTrades().filter(t => !isEx(t));
   const dirJa = d => String(d).toUpperCase() === 'BUY' ? '買い' : '売り';
   const jst = v => esc(String(v || '').replace(/\+09:00$/, '').slice(5, 16));
   function tradeRow(t, onclick) {
     const open = t.Status === 'OPEN', pr = Number(t.Profit), col = open ? '#22d3ee' : pr > 0 ? '#4ade80' : pr < 0 ? '#f87171' : '#94a3b8';
     const R = t.R !== '' && t.R != null && !isNaN(t.R) ? (Number(t.R) > 0 ? '+' : '') + Number(t.R).toFixed(2) + 'R' : '';
     const line = String(t.Direction).toUpperCase() === 'BUY' ? '#f43f5e' : '#3b82f6';   // buy red / sell blue (same as 裁量)
-    return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${line}">
+    return `<div class="list-card" onclick="${onclick}" style="cursor:pointer;border-left:4px solid ${line}${isEx(t) ? ';opacity:.45' : ''}">
       <div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px">${esc(t.Symbol)}
           <span class="badge ${String(t.Direction).toUpperCase() === 'BUY' ? 'buy' : 'sell'}">${String(t.Direction).toUpperCase() === 'BUY' ? '▲ Buy' : '▼ Sell'}</span>
-          ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
+          ${/^RES:/.test(String(t.EA)) ? '<span class="badge" style="background:rgba(34,211,238,.12);color:#22d3ee">予約</span>' : '<span class="badge" style="background:rgba(74,222,128,.12);color:#4ade80">EA</span>'}${isEx(t) ? '<span class="badge" style="background:rgba(148,163,184,.15);color:#94a3b8">成績から外した</span>' : ''}${String(t.Account) === 'live' ? '<span class="badge" style="background:rgba(248,113,113,.12);color:#f87171">本番</span>' : ''}</div>
         <div style="font-weight:700;font-size:15px;color:${col}">${open ? '' : R}</div></div>
         <div style="font-size:11px;color:#94a3b8;display:flex;justify-content:space-between"><span>${esc(eaName(t.EA))} · ${jst(t.EntryTime)}${markIcon(t) ? ' · ' + markIcon(t) : ''}</span><span>${open ? esc(t.Lot) + ' lot' : yen(t.Profit)}</span></div></div>
       <div style="color:#94a3b8;font-size:16px;margin-left:12px">›</div></div>`;
@@ -525,9 +527,9 @@
   window.eaLive = {
     asEntries: asEntries,
     data: () => S.dash, load: load, name: eaName,
-    openTrades: () => allTrades().filter(t => t.Status === 'OPEN'),
+    openTrades: () => rawTrades().filter(t => t.Status === 'OPEN'),
     homeHtml: function () {
-      const pos = allTrades().filter(t => t.Status === 'OPEN').slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('');
+      const pos = rawTrades().filter(t => t.Status === 'OPEN').slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('');
       const wait = resAll().filter(r => r.Status === 'WAIT');
       const res = wait.length ? `<div style="font-size:12px;font-weight:700;color:#94a3b8;margin:12px 0 6px">予約中</div><div class="ea-card" style="padding:4px 12px;margin-bottom:8px">${wait.map(r => resLine(r, false)).join('')}</div>` : '';
       return pos + res;
@@ -536,16 +538,17 @@
     historyHtml: function (f) {
       if (!appKey()) return '<div style="color:#94a3b8;text-align:center;padding:20px">EA 設定タブで合言葉を入れると、EA のトレードが出ます</div>';
       const tab = a => `<button class="toggle-btn ${V.histAcc === a ? 'active' : ''}" onclick="eaLiveHistAcc('${a}')" style="flex:1">${ACC_JA[a]}口座</button>`;
-      let xs = allTrades().filter(t => String(t.Account) === V.histAcc && t.Status !== 'OPEN');
+      let xs = rawTrades().filter(t => String(t.Account) === V.histAcc && t.Status !== 'OPEN');
       const cardOf = k => /^RES:/.test(String(k)) ? 'RES' : ((CARDS.find(c => c.keys.some(x => x[0] === k)) || {}).id || '');
       const have = [...new Set(xs.map(t => cardOf(t.EA)))];
       const chip = (id, label) => `<button class="toggle-btn ${(V.histEA || '') === id ? 'active' : ''}" onclick="eaLiveHistEA('${id}')" style="flex:none;font-size:11px;padding:6px 10px;white-space:nowrap">${label}</button>`;
       const chips = `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px">${chip('', 'すべて')}${CARDS.filter(c => have.includes(c.id)).map(c => chip(c.id, c.title)).join('')}${have.includes('RES') ? chip('RES', '予約') : ''}</div>`;
       if (V.histEA) xs = xs.filter(t => cardOf(t.EA) === V.histEA);
       xs = xs.filter(t => { const d = String(t.EntryTime || '').slice(0, 10); if (f && f.fPeriod === 'custom') { if (f.dFrom && d < f.dFrom) return false; if (f.dTo && d > f.dTo) return false; } return true; });
+      const exN = xs.filter(isEx).length, all = xs; xs = xs.filter(t => !isEx(t));
       const sumR = xs.reduce((a, t) => a + (Number(t.R) || 0), 0), sumP = xs.reduce((a, t) => a + (Number(t.Profit) || 0), 0), w = xs.filter(t => Number(t.R) > 0).length;
       const head = `<div style="display:flex;gap:6px;margin-bottom:10px">${tab('demo')}${tab('live')}</div>` + chips + (xs.length ? `<div style="font-size:12px;color:#94a3b8;margin-bottom:10px">${xs.length} 件 · 勝率 ${(w / xs.length * 100).toFixed(0)}% · 合計 ${(sumR > 0 ? '+' : '') + sumR.toFixed(1)}R · ${yen(sumP)}</div>` : '');
-      return head + (xs.slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('') || '<div style="color:#64748b;text-align:center;padding:20px">決済した EA のトレードはまだありません</div>');
+      return head + (exN ? `<div style="font-size:11px;color:#64748b;margin:-4px 0 8px">成績から外したトレード ${exN} 件（薄く表示・数字には入れていない）</div>` : '') + (all.slice().reverse().map(t => tradeRow(t, `eaLiveTrade('${esc(t.TradeID)}')`)).join('') || '<div style="color:#64748b;text-align:center;padding:20px">決済した EA のトレードはまだありません</div>');
     },
     analysisHtml: function (kind) {
       if (!appKey()) return '';
@@ -701,7 +704,7 @@
     } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }
   };
   window.eaLiveTrade = function (id) {
-    const t = allTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
+    const t = rawTrades().find(x => String(x.TradeID) === String(id)); if (!t) return;
     const row = (l, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #1e293b;font-size:13px"><span style="color:#94a3b8">${l}</span><span style="text-align:right;word-break:break-all">${v === '' || v == null ? '—' : v}</span></div>`;
     const old = document.getElementById('eal-trade-modal'); if (old) old.remove();
     const m = document.createElement('div'); m.id = 'eal-trade-modal'; m.className = 'modal-overlay active';
@@ -714,8 +717,27 @@
       ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
       ${imgs(t)}
       ${markEditor(t, `eaLiveSaveComment('${esc(t.TradeID)}')`, t.CommentAt ? '保存 ' + jst(t.CommentAt) : '', t.Status === 'CLOSED' ? exitEditor(t) : '')}
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid #1e293b">
+        ${isEx(t) ? `<div style="font-size:12px;color:#94a3b8;margin-bottom:6px">成績から外しています（${esc(t.Excluded)}）</div>
+          <button class="toggle-btn" style="width:100%" onclick="eaLiveExclude('${esc(t.TradeID)}', false)">成績に戻す</button>`
+        : `<input id="eal-ex-reason" placeholder="外す理由（例：ロット間違い）" style="width:100%;box-sizing:border-box;margin-bottom:6px;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px">
+          <button class="toggle-btn" style="width:100%;color:#f87171" onclick="eaLiveExclude('${esc(t.TradeID)}', true)">このトレードを成績から外す</button>`}
+        <div id="eal-ex-msg" style="font-size:11px;color:#64748b;margin-top:6px">消すのではなく印を付けるだけ（いつでも戻せる）。EA ごとの成績・履歴の合計・分析・週と月のまとめ・健康チェックから外れる。口座の残高と DD（MT5 の数字）はそのまま。</div></div>
       <div style="font-size:11px;color:#64748b;margin-top:10px">時刻は日本時間。チャートは MT5 で見る</div></div></div>`;
     document.body.appendChild(m);
+  };
+  // leave a trade out of every result / count it again (EA_Trades.Excluded, GAS eaTradeExclude, 2026-11-20)
+  window.eaLiveExclude = async function (id, on) {
+    const msg = document.getElementById('eal-ex-msg'), reason = ((document.getElementById('eal-ex-reason') || {}).value || '').trim();
+    if (on && !reason) { msg.textContent = '外す理由を書いてください'; msg.style.color = '#fbbf24'; return; }
+    msg.textContent = '保存中…'; msg.style.color = '#94a3b8';
+    try {
+      const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaTradeExclude', key: appKey(), tradeId: id, exclude: on, reason: reason})}).then(x => x.json());
+      if (!r || r.success === false) throw new Error(/Unknown action/.test(String(r && r.error)) ? 'GAS を貼り直すと使えます' : ((r && r.error) || '保存できませんでした'));
+      const t = rawTrades().find(x => String(x.TradeID) === String(id)); if (t) t.Excluded = r.excluded || '';
+      try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
+      render(); refreshViews(); window.eaLiveTrade(id);
+    } catch (e) { msg.textContent = e.message; msg.style.color = '#f87171'; }
   };
   // the trader's comment on an EA trade (EA_Trades.Comment, GAS eaTradeComment)
   window.eaLiveSaveComment = async function (id) {
@@ -728,7 +750,7 @@
       if (mk.exit) Object.assign(body, {exitVerdict: mk.exit.verdict, exitTags: mk.exit.tags, exitImage: mk.exit.img});
       const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
       if (!r || r.success === false) throw new Error(/Unknown action/.test(String(r && r.error)) ? 'GAS をデプロイすると使えます' : ((r && r.error) || '保存できませんでした'));
-      const t = allTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; t.Verdict = mk.verdict; t.Tags = mk.tags;
+      const t = rawTrades().find(x => String(x.TradeID) === String(id)); if (t) { t.Comment = ta.value; t.Verdict = mk.verdict; t.Tags = mk.tags;
         if (mk.exit) Object.assign(t, {ExitVerdict: mk.exit.verdict, ExitTags: mk.exit.tags, ExitWantImage: mk.exit.img}); const j = new Date(Date.now() + 9 * 3600e3).toISOString(); t.CommentAt = j.slice(0, 10) + ' ' + j.slice(11, 16) + '+09:00'; }
       try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
       msg.textContent = '保存しました'; msg.style.color = '#4ade80'; render(); refreshViews();
