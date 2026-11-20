@@ -24,14 +24,14 @@
   const LIVE_ON = ['T2@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
   const ALL_KEYS = CARDS.flatMap(c => c.keys.map(k => k[0]));
   const famCode = c => c.id === 'D' ? 'D@' : c.code;      // the family as the user writes it (2026-11-20)
-  // ○△× (2026-11-20): z = (live average R - expected) / (family spread / sqrt(n)); >= -1 ○, -2..-1 △, < -2 ×; fewer than 10 trades: no mark.
+  // ○△× (2026-11-20): z = (live average R - expected) / (family spread / sqrt(n)); >= -1 ○, -2..-1 △, < -2 ×; judged from the first trade (user 2026-11-20).
   // Expected = the EA's own backtest average when it has >= 30 backtest trades, else the family average (per-EA backtests of 2-30 trades are noise).
   // Family average / spread of one trade's R from the backtest trades (research replay, D@ / DR / DX from the live module), 2026-11-20.
   const FAM_BT = {"C": {"avg": 0.29, "sd": 1.7}, "D": {"avg": 1.02, "sd": 3.41}, "DL": {"avg": 0.14, "sd": 1.19}, "DS": {"avg": 0.38, "sd": 1.71}, "HL": {"avg": 0.6, "sd": 3.77}, "IX": {"avg": 0.29, "sd": 1.09}, "J2": {"avg": 0.39, "sd": 2.58}, "M": {"avg": 0.15, "sd": 0.51}, "P": {"avg": 0.39, "sd": 2.23}, "Q": {"avg": 0.43, "sd": 2.67}, "R": {"avg": 1.01, "sd": 3.35}, "S": {"avg": 0.53, "sd": 3.52}, "T": {"avg": 0.28, "sd": 1.94}, "X": {"avg": 1.0, "sd": 3.14}};
   const famOfKey = k => (CARDS.find(c => c.keys.some(x => x[0] === k)) || {}).id;
   function expOf(k) { const b = (typeof BT !== 'undefined' && BT[k]) || {}, f = FAM_BT[famOfKey(k)] || {}; return b.n >= 30 && b.avgR != null ? b.avgR : f.avg; }
   function judge(n, avg, exp, sd) {
-    if (n < 10 || avg == null || exp == null || !sd) return null;
+    if (!n || avg == null || exp == null || !sd) return null;      // 2026-11-20 (user): judged from the 1st trade (was 10)
     const z = (avg - exp) / (sd / Math.sqrt(n));
     return z >= -1 ? {m: '○', c: '#4ade80', z} : z >= -2 ? {m: '△', c: '#fbbf24', z} : {m: '×', c: '#f87171', z};
   }
@@ -597,7 +597,7 @@
       }).join('');
       const th = '<tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">EA</th><th>判定</th><th>回数</th>';
       return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA の成績（${ACC_JA[V.anAcc]}口座 · 実際 / <span style="color:#64748b">バックテスト</span>）</div>
-        <div style="font-size:11px;color:#94a3b8;line-height:1.6;margin-bottom:6px">○ 範囲内 · △ 下振れ（バックテストの平均から、回数に応じたブレの 1〜2 倍下） · × 要確認（2 倍より下） · — 10 回未満は判定しない</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6;margin-bottom:6px">○ 範囲内 · △ 下振れ（バックテストの平均から、回数に応じたブレの 1〜2 倍下） · × 要確認（2 倍より下） · — まだトレードなし。回数が少ないうちはブレが大きいので途中経過として見る</div>
         <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:8px 0 4px">系統ごと</div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">${th}<th>平均R</th><th>合計R</th></tr>${famRows}</table></div>
         <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:12px 0 4px">EA ごと</div>

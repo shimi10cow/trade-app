@@ -310,7 +310,7 @@ function ealHealth_() {
     const [acc, ea] = k.split('|'), xs = by[k], closed = xs.filter(t => t.Status === 'CLOSED'), R = closed.map(t => Number(t.R) || 0);
     const n = R.length, w = R.filter(r => r > 0).length, pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0);
     const avg = n ? R.reduce((a, b) => a + b, 0) / n : '', bt = EAL_BT_[ea] || ['', '', ''];
-    const ex = EAL_EXP_[ea], z = (n >= 10 && ex) ? (avg - ex[0]) / (ex[1] / Math.sqrt(n)) : null;   // same ○△× as the app (2026-11-20)
+    const ex = EAL_EXP_[ea], z = (n >= 1 && ex) ? (avg - ex[0]) / (ex[1] / Math.sqrt(n)) : null;   // same ○△× as the app (2026-11-20)
     const judge = z === null ? '少ない' : z >= -1 ? '○ 範囲内' : z >= -2 ? '△ 下振れ' : '× 要確認';
     const sl = xs.map(t => Number(t.Slip)).filter(v => !isNaN(v) && String(v) !== ''), sp = xs.map(t => Number(t.Spread)).filter(v => !isNaN(v));
     const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : '';
