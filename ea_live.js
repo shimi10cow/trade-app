@@ -23,6 +23,18 @@
   const HALF_DEFAULT = {};                                      // half by default
   const LIVE_ON = ['T2@EURUSD', 'C@EURUSD', 'C@USDJPY', 'J2@USDJPY', 'DS@JP225', 'S@BTCUSD', 'DS@US500'];
   const ALL_KEYS = CARDS.flatMap(c => c.keys.map(k => k[0]));
+  const famCode = c => c.id === 'D' ? 'D@' : c.code;      // the family as the user writes it (2026-11-20)
+  // ○△× (2026-11-20): z = (live average R - expected) / (family spread / sqrt(n)); >= -1 ○, -2..-1 △, < -2 ×; fewer than 10 trades: no mark.
+  // Expected = the EA's own backtest average when it has >= 30 backtest trades, else the family average (per-EA backtests of 2-30 trades are noise).
+  // Family average / spread of one trade's R from the backtest trades (research replay, D@ / DR / DX from the live module), 2026-11-20.
+  const FAM_BT = {"C": {"avg": 0.29, "sd": 1.7}, "D": {"avg": 1.02, "sd": 3.41}, "DL": {"avg": 0.14, "sd": 1.19}, "DS": {"avg": 0.38, "sd": 1.71}, "HL": {"avg": 0.6, "sd": 3.77}, "IX": {"avg": 0.29, "sd": 1.09}, "J2": {"avg": 0.39, "sd": 2.58}, "M": {"avg": 0.15, "sd": 0.51}, "P": {"avg": 0.39, "sd": 2.23}, "Q": {"avg": 0.43, "sd": 2.67}, "R": {"avg": 1.01, "sd": 3.35}, "S": {"avg": 0.53, "sd": 3.52}, "T": {"avg": 0.28, "sd": 1.94}, "X": {"avg": 1.0, "sd": 3.14}};
+  const famOfKey = k => (CARDS.find(c => c.keys.some(x => x[0] === k)) || {}).id;
+  function expOf(k) { const b = (typeof BT !== 'undefined' && BT[k]) || {}, f = FAM_BT[famOfKey(k)] || {}; return b.n >= 30 && b.avgR != null ? b.avgR : f.avg; }
+  function judge(n, avg, exp, sd) {
+    if (n < 10 || avg == null || exp == null || !sd) return null;
+    const z = (avg - exp) / (sd / Math.sqrt(n));
+    return z >= -1 ? {m: '○', c: '#4ade80', z} : z >= -2 ? {m: '△', c: '#fbbf24', z} : {m: '×', c: '#f87171', z};
+  }
   const REMOVED = ['L@EURUSD', 'L2@XAUUSD', 'Q@US30', 'R@EURUSD', 'A@EURUSD', 'RM@EURUSD', 'RM@XAUUSD', 'DB@USDJPY', 'DC@USDJPY', 'DA@EURUSD', 'DA@USDJPY', 'DA@AUDJPY', 'DA@EURJPY', 'DA@GBPJPY', 'DA@GBPUSD', 'DA@AUDUSD', 'DY@EURUSD', 'DY@USDJPY', 'DY@AUDJPY', 'DY@EURJPY', 'DY@GBPJPY', 'DY@GBPUSD', 'DY@AUDUSD'];   // 11/18: USDJPY keeps only DW@; DA@ / DY@ not used   // 2026-11-07: off for good, not shown
   let S = {acc: localStorage.getItem(ACC_LS) || 'demo', dash: null, sheet: null, saving: '', err: '', res: null};
   try { S.dash = JSON.parse(localStorage.getItem(CACHE_LS) || 'null'); } catch (e) {}
@@ -199,7 +211,7 @@
     const rows = ALL_KEYS.slice().sort((a, b) => (MIN_ACC[a] - MIN_ACC[b]) || (BTX[b][7] - BTX[a][7])).map(k => {
       const x = BTX[k], weak = x[7] < 1.4;
       return `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
-        <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><b>${esc(k.split('@')[0] + ' · ' + eaName(k))}</b><span style="color:#94a3b8;font-size:11px">${MIN_ACC[k]} 万円〜${weak ? ' · <span style="color:#f87171">外す候補</span>' : ''}</span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><b>${esc(k)}</b><span style="color:#94a3b8;font-size:11px">${MIN_ACC[k]} 万円〜${weak ? ' · <span style="color:#f87171">外す候補</span>' : ''}</span></div>
         <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${x[0]}〜${x[1]} · ${x[2]} 回（${x[3]} 勝 ${x[4]} 敗）· 勝率 ${x[5]}% · 平均 ${x[6]}R · PF ${x[7]} · 最大 DD ${x[8]}R · 年 +${x[10]}R</div>
         ${EA_DESC[k] ? `<div style="font-size:10px;color:#64748b;margin-top:3px;line-height:1.6">${esc(EA_DESC[k])}</div>` : ''}</div>`;
     }).join('');
@@ -407,7 +419,7 @@
       const m = cardMode(c, card), md = MODE[m], syms = onSyms(c, card), active = m !== 'off' && syms.length;
       const style = active && m === 'auto' ? 'border:1px solid #4ade80;box-shadow:0 0 10px rgba(74,222,128,.22)' : active ? 'border:1px solid #22d3ee;box-shadow:0 0 8px rgba(34,211,238,.14)' : 'border:1px solid #26364f;opacity:.7';
       return `<button onclick="eaLiveOpen('${card.id}')" style="text-align:left;color:inherit;border-radius:12px;padding:10px;min-height:86px;background:#111c31;${style}">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${card.title}</span><span style="font-size:10px;color:#94a3b8">${card.code}</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:15px;font-weight:800">${famCode(card)}</span><span style="font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${card.title}</span></div>
         <div style="font-size:11px;color:#cbd5e1;margin-top:5px;line-height:1.4;min-height:15px">${syms.length ? syms.join(' · ') : '銘柄なし'}</div>
         <div style="margin-top:6px"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;color:${md[1]};background:rgba(${md[2]},.12)">${md[0]}</span></div></button>`;
     }).join('');
@@ -430,7 +442,7 @@
           <button onclick="eaLiveWeight('${k}',1)" style="${btn};width:auto;padding:7px 12px;${w === 1 ? neon('#22d3ee', '34,211,238') : offBtn}">全量</button></div>`; }).join('');
       sheet = `<div onclick="if(event.target===this)eaLiveClose()" style="position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:300;display:flex;align-items:flex-end">
         <div style="width:100%;max-height:85vh;overflow:auto;background:#111c31;border:1px solid #26364f;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px">
-          <div style="display:flex;justify-content:space-between;gap:10px"><div><div style="font-size:16px;font-weight:800">${card.title} <span style="font-size:11px;color:#94a3b8">${card.code}</span></div>
+          <div style="display:flex;justify-content:space-between;gap:10px"><div><div style="font-size:18px;font-weight:800">${famCode(card)} <span style="font-size:12px;color:#94a3b8;font-weight:600">${card.title}</span></div>
             <div style="font-size:12px;color:#94a3b8;margin-top:4px;line-height:1.5">${card.desc}</div></div>
             <button onclick="eaLiveClose()" aria-label="閉じる" style="flex:none;width:36px;height:36px;border-radius:9px;border:1px solid #334155;background:#172033;color:#cbd5e1;font-size:18px">×</button></div>
           <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">稼働モード</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${modes}</div></div>
@@ -492,7 +504,7 @@
     if (/^RES:/.test(String(key || ''))) return '予約エントリー';
     const k = String(key || ''), card = CARDS.find(c => c.keys.some(x => x[0] === k));
     const sym = k.split('@')[1] || '';
-    return card ? card.title + ' ' + sym : k;
+    return k;                                   // 2026-11-20 (user): EAs are written as their code everywhere (P@EURUSD, DB@GBPUSD ...)
   }
   const rawTrades = () => ((S.dash && S.dash.trades) || []).filter(t => !/^RES:/.test(String(t.EA)));   // reservations are recorded as 裁量 trades (Trades)
   const isEx = t => !!String(t.Excluded || '').trim();      // 2026-11-20: left out of every result by the trader (wrong lot ...)
@@ -544,8 +556,7 @@
       // a family with several EAs gets a second row per symbol (D@: B / C / W x symbol)
       const cnt = {}; xs.forEach(t => { const c = cardOf(t.EA) || 'OLD'; cnt[c] = (cnt[c] || 0) + 1; });
       const chip = (id, label, n, on, fn) => `<button class="toggle-btn ${on ? 'active' : ''}" onclick="${fn}('${id}')" style="flex:none;font-size:11px;padding:5px 9px;white-space:nowrap${n ? '' : ';opacity:.4'}">${label}${n ? ' <span style="color:#94a3b8">' + n + '</span>' : ''}</button>`;
-      const famLabel = c => c.id === 'D' ? 'D@' : c.code;
-      let chips = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chip('', 'すべて', xs.length, !V.histEA, 'eaLiveHistEA')}${CARDS.map(c => chip(c.id, famLabel(c), cnt[c.id] || 0, V.histEA === c.id, 'eaLiveHistEA')).join('')}${cnt.OLD ? chip('OLD', '旧 EA', cnt.OLD, V.histEA === 'OLD', 'eaLiveHistEA') : ''}</div>`;
+      let chips = `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chip('', 'すべて', xs.length, !V.histEA, 'eaLiveHistEA')}${CARDS.map(c => chip(c.id, famCode(c), cnt[c.id] || 0, V.histEA === c.id, 'eaLiveHistEA')).join('')}${cnt.OLD ? chip('OLD', '旧 EA', cnt.OLD, V.histEA === 'OLD', 'eaLiveHistEA') : ''}</div>`;
       const card = CARDS.find(c => c.id === V.histEA);
       if (V.histEA) xs = xs.filter(t => (cardOf(t.EA) || 'OLD') === V.histEA);
       if (card && card.keys.length > 1) {
@@ -566,23 +577,33 @@
       V.anAcc = (document.getElementById('flt-acc') || {}).value || V.anAcc;
       const xs = allTrades().filter(t => String(t.Account) === V.anAcc && t.Status === 'CLOSED');
       const by = {}; xs.forEach(t => (by[t.EA] = by[t.EA] || []).push(t));
-      Object.keys(by).filter(k => /^RES:/.test(k)).forEach(k => delete by[k]);          // reservations have their own tab
-      const keys = ALL_KEYS.slice();
       const num = (v, d) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d);
-      const rows = keys.map(k => {
-        const g = by[k] || [], R = g.map(t => Number(t.R) || 0), n = g.length, w = R.filter(r => r > 0).length;
-        const pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0), b = BT[k] || {};
-        const avg = n ? R.reduce((a, b) => a + b, 0) / n : null, low = n >= 10 && avg != null && b.avgR != null && avg < b.avgR - 0.5;
-        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left">${k === 'RES' ? '予約エントリー' : esc(eaName(k))}</td><td>${n}</td>
-          <td>${n ? (w / n * 100).toFixed(0) + '%' : '—'}<div style="color:#64748b">${num(b.wr, 0)}%</div></td>
-          <td style="color:${low ? '#f87171' : 'inherit'}">${num(avg, 2)}<div style="color:#64748b">${num(b.avgR, 2)}</div></td>
-          <td>${neg > 0 ? (pos / neg).toFixed(2) : n ? '∞' : '—'}<div style="color:#64748b">${num(b.pf, 2)}</div></td>
-          <td>${n ? (R.reduce((a, b) => a + b, 0) > 0 ? '+' : '') + R.reduce((a, b) => a + b, 0).toFixed(1) : '—'}<div style="color:#64748b">${num(b.py, 0)}回/年</div></td></tr>`;
+      const famOf = k => (CARDS.find(c => c.keys.some(x => x[0] === k)) || {}).id;
+      const st = g => { const R = g.map(t => Number(t.R) || 0), n = R.length, w = R.filter(r => r > 0).length, pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0),
+        neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0), sum = R.reduce((a, b) => a + b, 0); return {n, w, sum, avg: n ? sum / n : null, pf: neg > 0 ? pos / neg : null}; };
+      const mark = j => j ? `<span style="font-weight:800;color:${j.c}">${j.m}</span>` : '<span style="color:#64748b">—</span>';
+      const famRows = CARDS.map(c => {
+        const g = c.keys.flatMap(k => by[k[0]] || []), a = st(g), j = judge(a.n, a.avg, FAM_BT[c.id].avg, FAM_BT[c.id].sd);
+        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left;font-weight:700">${famCode(c)}</td><td>${mark(j)}</td><td>${a.n}</td>
+          <td>${num(a.avg, 2)}<div style="color:#64748b">${num(FAM_BT[c.id].avg, 2)}</div></td><td>${a.n ? (a.sum > 0 ? '+' : '') + a.sum.toFixed(1) : '—'}</td></tr>`;
       }).join('');
-      return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA ごとの成績（${ACC_JA[V.anAcc]}口座 · 実際 / <span style="color:#64748b">バックテスト</span>）</div>
-        <div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">
-          <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">EA</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th></tr>${rows}</table></div>
-        <div style="font-size:10px;color:#64748b;margin-top:6px">下の灰色がバックテスト。10 回以上で平均 R がバックテストより 0.5R 以上低いと赤</div></div>`;
+      const rows = ALL_KEYS.map(k => {
+        const a = st(by[k] || []), b = BT[k] || {}, f = FAM_BT[famOf(k)] || {}, exp = expOf(k), j = judge(a.n, a.avg, exp, f.sd);
+        return `<tr style="border-bottom:1px solid #1e293b"><td style="padding:6px 4px;text-align:left">${esc(k)}</td><td>${mark(j)}</td><td>${a.n}</td>
+          <td>${a.n ? (a.w / a.n * 100).toFixed(0) + '%' : '—'}<div style="color:#64748b">${num(b.wr, 0)}%</div></td>
+          <td>${num(a.avg, 2)}<div style="color:#64748b">${num(exp, 2)}</div></td>
+          <td>${a.pf != null ? a.pf.toFixed(2) : a.n ? '∞' : '—'}<div style="color:#64748b">${num(b.pf, 2)}</div></td>
+          <td>${a.n ? (a.sum > 0 ? '+' : '') + a.sum.toFixed(1) : '—'}<div style="color:#64748b">${num(b.py, 0)}回/年</div></td></tr>`;
+      }).join('');
+      const th = '<tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">EA</th><th>判定</th><th>回数</th>';
+      return `<div class="section" style="margin-bottom:14px"><div class="section-title" style="margin-bottom:8px">🤖 EA の成績（${ACC_JA[V.anAcc]}口座 · 実際 / <span style="color:#64748b">バックテスト</span>）</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.6;margin-bottom:6px">○ 範囲内 · △ 下振れ（バックテストの平均から、回数に応じたブレの 1〜2 倍下） · × 要確認（2 倍より下） · — 10 回未満は判定しない</div>
+        <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:8px 0 4px">系統ごと</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">${th}<th>平均R</th><th>合計R</th></tr>${famRows}</table></div>
+        <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:12px 0 4px">EA ごと</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right;white-space:nowrap">${th}<th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th></tr>${rows}</table></div>
+        <div style="font-size:10px;color:#64748b;margin-top:6px;line-height:1.6">下の灰色がバックテスト。EA ごとの平均 R の目安は、バックテストが 30 回以上ならその EA の平均、少なければ系統の平均。ブレ＝系統の 1 回あたりのばらつき ÷ √回数。
+          大勝ちで稼ぐ EA（D@・DR・DX・S・Q など）は、大勝ちが来るまで △ になりやすい。× が続く時に止めるか考える。</div></div>`;
     }
   };
   function refreshViews() {
