@@ -6,6 +6,7 @@ cd /d "%~dp0.."
 set PYTHONIOENCODING=utf-8
 :loop
 py -m mt5_ea.live.alerts
+if %ERRORLEVEL%==3 (timeout /t 5 >nul & exit /b 0)
 echo Stopped. Restarting in 30 seconds (close this window to stop)...
 timeout /t 30 >nul
 goto loop

@@ -77,6 +77,13 @@ Say ("Live EA ({0}) account {1}: watcher started" -f $Kind, $env:EA_LIVE_LOGIN) 
 Ensure-Mt5
 Check-Mt5
 
+# 2026-11-21: the demo EA also starts the discretionary alerts window (its own window, read only). alerts.py holds a lock file,
+# so a second copy (double-click, or the demo EA started again) just says "already running" and closes.
+if ($Kind -eq "demo" -and $env:EA_ALERTS_AUTO -ne "0") {
+    $alertsBat = Join-Path $PSScriptRoot "ALERTS_START.bat"
+    if (Test-Path $alertsBat) { Start-Process cmd.exe -ArgumentList "/c", "`"$alertsBat`"" -WorkingDirectory $PSScriptRoot; Say "discretionary alerts window started (closes by itself if one is already running)" Cyan }
+}
+
 $wait = 30
 while ($true) {
     Ensure-Mt5

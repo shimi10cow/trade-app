@@ -398,12 +398,31 @@ def settings_from(r, cur):
     return out
 
 
+def _single_instance(path):
+    """Hold an OS lock on `path` for the life of the process; False when another copy holds it."""
+    f = open(path, 'a+')
+    try:
+        if os.name == 'nt':
+            import msvcrt
+            f.seek(0); msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close(); return None
+    return f
+
+
 def main():
     from mt5_ea.live import gas
     from mt5_ea.live.broker import MT5Broker
     from mt5_ea import telegram_notify as tg
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     data = Path(os.getenv('EA_DATA_DIR') or Path.home() / 'TradeEA_data'); data.mkdir(exist_ok=True)
+    lock = _single_instance(data / 'alerts.lock')
+    if lock is None:
+        print('裁量の通知はもう別の窓で動いています。この窓は閉じます。', flush=True)
+        return 3
     stf = data / 'alerts_state.json'
     st = json.loads(stf.read_text(encoding='utf-8')) if stf.exists() else {'sent': [], 'last_bar': ''}
     path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
