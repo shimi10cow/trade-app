@@ -3107,7 +3107,7 @@ function initAnalysisMultiSelects(){
   });
 }
 window.updateAnalysisFilterVisibility=function updateAnalysisFilterVisibility(){
-  const ma=document.getElementById('flt-manual-ma');if(ma)ma.style.display=(window._eaAnalysisType==='manual')?'block':'none';
+  const ma=document.getElementById('flt-manual-ma');if(ma)ma.style.display='none';   // 2026-11-21: MA filter removed
 }
 
 
@@ -3403,6 +3403,12 @@ function applyAnalysisFilters() {
     ${csOpen('plan', '📋 計画 vs 衝動')}
     ${buildPlanComparisonHTML(prePlanFiltered)}
     ${csClose()}
+    ${csOpen('bymethod', '🧭 手法（DowRule）ごと')}
+    ${buildBreakdownHTML(filtered, t => String(t.DowRule || '').trim() || '（なし）', '手法')}
+    ${csClose()}
+    ${csOpen('byscore', '🎯 エントリースコアごと')}
+    ${buildBreakdownHTML(filtered, t => { const v = parseFloat(t['エントリースコア']); return isNaN(v) ? '（なし）' : String(v); }, '点数', true)}
+    ${csClose()}
   `;
   syncCollapseSections();
 
@@ -3414,7 +3420,7 @@ function applyAnalysisFilters() {
   renderEquityCurve();
   renderRRDistribution(filtered);
   // EA: sections that only make sense for hand-written trades are hidden
-  document.querySelectorAll('[data-collapse-key="rules"],[data-collapse-key="theory"],[data-collapse-key="plan"]').forEach(el => { el.style.display = eaType === 'ea' ? 'none' : ''; });
+  document.querySelectorAll('[data-collapse-key="rules"],[data-collapse-key="theory"],[data-collapse-key="plan"],[data-collapse-key="bymethod"],[data-collapse-key="byscore"]').forEach(el => { el.style.display = eaType === 'ea' ? 'none' : ''; });
 }
 
 // ==========================================
@@ -3472,6 +3478,20 @@ function buildPlanComparisonHTML(trades) {
 // ==========================================
 function getCollapsedSections() {
   try { return JSON.parse(localStorage.getItem('analysisCollapsed_v1') || '{}'); } catch(e) { return {}; }
+}
+
+// 2026-11-21: one row per group (DowRule / entry score): trades, win rate, average R, total R (実リスクリワード)
+function buildBreakdownHTML(trades, keyOf, label, numericSort) {
+  const by = {};
+  trades.forEach(t => { const r = parseFloat(t['実リスクリワード']); if (isNaN(r)) return; const k = keyOf(t); (by[k] = by[k] || []).push(r); });
+  let keys = Object.keys(by);
+  keys.sort(numericSort ? (a, b) => (parseFloat(b) || -99) - (parseFloat(a) || -99) : (a, b) => (parseFloat(a) || 999) - (parseFloat(b) || 999) || a.localeCompare(b));
+  if (!keys.length) return '<div style="grid-column:1/-1;font-size:12px;color:#94a3b8;padding:6px">R（実リスクリワード）のあるトレードがありません</div>';
+  const cell = 'padding:5px 6px;border-bottom:1px solid #1e293b;text-align:right';
+  const rows = keys.map(k => { const R = by[k], n = R.length, w = R.filter(x => x > 0).length, sum = R.reduce((a, b) => a + b, 0), avg = sum / n;
+    const col = avg > 0 ? '#4ade80' : avg < 0 ? '#f87171' : '#cbd5e1';
+    return `<tr><td style="${cell};text-align:left">${String(k).replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]))}</td><td style="${cell}">${n}</td><td style="${cell}">${(w / n * 100).toFixed(0)}%</td><td style="${cell};color:${col}">${(avg > 0 ? '+' : '') + avg.toFixed(2)}</td><td style="${cell};color:${col}">${(sum > 0 ? '+' : '') + sum.toFixed(1)}</td></tr>`; }).join('');
+  return `<div style="grid-column:1/-1;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#94a3b8"><th style="${cell};text-align:left">${label}</th><th style="${cell}">回数</th><th style="${cell}">勝率</th><th style="${cell}">平均R</th><th style="${cell}">合計R</th></tr>${rows}</table></div>`;
 }
 
 function csOpen(key, title) {
@@ -4836,48 +4856,24 @@ function analyzeMentalMode() {
 }
 
 function updateEntryJudgementText(prefix) {
-  const modalId = prefix === 'ne' ? '#modal-entry' : '#modal-trade-detail';
-  const getGroupAct = (cls, idx) => {
-    const grps = document.querySelectorAll(`${modalId} ${cls}`);
-    if (!grps[idx]) return '';
-    const el = grps[idx].querySelector('.active');
-    return el ? el.textContent.trim() : '';
-  };
-
-  const vKairi = getGroupAct('.ma-group', 0); // 表示確認用（判定には使用しない）
-  const v480   = getGroupAct('.ma-group', 1);
-  const vH1_20 = getGroupAct('.ma-group', 2);
-  const vH4_20 = getGroupAct('.ma-group', 3);
-
-  const outBox = prefix === 'ne' ? document.getElementById('ne-judgement-text') : null;
-  if (!outBox) return;
-
-  // 方向・ペアが未選択なら判定しない
-  const dirEl = document.querySelector(`${modalId} #ne-dir .active, ${modalId} #td-dir .active`);
-  const direction = dirEl ? (dirEl.textContent.includes('Buy') ? 'Buy' : 'Sell') : '';
-  const pairName = document.querySelector(`${modalId} select[id$="-pair"]`)?.value || '';
-
-  if (!pairName || !direction) {
-    outBox.textContent = '--';
-    outBox.style.color = '#94a3b8';
-    return;
-  }
-
-  // H4MA乖離はOKの根拠にもブロック条件にもならない（表示・記録は継続）
-  // 判定条件: H4MA480.1200 / H1MA20.80 / H4MA20.80 のいずれか◎ → OK
-  // ※ 2026-06 乖離NGブロック廃止。データ蓄積後に半年後再評価予定（trade_app_review.md参照）
-  const hasAnyOtherOk = v480 === '◎' || vH1_20 === '◎' || vH4_20 === '◎';
-
-  let resText = '🚫 エントリーNG！ 🚫';
-  let resColor = '#ef4444';
-
-  if (hasAnyOtherOk) {
-    resText = "✅ エントリーOK！ ✅";
-    resColor = "#10b981";
-  }
-
-  outBox.textContent = resText;
-  outBox.style.color = resColor;
+  // 2026-11-21 (user): judged by the entry score only (4 or more = OK); the MA conditions were removed (no difference in the records)
+  if (prefix !== 'ne') return;
+  const outBox = document.getElementById('ne-judgement-text'); if (!outBox) return;
+  const modal = document.getElementById('modal-entry');
+  const dirEl = modal && modal.querySelector('#ne-dir .active');
+  const pairName = modal && modal.querySelector('select[id$="-pair"]') ? modal.querySelector('select[id$="-pair"]').value : '';
+  if (!pairName || !dirEl) { outBox.textContent = '--'; outBox.style.color = '#94a3b8'; return; }
+  let score = 0, filled = 0;
+  document.querySelectorAll('#modal-entry .score-group').forEach(function(group) {
+    const active = group.querySelector('.active'), item = scoreConfig.find(function(c) { return c.key === group.dataset.key; });
+    if (!active || !item || item.enabled === false) return;
+    filled++; score += parseFloat(active.classList.contains('cond-ok') ? (group.dataset.okScore || 0) : (group.dataset.ngScore || 0));
+  });
+  const need = scoreConfig.filter(function(c) { return c.enabled !== false; }).length;
+  if (filled < need) { outBox.textContent = '根拠を入れると判定（あと ' + (need - filled) + ' 個）'; outBox.style.color = '#94a3b8'; return; }
+  const ok = score >= 4;
+  outBox.textContent = ok ? '✅ エントリーOK！（' + score + ' 点）' : '🚫 エントリーNG（' + score + ' 点・4 点以上で OK）';
+  outBox.style.color = ok ? '#10b981' : '#ef4444';
 }
 
 function calculateSimilarTrades(prefix) {
@@ -4956,28 +4952,8 @@ function calculateSimilarTrades(prefix) {
     const histRisk = String(t['上位足リスク'] || '').trim();
     if (curRisk && histRisk && curRisk === histRisk) score += 5;
 
-    // H4MA20.80一致: 3点
-    const curH4MA2080 = normMA(ma4);
-    const histH4MA2080 = normMA(t['H4MA20.80_J'] || t['H4MA20.80']);
-    if (curH4MA2080 && histH4MA2080 && curH4MA2080 === histH4MA2080) score += 3;
-
     // ダウルール一致: 1点
     if (curDow && t.DowRule && curDow === t.DowRule) score += 1;
-
-    // H4MA乖離一致: 1点
-    const curH4MAKairi = normMA(ma1);
-    const histH4MAKairi = normMA(t['H4MA乖離_J'] || t['H4MA乖離']);
-    if (curH4MAKairi && histH4MAKairi && curH4MAKairi === histH4MAKairi) score += 1;
-
-    // H4MA480一致: 1点
-    const curH4MA480 = normMA(ma2);
-    const histH4MA480 = normMA(t['H4MA480.1200_J'] || t['H4MA480.1200']);
-    if (curH4MA480 && histH4MA480 && curH4MA480 === histH4MA480) score += 1;
-
-    // H1MA20.80一致: 1点
-    const curH1MA2080 = normMA(ma3);
-    const histH1MA2080 = normMA(t['H1MA20.80_J'] || t['H1MA20.80']);
-    if (curH1MA2080 && histH1MA2080 && curH1MA2080 === histH1MA2080) score += 1;
 
     const dateStr = String(t.EntryDate || '').replace(/\//g, '-').split('T')[0];
     similars.push({ trade: t, score, pips: parseFloat(t['実取得pips']) || 0, dateStr });
