@@ -7,7 +7,9 @@ The same Dow engine the EAs use (env_recognition.dow_trend) on D1 / H4 / H1 made
 2026-11-22: MT5 builds every timeframe from M1 history, so asking for 300 monthly / 1300 weekly bars made the terminal
 download ~25 years of M1 per symbol (about 2 GB for 11 pairs, the PC's disk filled up). Now only the same 400 days of M15
 the alerts window already reads (D1 over 1 year gave the same arrow as the long history in 38 of 38 checks on EURUSD).
-M1 (monthly) and W1 stay the trader's own input (W1 needs 3 years = more downloads). 2026-11-22: every pair the app has (Pairs sheet).
+2026-11-22: W1 too, from W1 bars of the last 3 years only (2.5 years already gave the long-history arrow in 139 of 139
+EURUSD checks). M1 (monthly) stays the trader's own input: 10 years of history matched only 91 of 139 (needs 15+ years,
+~7-8 GB of M1 history for 42 symbols). 2026-11-22: every pair the app has (Pairs sheet).
 PAIR_ENV.bat (python -m mt5_ea.live.pair_env) sends them -> GAS eaPairEnv. Only reads prices; never orders."""
 import logging
 
@@ -81,8 +83,34 @@ class Stalled(RuntimeError):
     """MT5 did not answer one request in time (the stuck call cannot be cancelled, so the scan stops there)."""
 
 
+W1_DAYS = 3 * 365 + 7                   # weekly: never older than 3 years
+
+
+def weekly_bars(b, p, now=None):
+    """Closed W1 bars of the last 3 years (copy_rates_range with a start date: never a count, which pulled decades of M1)."""
+    mt5 = b.mt5; err = None
+    to = pd.Timestamp(now) if now is not None else pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=1)
+    for n in ALIAS.get(p, (p,)):
+        try:
+            r = mt5.copy_rates_range(b.name(n), mt5.TIMEFRAME_W1, (to - pd.Timedelta(days=W1_DAYS)).to_pydatetime(), to.to_pydatetime())
+            if r is None or len(r) < 10:
+                raise RuntimeError(f'{n}: no W1 history ({mt5.last_error()})')
+            d = pd.DataFrame(r).rename(columns=dict(open='o', high='h', low='l', close='c'))
+            d['t'] = pd.to_datetime(d.time, unit='s')
+            return d[['t', 'o', 'h', 'l', 'c']]
+        except Exception as ex:
+            err = ex
+    raise err
+
+
+def weekly_arrow(w1, m15_end):
+    """W1 arrow from closed weeks: a week counts once its bars are over (the Friday close counts on the weekend)."""
+    w = w1[pd.to_datetime(w1.t) + pd.Timedelta(days=7) <= pd.Timestamp(m15_end) + pd.Timedelta(days=2)]
+    return direction(w, 'W1')
+
+
 def scan(b, pairs=PAIRS, log=None, timeout=None):
-    """[{pair, D1, H4, H1}] for every pair this account has.
+    """[{pair, W1, D1, H4, H1}] for every pair this account has.
     log(text): progress line per pair. timeout: seconds one MT5 request may take (None = wait forever, as before);
     when MT5 does not answer, Stalled is raised with the rows done so far in .rows and the place in .where."""
     import concurrent.futures as cf
@@ -100,10 +128,17 @@ def scan(b, pairs=PAIRS, log=None, timeout=None):
         try:
             m15 = call(bars_any, b, p, DAYS)
             row.update(arrows(m15))
-            if any(row[k] for k in TFS):
+            tf = 'W1'
+            try:
+                row['W1'] = weekly_arrow(call(weekly_bars, b, p), pd.to_datetime(m15.t).iat[-1] + pd.Timedelta(minutes=15))
+            except cf.TimeoutError:
+                raise
+            except Exception as ex:                     # no weekly history: D1/H4/H1 still go
+                row['W1'] = ''; logging.info('pair env %s W1: %s', p, ex)
+            if any(row[k] for k in TFS + ('W1',)):
                 out.append(row)
             if log:
-                log(f"  {p:7s} D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
+                log(f"  {p:7s} W1 {row['W1'] or '-'}  D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
         except cf.TimeoutError:
             ex = Stalled(f'{p} の {tf} で MT5 が {timeout} 秒たっても返事をしない'); ex.rows, ex.where = out, (p, tf)
             raise ex
