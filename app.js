@@ -1371,6 +1371,7 @@ window.resetPairFlags = resetPairFlags;
 function jstStamp_(d){const x=new Date((d||new Date()).getTime()+9*3600e3),p=n=>String(n).padStart(2,'0');return x.getUTCFullYear()+'-'+p(x.getUTCMonth()+1)+'-'+p(x.getUTCDate())+' '+p(x.getUTCHours())+':'+p(x.getUTCMinutes())+'+09:00';}
 function stampMs_(v){const s=String(v||'').trim();if(!s)return 0;const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[ T](\d{1,2}):(\d{2})/);if(m&&!/Z$|GMT/.test(s)){const t=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-9*3600e3;return t;}const d=new Date(s);return isNaN(d)?0:d.getTime();}
 const PAIR_HISTORY_FIELDS = ['M1','W1','D1','H4','H1','H4MA乖離','H4MA480.1200','H1MA20.80','H4MA20.80','フラグ','メモ','プラン方向','プラン設定日','プラン画像','Auto_M1','Auto_W1','Auto_D1','Auto_H4','Auto_H1','AutoAt'];
+function pairHistoryRow_(p) { const o = { PairName: p['PairName（元）'] || p.PairName, '確認日時': p['確認日時'] || jstStamp_() }; PAIR_HISTORY_FIELDS.forEach(k => { o[k] = p[k] == null ? '' : p[k]; }); if (!o['メモ']) o['メモ'] = p['環境認識メモ'] || ''; o['自動との差'] = pairAutoDiff_(p); return o; }
 async function sendPairHistory() {
   const since = Date.now() - 24 * 3600e3;
   const xs = (App.data.pairs || []).filter(p => stampMs_(p['確認日時']) >= since);
@@ -1379,7 +1380,7 @@ async function sendPairHistory() {
   if (!confirm('直近 1 日に更新した ' + xs.length + ' ペアの見方を記録に送りますか？\n' + names.join('、') + '\n（前回の記録と同じ中身のペアは入りません。PC の自動の向きと、自分が直した所も一緒に記録します）')) return;
   showLoader();
   try {
-    const rows = xs.map(p => { const o = { PairName: p['PairName（元）'] || p.PairName, '確認日時': p['確認日時'] }; PAIR_HISTORY_FIELDS.forEach(k => { o[k] = p[k] == null ? '' : p[k]; }); if (!o['メモ']) o['メモ'] = p['環境認識メモ'] || ''; o['自動との差'] = pairAutoDiff_(p); return o; });
+    const rows = xs.map(pairHistoryRow_);
     const res = await gasPost({ action: 'savePairHistory', rows: rows });
     if (!res || res.success === false) throw new Error(/Unknown action/.test(String(res && res.error)) ? 'GAS をデプロイすると使えます' : ((res && res.error) || '送れませんでした'));
     showToast(res.added ? res.added + ' ペアを記録しました' + (res.skipped ? '（' + res.skipped + ' ペアは前回の記録と同じ）' : '') : '前回の記録から変わったペアはありません');
@@ -4546,7 +4547,7 @@ function peAutoRefresh() {
     el.textContent = a ? '自動' + a : ''; el.style.color = d ? '#f59e0b' : '#64748b'; el.style.fontWeight = d ? '700' : '400';
   });
   const note = document.getElementById('pe-auto-note');
-  if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') + (diff ? ' ／ 自動と違う所 ' + diff + ' つ（オレンジ）は「データを送信」で記録されます' : '') : '';
+  if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') + (diff ? ' ／ 自動と違う所 ' + diff + ' つ（オレンジ）は「ペア情報を更新」で記録されます' : '') : '';
 }
 window.peAutoRefresh = peAutoRefresh;
 
@@ -4601,6 +4602,8 @@ async function savePairEdit() {
 
     // ローカルにも反映
     Object.assign(p, updateData);
+    // 2026-11-21: every save also goes to the record (Pair_History); GAS skips it when nothing changed since the pair's last record
+    try { await gasPostQueued({ action: 'savePairHistory', rows: [pairHistoryRow_(p)] }, '見方の記録: ' + pairName); } catch (e) { console.warn('savePairHistory', e); }
 
     savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
     closePairEdit();
