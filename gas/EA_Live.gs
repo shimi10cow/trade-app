@@ -193,9 +193,11 @@ function ealAlert_(b) {
 const EAL_ENV_TF_ = ['M1', 'W1', 'D1', 'H4', 'H1'];
 function ealPairEnv_(b) {
   const xs = Array.isArray(b.pairs) ? b.pairs : [];
-  if (!xs.length) return {success: true, changed: 0};
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
   const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+  const pc0 = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
+  const names = v.slice(1).map(r => String(r[pc0] || '').trim()).filter(String);   // 2026-11-22: the PC asks which pairs the app has
+  if (!xs.length) return {success: true, changed: 0, names: names};
   const need = EAL_ENV_TF_.map(k => 'Auto_' + k).concat(['AutoAt']).filter(k => h.indexOf(k) < 0);
   if (need.length) { sh.getRange(1, h.length + 1, 1, need.length).setValues([need]); need.forEach(k => { h.push(k); v.forEach((r, i) => { if (i) r.push(''); }); }); }
   const pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
@@ -216,7 +218,7 @@ function ealPairEnv_(b) {
   cols.forEach(c => { if (c >= 0) { const rg = sh.getRange(2, c + 1, v.length - 1, 1); if (c === h.indexOf('AutoAt')) rg.setNumberFormat('@'); rg.setValues(v.slice(1).map(r => [r[c]])); } });
   pairsCacheClear_();
   try { CacheService.getScriptCache().remove('hybrid_config_v2'); } catch (e) {}
-  return {success: true, changed: changed};
+  return {success: true, changed: changed, names: names};
 }
 
 /** EA PC (read only): everything the one-click report needs (mt5_ea/live/report.py, 2026-11-21). */

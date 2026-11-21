@@ -7,7 +7,7 @@ The same Dow engine the EAs use (env_recognition.dow_trend) on D1 / H4 / H1 made
 2026-11-22: MT5 builds every timeframe from M1 history, so asking for 300 monthly / 1300 weekly bars made the terminal
 download ~25 years of M1 per symbol (about 2 GB for 11 pairs, the PC's disk filled up). Now only the same 400 days of M15
 the alerts window already reads (D1 over 1 year gave the same arrow as the long history in 38 of 38 checks on EURUSD).
-M1 (monthly) and W1 stay the trader's own input (W1 needs 3 years = more downloads). Only the FX pairs.
+M1 (monthly) and W1 stay the trader's own input (W1 needs 3 years = more downloads). 2026-11-22: every pair the app has (Pairs sheet).
 PAIR_ENV.bat (python -m mt5_ea.live.pair_env) sends them -> GAS eaPairEnv. Only reads prices; never orders."""
 import logging
 
@@ -26,6 +26,31 @@ PAIRS = ('AUDCAD', 'AUDCHF', 'AUDNZD', 'AUDJPY', 'AUDUSD', 'CADCHF', 'CADJPY', '
          'EURJPY', 'EURNZD', 'EURUSD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPJPY', 'GBPNZD', 'GBPUSD', 'NZDCAD', 'NZDCHF', 'NZDJPY',
          'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY')
 ARROW = {'up': '↑', 'down': '↓'}
+# app name -> names to try on the broker (the broker map in broker.py knows most; these are the extra ones)
+ALIAS = {'NATGAS': ('NGAS',), 'XAUEUR': ('XAUEUR', 'GOLDEUR'), 'UK100': ('UK100',), 'EU50': ('EU50', 'EUSTX50'), 'BRENT': ('BRENT', 'UKOIL'),
+         'US2000': ('US2000', 'US2000Cash')}
+
+
+def app_pairs(gas):
+    """The pairs the app has now (Pairs sheet), from GAS; PAIRS when GAS cannot be reached."""
+    try:
+        r = gas.call('eaPairEnv', {'pairs': []}, timeout=60)
+        xs = [str(x).strip().upper() for x in (r or {}).get('names') or [] if str(x).strip()]
+        return tuple(xs) or PAIRS
+    except Exception as ex:
+        logging.warning('pair env: pair list from GAS: %s', ex)
+        return PAIRS
+
+
+def bars_any(b, p, days):
+    """M15 bars under the app's name, or the first broker name in ALIAS that works."""
+    err = None
+    for n in ALIAS.get(p, (p,)):
+        try:
+            return b.bars(n, days)
+        except Exception as ex:
+            err = ex
+    raise err
 
 
 def direction(df, tf):
@@ -73,7 +98,7 @@ def scan(b, pairs=PAIRS, log=None, timeout=None):
     for p in pairs:
         t0 = time.time(); row = {'pair': p}; tf = 'M15'
         try:
-            m15 = call(b.bars, p, DAYS)
+            m15 = call(bars_any, b, p, DAYS)
             row.update(arrows(m15))
             if any(row[k] for k in TFS):
                 out.append(row)
@@ -110,7 +135,7 @@ def main(argv=None):
     say('通貨ペアの向きを計算します（注文はしません）')
     t0 = time.time(); say(f'  MT5 につなぎます: {path or "（いつもの MT5）"}')
     b = MT5Broker(); say(f'  つながりました（{time.time() - t0:.0f}秒）')
-    pairs = tuple(x.strip().upper() for x in a.pairs.split(',') if x.strip()) or PAIRS
+    pairs = tuple(x.strip().upper() for x in a.pairs.split(',') if x.strip()) or app_pairs(gas)
     stalled = None
     try:
         rows = scan(b, pairs, log=say, timeout=a.timeout)

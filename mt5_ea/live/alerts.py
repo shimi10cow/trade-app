@@ -467,7 +467,7 @@ def main():
                 if os.getenv('EA_PAIR_ENV', '1') != '0' and hour != st.get('env_hour'):    # once an hour: trend arrows for the pair tab (400 days of M15 only, ~24 s; EA_PAIR_ENV=0 turns it off)
                     try:
                         from mt5_ea.live import pair_env
-                        rows = pair_env.scan(b, timeout=60)
+                        rows = pair_env.scan(b, pair_env.app_pairs(gas), timeout=60)
                         r = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
                         st['env_hour'] = hour; stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
                         logging.info('pair env: %d pairs sent, %s changed', len(rows), (r or {}).get('changed'))
