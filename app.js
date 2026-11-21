@@ -4544,7 +4544,7 @@ function peAutoRefresh() {
     const a = String(p['Auto_' + k] || '').trim(), btn = document.querySelector('#' + id + ' .toggle-btn.active'), m = btn ? btn.textContent.trim() : '';
     if (a) any = true;
     const d = a && m !== a; if (d) diff++;
-    el.textContent = a ? '自動' + a : ''; el.style.color = d ? '#f59e0b' : '#64748b'; el.style.fontWeight = d ? '700' : '400';
+    el.textContent = a ? '自動' + a : ''; el.style.color = d ? '#f59e0b' : '#38bdf8'; el.style.fontWeight = '700';
   });
   const note = document.getElementById('pe-auto-note');
   if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') + (diff ? ' ／ 自動と違う所 ' + diff + ' つ（オレンジ）は「ペア情報を更新」で記録されます' : '') : '';
@@ -4556,7 +4556,7 @@ function closePairEdit() {
 }
 
 async function savePairEdit() {
-  showLoader();
+  // 2026-11-22: saved in the background — the screen closes at once; GAS is updated behind it (offline / network trouble -> 保存待ち)
   try {
     const pairName = document.getElementById('pe-pair-name').value;
     const p = App.data.pairs.find(x => (x['PairName（元）'] || x['PairName']) === pairName);
@@ -4597,23 +4597,31 @@ async function savePairEdit() {
 
     // 確認日時 moves only when something really changed (「データを送信」 sends the pairs changed within the last day)
     if (Object.keys(updateData).some(k => String(p[k] == null ? '' : p[k]).trim() !== String(updateData[k] == null ? '' : updateData[k]).trim())) updateData['確認日時'] = jstStamp_();
-    const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
-    if (!res.success) throw new Error(res.error || '保存失敗');
-
-    // ローカルにも反映
+    // ローカルに先に反映して、画面はすぐ閉じる
+    const before = Object.assign({}, p);
     Object.assign(p, updateData);
-    // 2026-11-21: every save also goes to the record (Pair_History); GAS skips it when nothing changed since the pair's last record
-    try { await gasPostQueued({ action: 'savePairHistory', rows: [pairHistoryRow_(p)] }, '見方の記録: ' + pairName); } catch (e) { console.warn('savePairHistory', e); }
-
-    savePairAnalysisState(); // 分析チェック・選択ルールを保存（checkedAt更新）
+    const histRow = pairHistoryRow_(p);
+    savePairAnalysisState(); // 選択ルールを保存（checkedAt更新）
     closePairEdit();
     renderPairs();
     renderPlans();
-    showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : 'ペア情報を更新しました');
+    try { writeFastCache('pairs', App.data.pairs); } catch (e) {}
+    showToast('💾 保存しています（裏で送ります）');
+    (async () => {
+      try {
+        const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
+        if (!res.success) throw new Error(res.error || '保存失敗');
+        // every save also goes to the record (Pair_History); GAS skips it when nothing changed since the pair's last record
+        try { await gasPostQueued({ action: 'savePairHistory', rows: [histRow] }, '見方の記録: ' + pairName); } catch (e) { console.warn('savePairHistory', e); }
+        showToast(res.queued ? '📥 ' + pairName + '：電波がないので保存待ちに入れました' : '✅ ' + pairName + ' を保存しました');
+      } catch (e) {
+        Object.keys(updateData).forEach(k => { p[k] = before[k]; });      // the sheet did not take it: show what is really saved
+        renderPairs(); renderPlans();
+        showToast('⚠️ ' + pairName + ' を保存できませんでした: ' + e.message);
+      }
+    })();
   } catch (e) {
     alert('エラーが発生しました: ' + e.message);
-  } finally {
-    hideLoader();
   }
 }
 

@@ -86,6 +86,8 @@ def scan(b, pairs=PAIRS, log=None, timeout=None):
             logging.info('pair env %s: %s', p, ex)
             if log:
                 log(f'  {p:7s} とばした（{str(ex)[:80]}）')
+    if pool:
+        pool.shutdown(wait=False)
     return out
 
 

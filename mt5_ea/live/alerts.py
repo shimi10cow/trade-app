@@ -464,10 +464,10 @@ def main():
                 stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
                 logging.info('bar %s: %d new alerts (%d profiles on)', last, len(new), len(profs))
                 hour = str(pd.Timestamp(last).floor('h'))
-                if os.getenv('EA_PAIR_ENV', '0') == '1' and hour != st.get('env_hour'):    # once an hour (only with EA_PAIR_ENV=1 for now: PAIR_ENV.bat stalled on the PC 11/22 -> must not stop the alerts)
+                if os.getenv('EA_PAIR_ENV', '1') != '0' and hour != st.get('env_hour'):    # once an hour: trend arrows for the pair tab (400 days of M15 only, ~24 s; EA_PAIR_ENV=0 turns it off)
                     try:
                         from mt5_ea.live import pair_env
-                        rows = pair_env.scan(b)
+                        rows = pair_env.scan(b, timeout=60)
                         r = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
                         st['env_hour'] = hour; stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
                         logging.info('pair env: %d pairs sent, %s changed', len(rows), (r or {}).get('changed'))
