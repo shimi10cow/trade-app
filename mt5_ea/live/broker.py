@@ -92,8 +92,11 @@ class MT5Broker:
                 if tv <= 0 or abs(calc / tv - 1) > 0.05:
                     logging.warning('%s: tick value %s from symbol_info, %s from order_calc_profit -> using %s', sym, tv, calc, calc)
                 tv = calc
+            else:
+                raise RuntimeError(f'order_calc_profit gave {pr}')
         except Exception as ex:
-            logging.warning('%s: order_calc_profit failed (%s), using symbol_info tick value %s', sym, ex, tv)
+            # 2026-11-21: no fall-back to symbol_info's tick value (that value was the 11/9 gold bug): no lot size, no order this bar
+            raise RuntimeError(f'{sym}: 1 ティックの金額を MT5 の損益計算で確かめられないので、この足は注文しない（{ex}）')
         return SymbolSpec(i.volume_min, i.volume_step, i.volume_max, i.trade_tick_size, tv)
 
     # ---- data
@@ -160,8 +163,51 @@ class MT5Broker:
                 return res
         raise RuntimeError(f'order_check rejected: {mt5.last_error()}')
 
-    def open(self, sym, side, volume, sl, tp, magic, comment):
+    def _fx(self, cur, acc):
+        """price of 1 unit of currency `cur` in the account currency from a live quote (USDJPY# etc.), None if no pair."""
+        if cur == acc:
+            return 1.0
+        for a, b, inv in ((cur, acc, False), (acc, cur, True)):
+            for nm in (a + b + '#', a + b, a + b + 'micro'):
+                tk = self.mt5.symbol_info_tick(nm)
+                if tk and tk.bid > 0 and tk.ask > 0:
+                    mid = (tk.bid + tk.ask) / 2
+                    return 1.0 / mid if inv else mid
+        return None
+
+    def order_guard(self, sym, side, volume, price, sl, max_loss=None):
+        """Last check before any order (EA and reservations), 2026-11-21 (after the 11/9 gold lot bug). Raises OrderBlocked with the
+        reason when: the loss at the stop cannot be computed by MT5, two independent ways of computing it disagree (x0.67..x1.5),
+        it is more than 1.5x the risk the sizing meant (+ 1 yen), more than GUARD_MAX_LOSS of the equity whatever the settings,
+        or the margin is more than half of the free margin. Returns the checked loss (account currency)."""
+        mt5 = self.mt5; name = self.name(sym); i = mt5.symbol_info(name); a = mt5.account_info()
+        otype = mt5.ORDER_TYPE_BUY if side == 1 else mt5.ORDER_TYPE_SELL
+        pr = mt5.order_calc_profit(otype, name, float(volume), float(price), float(sl))
+        if pr is None:
+            raise OrderBlocked(f'損切りでの損失を MT5 で計算できない（{mt5.last_error()}）')
+        loss = -float(pr)
+        if loss <= 0:
+            raise OrderBlocked(f'損切りの位置がおかしい（損切りで {pr:.0f} の利益になる）')
+        fx = self._fx(str(getattr(i, 'currency_profit', '') or ''), str(a.currency))
+        cs = float(getattr(i, 'trade_contract_size', 0) or 0)
+        if fx is not None and cs > 0:
+            loss2 = float(volume) * cs * abs(float(price) - float(sl)) * fx
+            if loss2 <= 0 or not (0.67 <= loss / loss2 <= 1.5):
+                raise OrderBlocked(f'損失の計算が 2 通りで合わない（MT5 {loss:,.0f} / 契約サイズから {loss2:,.0f} {a.currency}）')
+        else:
+            logging.warning('%s: no %s/%s quote for the second loss check', sym, getattr(i, 'currency_profit', '?'), a.currency)
+        if max_loss is not None and max_loss > 0 and loss > 1.5 * float(max_loss) + 1:
+            raise OrderBlocked(f'損失 {loss:,.0f} がロット計算の想定 {max_loss:,.0f} の 1.5 倍を超える')
+        if a.equity > 0 and loss > GUARD_MAX_LOSS * a.equity:
+            raise OrderBlocked(f'損失 {loss:,.0f} が口座の {GUARD_MAX_LOSS:.0%}（{GUARD_MAX_LOSS * a.equity:,.0f}）を超える')
+        mg = mt5.order_calc_margin(otype, name, float(volume), float(price))
+        if mg is not None and a.margin_free > 0 and mg > 0.5 * a.margin_free:
+            raise OrderBlocked(f'必要証拠金 {mg:,.0f} が余力 {a.margin_free:,.0f} の半分を超える')
+        return loss
+
+    def open(self, sym, side, volume, sl, tp, magic, comment, max_loss=None):
         mt5 = self.mt5; name = self.name(sym); bid, ask = self.quote(sym)
+        self.order_guard(sym, side, volume, ask if side == 1 else bid, sl, max_loss)
         req = dict(action=mt5.TRADE_ACTION_DEAL, symbol=name, volume=float(volume), type=mt5.ORDER_TYPE_BUY if side == 1 else mt5.ORDER_TYPE_SELL,
                    price=ask if side == 1 else bid, sl=float(sl), tp=float(tp or 0), deviation=self.deviation, magic=int(magic),
                    comment=comment[:31], type_time=mt5.ORDER_TIME_GTC)
@@ -187,6 +233,13 @@ class MT5Broker:
                    type=mt5.ORDER_TYPE_SELL if pos.side == 1 else mt5.ORDER_TYPE_BUY, price=bid if pos.side == 1 else ask,
                    deviation=self.deviation, magic=pos.magic, comment=comment[:31], type_time=mt5.ORDER_TIME_GTC)
         return self._send(req)
+
+
+GUARD_MAX_LOSS = 0.05        # 2026-11-21: one order may never lose more than 5% of the equity at its stop, whatever the settings say
+
+
+class OrderBlocked(RuntimeError):
+    """The last check before an order refused it (the order is not sent)."""
 
 
 @dataclass
@@ -236,7 +289,7 @@ class PaperBroker:
     def positions(self, magics=None):
         return [p for p in self._pos if magics is None or p.magic in magics]
 
-    def open(self, sym, side, volume, sl, tp, magic, comment, price=None):
+    def open(self, sym, side, volume, sl, tp, magic, comment, price=None, max_loss=None):
         px = self.last_close(sym) if price is None else price
         self._ticket += 1
         self._pos.append(Position(self._ticket, sym, side, volume, px, sl, tp or 0.0, magic, comment, self.now))

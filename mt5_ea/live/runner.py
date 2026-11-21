@@ -24,6 +24,7 @@ import pandas as pd
 
 from . import gas, sizing
 from . import reservations as RV
+from .broker import OrderBlocked
 from .core import Frames, from_space, to_space
 from .env import Env
 from .registry import ADOPTED, BY_KEY
@@ -294,7 +295,10 @@ class Runner:
             self.notify('signal', f'予約のシグナル {sym} {side_j} {px:.5g}（{why}・予約は残す）')
             gas.enqueue('eaSignal', dict(rec, status=why))
             return [f'{key} signal only ({why})']
-        o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31])
+        try:
+            o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31], max_loss=money)
+        except OrderBlocked as ex:
+            return self._blocked(key, sym, side, lots, ex, rec)
         self.state['tickets'][str(o['ticket'])] = dict(key=key, sim_t='', side=side, entry=o['price'], sl0=sl, lots=o['volume'],
                                                          opened=str(self.b.server_now(sym)), risk_jpy=money, res=rid, sym=sym, tp=tp or 0)
         self.state['res_done'].append(rid)
@@ -418,7 +422,10 @@ class Runner:
             self.notify('signal', f'EA シグナル {key} {side_j} {px:.5g} 損切り {sl:.5g}（{why}）')
             gas.enqueue('eaSignal', dict(rec, status=why))
             return [f'{key} signal only ({why})']
-        r = self.b.open(sym, s, lots, sl, tp, MAGIC[key], f'{key}')
+        try:
+            r = self.b.open(sym, s, lots, sl, tp, MAGIC[key], f'{key}', max_loss=money)
+        except OrderBlocked as ex:
+            return self._blocked(key, sym, s, lots, ex, rec)
         sim_t = p['t'] if 't' in p else pd.Timestamp(p['signal_t']) + pd.Timedelta(minutes=15)
         self.state['tickets'][str(r['ticket'])] = dict(key=key, sim_t=str(pd.Timestamp(sim_t)), side=s, entry=r['price'], sl0=sl, lots=r['volume'],
                                                          opened=str(now), risk_jpy=money, sym=sym, tp=tp or 0)
@@ -426,6 +433,14 @@ class Runner:
         gas.enqueue('eaTradeOpen', dict(rec, ticket=r['ticket'], fill=r['price'], lots=r['volume'], entry_time=to_jst(now)))
         self._chart(r['ticket'], 'entry')
         return [f'{key} open {r["ticket"]} {side_j} {r["volume"]} @ {r["price"]}']
+
+    def _blocked(self, key, sym, side, lots, ex, rec):
+        """The last check before the order refused it (broker.order_guard): nothing is sent, Telegram + EA_Log say why."""
+        msg = f'注文を止めました {key} {sym} {"買い" if side == 1 else "売り"} {lots} lot：{ex}'
+        logging.error(msg); self.notify('error', msg)
+        gas.enqueue('eaLog', dict(account=self.kind, level='error', ea=key, message=msg[:500]))
+        gas.enqueue('eaSignal', dict(rec, status=f'注文を止めた：{ex}'[:200]))
+        return [f'{key} blocked: {ex}']
 
     # ------------------------------------------------------------------ trade chart images (entry / exit)
     def _chart(self, ticket, kind, exit_px=None, exit_time=None, R=None):
