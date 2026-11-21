@@ -4,8 +4,11 @@ The trader keeps several alert profiles in the app (demo config 'alerts': {on, p
   scenes   gateway  (出入口, methods 1 / 6) = the last protected swing broken by an H4 major reversal
            fortress (砦,     methods 2 / 7) = the protected swing of the current H4 major trend (breakout_protect)
            band     (抵抗体)              = an H4 level where >= 2 H4 swings sit within 0.25 ATR (90 days), either side
-  timing   near = the first M15 bar back within `near` ATR(H4) of the line after price had been >= `away` ATR beyond it
-           turn = after that touch, the first M15 Dow turn toward the bounce within 12 hours (the EAs' confirmation)
+  touch    the first M15 bar back within `near` ATR(H4) of the line after price had been >= `away` ATR beyond it
+  timing   (what sends the alert after the touch; 2026-11-21 user: not the touch itself, too many)
+           turn  = the first M15 Dow turn toward the bounce within 12 hours (the EAs' confirmation)
+           stm15 = M15 stochastic (14,5,3): %K below 20 -> %K crosses %D up -> %K back above 20 (sell: 80), within 12 hours
+           sth1  = the same on H1, within 48 hours (same rule as the app's reservations, reservations.trigger_on_last)
   conds    a catalog (CATALOG below, the app shows the same list): each on / off with its numbers
   pairs    [] = all FX pairs
 Every new M15 bar the PC scans the pairs (last 400 days of MT5 bars), evaluates every profile that is on, sends new alerts
@@ -24,6 +27,7 @@ import pandas as pd
 
 from mt5_ea.live.core import Frames
 from mt5_ea.live.eas import dsc
+from mt5_ea.live.reservations import stoch
 
 PAIRS = ('EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'CADJPY', 'CHFJPY',
          'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'EURAUD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF')
@@ -59,7 +63,7 @@ CATALOG = {
 }
 
 PRESETS = [   # 2026-11-21: first set, worked back from the EAs; the trader turns them on / edits them in the app
-    dict(id='p1', name='広く：出入口・砦に近づいた', on=True, scenes=['gateway', 'fortress'], timing='near', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='p1', name='広く：出入口・砦で反発（M15 ダウ転換）', on=True, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
          conds={'h4dir': {}}),
     dict(id='p2', name='DX@ 型：出入口のリターンムーブ', on=False, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
          conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'h1ma': {'period': 75, 'slope': 5}, 'd1ma': {'period': 75, 'slope': 10}, 'd1dow': {}, 'noopp': {}, 'score': {'n': 2}}),
@@ -67,9 +71,9 @@ PRESETS = [   # 2026-11-21: first set, worked back from the EAs; the trader turn
          conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'noopp': {}, 'noimpbrk': {}}),
     dict(id='p4', name='D@ 型：H4 の抵抗体（山谷 2 回以上）', on=False, scenes=['band'], timing='turn', near=0.3, away=1.0, life=60, pairs=[],
          conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'score': {'n': 2}}),
-    dict(id='p5', name='手法 6・7：日足は逆、H4 の流れに乗る', on=False, scenes=['gateway', 'fortress'], timing='near', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='p5', name='手法 6・7：日足は逆、H4 の流れに乗る', on=False, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
          conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'h1ma': {'period': 75, 'slope': 5}}),
-    dict(id='p6', name='浅い押し：流れ＋押し 0.1〜0.382', on=False, scenes=['gateway', 'fortress'], timing='near', near=0.3, away=1.0, life=40, pairs=[],
+    dict(id='p6', name='浅い押し：流れ＋押し 0.1〜0.382', on=False, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=40, pairs=[],
          conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'depth': {'min': 0.1, 'max': 0.382}, 'days': {'min': 5, 'max': 40}}),
 ]
 
@@ -93,7 +97,7 @@ class Market:
         pv = sorted((self.C4[e['idx']], e['to']) for e in F.R4['all_events'] if e.get('machine') == 'major' and e['action'] == 'REVERSAL')
         self.pv = pv; self.pvt = np.array([a for a, _ in pv], dtype='datetime64[ns]')
         self.prv = cx.PV; self.prvt = np.array([a for a, _ in cx.PV], dtype='datetime64[ns]')
-        self.d1c = pd.Series(cx.cd); self.h4c = pd.Series(cx.c4); self.h1c = pd.Series(cx.c1); self._ma = {}
+        self.d1c = pd.Series(cx.cd); self.h4c = pd.Series(cx.c4); self.h1c = pd.Series(cx.c1); self._ma = {}; self._st = {}
 
     def ma(self, tf, n):
         key = (tf, n)
@@ -145,6 +149,30 @@ class Market:
             return None, A
         q = a + hit[0]
         return (None if len(np.nonzero(s * (MC[a:q + 1] - L) < -0.5 * A)[0]) else q), A
+
+    def stoch_after(self, q, L, s, A, tf):
+        """the stochastic trigger (as the reservations) after the touch: (close time, close price) or None"""
+        cx = self.cx
+        if tf not in self._st:
+            if tf == 'M15':
+                self._st[tf] = (stoch(self.MH, self.ML, self.MC), self.CL, self.MC, self.MH, self.ML)
+            else:
+                self._st[tf] = (stoch(cx.H1h, cx.H1l, cx.c1), np.asarray(cx.C1, dtype='datetime64[ns]'), cx.c1, cx.H1h, cx.H1l)
+        (k, d), CT, CC, HH, LL = self._st[tf]
+        i0 = max(1, int(np.searchsorted(CT, self.CL[q]))); n = 48; state = 0; zone = 20.0 if s > 0 else 80.0
+        for i in range(i0, min(i0 + n, len(CT))):
+            if s * (CC[i] - L) < -0.4 * A:
+                return None
+            pk, pd_, kk, dd = k[i - 1], d[i - 1], k[i], d[i]
+            if np.isnan([pk, pd_, kk, dd]).any():
+                continue
+            if state == 0 and s * (zone - kk) > 0:
+                state = 1
+            elif state == 1 and s * (pk - pd_) <= 0 and s * (kk - dd) > 0:
+                state = 2
+            elif state == 2 and s * (zone - pk) >= 0 and s * (kk - zone) > 0:
+                return CT[i], float(CC[i])
+        return None
 
     def turn_after(self, q, L, s, A):
         """first M15 Dow turn toward the bounce within 12 hours of the touch (bar index), or None"""
@@ -276,14 +304,20 @@ def events(mk, prof, since):
         q, A = mk.first_near(L, s, born, lf, near, away)
         if q is None:
             continue
-        if prof.get('timing') == 'turn':
+        tm = prof.get('timing') or 'turn'
+        if tm in ('stm15', 'sth1'):
+            hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
+            if hit is None:
+                continue
+            te, px = hit
+        else:                                   # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
             q = mk.turn_after(q, L, s, A)
             if q is None:
                 continue
-        te = mk.CL[q]
+            te, px = mk.CL[q], float(mk.MC[q])
         if te < t_from:
             continue
-        out.append(dict(scene=scene, side=s, L=L, A=A, born=born, q=q, te=te, px=float(mk.MC[q])))
+        out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=te, px=px))
     return out
 
 
@@ -310,7 +344,7 @@ def evaluate(mk, profiles, since=None):
             meth = ('1' if d1 else '6') if ev['scene'] == 'gateway' else (('2' if d1 else '7') if ev['scene'] == 'fortress' else '')
             k = mk.k
             res.append(dict(sym=mk.sym, profile=prof.get('id', ''), pname=prof.get('name', ''), kind=SCENE_JA[ev['scene']], side=ev['side'], method=meth,
-                            timing=prof.get('timing', 'near'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
+                            timing=prof.get('timing', 'turn'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
                             met=met))
@@ -327,7 +361,7 @@ def jst(t):
 
 def text(a):
     dj = '買い' if a['side'] > 0 else '売り'; o = lambda v: '〇' if v else '✕'
-    how = '線に近づいた' if a['timing'] == 'near' else '線で反発して M15 が転換'
+    how = {'near': '線に近づいた', 'turn': '線で反発して M15 がダウ転換', 'stm15': '線で反発して M15 ストキャス', 'sth1': '線で反発して H1 ストキャス'}.get(a['timing'], '')
     lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']}（{how}）{('・手法' + a['method']) if a['method'] else ''}",
              f"線 {a['line']:g}・今 {a['price']:g}（{abs(a['price'] - a['line']) / a['atr']:.1f}ATR）",
              f"日足 {o(a['d1'])}・H1 MA75 {o(a['h1'])}・線の山谷 {a['touch']} 個", f"足 {a['jst']}（日本時間）"]
