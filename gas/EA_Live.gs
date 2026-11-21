@@ -25,12 +25,13 @@ const EAL_ = {
              // Excluded: left out of every result by the trader (2026-11-20; text = when + why, empty = counted)
              // Exit*: the trader's view of the exit (2026-11-13)   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
+  alerts: ['ID', 'Time', 'Symbol', 'Direction', 'Kind', 'Method', 'Line', 'Price', 'ATR', 'D1', 'H1', 'Touch', 'Born', 'CreatedAt'],   // discretionary alerts from the PC (mt5_ea/live/alerts.py, 2026-11-21)
   repmarks: ['ID', 'Account', 'EA', 'Symbol', 'Direction', 'Time', 'Verdict', 'Tags', 'Comment', 'ExitVerdict', 'ExitTags', 'Lines', 'UpdatedAt'],   // marks on backtest-only trades (missed entries) from the report (2026-11-21)
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   sigmarks: ['SigID', 'Account', 'EA', 'Symbol', 'Direction', 'Price', 'SL', 'Status', 'SignalTime', 'Verdict', 'Tags', 'Comment', 'UpdatedAt'],   // marks on signals that were not traded (2026-11-12)
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
 };
-const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health', sigmarks: 'EA_SignalMarks', repmarks: 'EA_ReportMarks'};
+const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health', sigmarks: 'EA_SignalMarks', repmarks: 'EA_ReportMarks', alerts: 'EA_Alerts'};
 
 function eaSetupKeys() {
   const p = PropertiesService.getScriptProperties();
@@ -68,7 +69,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
+const EAL_EA_ACTIONS_ = {eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
 const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -84,7 +85,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaAlert: ealAlert_, eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -164,9 +165,25 @@ function ealDashboard_(b) {
   const status = {}; ealRows_('status').forEach(r => { delete r._row; status[r.Account] = r; });
   const res = ealRows_('res').filter(r => r.Status === 'WAIT' || String(r.UpdatedAt).slice(0, 10) >= Utilities.formatDate(new Date(Date.now() - 30 * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd'))
     .map(r => { delete r._row; return r; });
-  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1, marks: 1},
+  const cut14 = Utilities.formatDate(new Date(Date.now() - 14 * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd');
+  const alerts = ealRows_('alerts').filter(r => String(r.Time).slice(0, 10) >= cut14).slice(-150).map(r => { delete r._row; return r; });
+  return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1, marks: 1, alerts: 1}, alerts: alerts,
           signals: ealSignals_(60),
           daily: ealRows_('daily').slice(-800).map(r => { delete r._row; return r; })};
+}
+
+/** EA PC (alerts.py): record the new discretionary alerts; returns the app's alert settings (demo config 'alerts'). */
+function ealAlert_(b) {
+  const sh = ealSheet_('alerts'), now = ealNow_(), xs = Array.isArray(b.alerts) ? b.alerts.slice(0, 200) : [];
+  if (xs.length) {
+    const have = new Set(ealRows_('alerts').slice(-3000).map(r => String(r.ID)));
+    const rows = xs.filter(a => !have.has(String(a.id))).map(a => [String(a.id).slice(0, 150), a.jst || '', a.sym || '', Number(a.side) === 1 ? 'BUY' : 'SELL', a.kind || '', String(a.method || ''),
+      a.line, a.price, a.atr, a.d1, a.h1, a.touch, String(a.born || '').slice(0, 16), now]);
+    if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, EAL_.alerts.length).setValues(rows);
+  }
+  let s = {on: true, methods: ['1', '6', '2', '7']};
+  ealRows_('config').forEach(r => { if (String(r.Account) === 'demo') { try { const c = JSON.parse(r.ConfigJSON); if (c.alerts) s = Object.assign(s, c.alerts); } catch (e) {} } });
+  return {success: true, settings: s};
 }
 
 /** EA PC (read only): everything the one-click report needs (mt5_ea/live/report.py, 2026-11-21). */

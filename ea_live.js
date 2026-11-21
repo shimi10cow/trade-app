@@ -307,6 +307,35 @@
         <button onclick="eaLiveMCRun()" style="${btn};margin-top:10px;padding:11px;font-size:13px;${neon('#38bdf8', '56,189,248')}">▶ 実行</button>
         ${res}` : ''}</div>`;
   }
+  // ---------- discretionary alerts (2026-11-21): the PC's alerts.py sends 'そろそろ' notices; settings live in the demo config ----------
+  const ALERT_M = [['1', '手法1', '日足〇・H4 出入口'], ['6', '手法6', '日足✕・H4 出入口'], ['2', '手法2', '日足〇・H4 砦'], ['7', '手法7', '日足✕・H4 砦']];
+  function alertCfg() { const d = (S.dash && S.dash.config && S.dash.config.demo) || null; const a = (d && d.alerts) || {}; return {on: a.on !== false, methods: Array.isArray(a.methods) ? a.methods : ['1', '6', '2', '7']}; }
+  async function saveAlertCfg(a) {
+    S.dash = S.dash || {}; S.dash.config = S.dash.config || {}; if (!S.dash.config.demo) S.dash.config.demo = defaultConfig('demo');
+    S.dash.config.demo.alerts = a; S.saving = '保存中…'; render();
+    try { const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaSaveConfig', key: appKey(), account: 'demo', config: S.dash.config.demo})}).then(x => x.json());
+      S.saving = r && r.success ? '保存済み' : ('保存できませんでした: ' + ((r && r.error) || '')); } catch (e) { S.saving = '保存できませんでした（通信）'; }
+    try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
+    render(); setTimeout(() => { if (S.saving === '保存済み') { S.saving = ''; render(); } }, 2500);
+  }
+  window.eaAlertOn = () => { const a = alertCfg(); a.on = !a.on; saveAlertCfg(a); };
+  window.eaAlertM = m => { const a = alertCfg(); a.methods = a.methods.includes(m) ? a.methods.filter(x => x !== m) : a.methods.concat(m); saveAlertCfg(a); };
+  window.eaAlertOpen = () => { S.alOpen = !S.alOpen; render(); };
+  function alertSection() {
+    const a = alertCfg(), list = ((S.dash && S.dash.alerts) || []).slice().reverse();
+    const shown = list.filter(x => a.methods.includes(String(x.Method)));
+    const chip = ([m, l, d]) => `<button onclick="eaAlertM('${m}')" style="${btn};padding:6px 4px;font-size:11px;${a.methods.includes(m) ? neon('#22d3ee', '34,211,238') : offBtn}">${l}<div style="font-size:9px;color:#94a3b8;font-weight:400">${d}</div></button>`;
+    const row = x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid #1e293b;font-size:12px">
+        <div><b>${esc(x.Symbol)}</b> ${dirJa(x.Direction)} · ${esc(x.Kind)} <span style="color:#94a3b8">手法${esc(x.Method)}</span>
+          <div style="color:#94a3b8;font-size:11px">${esc(String(x.Time).slice(5, 16))} · 日足 ${Number(x.D1) === (String(x.Direction) === 'BUY' ? 1 : -1) ? '〇' : '✕'} · H1 MA ${Number(x.H1) ? '〇' : '✕'} · 山谷 ${esc(x.Touch)}</div></div>
+        <div style="color:#64748b;font-size:11px;text-align:right">線 ${esc(x.Line)}<br>今 ${esc(x.Price)}</div></div>`;
+    return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaAlertOpen()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
+      <span>🔔 裁量の通知 ${a.on ? '<span style="color:#4ade80">ON</span>' : '<span style="color:#64748b">OFF</span>'} · 2 週間で ${shown.length} 件</span><span style="color:#94a3b8">${S.alOpen ? '▲' : '▼'}</span></button>
+      ${S.alOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0;line-height:1.5">FX 25 ペアで、H4 の出入口・砦に値段が戻ってきた（線の 0.3ATR 以内）時に Telegram へ。注文はしない。PC の「裁量の通知」の窓が動いている間だけ届く。決まりはチャートの確認のあとで調整する。</div>
+        <button onclick="eaAlertOn()" style="${btn};width:100%;padding:8px;margin-bottom:8px;${a.on ? neon('#4ade80', '74,222,128') : offBtn}">${a.on ? '通知 ON（押すと OFF）' : '通知 OFF（押すと ON）'}</button>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">${ALERT_M.map(chip).join('')}</div>
+        ${shown.map(row).join('') || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">ここ 2 週間の通知はありません</div>'}` : ''}</div>`;
+  }
   function sigSection() {
     if (!(S.dash && S.dash.signals)) return '';
     const list = sigAll().filter(g => String(g.Account) === S.acc).slice(-15).reverse();
@@ -483,6 +512,7 @@
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px"><div style="font-size:12px;font-weight:700;color:#94a3b8">EA 一覧</div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#94a3b8">${onCount} / ${ALL_KEYS.length} が ON</span>${onCount < ALL_KEYS.length ? `<button onclick="eaLiveAllOn()" style="${btn};${offBtn};padding:4px 9px;font-size:11px">すべて ON</button>` : ''}</div></div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${cards}</div>
+      ${alertSection()}
       ${featSection()}
       ${btSection()}
       ${minLotSection()}
