@@ -1370,16 +1370,16 @@ window.resetPairFlags = resetPairFlags;
 // ---- 通貨ペアの見方の記録（2026-10-25）：直近 1 日に保存したペアだけを、記録用の表（Pair_History）に足す
 function jstStamp_(d){const x=new Date((d||new Date()).getTime()+9*3600e3),p=n=>String(n).padStart(2,'0');return x.getUTCFullYear()+'-'+p(x.getUTCMonth()+1)+'-'+p(x.getUTCDate())+' '+p(x.getUTCHours())+':'+p(x.getUTCMinutes())+'+09:00';}
 function stampMs_(v){const s=String(v||'').trim();if(!s)return 0;const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[ T](\d{1,2}):(\d{2})/);if(m&&!/Z$|GMT/.test(s)){const t=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-9*3600e3;return t;}const d=new Date(s);return isNaN(d)?0:d.getTime();}
-const PAIR_HISTORY_FIELDS = ['M1','W1','D1','H4','H1','H4MA乖離','H4MA480.1200','H1MA20.80','H4MA20.80','フラグ','メモ','プラン方向','プラン設定日','プラン画像'];
+const PAIR_HISTORY_FIELDS = ['M1','W1','D1','H4','H1','H4MA乖離','H4MA480.1200','H1MA20.80','H4MA20.80','フラグ','メモ','プラン方向','プラン設定日','プラン画像','Auto_M1','Auto_W1','Auto_D1','Auto_H4','Auto_H1','AutoAt'];
 async function sendPairHistory() {
   const since = Date.now() - 24 * 3600e3;
   const xs = (App.data.pairs || []).filter(p => stampMs_(p['確認日時']) >= since);
   if (!xs.length) { showToast('直近 1 日に更新したペアはありません'); return; }
   const names = xs.map(p => p['PairName（元）'] || p.PairName);
-  if (!confirm('直近 1 日に更新した ' + xs.length + ' ペアの見方を記録に送りますか？\n' + names.join('、') + '\n（前回の記録と同じ中身のペアは入りません。ダウルール候補・分析チェックは送りません）')) return;
+  if (!confirm('直近 1 日に更新した ' + xs.length + ' ペアの見方を記録に送りますか？\n' + names.join('、') + '\n（前回の記録と同じ中身のペアは入りません。PC の自動の向きと、自分が直した所も一緒に記録します）')) return;
   showLoader();
   try {
-    const rows = xs.map(p => { const o = { PairName: p['PairName（元）'] || p.PairName, '確認日時': p['確認日時'] }; PAIR_HISTORY_FIELDS.forEach(k => { o[k] = p[k] == null ? '' : p[k]; }); if (!o['メモ']) o['メモ'] = p['環境認識メモ'] || ''; return o; });
+    const rows = xs.map(p => { const o = { PairName: p['PairName（元）'] || p.PairName, '確認日時': p['確認日時'] }; PAIR_HISTORY_FIELDS.forEach(k => { o[k] = p[k] == null ? '' : p[k]; }); if (!o['メモ']) o['メモ'] = p['環境認識メモ'] || ''; o['自動との差'] = pairAutoDiff_(p); return o; });
     const res = await gasPost({ action: 'savePairHistory', rows: rows });
     if (!res || res.success === false) throw new Error(/Unknown action/.test(String(res && res.error)) ? 'GAS をデプロイすると使えます' : ((res && res.error) || '送れませんでした'));
     showToast(res.added ? res.added + ' ペアを記録しました' + (res.skipped ? '（' + res.skipped + ' ペアは前回の記録と同じ）' : '') : '前回の記録から変わったペアはありません');
@@ -4483,6 +4483,8 @@ function openPairEdit(pairName) {
   setBtn('pe-tf-d1', p['D1']);
   setBtn('pe-tf-h4', p['H4']);
   setBtn('pe-tf-h1', p['H1']);
+  App.state.peAuto = p;
+  peAutoRefresh();
 
   setBtn('pe-ma-kairi', p['H4MA乖離']);
   setBtn('pe-ma-480', p['H4MA480.1200']);
@@ -4526,6 +4528,27 @@ function openPairEdit(pairName) {
   _pm.classList.add('active');
   requestAnimationFrame(() => { _pm.querySelector('.modal-body').scrollTop = 0; });
 }
+
+// 2026-11-21: the PC's Dow arrows (Pairs Auto_*, alerts window once an hour). Shows each one under the timeframe and marks where
+// the trader's choice differs; the difference is recorded by 「データを送信」 (Pair_History 自動との差).
+const PAIR_TFS_ = [['M1', 'pe-tf-m1'], ['W1', 'pe-tf-w1'], ['D1', 'pe-tf-d1'], ['H4', 'pe-tf-h4'], ['H1', 'pe-tf-h1']];
+function pairAutoDiff_(p, mine) {
+  return PAIR_TFS_.map(([k]) => { const a = String(p['Auto_' + k] || '').trim(), m = String((mine ? mine[k] : p[k]) || '').trim();
+    return a && m !== a ? k + '（自動' + a + '・自分' + (m || '空') + '）' : ''; }).filter(Boolean).join(', ');
+}
+function peAutoRefresh() {
+  const p = App.state.peAuto || {}; let any = false, diff = 0;
+  PAIR_TFS_.forEach(([k, id]) => {
+    const el = document.getElementById('pe-auto-' + k.toLowerCase()); if (!el) return;
+    const a = String(p['Auto_' + k] || '').trim(), btn = document.querySelector('#' + id + ' .toggle-btn.active'), m = btn ? btn.textContent.trim() : '';
+    if (a) any = true;
+    const d = a && m !== a; if (d) diff++;
+    el.textContent = a ? '自動' + a : ''; el.style.color = d ? '#f59e0b' : '#64748b'; el.style.fontWeight = d ? '700' : '400';
+  });
+  const note = document.getElementById('pe-auto-note');
+  if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') + (diff ? ' ／ 自動と違う所 ' + diff + ' つ（オレンジ）は「データを送信」で記録されます' : '') : '';
+}
+window.peAutoRefresh = peAutoRefresh;
 
 function closePairEdit() {
   document.getElementById('modal-pair-edit').classList.remove('active');

@@ -69,7 +69,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
+const EAL_EA_ACTIONS_ = {eaPairEnv: 1, eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
 const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -85,7 +85,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaAlert: ealAlert_, eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaPairEnv: ealPairEnv_, eaAlert: ealAlert_, eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -184,6 +184,39 @@ function ealAlert_(b) {
   let s = {on: true};                                  // profiles: none saved yet -> the PC uses its presets (alerts.py PRESETS)
   ealRows_('config').forEach(r => { if (String(r.Account) === 'demo') { try { const c = JSON.parse(r.ConfigJSON); if (c.alerts) s = Object.assign(s, c.alerts); } catch (e) {} } });
   return {success: true, settings: s};
+}
+
+/** EA PC (alerts window, once an hour): Dow trend arrows per pair (mt5_ea/live/pair_env.py, 2026-11-21).
+ *  Pairs Auto_M1..Auto_H1 always hold the latest automatic arrow; the pair's own M1..H1 (what the app shows and the trader
+ *  can correct) is overwritten only when the automatic arrow changes, so a correction stays until the market itself moves.
+ *  確認日時 is not touched: 「データを送信」 still records only the pairs the trader saved. */
+const EAL_ENV_TF_ = ['M1', 'W1', 'D1', 'H4', 'H1'];
+function ealPairEnv_(b) {
+  const xs = Array.isArray(b.pairs) ? b.pairs : [];
+  if (!xs.length) return {success: true, changed: 0};
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+  const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+  const need = EAL_ENV_TF_.map(k => 'Auto_' + k).concat(['AutoAt']).filter(k => h.indexOf(k) < 0);
+  if (need.length) { sh.getRange(1, h.length + 1, 1, need.length).setValues([need]); need.forEach(k => { h.push(k); v.forEach((r, i) => { if (i) r.push(''); }); }); }
+  const pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
+  const by = {}; xs.forEach(x => { by[String(x.pair || '')] = x; });
+  const ok = a => a === '↑' || a === '↓' || a === '→', now = ealNow_();
+  let changed = 0;
+  const cols = EAL_ENV_TF_.concat(EAL_ENV_TF_.map(k => 'Auto_' + k), ['AutoAt']).map(k => h.indexOf(k));
+  for (let i = 1; i < v.length; i++) {
+    const x = by[String(v[i][pc]).trim()];
+    if (!x) continue;
+    EAL_ENV_TF_.forEach(k => {
+      const a = String(x[k] || ''), ia = h.indexOf('Auto_' + k), im = h.indexOf(k);
+      if (!ok(a)) return;
+      if (String(v[i][ia]) !== a) { v[i][ia] = a; if (im >= 0 && String(v[i][im]) !== a) { v[i][im] = a; changed++; } }
+    });
+    v[i][h.indexOf('AutoAt')] = now;
+  }
+  cols.forEach(c => { if (c >= 0) { const rg = sh.getRange(2, c + 1, v.length - 1, 1); if (c === h.indexOf('AutoAt')) rg.setNumberFormat('@'); rg.setValues(v.slice(1).map(r => [r[c]])); } });
+  pairsCacheClear_();
+  try { CacheService.getScriptCache().remove('hybrid_config_v2'); } catch (e) {}
+  return {success: true, changed: changed};
 }
 
 /** EA PC (read only): everything the one-click report needs (mt5_ea/live/report.py, 2026-11-21). */

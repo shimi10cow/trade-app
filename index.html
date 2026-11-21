@@ -642,12 +642,13 @@
         <div class="section">
           <!-- Trend Direction -->
           <div class="section-title">トレンド方向</div>
+          <div id="pe-auto-note" style="font-size:11px;color:#64748b;margin:-4px 0 6px;"></div>
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">M1</span><div class="btn-group tf-group" id="pe-tf-m1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
-            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">W1</span><div class="btn-group tf-group" id="pe-tf-w1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
-            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">D1</span><div class="btn-group tf-group" id="pe-tf-d1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
-            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H4</span><div class="btn-group tf-group" id="pe-tf-h4" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
-            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;">H1</span><div class="btn-group tf-group" id="pe-tf-h1" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;display:flex;flex-direction:column;line-height:1.1;">M1<span class="pe-auto" id="pe-auto-m1" style="font-size:10px;color:#64748b;"></span></span><div class="btn-group tf-group" id="pe-tf-m1" onclick="setTimeout(peAutoRefresh,0)" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;display:flex;flex-direction:column;line-height:1.1;">W1<span class="pe-auto" id="pe-auto-w1" style="font-size:10px;color:#64748b;"></span></span><div class="btn-group tf-group" id="pe-tf-w1" onclick="setTimeout(peAutoRefresh,0)" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;display:flex;flex-direction:column;line-height:1.1;">D1<span class="pe-auto" id="pe-auto-d1" style="font-size:10px;color:#64748b;"></span></span><div class="btn-group tf-group" id="pe-tf-d1" onclick="setTimeout(peAutoRefresh,0)" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;display:flex;flex-direction:column;line-height:1.1;">H4<span class="pe-auto" id="pe-auto-h4" style="font-size:10px;color:#64748b;"></span></span><div class="btn-group tf-group" id="pe-tf-h4" onclick="setTimeout(peAutoRefresh,0)" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
+            <div class="grid-item" style="width:100%;"><span class="grid-label" style="min-width:52px;display:flex;flex-direction:column;line-height:1.1;">H1<span class="pe-auto" id="pe-auto-h1" style="font-size:10px;color:#64748b;"></span></span><div class="btn-group tf-group" id="pe-tf-h1" onclick="setTimeout(peAutoRefresh,0)" style="flex:1;"><button class="toggle-btn dir-up" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↑</button><button class="toggle-btn dir-flat" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">→</button><button class="toggle-btn dir-down" onclick="toggleBtn(this)" style="flex:1;padding:10px 0;">↓</button></div></div>
           </div>
 
           <!-- MA Conditions 2026-11-21: 使わないので隠す -->
@@ -663,7 +664,8 @@
           <div class="section-title">ダウルール候補</div>
           <div id="pe-dow-chips" style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px;"></div>
 
-          <!-- 分析チェック -->
+          <!-- 分析チェック（2026-11-21: 使わないので隠す。中身は残す） -->
+          <div style="display:none;">
           <div class="section-title">分析チェック</div>
           <div style="display:flex;gap:6px;margin-bottom:8px;">
             <button class="pe-tl-btn" id="pe-tl-suishin" onclick="togglePairTL('suishin')">TL推進方向</button>
@@ -671,6 +673,7 @@
             <button class="pe-tl-btn" id="pe-tl-h1ma" onclick="togglePairTL('h1ma')">H1MAエリア</button>
           </div>
           <div id="pe-tl-ts" style="font-size:11px;color:#475569;margin-bottom:16px;">未分析</div>
+          </div>
 
           <div class="form-row" style="align-items:flex-start;">
             <div class="memo-label-stack" style="margin-top:8px;"><span class="form-label">メモ</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;pe-memo&quot;,this)">🎙️ 音声入力</button></div>
@@ -1365,7 +1368,7 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261121b" charset="utf-8"></script>
+  <script src="./app.js?v=20261121c" charset="utf-8"></script>
   <script src="./ea_ideas.js?v=20261113b" charset="utf-8"></script>
   <script src="./mt5_tab.js?v=20261025i" charset="utf-8"></script>
   <script src="./ea_live.js?v=20261121h" charset="utf-8"></script>

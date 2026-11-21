@@ -463,6 +463,16 @@ def main():
                 st['sent'] = st['sent'][-5000:]; st['last_bar'] = str(last); first = False
                 stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
                 logging.info('bar %s: %d new alerts (%d profiles on)', last, len(new), len(profs))
+                hour = str(pd.Timestamp(last).floor('h'))
+                if os.getenv('EA_PAIR_ENV', '1') != '0' and hour != st.get('env_hour'):    # once an hour: trend arrows for the app's pair tab
+                    try:
+                        from mt5_ea.live import pair_env
+                        rows = pair_env.scan(b)
+                        r = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
+                        st['env_hour'] = hour; stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
+                        logging.info('pair env: %d pairs sent, %s changed', len(rows), (r or {}).get('changed'))
+                    except Exception as ex:
+                        logging.warning('pair env: %s', ex)
         except Exception as ex:
             logging.exception('alerts loop: %s', ex)
         time.sleep(20)

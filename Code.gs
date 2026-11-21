@@ -253,7 +253,8 @@ function updatePair(pairName, data) {
 // そのペアの前回の記録と中身（確認日時以外）が同じなら足さない（差分だけ。2 回押しても増えない）。ダウルール候補・分析チェックは送らない（ユーザー決定）。
 const PAIR_HISTORY_SHEET = 'Pair_History';
 const PAIR_HISTORY_HEADERS = ['SentAt', 'PairName', '確認日時', 'M1', 'W1', 'D1', 'H4', 'H1', 'H4MA乖離', 'H4MA480.1200', 'H1MA20.80', 'H4MA20.80',
-                              'フラグ', 'メモ', 'プラン方向', 'プラン設定日', 'プラン画像'];
+                              'フラグ', 'メモ', 'プラン方向', 'プラン設定日', 'プラン画像',
+                              'Auto_M1', 'Auto_W1', 'Auto_D1', 'Auto_H4', 'Auto_H1', 'AutoAt', '自動との差'];   // 2026-11-21: PC's arrows at that moment + where the trader differs
 function savePairHistory(rows) {
   if (!Array.isArray(rows) || !rows.length) return { success: true, added: 0, skipped: 0 };
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
@@ -261,9 +262,11 @@ function savePairHistory(rows) {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     let sh = ss.getSheetByName(PAIR_HISTORY_SHEET);
     if (!sh) { sh = ss.insertSheet(PAIR_HISTORY_SHEET); sh.getRange(1, 1, 1, PAIR_HISTORY_HEADERS.length).setValues([PAIR_HISTORY_HEADERS]); sh.setFrozenRows(1); }
-    const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+    let v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+    const miss = PAIR_HISTORY_HEADERS.filter(x => h.indexOf(x) < 0);       // columns added later go on the right
+    if (miss.length) { sh.getRange(1, h.length + 1, 1, miss.length).setValues([miss]); v = sh.getDataRange().getValues(); h = v[0].map(x => String(x).trim()); }
     // only what changed: a pair whose view is the same as its latest record is not added again
-    const ip = h.indexOf('PairName'), body = h.filter(x => x !== 'SentAt' && x !== '確認日時');
+    const ip = h.indexOf('PairName'), body = h.filter(x => x !== 'SentAt' && x !== '確認日時' && x !== 'AutoAt');
     const sig = get => body.map(x => String(get(x) == null ? '' : get(x)).trim()).join('\u0001');
     const last = {};
     v.slice(1).forEach(r => { last[String(r[ip])] = sig(x => r[h.indexOf(x)]); });
