@@ -317,18 +317,15 @@ def events(mk, prof, since):
         q, A = mk.first_near(L, s, born, lf, near, away)
         if q is None:
             continue
-        tms = [t for t in (prof.get('timings') or [prof.get('timing') or 'turn']) if t in ('turn', 'stm15', 'sth1')] or ['turn']   # several: the first signal wins
-        best = None
-        for tm in tms:
+        tms = [t for t in (prof.get('timings') or [prof.get('timing') or 'turn']) if t in ('turn', 'stm15', 'sth1')] or ['turn']
+        for tm in tms:                          # 2026-11-21 (user): every chosen signal sends its own alert (once per line and signal)
             if tm in ('stm15', 'sth1'):
                 hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
             else:                               # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
                 qt = mk.turn_after(q, L, s, A); hit = None if qt is None else (mk.CL[qt], float(mk.MC[qt]))
-            if hit is not None and (best is None or hit[0] < best[0]):
-                best = (hit[0], hit[1], tm)
-        if best is None or best[0] < t_from:
-            continue
-        out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=best[0], px=best[1], tm=best[2]))
+            if hit is None or hit[0] < t_from:
+                continue
+            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=hit[0], px=hit[1], tm=tm))
     return out
 
 
@@ -423,7 +420,7 @@ def main():
                     for sym in PAIRS:
                         try:
                             for a in evaluate(Market(sym, b.bars(sym, DAYS)), profs, since):
-                                aid = f"{a['profile']}|{a['sym']}|{a['kind']}|{a['side']}|{a['line']}|{a['born']}"
+                                aid = f"{a['profile']}|{a['timing']}|{a['sym']}|{a['kind']}|{a['side']}|{a['line']}|{a['born']}"
                                 if aid in st['sent']:
                                     continue
                                 a['jst'] = jst(a['t']); a['id'] = aid; new.append(a)
