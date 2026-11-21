@@ -66,7 +66,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
+const EAL_EA_ACTIONS_ = {eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
 const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -76,7 +76,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -87,7 +87,7 @@ function routeEALive_(action, body) {
                 eaImportCancel: () => { PropertiesService.getScriptProperties().deleteProperty('IMPORT_REQUEST'); return {success: true}; }}[action];
     if (/^eaImport/.test(action) && typeof impBatch_ !== 'function') throw new Error('add Trades.gs to the Apps Script project');
     const lock = LockService.getScriptLock();
-    const write = !(action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus' || action === 'eaImportSettings');
+    const write = !(action === 'eaReportData' || action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus' || action === 'eaImportSettings');
     if (write) lock.waitLock(20000);
     try { return fn(body); } finally { if (write) lock.releaseLock(); }
   } catch (e) {
@@ -159,6 +159,13 @@ function ealDashboard_(b) {
   return {success: true, config: cfg, status: status, trades: ealGetTrades_({limit: b.limit || 300}).data, reservations: res, features: {resKind: 1, marks: 1},
           signals: ealSignals_(60),
           daily: ealRows_('daily').slice(-800).map(r => { delete r._row; return r; })};
+}
+
+/** EA PC (read only): everything the one-click report needs (mt5_ea/live/report.py, 2026-11-21). */
+function ealReportData_(b) {
+  const strip = rows => rows.map(r => { delete r._row; return r; });
+  const cfg = {}; ealRows_('config').forEach(r => { try { cfg[r.Account] = JSON.parse(r.ConfigJSON); } catch (e) {} });
+  return {success: true, trades: strip(ealRows_('trades')), daily: strip(ealRows_('daily')), config: cfg};
 }
 
 function ealGetTrades_(b) {
