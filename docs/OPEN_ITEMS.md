@@ -257,6 +257,15 @@
 - 結果：波の中の位置をそろえると、4 日後の値動きの差は 0.04 ATR（ほぼゼロ）、年・銘柄で向きもばらばら。安値（高値）の更新率は 43%→47% と少しだけ。出来高は「値段が長くいた所」以上の情報を持たない。
 - 結論：チャートの出来高からの推定は採用しない。本物のポジション（OANDA のポジションブック、買い・売りの区別あり）は別物なので、口座ができたら同じ形で検証する。TradingView のインジケーターは、環境認識の表と出入口・砦・抵抗体のラインだけでよい（作るかは未定）。
 
+### F3. OANDA のオーダーブック・ポジションブックを無料で CSV に貯められるか（2026-11-22 調査）
+- Web ページ（OANDA Global Markets の Order & Position Book）：描画は labs-widgets.oanda.com/orderBook.bundle.js、データは labs-api.oanda.com/graphql の
+  `orderPositionBook(instrument, bookType: ORDER|POSITION, recentHours)`（bucketWidth・price・time・buckets{price, longCountPercent, shortCountPercent}）。
+  ログイン・キーなしでページが呼んでいる。対象 16 銘柄（EURUSD・USDJPY・AUDJPY・GBPJPY・EURJPY・AUDUSD・GBPUSD・USDCAD・USDCHF・EURAUD・EURGBP・EURCHF・GBPCHF・NZDUSD・XAUUSD・XAGUSD）。
+  → **使わない**：OGM 利用規約（2022-12）第 1 条「スクレイパー・スパイダー・ロボットなど自動の仕組みでサイトやツールから情報にアクセス・抽出・ダウンロードしてはならない」、第 4 条・第 7 条（複製・再配布の禁止）。試しの呼び出しもしていない。
+- 公式 REST API（v20）：2018 年に orderBook / positionBook が追加された記録はあるが、今の公式ドキュメントにはその説明ページがない（以前のページは 404）。使うには OANDA の口座で発行したトークン（Bearer）が必要。日本や OGM の口座で今も使えるかは、口座を作って試すまで分からない。
+- 公式 MT5 インジケーター（OANDA_OrderBook_OGM_EN.zip）：OANDA 口座へのログインが必要。プレミアム＝全銘柄・5 分ごと、プレミアムでない口座＝16 銘柄・15 分ごと。DLL を使う。マニュアルは「許可された顧客だけが使える」。CSV に書き出す機能はない（インジケーターの値を自分の MT5 で読むことが許されるかは OANDA に確認が必要）。
+- 結論：無料で定期的に CSV に貯める、規約上問題ない方法は今のところ見つからない。進めるなら、OANDA の口座を作ったうえで（1）v20 API で orderBook / positionBook が返るか、（2）MT5 インジケーターの値の保存が個人利用として許されるか、を OANDA に確認する。
+
 ### F1. 「捕まった買い手・売り手」を読むインジケーター＋AI 判断（2026-11-20 ユーザーのメモ、SNS の投稿より）
 - 中身（投稿の説明のまま）
   - 5 分足を、中の 1 分足まで分解して、買い・売りの攻防を読む（TradingView の Pine スクリプト「order-flow-strategy.pine」）。
