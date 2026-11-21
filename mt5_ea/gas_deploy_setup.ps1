@@ -36,6 +36,7 @@ if (Test-Path $work) { Rename-Item -Path $work -NewName ((Split-Path $work -Leaf
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 Push-Location $work
 try { clasp clone $scriptId; if ($LASTEXITCODE -ne 0) { throw "clasp clone failed" } } finally { Pop-Location }
+Set-Content -Path (Join-Path $work ".claspignore") -Value "backup/**`r`nnode_modules/**" -Encoding ASCII   # only the project files are pushed
 
 $files = Get-ChildItem $work -File | Where-Object { $_.Extension -in ".gs", ".js", ".html" } | ForEach-Object { $_.Name }
 Write-Host "Apps Script のファイル: $($files -join ', ')"

@@ -20,7 +20,9 @@ Write-Host "2/5 Apps Script の今の中身を読む（控えを取る）" -Fore
 Push-Location $work
 try {
     clasp pull; if ($LASTEXITCODE -ne 0) { throw "clasp pull failed" }
-    $bk = Join-Path $work ("backup\" + $stamp); New-Item -ItemType Directory -Force -Path $bk | Out-Null
+    # 2026-11-22: backups live OUTSIDE the clasp folder (clasp push sent backup\*.js too -> "already declared", GAS stopped)
+    $bk = Join-Path $data ("gas_backup\" + $stamp); New-Item -ItemType Directory -Force -Path $bk | Out-Null
+    Set-Content -Path (Join-Path $work ".claspignore") -Value "backup/**`r`nnode_modules/**" -Encoding ASCII
     foreach ($p in $cfg.map.PSObject.Properties) { Copy-Item (Join-Path $work $p.Value) $bk -ErrorAction SilentlyContinue }
 
     Write-Host "3/5 main のファイルに置き換える" -ForegroundColor Cyan

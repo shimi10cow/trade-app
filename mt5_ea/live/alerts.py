@@ -464,7 +464,7 @@ def main():
                 stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
                 logging.info('bar %s: %d new alerts (%d profiles on)', last, len(new), len(profs))
                 hour = str(pd.Timestamp(last).floor('h'))
-                if os.getenv('EA_PAIR_ENV', '1') != '0' and hour != st.get('env_hour'):    # once an hour: trend arrows for the app's pair tab
+                if os.getenv('EA_PAIR_ENV', '0') == '1' and hour != st.get('env_hour'):    # once an hour (only with EA_PAIR_ENV=1 for now: PAIR_ENV.bat stalled on the PC 11/22 -> must not stop the alerts)
                     try:
                         from mt5_ea.live import pair_env
                         rows = pair_env.scan(b)

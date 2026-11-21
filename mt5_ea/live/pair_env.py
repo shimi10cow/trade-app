@@ -48,39 +48,81 @@ def rates(b, sym, tf, n):
     return d[['t', 'o', 'h', 'l', 'c']].iloc[:-1]
 
 
-def scan(b, pairs=PAIRS):
-    """[{pair, M1, W1, D1, H4, H1}] for every pair this account has."""
+class Stalled(RuntimeError):
+    """MT5 did not answer one request in time (the stuck call cannot be cancelled, so the scan stops there)."""
+
+
+def scan(b, pairs=PAIRS, log=None, timeout=None):
+    """[{pair, M1, W1, D1, H4, H1}] for every pair this account has.
+    log(text): progress line per pair. timeout: seconds one MT5 request may take (None = wait forever, as before);
+    when MT5 does not answer, Stalled is raised with the rows done so far in .rows and the place in .where."""
+    import concurrent.futures as cf
+    import time
+    pool = cf.ThreadPoolExecutor(1) if timeout else None
+
+    def call(fn, *a):
+        if not pool:
+            return fn(*a)
+        return pool.submit(fn, *a).result(timeout=timeout)
+
     out = []
     for p in pairs:
+        t0 = time.time(); row = {'pair': p}; tf = 'symbol'
         try:
-            row = {'pair': p}
+            call(b.name, p)
             for key, tf, n in TFS:
-                d = rates(b, p, tf, n)
+                d = call(rates, b, p, tf, n)
                 row[key] = direction(d, key) if d is not None else ''
             if any(row[k] for k, _, _ in TFS):
                 out.append(row)
+            if log:
+                log(f"  {p:7s} M1 {row['M1'] or '-'}  W1 {row['W1'] or '-'}  D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
+        except cf.TimeoutError:
+            ex = Stalled(f'{p} の {tf} で MT5 が {timeout} 秒たっても返事をしない'); ex.rows, ex.where = out, (p, tf)
+            raise ex
         except Exception as ex:                         # symbol missing on this account, no history, ...
             logging.info('pair env %s: %s', p, ex)
+            if log:
+                log(f'  {p:7s} とばした（{str(ex)[:80]}）')
     return out
 
 
-def main():
-    """PAIR_ENV.bat: read the arrows from MT5 (the demo terminal, read only) and send them to the app once."""
+def main(argv=None):
+    """PAIR_ENV.bat: read the arrows from MT5 (the demo terminal, read only) and send them to the app once.
+    python -m mt5_ea.live.pair_env [--pairs EURUSD,USDJPY] [--timeout 60] [--no-send]"""
+    import argparse
     import os
+    import time
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--pairs', default=''); ap.add_argument('--timeout', type=float, default=60); ap.add_argument('--no-send', action='store_true')
+    a = ap.parse_args(argv)
     from mt5_ea.live import gas
     from mt5_ea.live.broker import MT5Broker
     logging.basicConfig(level=logging.WARNING, format='%(levelname)s %(message)s')
     path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
     if path:
         os.environ['EA_MT5_PATH'] = path
-    print('通貨ペアの向きを計算します（注文はしません）', flush=True)
-    rows = scan(MT5Broker())
-    for r in rows:
-        print(f"  {r['pair']:7s} M1 {r['M1'] or '-'}  W1 {r['W1'] or '-'}  D1 {r['D1'] or '-'}  H4 {r['H4'] or '-'}  H1 {r['H1'] or '-'}", flush=True)
-    res = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
-    if not res or res.get('success') is False:
-        raise SystemExit('送れませんでした: ' + str((res or {}).get('error')))
-    print(f"\n{len(rows)} ペアをアプリに送りました（自動の向きが変わって書き換えた所: {res.get('changed', 0)}）", flush=True)
+    say = lambda x: print(x, flush=True)
+    say('通貨ペアの向きを計算します（注文はしません）')
+    t0 = time.time(); say(f'  MT5 につなぎます: {path or "（いつもの MT5）"}')
+    b = MT5Broker(); say(f'  つながりました（{time.time() - t0:.0f}秒）')
+    pairs = tuple(x.strip().upper() for x in a.pairs.split(',') if x.strip()) or PAIRS
+    stalled = None
+    try:
+        rows = scan(b, pairs, log=say, timeout=a.timeout)
+    except Stalled as ex:
+        rows, stalled = ex.rows, ex
+        say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
+    if a.no_send:
+        say('（--no-send: 送りません）')
+    elif rows:
+        res = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
+        if not res or res.get('success') is False:
+            say('送れませんでした: ' + str((res or {}).get('error')))
+            os._exit(1)
+        say(f"\n{len(rows)} ペアをアプリに送りました（自動の向きが変わって書き換えた所: {res.get('changed', 0)}）")
+    if stalled:
+        os._exit(2)                                     # the stuck MT5 call cannot be cancelled: leave without waiting for it
 
 
 if __name__ == '__main__':
