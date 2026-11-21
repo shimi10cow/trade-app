@@ -2390,6 +2390,8 @@ function maybeShowMonthlySummary() {
   // ルール準拠損益・PIPS
   const ruleProfit = monthTrades.reduce((s, t) => s + (parseFloat(t['ルール準拠損益'] || t['ルール準拠pips'] || 0)), 0);
   const totalPips = monthTrades.reduce((s, t) => s + (parseFloat(t['実取得pips']) || 0), 0);
+  const totalR = monthTrades.reduce((s, t) => { const r = parseFloat(t['実リスクリワード']); const sl = parseFloat(t['StopLossPips']) || 0;
+    return s + (!isNaN(r) ? r : (sl > 0 ? (parseFloat(t['実取得pips']) || 0) / sl : 0)); }, 0);   // 2026-11-21: R instead of pips
   const avgRR = n > 0 ? (monthTrades.reduce((s, t) => s + (parseFloat(t['実RR']) || 0), 0) / n) : 0;
 
   const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
@@ -2402,7 +2404,7 @@ function maybeShowMonthlySummary() {
     stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
     stat('勝率', Math.round(wins / n * 100) + '%', wins / n < 0.4 ? '#f87171' : '#4ade80') +
     stat('勝/負/分', `${wins}/${losses}/${draws}`) +
-    stat('合計PIPS', (totalPips >= 0 ? '+' : '') + totalPips.toFixed(1) + 'p', totalPips >= 0 ? '#4ade80' : '#f87171') +
+    stat('合計 R', (totalR >= 0 ? '+' : '') + totalR.toFixed(2) + 'R', totalR >= 0 ? '#4ade80' : '#f87171') +
     stat('平均RR', avgRR.toFixed(2)) +
     stat('最大DD', '¥' + fmtYen(maxDD), maxDD > 120000 ? '#f87171' : '#4ade80');
   document.getElementById('monthly-stats2').innerHTML =
@@ -3328,32 +3330,18 @@ function applyAnalysisFilters() {
     </div>
 
     ${csClose()}
-    ${csOpen('pips', '📈 pips統計')}
-    <div class="metric-card">
-      <div class="metric-label">総取得pips</div>
-      <div class="metric-value ${classForNum(totalPips)}">${totalPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">1トレード平均pips</div>
-      <div class="metric-value ${classForNum(parseFloat(avgTradePips))}">${avgTradePips}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">勝ち合計pips</div>
-      <div class="metric-value pos">${winPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">勝ち平均pips</div>
-      <div class="metric-value pos">+${avgWinPips}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">負け合計pips</div>
-      <div class="metric-value neg">${lossPips.toFixed(1)}<span class="metric-unit">pips</span></div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">負け平均pips</div>
-      <div class="metric-value neg">${avgLossPips}<span class="metric-unit">pips</span></div>
-    </div>
-
+    ${csOpen('pips', '📈 R 統計（実取得 ÷ 最初の損切り）')}
+    ${(() => {   // 2026-11-21 (user): pips differ between FX / gold / indices, so results are shown in R
+      const R = filtered.map(t => { const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0; const p = parseFloat(t['実取得pips']);
+        const r = parseFloat(t['実リスクリワード']); return !isNaN(r) ? r : (sl > 0 && !isNaN(p) ? p / sl : NaN); }).filter(v => !isNaN(v));
+      const n = R.length, sum = R.reduce((x, y) => x + y, 0), W = R.filter(v => v > 0), L = R.filter(v => v <= 0);
+      const avg = v => v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0, f = v => (v > 0 ? '+' : '') + v.toFixed(2);
+      const card = (lbl, val, cls) => `<div class="metric-card"><div class="metric-label">${lbl}</div><div class="metric-value ${cls}">${val}<span class="metric-unit">R</span></div></div>`;
+      let c = 0, pk = 0, dd = 0; R.forEach(v => { c += v; pk = Math.max(pk, c); dd = Math.max(dd, pk - c); });
+      return card('合計', f(sum), classForNum(sum)) + card('1 トレード平均（期待値）', n ? f(sum / n) : '--', classForNum(sum)) + card('勝ちの平均', W.length ? f(avg(W)) : '--', 'pos')
+        + card('負けの平均', L.length ? f(avg(L)) : '--', 'neg') + card('一番大きい勝ち', n ? f(Math.max(...R)) : '--', 'pos') + card('最大の落ち込み（DD）', n ? '-' + dd.toFixed(2) : '--', 'neg')
+        + `<div style="grid-column:1/-1;font-size:10px;color:#64748b">R を出せたのは ${n} / ${filtered.length} 件（最初の損切りが入っていないものは除く）</div>`;
+    })()}
     ${csClose()}
     ${csOpen('profit', '💴 収支統計')}
     <div class="metric-card">
@@ -5169,6 +5157,9 @@ function calculateRuleMetrics() {
 
 function startEntrySubmit() {
   if (!document.getElementById('ne-pair').value) { alert("ペアを選択してください"); return; }
+  if (!String(document.getElementById('ne-sl-price').value || '').trim() && !String(document.getElementById('ne-sl').value || '').trim()) {
+    alert("最初の損切り（SL価格）を入れてください。成績を R（取れた幅 ÷ 最初の損切り幅）で出すのに使います"); return;   // 2026-11-21
+  }
   submitEntryData();
 }
 
