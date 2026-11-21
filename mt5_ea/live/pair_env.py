@@ -4,7 +4,7 @@ The same Dow engine the EAs use (env_recognition.dow_trend) on MT5's own MN1 / W
   ↑  major trend up   and the provisional trend agrees
   ↓  major trend down and the provisional trend agrees
   →  no trend yet, or the provisional trend has already turned against the major one (turning)
-The alerts window sends these once an hour (eaPairEnv). GAS keeps them in Pairs Auto_* and copies a value into the
+The alerts window (demo) sends these once an hour; PAIR_ENV.bat (python -m mt5_ea.live.pair_env) sends them now. -> GAS eaPairEnv. GAS keeps them in Pairs Auto_* and copies a value into the
 pair's own M1..H1 only when the automatic value changes, so a correction made in the app stays until the market moves.
 Only reads prices; never orders."""
 import logging
@@ -62,3 +62,26 @@ def scan(b, pairs=PAIRS):
         except Exception as ex:                         # symbol missing on this account, no history, ...
             logging.info('pair env %s: %s', p, ex)
     return out
+
+
+def main():
+    """PAIR_ENV.bat: read the arrows from MT5 (the demo terminal, read only) and send them to the app once."""
+    import os
+    from mt5_ea.live import gas
+    from mt5_ea.live.broker import MT5Broker
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s %(message)s')
+    path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
+    if path:
+        os.environ['EA_MT5_PATH'] = path
+    print('通貨ペアの向きを計算します（注文はしません）', flush=True)
+    rows = scan(MT5Broker())
+    for r in rows:
+        print(f"  {r['pair']:7s} M1 {r['M1'] or '-'}  W1 {r['W1'] or '-'}  D1 {r['D1'] or '-'}  H4 {r['H4'] or '-'}  H1 {r['H1'] or '-'}", flush=True)
+    res = gas.call('eaPairEnv', {'pairs': rows}, timeout=90)
+    if not res or res.get('success') is False:
+        raise SystemExit('送れませんでした: ' + str((res or {}).get('error')))
+    print(f"\n{len(rows)} ペアをアプリに送りました（自動の向きが変わって書き換えた所: {res.get('changed', 0)}）", flush=True)
+
+
+if __name__ == '__main__':
+    main()
