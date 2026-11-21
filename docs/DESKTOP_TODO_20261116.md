@@ -207,3 +207,18 @@ MT5 の「気配値表示」で右クリック →「銘柄」から、次の 4 
   4. 1 回押してみて、ブラウザで開くか・「バックテストし直します」が数分で終わるかを確認。止まったら窓の文字をそのままクラウドに
 - MT5 は `EA_DEMO_MT5_PATH`（デモの MT5）から足を読む。別の MT5 にしたい時はユーザー環境変数 `EA_REPORT_MT5_PATH` に terminal64.exe のパス。
 - 速くしたい時：`EA_REPORT.bat --no-bt`（突き合わせなし）、`--days 90`（直近 90 日だけ）。
+
+## 2026-11-21（追加）：GAS のデプロイをボタン 1 つに（clasp）
+- `mt5_ea\GAS_DEPLOY.bat`：GitHub の main の `Code.gs`・`gas/EA_Live.gs`・`gas/Trades.gs` を Apps Script に送り、**今のデプロイを新しいバージョンに更新**（URL は変わらない）。
+  プログラムのフォルダは触らない（main を `git show` で読むだけ）ので、動いている EA には影響しない。送る前に Apps Script の 3 ファイルの控えを `TradeEA_data\gas_clasp\backup\日時\` に取る。
+  Apps Script にある他のファイル（GitHub に無いもの）は消さずにそのまま残る。記録は `TradeEA_data\gas_deploy.log`。
+- 初回だけ `mt5_ea\GAS_DEPLOY_SETUP.bat`（デスクトップの Claude に任せてよい。ユーザーの操作が要るのは 3 と 4 のブラウザだけ）
+  1. Node.js が無ければ `winget install OpenJS.NodeJS.LTS` → 窓を閉じてやり直す
+  2. clasp 2.4.2 を自動で入れる
+  3. ブラウザで「Google Apps Script API」をオン（https://script.google.com/home/usersettings）→ Enter
+  4. `clasp login`：ブラウザで、スプレッドシートを持っている Google アカウントで許可
+  5. スクリプト ID を貼る（Apps Script → 歯車「プロジェクトの設定」→「スクリプト ID」）→ 自動で取り込み、ファイル名を確かめる。
+     デプロイ ID は EA の `EA_GAS_URL` から自動で取る（取れない時は一覧から選ぶ）
+- 終わったら一度 `GAS_DEPLOY.bat` を押して、最後に「GAS を更新しました」と出るか、アプリが今までどおり開くかを確認。今たまっている GAS の変更（外すボタン・○△×・B の数字・レポートの入口）もこれで入る。
+- `GAS_DEPLOY.bat` と `EA_REPORT.bat`（成績レポート）のショートカットをデスクトップに置く。
+- 失敗した時：窓の文字をそのままクラウドに。元に戻す時は backup の 3 ファイルを Apps Script に手で貼る。
