@@ -25,7 +25,7 @@ const EAL_ = {
              // Excluded: left out of every result by the trader (2026-11-20; text = when + why, empty = counted)
              // Exit*: the trader's view of the exit (2026-11-13)   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
-  alerts: ['ID', 'Time', 'Symbol', 'Direction', 'Kind', 'Method', 'Line', 'Price', 'ATR', 'D1', 'H1', 'Touch', 'Born', 'CreatedAt', 'Profile', 'Timing', 'Met'],   // discretionary alerts from the PC (mt5_ea/live/alerts.py, 2026-11-21)
+  alerts: ['ID', 'Time', 'Symbol', 'Direction', 'Kind', 'Method', 'Line', 'Price', 'ATR', 'D1', 'H1', 'Touch', 'Born', 'CreatedAt', 'Profile', 'Timing', 'Met', 'N'],   // discretionary alerts from the PC (mt5_ea/live/alerts.py, 2026-11-21)
   repmarks: ['ID', 'Account', 'EA', 'Symbol', 'Direction', 'Time', 'Verdict', 'Tags', 'Comment', 'ExitVerdict', 'ExitTags', 'Lines', 'UpdatedAt'],   // marks on backtest-only trades (missed entries) from the report (2026-11-21)
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   sigmarks: ['SigID', 'Account', 'EA', 'Symbol', 'Direction', 'Price', 'SL', 'Status', 'SignalTime', 'Verdict', 'Tags', 'Comment', 'UpdatedAt'],   // marks on signals that were not traded (2026-11-12)
@@ -178,7 +178,7 @@ function ealAlert_(b) {
   if (xs.length) {
     const have = new Set(ealRows_('alerts').slice(-3000).map(r => String(r.ID)));
     const rows = xs.filter(a => !have.has(String(a.id))).map(a => [String(a.id).slice(0, 150), a.jst || '', a.sym || '', Number(a.side) === 1 ? 'BUY' : 'SELL', a.kind || '', String(a.method || ''),
-      a.line, a.price, a.atr, a.d1, a.h1, a.touch, String(a.born || '').slice(0, 16), now, String(a.pname || '').slice(0, 80), a.timing || '', String(a.met || '').slice(0, 500)]);
+      a.line, a.price, a.atr, a.d1, a.h1, a.touch, String(a.born || '').slice(0, 16), now, String(a.pname || '').slice(0, 80), a.timing || '', String(a.met || '').slice(0, 500), a.n || 1]);
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, EAL_.alerts.length).setValues(rows);
   }
   let s = {on: true};                                  // profiles: none saved yet -> the PC uses its presets (alerts.py PRESETS)

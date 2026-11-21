@@ -4,7 +4,8 @@ The trader keeps several alert profiles in the app (demo config 'alerts': {on, p
   scenes   gateway  (出入口, methods 1 / 6) = the last protected swing broken by an H4 major reversal
            fortress (砦,     methods 2 / 7) = the protected swing of the current H4 major trend (breakout_protect)
            band     (抵抗体)              = an H4 level where >= 2 H4 swings sit within 0.25 ATR (90 days), either side
-  touch    the first M15 bar back within `near` ATR(H4) of the line after price had been >= `away` ATR beyond it
+  touch    an M15 bar back within `near` ATR(H4) of the line after an M15 close >= `away` ATR beyond it; every return counts
+           (2026-11-21), the line ends after `life` days or when an H4 close goes `brk` ATR through it (default 0 = any close beyond)
   timing   (what sends the alert after the touch; 2026-11-21 user: not the touch itself, too many)
            turn  = the first M15 Dow turn toward the bounce within 12 hours (the EAs' confirmation)
            stm15 = M15 stochastic (14,5,3): %K below 20 -> %K crosses %D up -> %K back above 20 (sell: 80), within 12 hours
@@ -68,13 +69,13 @@ CATALOG = {
 
 PRESETS = [   # 2026-11-21 (user): only the trader's own methods 1 / 2 / 6 / 7; the alert comes when entering (M15 Dow turn after the touch);
               # + the trader's score (line 1 + impulse TL 2 + H1 MA 1 + correction TL 1 + M15 TL 1) >= 4 (user: selectable, threshold editable)
-    dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+    dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
 ]
 
@@ -137,19 +138,25 @@ class Market:
                 have.append((L, c4[i])); out += [('band', 1, L, c4[i], life), ('band', -1, L, c4[i], life)]
         return out
 
-    def first_near(self, L, s, t0, life, near, away):
+    def touches(self, L, s, t0, life, near, away, brk=0.0):
+        """2026-11-21 (user): every return to the line, not only the first. A touch = an M15 bar within `near` ATR of the line after
+        an M15 close >= `away` ATR beyond it (on the trade side); after a touch price must go `away` beyond again before the next one.
+        The line ends after `life` days or when an H4 close goes more than `brk` ATR through it. Returns [(bar index, touch number)]."""
         TM, MC, MH, ML = self.TM, self.MC, self.MH, self.ML; A = self.a4(t0)
         q0 = int(np.searchsorted(TM, t0)); q1 = int(np.searchsorted(TM, t0 + int(life) * DAY))
-        if q1 <= q0:
-            return None, A
-        far = np.nonzero(s * (MC[q0:q1] - L) >= away * A)[0]
-        if not len(far):
-            return None, A
-        a = q0 + far[0]; hit = np.nonzero(s * ((ML if s > 0 else MH)[a:q1] - L) <= near * A)[0]
-        if not len(hit):
-            return None, A
-        q = a + hit[0]
-        return (None if len(np.nonzero(s * (MC[a:q + 1] - L) < -0.5 * A)[0]) else q), A
+        k0 = int(np.searchsorted(self.C4, t0, side='right')); k1 = int(np.searchsorted(self.C4, t0 + int(life) * DAY))
+        thr = np.nonzero(s * (self.cx.c4[k0:k1] - L) < -brk * A)[0]
+        if len(thr):                            # the H4 close that ends the line (its bar closes at C4[...])
+            q1 = min(q1, int(np.searchsorted(TM, self.C4[k0 + thr[0]])))
+        out, armed, n = [], False, 0
+        for q in range(q0, min(q1, len(TM))):
+            if not armed:
+                if s * (MC[q] - L) >= away * A:
+                    armed = True
+                continue
+            if s * ((ML[q] if s > 0 else MH[q]) - L) <= near * A:
+                n += 1; out.append((q, n)); armed = False
+        return out, A
 
     def stoch_after(self, q, L, s, A, tf):
         """the stochastic trigger (as the reservations) after the touch: (close time, close price) or None"""
@@ -314,18 +321,19 @@ def events(mk, prof, since):
     for scene, s, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
         if born + int(lf) * DAY < t_from - 2 * DAY:
             continue
-        q, A = mk.first_near(L, s, born, lf, near, away)
-        if q is None:
-            continue
+        tch, A = mk.touches(L, s, born, lf, near, away, float(prof.get('brk', 0.0)))
         tms = [t for t in (prof.get('timings') or [prof.get('timing') or 'turn']) if t in ('turn', 'stm15', 'sth1')] or ['turn']
-        for tm in tms:                          # 2026-11-21 (user): every chosen signal sends its own alert (once per line and signal)
-            if tm in ('stm15', 'sth1'):
-                hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
-            else:                               # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
-                qt = mk.turn_after(q, L, s, A); hit = None if qt is None else (mk.CL[qt], float(mk.MC[qt]))
-            if hit is None or hit[0] < t_from:
+        for q, n in tch:                        # every return to the line (2026-11-21)
+            if mk.CL[q] + 2 * DAY < t_from:
                 continue
-            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=hit[0], px=hit[1], tm=tm))
+            for tm in tms:                      # 2026-11-21 (user): every chosen signal sends its own alert (once per touch and signal)
+                if tm in ('stm15', 'sth1'):
+                    hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
+                else:                           # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
+                    qt = mk.turn_after(q, L, s, A); hit = None if qt is None else (mk.CL[qt], float(mk.MC[qt]))
+                if hit is None or hit[0] < t_from:
+                    continue
+                out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=hit[0], px=hit[1], tm=tm, n=n, tq=mk.CL[q]))
     return out
 
 
@@ -352,7 +360,7 @@ def evaluate(mk, profiles, since=None):
             meth = ('1' if d1 else '6') if ev['scene'] == 'gateway' else (('2' if d1 else '7') if ev['scene'] == 'fortress' else '')
             k = mk.k
             res.append(dict(sym=mk.sym, profile=prof.get('id', ''), pname=prof.get('name', ''), kind=SCENE_JA[ev['scene']], side=ev['side'], method=meth,
-                            timing=ev.get('tm', 'turn'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
+                            timing=ev.get('tm', 'turn'), n=ev.get('n', 1), touch_t=pd.Timestamp(ev.get('tq', ev['te'])), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
                             met=met, uscore=ev.get('_uscore')))
@@ -370,7 +378,7 @@ def jst(t):
 def text(a):
     dj = '買い' if a['side'] > 0 else '売り'; o = lambda v: '〇' if v else '✕'
     how = {'near': '線に近づいた', 'turn': '線で反発して M15 がダウ転換', 'stm15': '線で反発して M15 ストキャス', 'sth1': '線で反発して H1 ストキャス'}.get(a['timing'], '')
-    lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']}（{how}）{('・手法' + a['method']) if a['method'] else ''}",
+    lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']} {a.get('n', 1)} 回目の戻り（{how}）{('・手法' + a['method']) if a['method'] else ''}",
              f"線 {a['line']:g}・今 {a['price']:g}（{abs(a['price'] - a['line']) / a['atr']:.1f}ATR）",
              f"日足 {o(a['d1'])}・H1 MA75 {o(a['h1'])}・線の山谷 {a['touch']} 個", f"足 {a['jst']}（日本時間）"]
     if a.get('uscore') is not None:
@@ -420,7 +428,7 @@ def main():
                     for sym in PAIRS:
                         try:
                             for a in evaluate(Market(sym, b.bars(sym, DAYS)), profs, since):
-                                aid = f"{a['profile']}|{a['timing']}|{a['sym']}|{a['kind']}|{a['side']}|{a['line']}|{a['born']}"
+                                aid = f"{a['profile']}|{a['timing']}|{a['sym']}|{a['kind']}|{a['side']}|{a['line']}|{a['born']}|{a['touch_t']}"
                                 if aid in st['sent']:
                                     continue
                                 a['jst'] = jst(a['t']); a['id'] = aid; new.append(a)
