@@ -89,7 +89,7 @@ W1_DAYS = 3 * 365 + 7                   # weekly: never older than 3 years
 def weekly_bars(b, p, now=None):
     """Closed W1 bars of the last 3 years (copy_rates_range with a start date: never a count, which pulled decades of M1)."""
     mt5 = b.mt5; err = None
-    to = pd.Timestamp(now) if now is not None else pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=1)
+    to = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz='UTC').tz_localize(None) + pd.Timedelta(days=1)
     for n in ALIAS.get(p, (p,)):
         try:
             r = mt5.copy_rates_range(b.name(n), mt5.TIMEFRAME_W1, (to - pd.Timedelta(days=W1_DAYS)).to_pydatetime(), to.to_pydatetime())
