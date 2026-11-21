@@ -175,8 +175,6 @@
     ["150 万円", "76 本", "＋US100 IX", "+377%", "-18%", "約 366 回"],
     ["300 万円", "78 本（全部）", "＋US30 短い押し目・US30 IX", "+389%", "-17%", "約 381 回"],
   ];
-  // 2026-11-16: D@ (18 EAs: B / C / W on EURUSD, AUDJPY, EURJPY, GBPJPY, GBPUSD, AUDUSD) added; [account, before %, before DD, after %, after DD]
-  const D_CMP = [["20 万円", 128, 17, 207, 14], ["30 万円", 125, 19, 234, 14], ["50 万円", 178, 21, 332, 16], ["100 万円", 218, 21, 369, 17], ["150 万円", 223, 19, 377, 18], ["300 万円", 227, 19, 389, 17]];
   function comboTable() {
     const tr = c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td style="white-space:nowrap">${c[1]}</td><td style="color:#4ade80">${c[3]}</td><td style="color:#f87171">${c[4]}</td></tr>
       <tr><td colspan="4" style="text-align:left;padding:0 4px 6px;font-size:10px;color:#94a3b8">${c[2]}${c[5] ? ' · 年 ' + c[5] : ''}</td></tr>`;
@@ -184,15 +182,11 @@
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>EA</th><th>年利</th><th>最大 DD</th></tr>${COMBOS.map(tr).join('')}</table>
 
-      <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">D 系（D@・DR@・DX@）を足した効果（11/18 更新）</div>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
-        <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">口座</th><th>前の年利</th><th>前の DD</th><th>足した後</th><th>DD</th></tr>${D_CMP.map(c => `<tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px;white-space:nowrap">${c[0]}</td><td>+${c[1]}%</td><td style="color:#f87171">-${c[2]}%</td><td style="color:#4ade80;font-weight:700">+${c[3]}%</td><td style="color:#f87171">-${c[4]}%</td></tr>`).join('')}</table>
-      <div style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.5">D 系 49 本だけ（D@ は FX6 の B・C・W とドル円の W、DR@ 17 本、DX@ 13 本）：404 回・勝率 43.1%・平均 +1.09R・年 +47R・最大 DD 10.5R、1 回 1% で年利 +54%・DD -10.0%。全体（1%）は +227% → +389%、DD -18.5% → -17.4%、年あたり +153R → +199R。口座ごとの表は、最低口座が足りる D 系だけ足した。</div>
       <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin:14px 0 4px">全体（78 本すべて）</div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:right">
         <tr style="color:#94a3b8;border-bottom:1px solid #334155"><th style="text-align:left;padding:4px">リスク</th><th>年利</th><th>最大 DD</th></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">0.5%</td><td style="color:#4ade80">+147%</td><td style="color:#f87171">-12.2%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1%</td><td style="color:#4ade80">+389%</td><td style="color:#f87171">-17.4%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">1.5%</td><td style="color:#4ade80">+675%</td><td style="color:#f87171">-23.2%</td></tr><tr style="border-bottom:1px solid #1e293b"><td style="text-align:left;padding:6px 4px">2%</td><td style="color:#4ade80">+1121%</td><td style="color:#f87171">-28.8%</td></tr></table>
       <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px">${[['トレード数', '3,557 回'], ['勝ち・負け', '1,582 勝 1,975 敗'], ['勝率', '44.5%'], ['月のトレード', '約 32 回'], ['負けた月', '13%'], ['年あたり', '+199R'], ['平均', '+0.52R'], ['最大 DD', '24.9R']].map(([a, b]) => `<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:6px 8px"><div style="font-size:10px;color:#94a3b8">${a}</div><div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-top:2px">${b}</div></div>`).join('')}</div>
-      <div style="font-size:10px;color:#64748b;margin-top:6px">2017 年 7 月〜2026 年 10 月のバックテスト（コスト込み・1 回 1R）</div>`;
+      <div style="font-size:10px;color:#64748b;margin-top:6px">2017 年 7 月〜2026 年 10 月のバックテスト（コスト込み・1 回 1R）。D 系（D@・DR@・DX@）49 本も含む</div>`;
   }
   // money lost by one losing trade at the minimum lot (2026-11-19: median stop width of the trades since 2023 from the live code, XM KIWAMI specs, prices 2026-11-04, 1 USD = 158.4 JPY)
   // [EA, loss at the minimum lot, median stop width]. Live settings: gold 右肩 = above the right shoulder, buy only (§103);

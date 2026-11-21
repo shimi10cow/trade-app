@@ -270,8 +270,6 @@
         <div><div style="font-size:15px;font-weight:800">🖥️ MT5 の取り込み</div>
           <div style="font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.6">裁量の口座の約定を読みます。取り込んだトレードは全部、下の「確認が必要なトレード」に入ります。同じペア・向きでエントリーが 3 時間以内の手入力のトレード（保有中・決済済みとも）が候補に出るので、紐付けるか、そのまま記録にします。</div></div>
         ${tiles}
-        <div style="font-size:12px;color:#cbd5e1;background:#0f172a;border:1px solid #26364f;border-radius:10px;padding:10px 12px;line-height:1.6">
-          取り込みは <b>PC のデスクトップの「取り込み」ボタン</b>で動かします（EA を止めていても動きます）。終わったらこの画面を開き直すと結果が出ます。</div>
         <div style="font-size:11px;color:#64748b">${lastLine}</div>${errs}
         ${S.msg ? `<div style="font-size:12px;color:${/でき|失敗|通信/.test(S.msg) ? '#f87171' : '#cbd5e1'}">${esc(S.msg)}</div>` : ''}
       </div>

@@ -4547,7 +4547,7 @@ function peAutoRefresh() {
     el.textContent = a ? '自動' + a : ''; el.style.color = d ? '#f59e0b' : '#38bdf8'; el.style.fontWeight = '700';
   });
   const note = document.getElementById('pe-auto-note');
-  if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') + (diff ? ' ／ 自動と違う所 ' + diff + ' つ（オレンジ）は「ペア情報を更新」で記録されます' : '') : '';
+  if (note) note.textContent = any ? '自動（PC のダウ判定）' + (p.AutoAt ? '：' + String(p.AutoAt).replace('+09:00', '') : '') : '';
 }
 window.peAutoRefresh = peAutoRefresh;
 
