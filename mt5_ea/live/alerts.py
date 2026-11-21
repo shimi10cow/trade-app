@@ -33,6 +33,7 @@ PAIRS = ('EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', '
          'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'EURAUD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF')
 DAYS, WARM = 400, 250
 DAY = np.timedelta64(1, 'D'); HOUR = np.timedelta64(1, 'h'); M15 = np.timedelta64(15, 'm')
+ALERTS_V = 2                  # 2026-11-21: settings version (2 = methods 1 / 2 / 6 / 7 presets); older saved profiles are replaced
 SCENE_JA = {'gateway': '出入口', 'fortress': '砦', 'band': '抵抗体'}
 
 # condition catalog: key -> (label, {param: default}); the app (ea_live.js ALERT_CAT) shows the same keys / labels / params
@@ -40,7 +41,7 @@ CATALOG = {
     'h4dir':   ('H4 の本転換の向きと同じ', {}),
     'prov':    ('H4 の仮のダウが逆向きでない', {}),
     'd1ma':    ('日足の MA が進行方向で、値段がその向こう側', {'period': 75, 'slope': 10}),
-    'd1ma_x':  ('日足の MA が逆向き（手法 6・7 の場面）', {'period': 75, 'slope': 10}),
+    'd1ma_x':  ('日足が〇でない（手法 6・7：日足の MA が進行方向・値段が向こう側、がそろっていない）', {'period': 75, 'slope': 10}),
     'd1dow':   ('日足のダウ（直近の山・谷 2 つずつ）が逆でない', {}),
     'h4ma':    ('H4 の MA が進行方向', {'period': 20, 'slope': 3}),
     'h1ma':    ('H1 の MA が進行方向で、値段がその向こう側', {'period': 75, 'slope': 5}),
@@ -62,19 +63,15 @@ CATALOG = {
     'hours':   ('時間帯（日本時間、何時から何時まで）', {'from': 8, 'to': 26}),
 }
 
-PRESETS = [   # 2026-11-21: first set, worked back from the EAs; the trader turns them on / edits them in the app
-    dict(id='p1', name='広く：出入口・砦で反発（M15 ダウ転換）', on=True, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}}),
-    dict(id='p2', name='DX@ 型：出入口のリターンムーブ', on=False, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'h1ma': {'period': 75, 'slope': 5}, 'd1ma': {'period': 75, 'slope': 10}, 'd1dow': {}, 'noopp': {}, 'score': {'n': 2}}),
-    dict(id='p3', name='DR@ 型：砦（押し安値・戻り高値）の反発', on=False, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'noopp': {}, 'noimpbrk': {}}),
-    dict(id='p4', name='D@ 型：H4 の抵抗体（山谷 2 回以上）', on=False, scenes=['band'], timing='turn', near=0.3, away=1.0, life=60, pairs=[],
-         conds={'h4dir': {}, 'prov': {}, 'touch': {'n': 2}, 'score': {'n': 2}}),
-    dict(id='p5', name='手法 6・7：日足は逆、H4 の流れに乗る', on=False, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'h1ma': {'period': 75, 'slope': 5}}),
-    dict(id='p6', name='浅い押し：流れ＋押し 0.1〜0.382', on=False, scenes=['gateway', 'fortress'], timing='turn', near=0.3, away=1.0, life=40, pairs=[],
-         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'depth': {'min': 0.1, 'max': 0.382}, 'days': {'min': 5, 'max': 40}}),
+PRESETS = [   # 2026-11-21 (user): only the trader's own methods 1 / 2 / 6 / 7; the alert comes when entering (M15 Dow turn after the touch)
+    dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}}),
+    dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}}),
+    dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}}),
+    dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
+         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}}),
 ]
 
 
@@ -200,7 +197,7 @@ class Market:
             if j < n or not np.isfinite(ma[j - n]):
                 return None
             agree = s * (ma[j] - ma[j - n]) > 0 and s * (cx.cd[j] - ma[j]) > 0
-            return agree if key == 'd1ma' else (s * (ma[j] - ma[j - n]) < 0)
+            return agree if key == 'd1ma' else (not agree)
         if key == 'd1dow':
             Pdr = cx.Pdr; mk = Pdr[0] <= te; kk = Pdr[1][mk]; vv = Pdr[2][mk]; hh = vv[kk == 'hi'][-2:]; ll = vv[kk == 'lo'][-2:]; d = 0
             if len(hh) == 2 and len(ll) == 2:
@@ -375,7 +372,7 @@ def settings_from(r, cur):
     if not isinstance(s, dict):
         return cur
     out = dict(cur); out['on'] = s.get('on', True)
-    if isinstance(s.get('profiles'), list) and s['profiles']:
+    if s.get('v') == ALERTS_V and isinstance(s.get('profiles'), list) and s['profiles']:   # older saved sets -> the presets
         out['profiles'] = s['profiles']
     return out
 
