@@ -21,14 +21,16 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags', 'ExitVerdict', 'ExitTags', 'ExitWantImage', 'Excluded'],   // Excluded: left out of every result by the trader (2026-11-20; text = when + why, empty = counted)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags', 'ExitVerdict', 'ExitTags', 'ExitWantImage', 'Excluded', 'Lines'],   // Lines: lines / boxes drawn in the report (JSON, 2026-11-21)
+             // Excluded: left out of every result by the trader (2026-11-20; text = when + why, empty = counted)
              // Exit*: the trader's view of the exit (2026-11-13)   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
+  repmarks: ['ID', 'Account', 'EA', 'Symbol', 'Direction', 'Time', 'Verdict', 'Tags', 'Comment', 'ExitVerdict', 'ExitTags', 'Lines', 'UpdatedAt'],   // marks on backtest-only trades (missed entries) from the report (2026-11-21)
   health: ['Date', 'Account', 'EA', 'Trades', 'WinPct', 'AvgR', 'PF', 'SumR', 'BtWinPct', 'BtAvgR', 'BtPF', 'Judge', 'AvgSlip', 'AvgSpread'],
   sigmarks: ['SigID', 'Account', 'EA', 'Symbol', 'Direction', 'Price', 'SL', 'Status', 'SignalTime', 'Verdict', 'Tags', 'Comment', 'UpdatedAt'],   // marks on signals that were not traded (2026-11-12)
   res: ['ResID', 'Account', 'Symbol', 'Direction', 'Trigger', 'SLPrice', 'TPPrice', 'LotMode', 'LotValue', 'Status', 'TradeID', 'Note', 'CreatedAt', 'UpdatedAt', 'SLMode', 'Kind']
 };
-const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health', sigmarks: 'EA_SignalMarks'};
+const EAL_SHEETS_ = {config: 'EA_Config', status: 'EA_Status', daily: 'EA_Daily', trades: 'EA_Trades', log: 'EA_Log', res: 'Reservations', health: 'EA_Health', sigmarks: 'EA_SignalMarks', repmarks: 'EA_ReportMarks'};
 
 function eaSetupKeys() {
   const p = PropertiesService.getScriptProperties();
@@ -72,6 +74,12 @@ const EAL_APP_ACTIONS_ = {eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1,
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
   try {
+    if (action === 'eaReportMark') {                    // the report page (no pass phrase): only this key, only marks and lines (2026-11-21)
+      const rk = PropertiesService.getScriptProperties().getProperty('REPORT_KEY');
+      if (!rk || String(body.key || '') !== rk) throw new Error('report key does not match: make the report again');
+      const lock = LockService.getScriptLock(); lock.waitLock(20000);
+      try { return ealReportMark_(body); } finally { lock.releaseLock(); }
+    }
     if (EAL_EA_ACTIONS_[action]) ealAuth_(body, 'ea');
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
@@ -165,7 +173,33 @@ function ealDashboard_(b) {
 function ealReportData_(b) {
   const strip = rows => rows.map(r => { delete r._row; return r; });
   const cfg = {}; ealRows_('config').forEach(r => { try { cfg[r.Account] = JSON.parse(r.ConfigJSON); } catch (e) {} });
-  return {success: true, trades: strip(ealRows_('trades')), daily: strip(ealRows_('daily')), config: cfg};
+  const p = PropertiesService.getScriptProperties();
+  let rk = p.getProperty('REPORT_KEY');
+  if (!rk) { rk = Utilities.getUuid().replace(/-/g, ''); p.setProperty('REPORT_KEY', rk); }
+  return {success: true, trades: strip(ealRows_('trades')), daily: strip(ealRows_('daily')), config: cfg, repmarks: strip(ealRows_('repmarks')), reportKey: rk};
+}
+
+/** Report page: the trader's mark / lines on one trade. kind 'trade' = a live trade (EA_Trades, same columns as the app);
+ *  kind 'bt' = a backtest-only trade (missed entry) -> EA_ReportMarks by ID (EA|time|side). Only the given fields change. */
+function ealReportMark_(b) {
+  const f = b.fields || {}, up = {};
+  if (f.verdict !== undefined) up.Verdict = ealVerdict_(f.verdict);
+  if (f.tags !== undefined) up.Tags = ealTags_(f.tags);
+  if (f.comment !== undefined) up.Comment = String(f.comment || '').slice(0, 2000);
+  if (f.exitVerdict !== undefined) up.ExitVerdict = ['good', 'early', 'late', 'tight', 'wide'].indexOf(String(f.exitVerdict)) >= 0 ? String(f.exitVerdict) : '';
+  if (f.exitTags !== undefined) up.ExitTags = ealTags_(f.exitTags);
+  if (f.lines !== undefined) up.Lines = JSON.stringify(f.lines || []).slice(0, 45000);
+  if (b.kind === 'bt') {
+    const id = String(b.id || '').slice(0, 120); if (!id) throw new Error('no id');
+    const r = ealRows_('repmarks').find(x => String(x.ID) === id);
+    ealWriteRow_('repmarks', r ? r._row : null, Object.assign({ID: id, Account: b.account || '', EA: b.ea || '', Symbol: b.symbol || '', Direction: b.direction || '', Time: b.time || ''}, r || {}, up, {UpdatedAt: ealNow_()}));
+    return {success: true};
+  }
+  const r = ealRows_('trades').find(x => String(x.TradeID) === String(b.tradeId));
+  if (!r) throw new Error('trade not found');
+  if (up.Verdict !== undefined || up.Tags !== undefined || up.Comment !== undefined) up.CommentAt = ealNow_();
+  ealWriteRow_('trades', r._row, Object.assign({}, r, up));
+  return {success: true};
 }
 
 function ealGetTrades_(b) {

@@ -4,49 +4,70 @@
 <style>
 :root{--bg:#0b1220;--card:#111c31;--line:#1e293b;--line2:#334155;--fg:#e2e8f0;--mut:#94a3b8;--dim:#64748b;--up:#4ade80;--dn:#f87171;--warn:#fbbf24;--acc:#22d3ee}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}
-header{position:sticky;top:0;z-index:5;background:#0b1220ee;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-h1{font-size:16px;margin:0 12px 0 0}main{padding:12px 16px 60px;max-width:1400px;margin:0 auto}
+header{position:sticky;top:0;z-index:5;background:#0b1220f0;border-bottom:1px solid var(--line);padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+h1{font-size:16px;margin:0 12px 0 0}main{padding:12px 16px 60px;max-width:1500px;margin:0 auto}
 button.t{background:#172033;color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
-button.t.on{background:#0e7490;border-color:#22d3ee}.sec{display:none}.sec.on{display:block}
+button.t.on{background:#0e7490;border-color:#22d3ee}button.t:disabled{opacity:.4}.sec{display:none}.sec.on{display:block}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.kv{background:#0f172a;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
 .kv .k{font-size:11px;color:var(--mut)}.kv .v{font-size:15px;font-weight:700}
 table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card)}td.l,th.l{text-align:left}.scroll{overflow:auto;max-height:70vh}
+th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card);z-index:1}td.l,th.l{text-align:left}.scroll{overflow:auto;max-height:70vh}
 .up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}.dim{color:var(--dim)}.warn{color:var(--warn)}
 .note{font-size:11px;color:var(--dim);line-height:1.6}tr.click{cursor:pointer}tr.click:hover{background:#16233b}tr.sel{background:#1b2c4a}tr.exr{opacity:.45}
-#tv{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:10px}@media(max-width:900px){#tv{grid-template-columns:1fr}}
+#tv{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:10px}@media(max-width:1000px){#tv{grid-template-columns:1fr}}
 canvas{width:100%;display:block;background:#0f172a;border-radius:8px;touch-action:none}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.badge{font-size:10px;padding:1px 6px;border-radius:4px;background:#1e293b;color:var(--mut)}
-select,input{background:#0f172a;color:var(--fg);border:1px solid var(--line2);border-radius:6px;padding:4px 6px;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;align-items:center}.badge{font-size:10px;padding:1px 6px;border-radius:4px;background:#1e293b;color:var(--mut)}
+.badge.miss{background:#3b2a0a;color:#fbbf24}
+select,input,textarea{background:#0f172a;color:var(--fg);border:1px solid var(--line2);border-radius:6px;padding:4px 6px;font-size:12px;font-family:inherit}
+.pill{border-radius:999px;padding:4px 10px;font-size:12px;border:1px solid var(--line2);background:#172033;color:var(--fg);cursor:pointer}.pill.on{border-color:#22d3ee;background:#0e3a46}
+.vb{border-radius:8px;padding:6px 4px;font-size:12px;border:1px solid var(--line2);background:#172033;color:var(--fg);cursor:pointer}.vb.on{font-weight:700}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:3px}
 </style></head><body>
 <header><h1>EA 成績レポート</h1><span id="made" class="mut"></span>
   <span style="flex:1"></span><span id="accbtn"></span><label class="mut" style="font-size:12px"><input type="checkbox" id="showex"> 外したトレードも数える</label></header>
-<header style="top:49px;padding-top:6px;padding-bottom:6px" id="tabs"></header>
+<header style="top:45px" id="tabs"></header>
 <main>
   <section class="sec" id="s-sum"></section>
+  <section class="sec" id="s-per"></section>
   <section class="sec" id="s-mon"></section>
   <section class="sec" id="s-ea"></section>
   <section class="sec" id="s-bt"></section>
+  <section class="sec" id="s-mc"></section>
   <section class="sec" id="s-ex"></section>
   <section class="sec" id="s-tr"><div id="tv"><div><div class="card" style="padding:8px">
-      <div class="chips" id="tfbtn"></div><canvas id="cv" height="520"></canvas>
-      <div class="note" id="cvnote">ドラッグで左右に動かす・ホイール（ピンチ）で拡大縮小。▲▼＝本番の入り、✕＝本番の決済、灰色の○＝バックテストの入り。線：白＝入り、赤＝最初の損切り、緑＝利確、黄＝決済。MA は 20（水色）と 75（橙）。</div>
-      <div id="tinfo" style="margin-top:8px"></div></div></div>
-    <div class="card" style="padding:8px"><div class="chips" id="tflt"></div><div class="scroll" style="max-height:80vh"><table id="tlist"></table></div></div></div></section>
+      <div class="chips" id="tfbtn"></div><div class="chips" id="drawbtn"></div><canvas id="cv" height="560"></canvas>
+      <div class="note">ローソク：白抜き＝陽線、灰色＝陰線。MA：<span class="sw" style="background:#ef4444"></span>20 <span class="sw" style="background:#22c55e"></span>75 <span class="sw" style="background:#f472b6"></span>200。
+        ▲▼＝入り、✕＝決済、灰色の○＝バックテストの入り。横線：白＝入り、赤の点線＝最初の損切り、緑＝利確、黄＝決済。
+        引いた線・ボックスの色＝引いた足：<span class="sw" style="background:#60a5fa"></span>日足 <span class="sw" style="background:#fb923c"></span>H4 <span class="sw" style="background:#a78bfa"></span>H1 <span class="sw" style="background:#facc15"></span>M15（どの足でも見える）。
+        「動かす」の時はドラッグで移動・ホイールで拡大縮小。</div>
+      <div id="tinfo" style="margin-top:8px"></div><div id="tmark"></div></div></div>
+    <div class="card" style="padding:8px"><div class="chips" id="tflt"></div><div class="scroll" style="max-height:85vh"><table id="tlist"></table></div></div></div></section>
 </main>
 <script>
 const D = /*__DATA__*/null;
 const $ = s => document.querySelector(s), esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-const S = {acc: D.accs[0], tab: 's-sum', tf: 'H1', sel: null, fam: '', res: '', sym: ''};
+const S = {acc: D.accs[0], tab: 's-sum', tf: 'H1', sel: null, fam: '', res: '', sym: '', eaf: '', kind: '', mode: 'pan', draft: null, mc: {src: 'live', cap: 300000, risk: 1, years: 1, ruin: 30, sims: 2000}};
 const f2 = (v, d = 2) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d), sg = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(2);
 const yen = v => v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '+') + '¥' + Math.round(Math.abs(v)).toLocaleString('ja-JP');
 const tstr = m => { if (m == null) return '—'; const d = new Date(m * 60000); return d.toISOString().slice(0, 16).replace('T', ' '); };
 const cls = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
 const px = (t, v) => v == null || isNaN(v) || !v ? '—' : Number(v).toFixed((D.charts[t.sym] || {}).dig ?? 5);
 const famCode = f => (D.fams[f] || {}).code || (f === 'OLD' ? '旧 EA' : f);
+const VERD = [['ok', 'OK', '#4ade80'], ['ng', '入らない方がいい', '#f87171'], ['maybe', '迷う', '#fbbf24']];
+const TAGS = ['伸びすぎ', 'レンジの中', '上位足が逆', '指標の前後', '損切りが遠い', 'その他'];
+const XVERD = [['good', '良い決済', '#4ade80'], ['early', '早すぎた', '#fbbf24'], ['late', '遅すぎた', '#fb923c'], ['tight', '損切りが浅い', '#f87171'], ['wide', '損切りが深い', '#c084fc']];
+const XTAGS = ['M15 の押し安値割れ', 'H1 の押し安値割れ', 'H4 の押し安値割れ', '抵抗帯の手前', '前の高値・安値', 'H1 MA 割れ', 'ダウの転換', 'ライン割れ', 'その他'];
+const TFC = {D1: '#60a5fa', H4: '#fb923c', H1: '#a78bfa', M15: '#facc15'}, TFN = {D1: '日足', H4: 'H4', H1: 'H1', M15: 'M15'};
+// ------------------------------------------------------------ data per account
+D.btl.forEach(b => { b.kind = 'B'; b.st = b.open ? 'OPEN' : 'CLOSED'; b.id = b.ea + '|' + tstr(b.et) + '|' + b.side; Object.assign(b, {v: '', tags: '', cm: '', xv: '', xtags: '', lines: []}, D.repmarks[b.id] || {}); });
+D.trades.forEach(t => t.kind = 'L');
 function trades(all) { return D.trades.filter(t => t.acc === S.acc && (all || $('#showex').checked || !t.ex)); }
 const closed = () => trades().filter(t => t.st === 'CLOSED' && t.R != null);
+function accBT() {   // the period backtest for this account: EAs on now + EAs that traded here
+  const keys = new Set((D.on[S.acc] || []).concat(trades(true).map(t => t.ea))), used = new Set(trades(true).map(t => t.btj).filter(j => j >= 0));
+  const all = D.btl.filter(b => keys.has(b.ea)); return {all, missed: all.filter(b => !used.has(b.j)), used};
+}
 function stats(g) {
   const R = g.map(t => t.R), n = R.length, w = R.filter(r => r > 0).length, sum = R.reduce((a, b) => a + b, 0);
   const pos = R.filter(r => r > 0).reduce((a, b) => a + b, 0), neg = -R.filter(r => r < 0).reduce((a, b) => a + b, 0);
@@ -60,174 +81,320 @@ function judge(n, avg, exp, sd) {
   return z >= -1 ? {m: '○', c: 'up', z} : z >= -2 ? {m: '△', c: 'warn', z} : {m: '×', c: 'dn', z};
 }
 const mk = j => j ? `<b class="${j.c}">${j.m}</b> <span class="dim">${j.z.toFixed(1)}</span>` : '<span class="dim">—</span>';
+const kv = (k, v, c = '') => `<div class="kv"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`;
 // ------------------------------------------------------------ header
 function header() {
-  $('#made').textContent = '作成 ' + D.made + (D.btDone ? '' : '（バックテストの突き合わせなし）');
-  $('#accbtn').innerHTML = ['demo', 'live'].map(a => `<button class="t ${S.acc === a ? 'on' : ''}" onclick="S.acc='${a}';draw()">${a === 'live' ? 'リアル' : 'デモ'}口座</button>`).join(' ');
-  const tabs = [['s-sum', 'まとめ'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', 'バックテストとの突き合わせ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート']];
+  $('#made').textContent = '作成 ' + D.made + (D.btDone ? '' : '（バックテストなし）');
+  $('#accbtn').innerHTML = ['demo', 'live'].map(a => `<button class="t ${S.acc === a ? 'on' : ''}" onclick="S.acc='${a}';S.sel=null;draw()">${a === 'live' ? 'リアル' : 'デモ'}口座</button>`).join(' ');
+  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート']];
   $('#tabs').innerHTML = tabs.map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="S.tab='${id}';draw()">${l}</button>`).join(' ');
   document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.id === S.tab));
 }
-// ------------------------------------------------------------ まとめ
+// ------------------------------------------------------------ small charts
+function prep(id, h) { const cv = document.getElementById(id); if (!cv) return null; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = h; cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); return {x, W, H}; }
 function lineChart(id, series, opt = {}) {
-  const cv = document.getElementById(id); if (!cv) return; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.height / (cv._d || 1);
-  cv._d = dpr; cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H);
+  const c = prep(id, opt.h || 260); if (!c) return; const {x, W, H} = c;
   const all = series.flatMap(s => s.pts.map(p => p[1])).concat(series.flatMap(s => (s.band || []).flatMap(b => [b[1], b[2]]))).filter(v => v != null && !isNaN(v));
   const n = Math.max(1, ...series.map(s => s.pts.length)); if (!all.length) { x.fillStyle = '#64748b'; x.fillText('データなし', 10, 20); return; }
-  let lo = opt.zero === false ? Math.min(...all) : Math.min(0, ...all), hi = opt.zero === false ? Math.max(...all) : Math.max(0, ...all); if (hi === lo) hi = lo + 1; const pad = 30;
-  const pad2 = 0; const X = i => pad + pad2 + i / Math.max(1, n - 1) * (W - pad - 8), Y = v => 8 + (hi - v) / (hi - lo) * (H - 28);
-  x.strokeStyle = '#334155'; x.beginPath(); x.moveTo(pad, Y(0)); x.lineTo(W - 8, Y(0)); x.stroke();
-  x.fillStyle = '#64748b'; x.font = '10px sans-serif'; const fmt = v => Math.abs(v) >= 10000 ? Math.round(v).toLocaleString('ja-JP') : v.toFixed(1); x.fillText(fmt(hi), 2, 14); x.fillText(fmt(lo), 2, H - 18); if (lo < 0 && hi > 0) x.fillText('0', 2, Y(0) + 3);
+  let lo = opt.zero === false ? Math.min(...all) : Math.min(0, ...all), hi = opt.zero === false ? Math.max(...all) : Math.max(0, ...all); if (hi === lo) hi = lo + 1; const pad = 44;
+  const X = i => pad + i / Math.max(1, n - 1) * (W - pad - 8), Y = v => 8 + (hi - v) / (hi - lo) * (H - 28);
+  const fmt = v => Math.abs(v) >= 10000 ? Math.round(v).toLocaleString('ja-JP') : v.toFixed(1);
+  x.strokeStyle = '#334155'; if (lo < 0 && hi > 0) { x.beginPath(); x.moveTo(pad, Y(0)); x.lineTo(W - 8, Y(0)); x.stroke(); }
+  x.fillStyle = '#64748b'; x.font = '10px sans-serif'; x.fillText(fmt(hi), 2, 14); x.fillText(fmt(lo), 2, H - 18);
   series.forEach(s => {
-    (s.band || []).length && (x.fillStyle = s.bandColor || 'rgba(148,163,184,.12)', x.beginPath(), s.band.forEach((b, i) => i ? x.lineTo(X(i), Y(b[2])) : x.moveTo(X(i), Y(b[2]))),
-      s.band.slice().reverse().forEach((b, k) => x.lineTo(X(s.band.length - 1 - k), Y(b[1]))), x.closePath(), x.fill());
-    x.strokeStyle = s.color; x.lineWidth = s.w || 1.5; x.setLineDash(s.dash || []); x.beginPath();
-    s.pts.forEach((p, i) => p[1] == null ? 0 : (i ? x.lineTo(X(i), Y(p[1])) : x.moveTo(X(i), Y(p[1])))); x.stroke(); x.setLineDash([]);
+    if ((s.band || []).length) { x.fillStyle = s.bandColor || 'rgba(148,163,184,.12)'; x.beginPath(); s.band.forEach((b, i) => i ? x.lineTo(X(i), Y(b[2])) : x.moveTo(X(i), Y(b[2])));
+      s.band.slice().reverse().forEach((b, k) => x.lineTo(X(s.band.length - 1 - k), Y(b[1]))); x.closePath(); x.fill(); }
+    if (!s.color) return; x.strokeStyle = s.color; x.lineWidth = s.w || 1.5; x.setLineDash(s.dash || []); x.beginPath();
+    s.pts.forEach((p, i) => p[1] == null ? 0 : (i ? x.lineTo(X(i), Y(p[1])) : x.moveTo(X(i), Y(p[1])))); x.stroke(); x.setLineDash([]); x.lineWidth = 1;
   });
   if (opt.labels) { x.fillStyle = '#64748b'; const L = opt.labels; [0, Math.floor(L.length / 2), L.length - 1].forEach(i => L[i] && x.fillText(L[i], Math.min(W - 70, X(i)), H - 4)); }
 }
+function timeChart(id, series, h = 280) {   // x = time (minutes), y = value; steps of cumulative R
+  const c = prep(id, h); if (!c) return; const {x, W, H} = c;
+  const pts = series.flatMap(s => s.pts); if (!pts.length) { x.fillStyle = '#64748b'; x.fillText('データなし', 10, 20); return; }
+  const t0 = Math.min(...pts.map(p => p[0])), t1 = Math.max(...pts.map(p => p[0])) || t0 + 1; let lo = Math.min(0, ...pts.map(p => p[1])), hi = Math.max(0, ...pts.map(p => p[1])); if (hi === lo) hi = lo + 1;
+  const pad = 40, X = t => pad + (t - t0) / Math.max(1, t1 - t0) * (W - pad - 8), Y = v => 8 + (hi - v) / (hi - lo) * (H - 28);
+  x.strokeStyle = '#334155'; x.beginPath(); x.moveTo(pad, Y(0)); x.lineTo(W - 8, Y(0)); x.stroke(); x.fillStyle = '#64748b'; x.font = '10px sans-serif';
+  x.fillText(hi.toFixed(1), 2, 14); x.fillText(lo.toFixed(1), 2, H - 18); [t0, (t0 + t1) / 2, t1].forEach(t => x.fillText(tstr(t).slice(0, 10), Math.min(W - 70, X(t)), H - 4));
+  series.forEach(s => { x.strokeStyle = s.color; x.lineWidth = s.w || 1.5; x.setLineDash(s.dash || []); x.beginPath(); let v = 0; x.moveTo(X(t0), Y(0));
+    s.pts.forEach(p => { x.lineTo(X(p[0]), Y(v)); v = p[1]; x.lineTo(X(p[0]), Y(v)); }); x.lineTo(X(t1), Y(v)); x.stroke(); x.setLineDash([]); x.lineWidth = 1; });
+}
+const cumPts = g => { let c = 0; return g.filter(t => t.R != null && t.xt != null).sort((a, b) => a.xt - b.xt).map(t => [t.xt, c += t.R]); };
+// ------------------------------------------------------------ まとめ
 function sumSec() {
   const g = closed().sort((a, b) => a.xt - b.xt), s = stats(g), op = trades().filter(t => t.st === 'OPEN').length;
   const first = g.length ? tstr(g[0].et).slice(0, 10) : '—', last = g.length ? tstr(g[g.length - 1].xt).slice(0, 10) : '—';
-  let ex = 0, v2 = 0; const cum = [], band = [], expl = [], labels = [];
-  g.forEach(t => { const e = D.exp[t.ea] || [0, 2]; ex += e[0]; v2 += e[1] * e[1]; const sd = Math.sqrt(v2); cum.push([0, (cum.length ? cum[cum.length - 1][1] : 0) + t.R]); expl.push([0, ex]); band.push([0, ex - 2 * sd, ex + 2 * sd]); labels.push(tstr(t.xt).slice(0, 10)); });
-  const band1 = g.map((t, i) => { const sd = Math.sqrt(g.slice(0, i + 1).reduce((a, u) => a + Math.pow((D.exp[u.ea] || [0, 2])[1], 2), 0)); return [0, expl[i][1] - sd, expl[i][1] + sd]; });
-  const z = g.length ? (s.sum - ex) / Math.sqrt(v2 || 1) : null, j = judge(g.length ? 1 : 0, z, 0, 1);
-  const dl = D.daily.filter(d => d.acc === S.acc);
-  const kv = (k, v, c = '') => `<div class="kv"><div class="k">${k}</div><div class="v ${c}">${v}</div></div>`;
+  let ex = 0, v2 = 0; const cum = [], band = [], band1 = [], expl = [], labels = [];
+  g.forEach(t => { const e = D.exp[t.ea] || [0, 2]; ex += e[0]; v2 += e[1] * e[1]; const sd = Math.sqrt(v2); cum.push([0, (cum.length ? cum[cum.length - 1][1] : 0) + t.R]); expl.push([0, ex]);
+    band.push([0, ex - 2 * sd, ex + 2 * sd]); band1.push([0, ex - sd, ex + sd]); labels.push(tstr(t.xt).slice(0, 10)); });
+  const z = g.length ? (s.sum - ex) / Math.sqrt(v2 || 1) : null, j = judge(g.length ? 1 : 0, z, 0, 1), dl = D.daily.filter(d => d.acc === S.acc);
   $('#s-sum').innerHTML = `<div class="card"><div class="grid">
     ${kv('期間', first + ' 〜 ' + last)}${kv('決済したトレード', s.n + ' 回')}${kv('保有中', op + ' 本')}${kv('勝ち・負け', s.w + ' 勝 ' + (s.n - s.w) + ' 敗')}
     ${kv('勝率', s.n ? (s.w / s.n * 100).toFixed(1) + '%' : '—')}${kv('平均', sg(s.avg) + 'R', cls(s.avg))}${kv('合計', sg(s.sum) + 'R', cls(s.sum))}${kv('PF', f2(s.pf))}
-    ${kv('最大 DD', f2(s.dd, 1) + 'R')}${kv('最大連敗', s.mls + ' 回')}${kv('損益', yen(s.P), cls(s.P))}${kv('バックテストの目安', sg(ex) + 'R')}
+    ${kv('最大 DD', f2(s.dd, 1) + 'R')}${kv('最大連敗', s.mls + ' 回')}${kv('損益', yen(s.P), cls(s.P))}${kv('長期バックテストの目安', sg(ex) + 'R')}
     ${kv('全体の判定', j ? `<span class="${j.c}">${j.m}</span> <span class="dim" style="font-size:11px">${z.toFixed(1)}</span>` : '—')}${kv('一番良い / 悪い', sg(s.best) + ' / ' + sg(s.worst))}</div>
-    <div class="note" style="margin-top:6px">判定：(実際の合計 R − バックテストの目安) ÷ ブレ。−1 以上 ○ 範囲内、−2〜−1 △ 下振れ、−2 より下 × 要確認（アプリと同じ）。目安は 1 回ごとに、その EA のバックテストの平均（30 回未満なら系統の平均）を足したもの。</div></div>
-  <div class="card"><b>累計 R</b> <span class="note">実線＝実際、点線＝バックテストの目安、濃い帯＝ブレ 1 つ分、薄い帯＝2 つ分（決済順）</span><canvas id="cumcv" height="260"></canvas></div>
-  <div class="card"><b>口座の残高・有効証拠金</b> <span class="note">（EA_Daily、1 日 1 回）</span><canvas id="balcv" height="200"></canvas>
+    <div class="note" style="margin-top:6px">判定：(実際の合計 R − 長期バックテストの目安) ÷ ブレ。−1 以上 ○ 範囲内、−2〜−1 △ 下振れ、−2 より下 × 要確認（アプリと同じ）。目安は 1 回ごとに、その EA のバックテストの平均（30 回未満なら系統の平均）を足したもの。</div></div>
+  <div class="card"><b>累計 R</b> <span class="note">実線＝実際、点線＝長期バックテストの目安、濃い帯＝ブレ 1 つ分、薄い帯＝2 つ分（決済順）</span><canvas id="cumcv"></canvas></div>
+  <div class="card"><b>口座の残高・有効証拠金</b> <span class="note">（EA_Daily、1 日 1 回）</span><canvas id="balcv"></canvas>
     <div class="note">最新：残高 ${dl.length ? yen(dl[dl.length - 1].bal).replace('+', '') : '—'} · DD ${dl.length ? (Number(dl[dl.length - 1].dd) * 100).toFixed(1) + '%' : '—'} · 期間中の最大 DD ${dl.length ? (Math.max(...dl.map(d => Number(d.dd) || 0)) * 100).toFixed(1) + '%' : '—'}</div></div>`;
-  lineChart('cumcv', [{pts: band.map(b => [0, null]), band, bandColor: 'rgba(148,163,184,.10)', color: 'transparent'}, {pts: band1.map(b => [0, null]), band: band1, bandColor: 'rgba(148,163,184,.16)', color: 'transparent'},
-    {pts: expl, color: '#94a3b8', dash: [5, 4]}, {pts: cum, color: '#22d3ee', w: 2}], {labels});
-  lineChart('balcv', [{pts: dl.map(d => [0, Number(d.bal)]), color: '#94a3b8'}, {pts: dl.map(d => [0, Number(d.eq)]), color: '#4ade80'}], {labels: dl.map(d => d.d), zero: false});
+  lineChart('cumcv', [{pts: band, band, bandColor: 'rgba(148,163,184,.10)'}, {pts: band1, band: band1, bandColor: 'rgba(148,163,184,.16)'}, {pts: expl, color: '#94a3b8', dash: [5, 4]}, {pts: cum, color: '#22d3ee', w: 2}], {labels});
+  lineChart('balcv', [{pts: dl.map(d => [0, Number(d.bal)]), color: '#94a3b8'}, {pts: dl.map(d => [0, Number(d.eq)]), color: '#4ade80'}], {labels: dl.map(d => d.d), zero: false, h: 200});
+}
+// ------------------------------------------------------------ 期間のバックテスト（入り損ね込み）
+function perSec() {
+  if (!D.btDone) { $('#s-per').innerHTML = '<div class="card mut">今回はバックテストし直していません（--no-bt）。</div>'; return; }
+  const live = closed(), B = accBT(), bc = B.all.filter(b => !b.open && b.R != null), miss = B.missed.filter(b => !b.open && b.R != null);
+  const sl = stats(live), sb = stats(bc), sm = stats(miss);
+  const row = (l, s, c = '') => `<tr><td class="l">${l}</td><td>${s.n}</td><td>${s.n ? (s.w / s.n * 100).toFixed(0) + '%' : '—'}</td><td class="${cls(s.avg)}">${sg(s.avg)}</td><td class="${cls(s.sum)}"><b>${s.n ? sg(s.sum) : '—'}</b></td><td>${f2(s.pf)}</td><td>${f2(s.dd, 1)}</td><td>${s.mls}</td></tr>`;
+  const fams = [...new Set(live.map(t => t.fam).concat(bc.map(b => b.fam)))];
+  const frow = f => { const a = stats(live.filter(t => t.fam === f)), b = stats(bc.filter(t => t.fam === f)), m = stats(miss.filter(t => t.fam === f));
+    return `<tr><td class="l"><b>${esc(famCode(f))}</b></td><td>${a.n}</td><td class="${cls(a.sum)}">${a.n ? sg(a.sum) : '—'}</td><td>${b.n}</td><td class="${cls(b.sum)}">${b.n ? sg(b.sum) : '—'}</td><td class="${cls(a.sum - b.sum)}">${sg(a.sum - b.sum)}</td><td>${m.n}</td><td class="${cls(m.sum)}">${m.n ? sg(m.sum) : '—'}</td></tr>`; };
+  $('#s-per').innerHTML = `<div class="card"><b>この期間を本番のコードで回した結果（入り損ねも全部込み）と本番</b>
+    <div class="scroll"><table><tr><th class="l"></th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>PF</th><th>DD</th><th>連敗</th></tr>
+      ${row('本番（実際）', sl)}${row('この期間のバックテスト', sb)}${row('うち入り損ね（本番に無い）', sm)}</table></div>
+    <div class="note" style="margin-top:6px">対象の EA ＝ 今この口座でオンの EA ＋ この口座で取引のあった EA。差（本番 − バックテスト）は、入り損ね・滑り・スプレッド・決済のずれの合計。
+      PC が止まっていた・オンにする前だった・最小ロットで見送った、などで入れなかった分も「実際に EA を回していたらこうだった」として数えている。</div></div>
+    <div class="card"><b>累計 R（時間順）</b> <span class="note"><span class="sw" style="background:#22d3ee"></span>本番 <span class="sw" style="background:#f472b6"></span>この期間のバックテスト <span class="sw" style="background:#fbbf24"></span>入り損ねだけ</span><canvas id="percv"></canvas></div>
+    <div class="card"><b>系統ごと</b><div class="scroll"><table><tr><th class="l">系統</th><th>本番 回数</th><th>本番 R</th><th>BT 回数</th><th>BT R</th><th>差</th><th>入り損ね</th><th>入り損ね R</th></tr>${fams.map(frow).join('')}</table></div></div>`;
+  timeChart('percv', [{pts: cumPts(bc), color: '#f472b6'}, {pts: cumPts(miss), color: '#fbbf24', dash: [4, 3]}, {pts: cumPts(live), color: '#22d3ee', w: 2}]);
 }
 // ------------------------------------------------------------ 月ごと
 function monSec() {
-  const by = {}; closed().forEach(t => { const m = tstr(t.xt).slice(0, 7); (by[m] = by[m] || []).push(t); });
-  const rows = Object.keys(by).sort().reverse().map(m => { const s = stats(by[m]), fam = {}; by[m].forEach(t => fam[t.fam] = (fam[t.fam] || 0) + t.R);
-    const top = Object.entries(fam).sort((a, b) => b[1] - a[1]); const ex = by[m].reduce((a, t) => a + (D.exp[t.ea] || [0])[0], 0);
-    return `<tr><td class="l">${m}</td><td>${s.n}</td><td>${(s.w / s.n * 100).toFixed(0)}%</td><td class="${cls(s.avg)}">${sg(s.avg)}</td><td class="${cls(s.sum)}"><b>${sg(s.sum)}</b></td><td class="dim">${sg(ex)}</td><td>${f2(s.pf)}</td><td>${f2(s.dd, 1)}</td><td class="${cls(s.P)}">${yen(s.P)}</td>
+  const by = {}, bb = {}; closed().forEach(t => { const m = tstr(t.xt).slice(0, 7); (by[m] = by[m] || []).push(t); });
+  if (D.btDone) accBT().all.filter(b => !b.open && b.R != null).forEach(b => { const m = tstr(b.xt).slice(0, 7); (bb[m] = bb[m] || []).push(b); });
+  const ms = [...new Set(Object.keys(by).concat(Object.keys(bb)))].sort().reverse();
+  const rows = ms.map(m => { const g = by[m] || [], s = stats(g), b = stats(bb[m] || []), fam = {}; g.forEach(t => fam[t.fam] = (fam[t.fam] || 0) + t.R);
+    const top = Object.entries(fam).sort((a, b) => b[1] - a[1]); const ex = g.reduce((a, t) => a + (D.exp[t.ea] || [0])[0], 0);
+    return `<tr><td class="l">${m}</td><td>${s.n}</td><td>${s.n ? (s.w / s.n * 100).toFixed(0) + '%' : '—'}</td><td class="${cls(s.avg)}">${sg(s.avg)}</td><td class="${cls(s.sum)}"><b>${s.n ? sg(s.sum) : '—'}</b></td><td class="dim">${sg(ex)}</td>
+      <td>${D.btDone ? b.n : ''}</td><td class="${cls(b.sum)}">${D.btDone && b.n ? sg(b.sum) : ''}</td><td>${f2(s.pf)}</td><td>${f2(s.dd, 1)}</td><td class="${cls(s.P)}">${s.n ? yen(s.P) : '—'}</td>
       <td class="l" style="font-size:11px">${top.slice(0, 3).map(([f, r]) => `${esc(famCode(f))} <span class="${cls(r)}">${sg(r)}</span>`).join(' · ')}${top.length > 3 ? ' … ' + top.slice(-1).map(([f, r]) => `${esc(famCode(f))} <span class="${cls(r)}">${sg(r)}</span>`).join('') : ''}</td></tr>`; }).join('');
-  $('#s-mon').innerHTML = `<div class="card"><div class="scroll"><table><tr><th class="l">月（決済）</th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>目安</th><th>PF</th><th>月内DD</th><th>損益</th><th class="l">系統（良い順 3 つ … 一番悪い）</th></tr>${rows || '<tr><td class="l dim" colspan="10">決済したトレードなし</td></tr>'}</table></div></div>`;
+  $('#s-mon').innerHTML = `<div class="card"><div class="scroll"><table><tr><th class="l">月（決済）</th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>長期の目安</th><th>期間BT 回数</th><th>期間BT R</th><th>PF</th><th>月内DD</th><th>損益</th><th class="l">系統（良い順 3 つ … 一番悪い）</th></tr>${rows || '<tr><td class="l dim" colspan="12">データなし</td></tr>'}</table></div>
+    <div class="note">期間BT＝この期間のバックテスト（入り損ね込み）。</div></div>`;
 }
 // ------------------------------------------------------------ EA ごと
 function eaSec() {
   const g = closed(), byF = {}, byK = {}; g.forEach(t => { (byF[t.fam] = byF[t.fam] || []).push(t); (byK[t.ea] = byK[t.ea] || []).push(t); });
+  const bk = {}; if (D.btDone) accBT().all.filter(b => !b.open && b.R != null).forEach(b => (bk[b.ea] = bk[b.ea] || []).push(b));
   const fams = Object.keys(D.fams).concat(byF.OLD ? ['OLD'] : []);
   const frow = f => { const s = stats(byF[f] || []), fb = D.famBt[f] || {}; const ex = (byF[f] || []).reduce((a, t) => a + (D.exp[t.ea] || [0])[0], 0), sd = Math.sqrt((byF[f] || []).reduce((a, t) => a + Math.pow((D.exp[t.ea] || [0, 2])[1], 2), 0));
-    const j = s.n ? judge(1, (s.sum - ex) / (sd || 1), 0, 1) : null;
-    return `<tr class="click" onclick="S.fam='${f}';S.tab='s-tr';draw()"><td class="l"><b>${esc(famCode(f))}</b> <span class="dim" style="font-size:11px">${esc((D.fams[f] || {}).title || '')}</span></td><td>${mk(j)}</td><td>${s.n}</td><td>${s.n ? (s.w / s.n * 100).toFixed(0) + '%' : '—'}</td>
-      <td class="${cls(s.avg)}">${sg(s.avg)}<div class="dim">${f2(fb.avg)}</div></td><td class="${cls(s.sum)}">${s.n ? sg(s.sum) : '—'}<div class="dim">${s.n ? sg(ex) : ''}</div></td><td>${f2(s.pf)}</td><td>${f2(s.dd, 1)}</td><td>${s.mls}</td><td class="${cls(s.P)}">${s.n ? yen(s.P) : '—'}</td></tr>`; };
+    const j = s.n ? judge(1, (s.sum - ex) / (sd || 1), 0, 1) : null, b = stats(Object.keys(bk).filter(k => D.famOf[k] === f).flatMap(k => bk[k]));
+    return `<tr class="click" onclick="S.fam='${f}';S.eaf='';S.tab='s-tr';draw()"><td class="l"><b>${esc(famCode(f))}</b> <span class="dim" style="font-size:11px">${esc((D.fams[f] || {}).title || '')}</span></td><td>${mk(j)}</td><td>${s.n}</td><td>${s.n ? (s.w / s.n * 100).toFixed(0) + '%' : '—'}</td>
+      <td class="${cls(s.avg)}">${sg(s.avg)}<div class="dim">${f2(fb.avg)}</div></td><td class="${cls(s.sum)}">${s.n ? sg(s.sum) : '—'}<div class="dim">${s.n ? sg(ex) : ''}</div></td><td>${D.btDone ? b.n + ' / ' + (b.n ? sg(b.sum) : '—') : ''}</td><td>${f2(s.pf)}</td><td>${f2(s.dd, 1)}</td><td>${s.mls}</td><td class="${cls(s.P)}">${s.n ? yen(s.P) : '—'}</td></tr>`; };
   const keys = Object.keys(D.famOf).concat(Object.keys(byK).filter(k => !D.famOf[k]));
-  const krow = k => { const s = stats(byK[k] || []), e = D.exp[k], b = D.bt[k] || {}, j = e ? judge(s.n, s.avg, e[0], e[1]) : null, on = (D.on[S.acc] || []).includes(k);
+  const krow = k => { const s = stats(byK[k] || []), e = D.exp[k], b = D.bt[k] || {}, j = e ? judge(s.n, s.avg, e[0], e[1]) : null, on = (D.on[S.acc] || []).includes(k), pb = stats(bk[k] || []);
     return `<tr class="click" onclick="S.fam='';S.sym='';S.eaf='${k}';S.tab='s-tr';draw()"><td class="l">${esc(k)}${on ? '' : ' <span class="badge">オフ</span>'}</td><td>${mk(j)}</td><td>${s.n}</td><td>${s.n ? (s.w / s.n * 100).toFixed(0) + '%' : '—'}<div class="dim">${f2(b.wr, 0)}%</div></td>
-      <td class="${cls(s.avg)}">${sg(s.avg)}<div class="dim">${e ? f2(e[0]) : '—'}</div></td><td>${f2(s.pf)}<div class="dim">${f2(b.pf)}</div></td><td class="${cls(s.sum)}">${s.n ? sg(s.sum) : '—'}</td><td>${f2(s.dd, 1)}</td><td>${s.mls}</td><td class="${cls(s.P)}">${s.n ? yen(s.P) : '—'}</td><td class="dim">${b.py != null ? b.py + '回/年' : ''}</td></tr>`; };
-  $('#s-ea').innerHTML = `<div class="card"><b>系統ごと</b> <span class="note">行を押すとその系統のトレード一覧へ。下の灰色＝バックテスト（平均 R、合計は回数分の目安）</span><div class="scroll"><table>
-      <tr><th class="l">系統</th><th>判定</th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>PF</th><th>DD</th><th>連敗</th><th>損益</th></tr>${fams.map(frow).join('')}</table></div></div>
+      <td class="${cls(s.avg)}">${sg(s.avg)}<div class="dim">${e ? f2(e[0]) : '—'}</div></td><td>${f2(s.pf)}<div class="dim">${f2(b.pf)}</div></td><td class="${cls(s.sum)}">${s.n ? sg(s.sum) : '—'}</td><td>${D.btDone ? pb.n + ' / ' + (pb.n ? sg(pb.sum) : '—') : ''}</td><td>${f2(s.dd, 1)}</td><td>${s.mls}</td><td class="${cls(s.P)}">${s.n ? yen(s.P) : '—'}</td><td class="dim">${b.py != null ? b.py + '回/年' : ''}</td></tr>`; };
+  $('#s-ea').innerHTML = `<div class="card"><b>系統ごと</b> <span class="note">行を押すとその系統のトレード一覧へ。灰色＝長期バックテスト（平均 R、合計は回数分の目安）。期間BT＝この期間のバックテストの回数 / 合計 R</span><div class="scroll"><table>
+      <tr><th class="l">系統</th><th>判定</th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>期間BT</th><th>PF</th><th>DD</th><th>連敗</th><th>損益</th></tr>${fams.map(frow).join('')}</table></div></div>
     <div class="card"><b>EA ごと</b> <span class="note">「オフ」＝今この口座でオフ。判定の右の数字＝ブレ何個分か</span><div class="scroll"><table>
-      <tr><th class="l">EA</th><th>判定</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th><th>DD</th><th>連敗</th><th>損益</th><th>BT 年の回数</th></tr>${keys.map(krow).join('')}</table></div></div>`;
+      <tr><th class="l">EA</th><th>判定</th><th>回数</th><th>勝率</th><th>平均R</th><th>PF</th><th>合計R</th><th>期間BT</th><th>DD</th><th>連敗</th><th>損益</th><th>BT 年の回数</th></tr>${keys.map(krow).join('')}</table></div></div>`;
 }
 // ------------------------------------------------------------ 突き合わせ
 function btSec() {
   if (!D.btDone) { $('#s-bt').innerHTML = '<div class="card mut">今回はバックテストし直していません（--no-bt）。</div>'; return; }
-  const all = trades(true), m = all.filter(t => t.bt), miss = all.filter(t => !t.bt && t.st === 'CLOSED');
-  const on = new Set(D.on[S.acc] || []), extra = D.bt_only.filter(b => on.has(b.ea));
-  const dR = m.filter(t => t.R != null && t.bt.R != null).map(t => t.R - t.bt.R), mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-  const row = t => `<tr class="click" onclick="S.sel=${t.i};S.tab='s-tr';draw()"><td class="l">${esc(t.ea)}</td><td>${t.side > 0 ? '買い' : '売り'}</td><td>${tstr(t.et)}</td><td>${t.bt ? tstr(t.bt.t) : '—'}</td><td>${px(t, t.ep)}</td><td>${t.bt ? px(t, t.bt.ep) : '—'}</td>
-     <td class="${cls(t.R)}">${sg(t.R)}</td><td class="${cls(t.bt && t.bt.R)}">${t.bt ? (t.bt.open ? '保有中' : sg(t.bt.R)) : '—'}</td><td class="${t.bt && t.R != null && t.bt.R != null ? cls(t.R - t.bt.R) : ''}">${t.bt && t.R != null && t.bt.R != null ? sg(t.R - t.bt.R) : '—'}</td></tr>`;
+  const all = trades(true), m = all.filter(t => t.btj >= 0), miss = all.filter(t => t.btj < 0 && t.st === 'CLOSED'), extra = accBT().missed;
+  const bt = j => D.btl.find(b => b.j === j), dR = m.map(t => [t, bt(t.btj)]).filter(([t, b]) => t.R != null && b && b.R != null).map(([t, b]) => t.R - b.R), mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const row = t => { const b = t.btj >= 0 ? bt(t.btj) : null; return `<tr class="click" onclick="pick('L${t.i}','s-tr')"><td class="l">${esc(t.ea)}</td><td>${t.side > 0 ? '買い' : '売り'}</td><td>${tstr(t.et)}</td><td>${b ? tstr(b.et) : '—'}</td><td>${px(t, t.ep)}</td><td>${b ? px(t, b.ep) : '—'}</td>
+     <td class="${cls(t.R)}">${sg(t.R)}</td><td class="${cls(b && b.R)}">${b ? (b.open ? '保有中' : sg(b.R)) : '—'}</td><td class="${b && t.R != null && b.R != null ? cls(t.R - b.R) : ''}">${b && t.R != null && b.R != null ? sg(t.R - b.R) : '—'}</td></tr>`; };
   $('#s-bt').innerHTML = `<div class="card"><div class="grid">
-      <div class="kv"><div class="k">本番の取引</div><div class="v">${all.length}</div></div><div class="kv"><div class="k">バックテストと一致</div><div class="v">${m.length}（${all.length ? Math.round(m.length / all.length * 100) : 0}%）</div></div>
-      <div class="kv"><div class="k">本番だけ（バックテストに無い）</div><div class="v ${miss.length ? 'warn' : ''}">${miss.length}</div></div><div class="kv"><div class="k">バックテストだけ（オンの EA）</div><div class="v ${extra.length ? 'warn' : ''}">${extra.length}</div></div>
-      <div class="kv"><div class="k">一致した取引の R の差（平均）</div><div class="v ${cls(mean(dR))}">${sg(mean(dR))}</div></div></div>
-    <div class="note" style="margin-top:6px">同じ期間を本番のコードでバックテストし直して、同じ EA・同じ向き・同じシグナルの足（±15 分）の取引を 1 件ずつ対応させた。R の差＝本番 − バックテスト（滑り・スプレッド・決済のずれ）。「バックテストだけ」はオンにした日より前のもの・最小ロットで見送ったもの・PC が止まっていた間のものも入る。</div></div>
+      ${kv('本番の取引', all.length)}${kv('バックテストと一致', m.length + '（' + (all.length ? Math.round(m.length / all.length * 100) : 0) + '%）')}
+      ${kv('本番だけ（バックテストに無い）', miss.length, miss.length ? 'warn' : '')}${kv('入り損ね（バックテストだけ）', extra.length, extra.length ? 'warn' : '')}${kv('一致した取引の R の差（平均）', sg(mean(dR)), cls(mean(dR)))}</div>
+    <div class="note" style="margin-top:6px">同じ期間を本番のコードでバックテストし直して、同じ EA・同じ向き・同じシグナルの足（±15 分）の取引を 1 件ずつ対応させた（口座ごと）。R の差＝本番 − バックテスト（滑り・スプレッド・決済のずれ）。</div></div>
     <div class="card"><b>一致した取引</b><div class="scroll"><table><tr><th class="l">EA</th><th>向き</th><th>本番の入り</th><th>BT の入り（足の終わり）</th><th>本番の値段</th><th>BT の値段</th><th>本番 R</th><th>BT R</th><th>差</th></tr>${m.map(row).join('') || '<tr><td class="l dim" colspan="9">なし</td></tr>'}</table></div></div>
     <div class="card"><b>本番だけ</b> <span class="note">バックテストでは入らなかった取引（ロジックのずれ・データの違いを疑う）</span><div class="scroll"><table><tr><th class="l">EA</th><th>向き</th><th>本番の入り</th><th>BT</th><th>本番の値段</th><th></th><th>本番 R</th><th></th><th></th></tr>${miss.map(row).join('') || '<tr><td class="l dim" colspan="9">なし</td></tr>'}</table></div></div>
-    <div class="card"><b>バックテストだけ（今オンの EA）</b> <span class="note">本番で入っていない取引（入り損ね）</span><div class="scroll"><table><tr><th class="l">EA</th><th>向き</th><th>BT の入り</th><th>BT の値段</th><th>BT の決済</th><th>BT R</th></tr>
-      ${extra.map(b => `<tr><td class="l">${esc(b.ea)}</td><td>${b.side > 0 ? '買い' : '売り'}</td><td>${tstr(b.t)}</td><td>${px(b, b.ep)}</td><td>${tstr(b.xt)}</td><td class="${cls(b.R)}">${b.open ? '保有中' : sg(b.R)}</td></tr>`).join('') || '<tr><td class="l dim" colspan="6">なし</td></tr>'}</table></div></div>`;
+    <div class="card"><b>入り損ね（バックテストだけ）</b> <span class="note">押すとチャートで見られる・印も付けられる</span><div class="scroll"><table><tr><th class="l">EA</th><th>向き</th><th>BT の入り</th><th>BT の値段</th><th>BT の決済</th><th>BT R</th></tr>
+      ${extra.map(b => `<tr class="click" onclick="pick('B${b.j}','s-tr')"><td class="l">${esc(b.ea)}</td><td>${b.side > 0 ? '買い' : '売り'}</td><td>${tstr(b.et)}</td><td>${px(b, b.ep)}</td><td>${tstr(b.xt)}</td><td class="${cls(b.R)}">${b.open ? '保有中' : sg(b.R)}</td></tr>`).join('') || '<tr><td class="l dim" colspan="6">なし</td></tr>'}</table></div></div>`;
+}
+// ------------------------------------------------------------ モンテカルロ
+function mcMonths(src) {
+  if (src === 'long') return D.mcMonths.map(m => { const r = []; for (let i = 1; i < m.length; i += 2) r.push(m[i]); return r; });
+  const g = src === 'live' ? closed() : accBT().all.filter(b => !b.open && b.R != null), by = {};
+  g.forEach(t => { const k = tstr(t.xt).slice(0, 7); (by[k] = by[k] || []).push(t); });
+  return Object.keys(by).sort().map(k => by[k].sort((a, b) => a.xt - b.xt).map(t => t.R));
+}
+function mcRun() {
+  const o = S.mc, months = mcMonths(o.src); if (!months.length) return null;
+  const nM = Math.round(o.years * 12), res = [], dds = []; let ruin = 0;
+  for (let s = 0; s < o.sims; s++) {
+    let eq = o.cap, pk = o.cap, mdd = 0, dead = false;
+    for (let k = 0; k < nM && !dead; k++) { const m = months[Math.floor(Math.random() * months.length)];
+      for (const R of m) { const r = eq * o.risk / 100 * ((pk - eq) / pk >= 0.1 ? 0.5 : 1); eq += r * R; pk = Math.max(pk, eq); mdd = Math.max(mdd, (pk - eq) / pk);
+        if (eq <= o.cap * (1 - o.ruin / 100)) { dead = true; break; } } }
+    if (dead) ruin++; res.push(eq / o.cap - 1); dds.push(mdd);
+  }
+  res.sort((a, b) => a - b); dds.sort((a, b) => a - b); const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * a.length))];
+  const tr = months.reduce((a, m) => a + m.length, 0) / months.length;
+  return {n: months.length, tpm: tr, ruin: ruin / o.sims, r5: q(res, .05), r50: q(res, .5), r95: q(res, .95), d50: q(dds, .5), d95: q(dds, .95), d99: q(dds, .99), loss: res.filter(v => v < 0).length / res.length, res};
+}
+function mcSec() {
+  const o = S.mc, inp = (k, l, step = 1) => `<label class="mut" style="font-size:12px">${l} <input type="number" step="${step}" value="${o[k]}" style="width:90px" onchange="S.mc.${k}=Number(this.value)"></label>`;
+  const srcs = [['live', '本番のトレード'], ['period', 'この期間のバックテスト（入り損ね込み）'], ['long', '長期のバックテスト（アプリと同じ）']];
+  $('#s-mc').innerHTML = `<div class="card"><div class="chips">${srcs.map(([k, l]) => `<button class="t ${o.src === k ? 'on' : ''}" onclick="S.mc.src='${k}';mcSec()">${l}</button>`).join('')}</div>
+    <div class="chips">${inp('cap', '元手（円）', 10000)}${inp('risk', 'リスク %', 0.1)}${inp('years', '年数', 0.5)}${inp('ruin', '破産ライン（元手から −%）', 5)}${inp('sims', '回数', 500)}<button class="t on" onclick="mcSec()">計算する</button></div>
+    <div class="note">過去の月をランダムに並べ替えて、口座の % リスクの複利で回す（DD 10% の間はリスク半分。アプリのモンテカルロと同じ決まり）。元の月が少ないと、同じ月を何度も使うので結果がぶれやすい。</div><div id="mcout"></div></div>`;
+  const r = mcRun(), out = $('#mcout');
+  if (!r) { out.innerHTML = '<div class="mut" style="margin-top:8px">元にする月がありません</div>'; return; }
+  out.innerHTML = `<div class="grid" style="margin-top:8px">${kv('元の月の数', r.n + ' か月（月 ' + r.tpm.toFixed(1) + ' 回）')}${kv('破産の確率', (r.ruin * 100).toFixed(2) + '%', r.ruin > 0.01 ? 'dn' : '')}${kv(o.years + ' 年後 真ん中', (r.r50 > 0 ? '+' : '') + (r.r50 * 100).toFixed(0) + '%', cls(r.r50))}
+    ${kv('悪い 5%', (r.r5 > 0 ? '+' : '') + (r.r5 * 100).toFixed(0) + '%', cls(r.r5))}${kv('良い 5%', (r.r95 > 0 ? '+' : '') + (r.r95 * 100).toFixed(0) + '%', cls(r.r95))}${kv('元本割れの確率', (r.loss * 100).toFixed(1) + '%')}
+    ${kv('最大 DD 真ん中', (r.d50 * 100).toFixed(1) + '%')}${kv('最大 DD 悪い 5%', (r.d95 * 100).toFixed(1) + '%')}${kv('最大 DD 悪い 1%', (r.d99 * 100).toFixed(1) + '%')}</div>
+    <div style="margin-top:8px"><b>結果の分布</b> <span class="note">（${o.years} 年後の増減 %、左が悪い順）</span><canvas id="mccv"></canvas></div>`;
+  const step = Math.max(1, Math.floor(r.res.length / 200)); lineChart('mccv', [{pts: r.res.filter((_, i) => i % step === 0).map(v => [0, v * 100]), color: '#22d3ee', w: 2}], {h: 200});
 }
 // ------------------------------------------------------------ 約定・その他
 function exSec() {
   const all = trades(true), sl = all.filter(t => t.slip != null), sp = all.filter(t => t.spr != null), mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
   const bySym = {}; sl.forEach(t => (bySym[t.sym] = bySym[t.sym] || []).push(t));
-  const exd = all.filter(t => t.ex), ng = all.filter(t => t.v === 'ng'), ok = all.filter(t => t.v === 'ok'), mb = all.filter(t => t.v === 'maybe');
-  const ngR = stats(ng.filter(t => t.st === 'CLOSED' && t.R != null)), okR = stats(ok.filter(t => t.st === 'CLOSED' && t.R != null));
+  const exd = all.filter(t => t.ex), mk2 = v => stats(all.filter(t => t.v === v && t.st === 'CLOSED' && t.R != null)), cnt = v => all.filter(t => t.v === v).length;
   $('#s-ex').innerHTML = `<div class="card"><b>約定（滑り・スプレッド）</b> <span class="note">滑り＝狙った値段からのずれ（＋が不利）、値段の単位</span><div class="scroll"><table><tr><th class="l">銘柄</th><th>回数</th><th>滑り 平均</th><th>一番悪い</th><th>スプレッド 平均</th></tr>
       ${Object.keys(bySym).sort().map(s => { const g = bySym[s], sp2 = sp.filter(t => t.sym === s); return `<tr><td class="l">${esc(s)}</td><td>${g.length}</td><td>${f2(mean(g.map(t => t.slip)), 5)}</td><td>${f2(Math.max(...g.map(t => t.slip)), 5)}</td><td>${f2(mean(sp2.map(t => t.spr)), 5)}</td></tr>`; }).join('') || '<tr><td class="l dim" colspan="5">データなし</td></tr>'}</table></div></div>
-    <div class="card"><b>あなたの印</b><div class="grid" style="margin-top:6px"><div class="kv"><div class="k">OK</div><div class="v">${ok.length}</div><div class="dim">${okR.n ? sg(okR.avg) + 'R/回' : ''}</div></div>
-      <div class="kv"><div class="k">入らない方がいい</div><div class="v">${ng.length}</div><div class="dim">${ngR.n ? sg(ngR.avg) + 'R/回' : ''}</div></div><div class="kv"><div class="k">迷う</div><div class="v">${mb.length}</div></div></div></div>
+    <div class="card"><b>あなたの印</b><div class="grid" style="margin-top:6px">${VERD.map(([v, l]) => { const s = mk2(v); return kv(l, cnt(v) + ' 件', '') .replace('</div></div>', `</div><div class="dim">${s.n ? sg(s.avg) + 'R/回 · 合計 ' + sg(s.sum) : ''}</div></div>`); }).join('')}</div></div>
     <div class="card"><b>成績から外したトレード</b> ${exd.length} 件<div class="scroll"><table><tr><th class="l">EA</th><th>入り</th><th>R</th><th>損益</th><th class="l">理由</th></tr>
-      ${exd.map(t => `<tr class="click" onclick="S.sel=${t.i};S.tab='s-tr';draw()"><td class="l">${esc(t.ea)}</td><td>${tstr(t.et)}</td><td>${sg(t.R)}</td><td>${yen(t.pf)}</td><td class="l">${esc(t.exw)}</td></tr>`).join('') || '<tr><td class="l dim" colspan="5">なし</td></tr>'}</table></div></div>`;
+      ${exd.map(t => `<tr class="click" onclick="pick('L${t.i}','s-tr')"><td class="l">${esc(t.ea)}</td><td>${tstr(t.et)}</td><td>${sg(t.R)}</td><td>${yen(t.pf)}</td><td class="l">${esc(t.exw)}</td></tr>`).join('') || '<tr><td class="l dim" colspan="5">なし</td></tr>'}</table></div></div>`;
 }
-// ------------------------------------------------------------ トレード一覧とチャート
+// ------------------------------------------------------------ トレード一覧
+function items() { const L = trades(true).map(t => t), M = D.btDone ? accBT().missed : []; return L.concat(M); }
+const cur = () => { if (!S.sel) return null; const k = S.sel[0], n = Number(S.sel.slice(1)); return k === 'L' ? D.trades.find(t => t.i === n) : D.btl.find(b => b.j === n); };
+const markIcon = t => (t.v === 'ok' ? '✅' : t.v === 'ng' ? '⛔' : t.v === 'maybe' ? '❔' : '') + (t.xv || t.xtags ? '🚪' : '') + (t.cm ? '💬' : '') + ((t.lines || []).length ? '📐' : '');
 function listSec() {
-  const all = trades(true).filter(t => (!S.fam || t.fam === S.fam) && (!S.eaf || t.ea === S.eaf) && (!S.sym || t.sym === S.sym) && (!S.res || (S.res === 'w' ? t.R > 0 : S.res === 'l' ? t.R <= 0 : t.st === 'OPEN')));
-  const fams = [...new Set(trades(true).map(t => t.fam))], syms = [...new Set(trades(true).map(t => t.sym))].sort();
+  const ok = t => (!S.fam || t.fam === S.fam) && (!S.eaf || t.ea === S.eaf) && (!S.sym || t.sym === S.sym) && (!S.kind || t.kind === S.kind) &&
+    (!S.res || (S.res === 'w' ? t.R > 0 : S.res === 'l' ? t.R != null && t.R <= 0 : S.res === 'o' ? t.st === 'OPEN' : S.res === 'm' ? !!markIcon(t) : !markIcon(t)));
+  const base = items(), all = base.filter(ok).sort((a, b) => b.et - a.et);
+  const fams = [...new Set(base.map(t => t.fam))], syms = [...new Set(base.map(t => t.sym))].sort();
   $('#tflt').innerHTML = `<select onchange="S.fam=this.value;S.eaf='';draw()"><option value="">系統：すべて</option>${fams.map(f => `<option value="${f}" ${S.fam === f ? 'selected' : ''}>${esc(famCode(f))}</option>`).join('')}</select>
     <select onchange="S.sym=this.value;draw()"><option value="">銘柄：すべて</option>${syms.map(s => `<option ${S.sym === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
-    <select onchange="S.res=this.value;draw()"><option value="">結果：すべて</option><option value="w" ${S.res === 'w' ? 'selected' : ''}>勝ち</option><option value="l" ${S.res === 'l' ? 'selected' : ''}>負け</option><option value="o" ${S.res === 'o' ? 'selected' : ''}>保有中</option></select>
+    <select onchange="S.kind=this.value;draw()"><option value="">本番＋入り損ね</option><option value="L" ${S.kind === 'L' ? 'selected' : ''}>本番だけ</option><option value="B" ${S.kind === 'B' ? 'selected' : ''}>入り損ねだけ</option></select>
+    <select onchange="S.res=this.value;draw()"><option value="">結果：すべて</option>${[['w', '勝ち'], ['l', '負け'], ['o', '保有中'], ['m', '印あり'], ['n', '印なし']].map(([v, l]) => `<option value="${v}" ${S.res === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
     ${S.eaf ? `<button class="t on" onclick="S.eaf='';draw()">${esc(S.eaf)} ✕</button>` : ''}<span class="dim">${all.length} 件</span>`;
-  $('#tlist').innerHTML = `<tr><th class="l">入り</th><th class="l">EA</th><th>向き</th><th>R</th><th>BT</th></tr>` + all.slice().reverse().map(t => `<tr class="click ${S.sel === t.i ? 'sel' : ''} ${t.ex ? 'exr' : ''}" onclick="S.sel=${t.i};draw()">
-    <td class="l">${tstr(t.et).slice(2)}</td><td class="l">${esc(t.ea)}${t.v === 'ng' ? ' <span class="badge">✕印</span>' : ''}</td><td>${t.side > 0 ? '<span class="dn">買</span>' : '<span style="color:#60a5fa">売</span>'}</td>
-    <td class="${cls(t.R)}">${t.st === 'OPEN' ? '保有' : sg(t.R)}</td><td class="dim">${t.bt ? (t.bt.open ? '保有' : sg(t.bt.R)) : D.btDone ? '無' : ''}</td></tr>`).join('');
-  if (S.sel == null && all.length) S.sel = all[all.length - 1].i;
-  $('#tfbtn').innerHTML = [['D1', '日足'], ['H4', 'H4'], ['H1', 'H1'], ['M15', 'M15']].map(([k, l]) => `<button class="t ${S.tf === k ? 'on' : ''}" onclick="S.tf='${k}';S.view=null;draw()">${l}</button>`).join(' ') +
+  $('#tlist').innerHTML = `<tr><th class="l">入り</th><th class="l">EA</th><th>向き</th><th>R</th><th>BT</th></tr>` + all.map(t => { const key = t.kind + (t.kind === 'L' ? t.i : t.j), b = t.kind === 'L' && t.btj >= 0 ? D.btl.find(x => x.j === t.btj) : null;
+    return `<tr class="click ${S.sel === key ? 'sel' : ''} ${t.ex ? 'exr' : ''}" onclick="pick('${key}')">
+    <td class="l">${tstr(t.et).slice(2)}</td><td class="l">${esc(t.ea)}${t.kind === 'B' ? ' <span class="badge miss">入り損ね</span>' : ''} <span style="font-size:11px">${markIcon(t)}</span></td><td>${t.side > 0 ? '<span class="dn">買</span>' : '<span style="color:#60a5fa">売</span>'}</td>
+    <td class="${cls(t.R)}">${t.st === 'OPEN' ? '保有' : sg(t.R)}</td><td class="dim">${t.kind === 'B' ? '—' : b ? (b.open ? '保有' : sg(b.R)) : D.btDone ? '無' : ''}</td></tr>`; }).join('');
+  if (!S.sel && all.length) S.sel = all[0].kind + (all[0].kind === 'L' ? all[0].i : all[0].j);
+  $('#tfbtn').innerHTML = ['D1', 'H4', 'H1', 'M15'].map(k => `<button class="t ${S.tf === k ? 'on' : ''}" onclick="S.tf='${k}';S.view=null;draw()">${TFN[k]}</button>`).join(' ') +
     ` <button class="t" onclick="zoom(0.7)">＋</button><button class="t" onclick="zoom(1.4)">－</button><button class="t" onclick="S.view=null;chart()">この取引へ</button>`;
-  chart();
+  drawBtns(); chart(); markPanel();
 }
-const tf = () => { const t = D.trades.find(x => x.i === S.sel); return t ? (D.charts[t.sym] || {})[S.tf] : null; };
+function drawBtns() {
+  const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode='${m}';S.pend=null;drawBtns()">${l}</button>`;
+  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('del', '🗑 消す')}
+    <span class="note">${S.mode === 'h' ? 'チャートを 1 回押す' : S.mode === 't' || S.mode === 'b' ? '始点と終点を 1 回ずつ押す' : S.mode === 'del' ? '消したい線・ボックスを押す' : ''}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
+}
+// ------------------------------------------------------------ chart
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
 function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (let i = 0; i < c.length; i++) { s += c[i]; if (i >= n) s -= c[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
-function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(1500, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
+function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
+const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false});
+let G = null;   // geometry of the last drawn chart (for clicks)
 function chart() {
-  const cv = $('#cv'), t = D.trades.find(x => x.i === S.sel), B = tf(); const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = 520;
-  cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H);
+  const cv = $('#cv'), t = cur(); const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = 560;
+  cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); G = null;
   if (!t) { $('#tinfo').innerHTML = ''; return; }
   info(t);
+  const B = (D.charts[t.sym] || {})[S.tf], dig = (D.charts[t.sym] || {}).dig ?? 5;
   if (!B || !B[0].length) { x.fillStyle = '#94a3b8'; x.fillText('この銘柄・足のチャートデータがありません', 12, 24); return; }
-  const [T, O, Hh, L, C] = B, n = T.length;
-  if (!S.view || S.view.key !== t.i + S.tf) { const per = {M15: 15, H1: 60, H4: 240, D1: 1440}[S.tf]; const a = bs(T, t.et), b = t.xt ? bs(T, t.xt) : a; const span = Math.max(b - a, 1);
-    const want = {M15: 160, H1: 140, H4: 120, D1: 140}[S.tf]; const nn = Math.max(want, span + 40); S.view = {key: t.i + S.tf, n: Math.min(nn, n), i0: Math.max(0, a - Math.round((nn - span) * 0.55))}; }
+  const [T, O, Hh, L, C] = B, n = T.length, key = S.sel + S.tf;
+  if (!S.view || S.view.key !== key) { const a = bs(T, t.et), b = t.xt ? bs(T, t.xt) : a, span = Math.max(b - a, 1), want = {M15: 160, H1: 140, H4: 120, D1: 140}[S.tf], nn = Math.max(want, span + 40);
+    S.view = {key, n: Math.min(nn, n), i0: Math.max(0, a - Math.round((nn - span) * 0.55))}; }
   S.view.i0 = Math.max(0, Math.min(n - 10, S.view.i0)); const i0 = S.view.i0, i1 = Math.min(n, i0 + S.view.n);
   const lv = [t.ep, t.sl, t.tp, t.xp].filter(v => v != null && !isNaN(v) && v > 0);
   let lo = Infinity, hi = -Infinity; for (let i = i0; i < i1; i++) { lo = Math.min(lo, L[i]); hi = Math.max(hi, Hh[i]); } lv.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
-  const pr = (hi - lo) * 0.06 || 1; lo -= pr; hi += pr; const padR = 64, bw = (W - padR) / (i1 - i0), X = i => (i - i0 + 0.5) * bw, Y = v => 10 + (hi - v) / (hi - lo) * (H - 34);
-  x.font = '10px sans-serif'; x.fillStyle = '#64748b'; for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5; x.fillText(v.toFixed(B.dig || (D.charts[t.sym] || {}).dig || 5), W - padR + 4, Y(v) + 3); x.strokeStyle = '#162033'; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W - padR, Y(v)); x.stroke(); }
+  const pr = (hi - lo) * 0.06 || 1; lo -= pr; hi += pr; const padR = 68, bw = (W - padR) / (i1 - i0), X = i => (i - i0 + 0.5) * bw, Y = v => 10 + (hi - v) / (hi - lo) * (H - 34);
+  const tx = tm => { const k = bs(T, tm); const f = k > 0 && T[k] > tm ? k - 1 + (tm - T[k - 1]) / Math.max(1, T[k] - T[k - 1]) : k; return X(tm > T[n - 1] ? n - 1 + (tm - T[n - 1]) / Math.max(1, T[n - 1] - T[n - 2]) : f); };
+  G = {i0, bw, T, Y, X, lo, hi, H, W, padR, tx, toP: y => hi - (y - 10) / (H - 34) * (hi - lo), toT: xx => { const fi = xx / bw - 0.5 + i0, k = Math.max(0, Math.min(n - 1, Math.round(fi))); return T[k]; }};
+  x.font = '10px sans-serif'; x.fillStyle = '#64748b'; for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5; x.fillText(v.toFixed(dig), W - padR + 4, Y(v) + 3); x.strokeStyle = '#162033'; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W - padR, Y(v)); x.stroke(); }
   const step = Math.max(1, Math.round(90 / bw)); for (let i = i0; i < i1; i += step) x.fillText(tstr(T[i]).slice(5, S.tf === 'D1' ? 10 : 16), X(i) - 20, H - 6);
-  for (let i = i0; i < i1; i++) { const up = C[i] >= O[i]; x.strokeStyle = x.fillStyle = up ? '#4ade80' : '#f87171'; x.beginPath(); x.moveTo(X(i), Y(Hh[i])); x.lineTo(X(i), Y(L[i])); x.stroke();
-    const y1 = Y(Math.max(O[i], C[i])), y2 = Y(Math.min(O[i], C[i])); x.fillRect(X(i) - Math.max(1, bw * 0.35), y1, Math.max(1, bw * 0.7), Math.max(1, y2 - y1)); }
-  [[20, '#38bdf8'], [75, '#fb923c']].forEach(([p, col]) => { const m = sma(C, p); x.strokeStyle = col; x.lineWidth = 1.2; x.beginPath(); let st = false; for (let i = i0; i < i1; i++) if (m[i] != null) { st ? x.lineTo(X(i), Y(m[i])) : x.moveTo(X(i), Y(m[i])); st = true; } x.stroke(); x.lineWidth = 1; });
+  for (let i = i0; i < i1; i++) { const up = C[i] >= O[i], y1 = Y(Math.max(O[i], C[i])), y2 = Y(Math.min(O[i], C[i])), w = Math.max(1, bw * 0.7);
+    x.strokeStyle = up ? '#e5e7eb' : '#64748b'; x.beginPath(); x.moveTo(X(i), Y(Hh[i])); x.lineTo(X(i), y1); x.moveTo(X(i), y2); x.lineTo(X(i), Y(L[i])); x.stroke();
+    if (up) { x.fillStyle = '#0f172a'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); x.strokeRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } else { x.fillStyle = '#64748b'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } }
+  [[20, '#ef4444'], [75, '#22c55e'], [200, '#f472b6']].forEach(([p, col]) => { const m = sma(C, p); x.strokeStyle = col; x.lineWidth = 1.3; x.beginPath(); let st = false; for (let i = i0; i < i1; i++) if (m[i] != null) { st ? x.lineTo(X(i), Y(m[i])) : x.moveTo(X(i), Y(m[i])); st = true; } x.stroke(); x.lineWidth = 1; });
+  // drawings (all timeframes; color = the timeframe it was drawn on)
+  x.save(); x.beginPath(); x.rect(0, 0, W - padR, H - 20); x.clip();
+  const dr = (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
+  dr.concat(S.pend ? [Object.assign({ghost: 1}, S.pend)] : []).forEach(l => { const col = TFC[l.tf] || '#e2e8f0'; x.strokeStyle = col; x.lineWidth = l.ghost ? 1 : 1.6; x.setLineDash(l.ghost ? [3, 3] : []);
+    if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(W - padR, Y(l.p1)); x.stroke(); x.fillStyle = col; x.fillText(Number(l.p1).toFixed(dig), W - padR - 60, Y(l.p1) - 3); }
+    else if (l.type === 't' && l.t2 != null) { x.beginPath(); x.moveTo(tx(l.t1), Y(l.p1)); x.lineTo(tx(l.t2), Y(l.p2)); x.stroke(); }
+    else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillStyle = col; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
+      x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); } x.setLineDash([]); x.lineWidth = 1; });
+  x.restore();
   const ia = bs(T, t.et), ib = t.xt ? bs(T, t.xt) : i1 - 1, hl = (v, col, dash, lab) => { if (v == null || isNaN(v) || !v) return; x.strokeStyle = col; x.setLineDash(dash); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); x.fillStyle = col; x.fillText(lab, X(Math.min(i1 - 1, ib + 3)) + 3, Y(v) + 3); };
   hl(t.sl, '#f87171', [4, 3], '損切り'); hl(t.tp, '#4ade80', [4, 3], '利確'); hl(t.ep, '#e2e8f0', [2, 2], '入り'); hl(t.xp, '#fbbf24', [2, 2], '決済');
   const tri = (i, v, up, col) => { x.fillStyle = col; x.beginPath(); const xx = X(i), yy = Y(v) + (up ? 12 : -12); x.moveTo(xx, yy + (up ? -8 : 8)); x.lineTo(xx - 6, yy + (up ? 4 : -4)); x.lineTo(xx + 6, yy + (up ? 4 : -4)); x.fill(); };
   if (ia >= i0 && ia < i1 && t.ep) tri(ia, t.ep, t.side > 0, t.side > 0 ? '#f43f5e' : '#3b82f6');
   if (t.xt && ib >= i0 && ib < i1 && t.xp) { x.strokeStyle = '#fbbf24'; x.lineWidth = 2; const xx = X(ib), yy = Y(t.xp); x.beginPath(); x.moveTo(xx - 5, yy - 5); x.lineTo(xx + 5, yy + 5); x.moveTo(xx + 5, yy - 5); x.lineTo(xx - 5, yy + 5); x.stroke(); x.lineWidth = 1; }
-  if (t.bt && t.bt.ep) { const j = bs(T, t.bt.t); if (j >= i0 && j < i1) { x.strokeStyle = '#94a3b8'; x.beginPath(); x.arc(X(j), Y(t.bt.ep), 6, 0, 7); x.stroke(); } }
+  const b = t.kind === 'L' && t.btj >= 0 ? D.btl.find(z => z.j === t.btj) : null;
+  if (b && b.ep) { const j = bs(T, b.et); if (j >= i0 && j < i1) { x.strokeStyle = '#94a3b8'; x.beginPath(); x.arc(X(j), Y(b.ep), 6, 0, 7); x.stroke(); } }
 }
 function info(t) {
-  $('#tinfo').innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px"><b style="font-size:14px">${esc(t.ea)}</b><span>${t.side > 0 ? '買い' : '売り'}</span><span>${t.st === 'OPEN' ? '保有中' : '決済'}</span>${t.ex ? `<span class="badge">成績から外した：${esc(t.exw)}</span>` : ''}
+  const b = t.kind === 'L' && t.btj >= 0 ? D.btl.find(z => z.j === t.btj) : null;
+  $('#tinfo').innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px"><b style="font-size:14px">${esc(t.ea)}</b>${t.kind === 'B' ? '<span class="badge miss">入り損ね（バックテストだけ）</span>' : ''}<span>${t.side > 0 ? '買い' : '売り'}</span><span>${t.st === 'OPEN' ? '保有中' : '決済'}</span>${t.ex ? `<span class="badge">成績から外した：${esc(t.exw)}</span>` : ''}
     <span>入り ${tstr(t.et)} @ ${px(t, t.ep)}</span><span>最初の損切り ${px(t, t.sl)}</span>${t.tp ? `<span>利確 ${px(t, t.tp)}</span>` : ''}<span>決済 ${tstr(t.xt)} @ ${px(t, t.xp)}</span>
-    <span class="${cls(t.R)}"><b>${sg(t.R)}R</b></span><span class="${cls(t.pf)}">${yen(t.pf)}</span><span>${t.lot ?? ''} lot · リスク ${yen(t.risk).replace('+', '')}</span>${t.slip != null ? `<span>滑り ${f2(t.slip, 5)}</span>` : ''}
-    <span class="dim">BT：${t.bt ? `入り ${tstr(t.bt.t)} @ ${px(t, t.bt.ep)} · ${t.bt.open ? '保有中' : sg(t.bt.R) + 'R'}` : (D.btDone ? 'バックテストに同じ取引なし' : '—')}</span></div>
-    ${t.why ? `<div class="note">理由：${esc(t.why)}</div>` : ''}${t.cm ? `<div class="note">コメント：${esc(t.cm)}</div>` : ''}`;
+    <span class="${cls(t.R)}"><b>${sg(t.R)}R</b></span>${t.kind === 'L' ? `<span class="${cls(t.pf)}">${yen(t.pf)}</span><span>${t.lot ?? ''} lot · リスク ${yen(t.risk).replace('+', '')}</span>${t.slip != null ? `<span>滑り ${f2(t.slip, 5)}</span>` : ''}
+    <span class="dim">BT：${b ? `入り ${tstr(b.et)} @ ${px(t, b.ep)} · ${b.open ? '保有中' : sg(b.R) + 'R'}` : (D.btDone ? 'バックテストに同じ取引なし' : '—')}</span>` : ''}</div>
+    ${t.why ? `<div class="note">理由：${esc(t.why)}</div>` : ''}`;
 }
-(function drag() {
-  const cv = $('#cv'); let p = null, pinch = null;
-  cv.addEventListener('pointerdown', e => { p = {x: e.clientX, i0: S.view && S.view.i0}; cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; const bw = (cv.clientWidth - 64) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); });
-  cv.addEventListener('pointerup', () => p = null);
+// ------------------------------------------------------------ marks (saved to GAS: live trades -> EA_Trades like the app, missed entries -> EA_ReportMarks)
+function markPanel() {
+  const t = cur(); if (!t) { $('#tmark').innerHTML = ''; return; } const d = draft(t);
+  const vb = (arr, val, fn) => arr.map(([v, l, c]) => `<button class="vb ${val === v ? 'on' : ''}" style="${val === v ? `border-color:${c};color:${c};background:${c}22` : ''}" onclick="${fn}('${v}')">${l}</button>`).join('');
+  const tb = (arr, sel, fn) => arr.map(x => `<button class="pill ${sel.includes(x) ? 'on' : ''}" onclick="${fn}('${x}')">${x}</button>`).join('');
+  $('#tmark').innerHTML = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+    <div class="mut" style="font-size:12px;font-weight:700">📝 判定</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0">${vb(VERD, d.v, 'mkV')}</div>
+    <div class="chips">${tb(TAGS, d.tags, 'mkT')}</div>
+    ${t.st === 'CLOSED' ? `<div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">🚪 決済の判定</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:4px 0">${vb(XVERD, d.xv, 'mkX')}</div>
+    <div class="chips">${tb(XTAGS, d.xtags, 'mkXT')}</div>` : ''}
+    <div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">💬 コメント</div><textarea id="mkcm" rows="3" style="width:100%" oninput="draft(cur()).cm=this.value;draft(cur()).dirty=true;mkMsg()">${esc(d.cm)}</textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="mkmsg" class="note"></span>
+      <span>${d.lines.length ? `<span class="note">線 ${d.lines.length} 本</span> ` : ''}<button class="t on" onclick="mkSave()">保存</button></span></div></div>`;
+  mkMsg();
+}
+function mkMsg(txt, col) { const m = $('#mkmsg'); if (!m) return; const d = S.draft && S.draft.key === S.sel ? S.draft : null; m.textContent = txt || (d && d.dirty ? '保存していない変更があります' : ''); m.style.color = col || (d && d.dirty ? '#fbbf24' : ''); }
+window.mkV = v => { const d = draft(cur()); d.v = d.v === v ? '' : v; d.dirty = true; markPanel(); };
+window.mkX = v => { const d = draft(cur()); d.xv = d.xv === v ? '' : v; d.dirty = true; markPanel(); };
+window.mkT = v => { const d = draft(cur()); d.tags = d.tags.includes(v) ? d.tags.filter(x => x !== v) : d.tags.concat(v); d.dirty = true; markPanel(); };
+window.mkXT = v => { const d = draft(cur()); d.xtags = d.xtags.includes(v) ? d.xtags.filter(x => x !== v) : d.xtags.concat(v); d.dirty = true; markPanel(); };
+window.mkSave = async function () {
+  const t = cur(), d = draft(t); if (!D.gas || !D.rkey) { mkMsg('保存先（GAS）が分からないので保存できません。レポートを作り直してください', '#f87171'); return; }
+  const fields = {verdict: d.v, tags: d.tags.join(','), comment: d.cm, exitVerdict: d.xv, exitTags: d.xtags.join(','), lines: d.lines};
+  const body = t.kind === 'L' ? {action: 'eaReportMark', key: D.rkey, kind: 'trade', tradeId: t.id, fields}
+    : {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: S.acc, ea: t.ea, symbol: t.sym, direction: t.side > 0 ? 'BUY' : 'SELL', time: tstr(t.et), fields};
+  mkMsg('保存中…', '#94a3b8');
+  try { const r = await fetch(D.gas, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
+    if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
+    Object.assign(t, {v: d.v, tags: fields.tags, cm: d.cm, xv: d.xv, xtags: fields.exitTags, lines: JSON.parse(JSON.stringify(d.lines))}); d.dirty = false;
+    if (t.kind === 'B') D.repmarks[t.id] = {v: t.v, tags: t.tags, cm: t.cm, xv: t.xv, xtags: t.xtags, lines: t.lines};
+    listSec(); mkMsg('保存しました（アプリ・次のレポートにも出ます）', '#4ade80');
+  } catch (e) { mkMsg('保存できませんでした：' + e.message, '#f87171'); }
+};
+// drawing / panning on the chart
+(function input() {
+  const cv = $('#cv'); let p = null, pinch = null, moved = false;
+  const pos = e => { const r = cv.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
+  cv.addEventListener('pointerdown', e => { p = {x: e.clientX, i0: S.view && S.view.i0}; moved = false; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.abs(e.clientX - p.x) > 4) moved = true;
+    if (S.mode === 'pan') { const bw = (cv.clientWidth - 68) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
+    else if (S.pend && G) { const q = pos(e); S.pend.t2 = G.toT(q.x); S.pend.p2 = G.toP(q.y); chart(); } });
+  cv.addEventListener('pointerup', e => { const was = p; p = null; if (!was || !G || S.mode === 'pan' || (moved && !S.pend)) return; const t = cur(); if (!t) return; const d = draft(t), q = pos(e);
+    if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y);
+    if (S.mode === 'h') { d.lines.push({type: 'h', tf: S.tf, t1: tm, p1: pr}); d.dirty = true; }
+    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = {type: S.mode, tf: S.tf, t1: tm, p1: pr, t2: tm, p2: pr}; chart(); return; } S.pend.t2 = tm; S.pend.p2 = pr; d.lines.push(S.pend); S.pend = null; d.dirty = true; }
+    else if (S.mode === 'del') { let best = -1, bd = 12; d.lines.forEach((l, k) => { let dist = 1e9;
+        if (l.type === 'h') dist = Math.abs(G.Y(l.p1) - q.y);
+        else { const ax = G.tx(l.t1), ay = G.Y(l.p1), bx = G.tx(l.t2), by = G.Y(l.p2);
+          if (l.type === 'b') { const inX = q.x >= Math.min(ax, bx) - 6 && q.x <= Math.max(ax, bx) + 6, inY = q.y >= Math.min(ay, by) - 6 && q.y <= Math.max(ay, by) + 6; dist = inX && inY ? Math.min(Math.abs(q.x - ax), Math.abs(q.x - bx), Math.abs(q.y - ay), Math.abs(q.y - by), 6) : 1e9; }
+          else { const L2 = (bx - ax) ** 2 + (by - ay) ** 2, u = L2 ? Math.max(0, Math.min(1, ((q.x - ax) * (bx - ax) + (q.y - ay) * (by - ay)) / L2)) : 0; dist = Math.hypot(q.x - ax - u * (bx - ax), q.y - ay - u * (by - ay)); } }
+        if (dist < bd) { bd = dist; best = k; } }); if (best >= 0) { d.lines.splice(best, 1); d.dirty = true; } }
+    chart(); markPanel(); });
   cv.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 0.87); }, {passive: false});
   cv.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = Math.abs(e.touches[0].clientX - e.touches[1].clientX); }, {passive: true});
-  cv.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { const d = Math.abs(e.touches[0].clientX - e.touches[1].clientX); if (Math.abs(d - pinch) > 20) { zoom(d > pinch ? 0.85 : 1.18); pinch = d; } } }, {passive: true});
+  cv.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { const dd = Math.abs(e.touches[0].clientX - e.touches[1].clientX); if (Math.abs(dd - pinch) > 20) { zoom(dd > pinch ? 0.85 : 1.18); pinch = dd; } } }, {passive: true});
   cv.addEventListener('touchend', () => pinch = null);
 })();
-function draw() { header(); ({'s-sum': sumSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-ex': exSec, 's-tr': listSec})[S.tab](); }
-$('#showex').onchange = draw; addEventListener('resize', () => S.tab === 's-tr' ? chart() : S.tab === 's-sum' && sumSec());
+addEventListener('beforeunload', e => { if (S.draft && S.draft.dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.pick = function (key, tab) {
+  if (S.draft && S.draft.dirty && S.draft.key !== key && !confirm('保存していない印・線があります。保存せずに移りますか？')) return;
+  S.sel = key; S.pend = null; if (tab) S.tab = tab; draw();
+};
+function draw() { header(); ({'s-sum': sumSec, 's-per': perSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-mc': mcSec, 's-ex': exSec, 's-tr': listSec})[S.tab](); }
+$('#showex').onchange = draw; addEventListener('resize', () => S.tab === 's-tr' ? chart() : draw());
 draw();
 </script></body></html>

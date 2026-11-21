@@ -41,7 +41,8 @@ def app_refs():
     bt = json.loads(re.search(r'const BT = (\{.*?\});', js, re.S).group(1))
     exp = json.loads(re.search(r'const EAL_EXP_ = (\{.*?\});', gs, re.S).group(1))
     fam_bt = json.loads(re.search(r'const FAM_BT = (\{.*?\});', js, re.S).group(1))
-    return dict(fam=fam, fams=code, bt=bt, exp=exp, fam_bt=fam_bt)
+    mk = re.search(r'const MC_KEYS = (\[.*?\]);', js, re.S); mm = re.search(r'const MC_MONTHS = (\[.*?\]);\n', js, re.S)
+    return dict(fam=fam, fams=code, bt=bt, exp=exp, fam_bt=fam_bt, mc_keys=json.loads(mk.group(1)) if mk else [], mc_months=json.loads(mm.group(1)) if mm else [])
 
 
 # ---------------------------------------------------------------- data sources
@@ -94,7 +95,7 @@ def live_trades(data, refs):
     T = T[~T.EA.astype(str).str.startswith('RES:')].copy()
     for c in ('EntryPrice', 'SLPrice', 'TPPrice', 'ExitPrice', 'Profit', 'R', 'Lot', 'RiskJPY', 'Slip', 'Spread'):
         T[c] = pd.to_numeric(T.get(c), errors='coerce')
-    T['excluded'] = T.get('Excluded', '').fillna('').astype(str).str.strip() != ''
+    T['excluded'] = T.get('Excluded', pd.Series('', index=T.index)).fillna('').astype(str).str.strip().str.lower().replace({'nan': '', 'none': ''}) != ''
     T['sig_srv'] = [jst_to_server(x) for x in T.SignalTime]
     T['sim_t'] = T.sig_srv + pd.Timedelta(minutes=15)          # the backtest's trade time = close of the signal bar
     T['entry_srv'] = [jst_to_server(x) for x in T.EntryTime]
@@ -141,33 +142,36 @@ def backtest(broker, syms_keys, start, days_back):
                     t = pd.Timestamp(z['t'])
                     if t < start:
                         continue
+                    st0 = next((z[c] for c in ('stop0', 'sl0', 'sl') if c in z and pd.notna(z[c])), None)
                     out.append(dict(key=k, sym=sym, t=t, side=int(z['side']), entry=float(from_space(sym, [z['entry']])[0]),
+                                    sl=float(from_space(sym, [st0])[0]) if st0 is not None else None,
                                     exit=float(from_space(sym, [z['exit']])[0]) if pd.notna(z.get('exit')) else None,
                                     exit_t=pd.Timestamp(z['exit_t']) if pd.notna(z.get('exit_t')) else None, R=float(z['R']), open=False))
             for z in (r.get('open') or []) if isinstance(r, dict) else []:
                 if 't' in z and pd.Timestamp(z['t']) >= start:
                     out.append(dict(key=k, sym=sym, t=pd.Timestamp(z['t']), side=int(z['side']),
-                                    entry=float(from_space(sym, [z['entry']])[0]) if 'entry' in z else None, exit=None, exit_t=None, R=None, open=True))
+                                    entry=float(from_space(sym, [z['entry']])[0]) if 'entry' in z else None,
+                                    sl=float(from_space(sym, [z['sl']])[0]) if z.get('sl') is not None else None, exit=None, exit_t=None, R=None, open=True))
     return pd.DataFrame(out), bars
 
 
 def match(T, B):
-    """live trade <-> backtest trade of the same EA, side and signal bar (+-15 minutes)."""
+    """live trade <-> backtest trade of the same EA, side and signal bar (+-15 minutes), separately for each account."""
     T = T.copy(); T['bt'] = -1
-    used = set()
+    used = {}
     if len(B):
         for i, r in T.iterrows():
+            u = used.setdefault(r.Account, set())
             c = B[(B.key == r.EA) & (B.side == r.side) & ((B.t - r.sim_t).abs() <= pd.Timedelta(minutes=15))]
-            c = c[~c.index.isin(used)]
+            c = c[~c.index.isin(u)]
             if len(c):
-                j = int(c.index[0]); used.add(j); T.at[i, 'bt'] = j
+                j = int(c.index[0]); u.add(j); T.at[i, 'bt'] = j
     return T, used
 
 
 # ---------------------------------------------------------------- page
 def build(data, refs, T, B, bars, days):
     accs = [a for a in ('demo', 'live') if len(T) and (T.Account == a).any()] or ['demo']
-    used = set(T.bt[T.bt >= 0]) if len(T) else set()
     # chart bars: Japan-time minutes; M15 / H1 / H4 / D1 (resampled in broker time, so D1 = the broker's day like MT5)
     charts = {}
     start = (T.entry_srv.min() if len(T) else pd.Timestamp.now()) - pd.Timedelta(days=7)
@@ -184,24 +188,35 @@ def build(data, refs, T, B, bars, days):
             out[tf] = [tm[ok].tolist()] + [np.round(x[z].to_numpy()[ok], dig).tolist() for z in 'ohlc']
         charts[sym] = out
     jmin = lambda t: None if t is None or pd.isna(t) else (lambda v: None if v < 0 else v)(int(server_to_jst_min([pd.Timestamp(t)])[0]))
+    txt = lambda v: '' if v is None or (isinstance(v, float) and not math.isfinite(v)) or str(v).strip().lower() in ('nan', 'none', 'nat') else str(v)
+    num = lambda v, d=None: None if v is None or (isinstance(v, float) and not math.isfinite(v)) or pd.isna(v) else (round(float(v), d) if d is not None else float(v))
+    def lines(v):
+        try:
+            x = json.loads(v) if v else []
+            return x if isinstance(x, list) else []
+        except Exception:
+            return []
     trades = []
     for i, r in T.iterrows():
-        b = B.loc[r.bt] if r.bt >= 0 else None
-        trades.append(dict(i=int(i), acc=r.Account, ea=r.EA, fam=r.fam, sym=r.Symbol, side=int(r.side), st=r.Status, ex=bool(r.excluded), exw=str(r.get('Excluded') or ''),
-                           et=jmin(r.entry_srv), xt=jmin(r.exit_srv), ep=r.EntryPrice, sl=r.SLPrice, tp=r.TPPrice, xp=r.ExitPrice, R=None if pd.isna(r.R) else round(float(r.R), 3),
-                           pf=None if pd.isna(r.Profit) else round(float(r.Profit)), lot=r.Lot, risk=r.RiskJPY, slip=None if pd.isna(r.Slip) else r.Slip,
-                           spr=None if pd.isna(r.Spread) else r.Spread, v=str(r.get('Verdict') or ''), cm=str(r.get('Comment') or '')[:300], why=str(r.get('Reason') or ''),
-                           bt=None if b is None else dict(t=jmin(b.t), ep=b.entry, xt=jmin(b.exit_t), xp=b.exit, R=None if b.R is None or pd.isna(b.R) else round(float(b.R), 3), open=bool(b.open))))
-    bt_only = []
-    if len(B):
-        for j, b in B[~B.index.isin(used)].iterrows():
-            bt_only.append(dict(ea=b.key, fam=refs['fam'].get(b.key, 'OLD'), sym=b.sym, side=int(b.side), t=jmin(b.t), ep=b.entry, xt=jmin(b.exit_t), xp=b.exit,
-                                R=None if b.R is None or pd.isna(b.R) else round(float(b.R), 3), open=bool(b.open)))
+        trades.append(dict(i=int(i), id=str(r.TradeID), acc=r.Account, ea=r.EA, fam=r.fam, sym=r.Symbol, side=int(r.side), st=r.Status, ex=bool(r.excluded),
+                           exw=txt(r.get('Excluded')), et=jmin(r.entry_srv), xt=jmin(r.exit_srv), ep=num(r.EntryPrice), sl=num(r.SLPrice), tp=num(r.TPPrice),
+                           xp=num(r.ExitPrice), R=num(r.R, 3), pf=num(r.Profit, 0), lot=num(r.Lot), risk=num(r.RiskJPY), slip=num(r.Slip), spr=num(r.Spread),
+                           v=txt(r.get('Verdict')), tags=txt(r.get('Tags')), cm=txt(r.get('Comment')), xv=txt(r.get('ExitVerdict')),
+                           xtags=txt(r.get('ExitTags')), lines=lines(txt(r.get('Lines'))), why=txt(r.get('Reason')), btj=int(r.bt)))
+    bt = []
+    for j, b in B.iterrows() if len(B) else []:
+        bt.append(dict(j=int(j), ea=b.key, fam=refs['fam'].get(b.key, 'OLD'), sym=b.sym, side=int(b.side), et=jmin(b.t), ep=num(b.entry), sl=num(b.get('sl')),
+                       xt=jmin(b.exit_t), xp=num(b.exit), R=num(b.R, 3), open=bool(b.open)))
+    rm = {}
+    for r in (data.get('repmarks') or []):
+        rm[str(r.get('ID'))] = dict(v=txt(r.get('Verdict')), tags=txt(r.get('Tags')), cm=txt(r.get('Comment')), xv=txt(r.get('ExitVerdict')),
+                                    xtags=txt(r.get('ExitTags')), lines=lines(txt(r.get('Lines'))))
     cfg = data.get('config') or {}
     on = {a: sorted(k for k, v in ((cfg.get(a) or {}).get('eas') or {}).items() if isinstance(v, dict) and v.get('mode', 'off') != 'off' and v.get('on', True)) for a in ('demo', 'live')}
     daily = [dict(d=str(r.get('Date'))[:10], acc=r.get('Account'), bal=r.get('Balance'), eq=r.get('Equity'), dd=r.get('DD')) for r in (data.get('daily') or [])]
-    payload = dict(made=pd.Timestamp.now(tz=JST).strftime('%Y-%m-%d %H:%M'), accs=accs, trades=trades, bt_only=bt_only, charts=charts, daily=daily, on=on,
-                   fams=refs['fams'], famOf=refs['fam'], exp=refs['exp'], famBt=refs['fam_bt'], bt=refs['bt'], btDone=bool(len(B)), days=days)
+    payload = dict(made=pd.Timestamp.now(tz=JST).strftime('%Y-%m-%d %H:%M'), accs=accs, trades=trades, btl=bt, repmarks=rm, charts=charts, daily=daily, on=on,
+                   fams=refs['fams'], famOf=refs['fam'], exp=refs['exp'], famBt=refs['fam_bt'], bt=refs['bt'], btDone=bool(len(B)), days=days,
+                   gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []))
     html = (Path(__file__).with_name('report_template.html')).read_text(encoding='utf-8')
     return html.replace('/*__DATA__*/null', json.dumps(clean(payload), ensure_ascii=False, separators=(',', ':'), default=str))
 
