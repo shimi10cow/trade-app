@@ -1,26 +1,30 @@
-"""Trend direction per pair and timeframe for the app's pair tab (2026-11-21).
+"""Trend direction per pair and timeframe for the app's pair tab (2026-11-21, history limit 2026-11-22).
 
-The same Dow engine the EAs use (env_recognition.dow_trend) on MT5's own MN1 / W1 / D1 / H4 / H1 bars:
+The same Dow engine the EAs use (env_recognition.dow_trend) on D1 / H4 / H1 made from the last 400 days of M15 bars:
   ↑  major trend up   and the provisional trend agrees
   ↓  major trend down and the provisional trend agrees
   →  no trend yet, or the provisional trend has already turned against the major one (turning)
-The alerts window (demo) sends these once an hour; PAIR_ENV.bat (python -m mt5_ea.live.pair_env) sends them now. -> GAS eaPairEnv. GAS keeps them in Pairs Auto_* and copies a value into the
-pair's own M1..H1 only when the automatic value changes, so a correction made in the app stays until the market moves.
-Only reads prices; never orders."""
+2026-11-22: MT5 builds every timeframe from M1 history, so asking for 300 monthly / 1300 weekly bars made the terminal
+download ~25 years of M1 per symbol (about 2 GB for 11 pairs, the PC's disk filled up). Now only the same 400 days of M15
+the alerts window already reads (D1 over 1 year gave the same arrow as the long history in 38 of 38 checks on EURUSD).
+M1 (monthly) and W1 stay the trader's own input (W1 needs 3 years = more downloads). Only the FX pairs.
+PAIR_ENV.bat (python -m mt5_ea.live.pair_env) sends them -> GAS eaPairEnv. Only reads prices; never orders."""
 import logging
 
 import pandas as pd
 
 from mt5_ea.live import core  # noqa: F401  (puts research/ on sys.path)
+from mt5_ea.live.core import resample
+
+TF_LEN = {'D1': '1D', 'H4': '4h', 'H1': '1h'}
 from env_recognition import dow_trend  # noqa: E402
 
-# app field <- MT5 timeframe, bars to read
-TFS = (('M1', 'MN1', 300), ('W1', 'W1', 1300), ('D1', 'D1', 1500), ('H4', 'H4', 2500), ('H1', 'H1', 3000))
-# Pairs tab names; symbols this account does not have are skipped
+DAYS = 400                              # never read older bars than this (the alerts window reads the same)
+TFS = ('D1', 'H4', 'H1')
+ALL_TFS = ('M1', 'W1', 'D1', 'H4', 'H1')
 PAIRS = ('AUDCAD', 'AUDCHF', 'AUDNZD', 'AUDJPY', 'AUDUSD', 'CADCHF', 'CADJPY', 'CHFJPY', 'EURAUD', 'EURCAD', 'EURCHF', 'EURGBP',
          'EURJPY', 'EURNZD', 'EURUSD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPJPY', 'GBPNZD', 'GBPUSD', 'NZDCAD', 'NZDCHF', 'NZDJPY',
-         'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY', 'XAUUSD', 'XAGUSD', 'XAUEUR', 'BTCUSD', 'BTCJPY', 'BTCEUR', 'BTCGBP',
-         'US500', 'US30', 'US2000', 'JP225', 'UK100', 'EU50', 'OIL', 'BRENT', 'NATGAS')
+         'NZDUSD', 'USDCAD', 'USDCHF', 'USDJPY')
 ARROW = {'up': '↑', 'down': '↓'}
 
 
@@ -37,15 +41,15 @@ def direction(df, tf):
     return ARROW[major]
 
 
-def rates(b, sym, tf, n):
-    """Last n closed bars of one MT5 timeframe (the last bar is still forming)."""
-    mt5 = b.mt5
-    r = mt5.copy_rates_from_pos(b.name(sym), getattr(mt5, 'TIMEFRAME_' + tf), 0, n)
-    if r is None or len(r) < 10:
-        return None
-    d = pd.DataFrame(r).rename(columns=dict(open='o', high='h', low='l', close='c'))
-    d['t'] = pd.to_datetime(d.time, unit='s')
-    return d[['t', 'o', 'h', 'l', 'c']].iloc[:-1]
+def arrows(m15):
+    """{'D1','H4','H1'} arrows from closed M15 bars (t, o, h, l, c); a frame bar still forming is left out."""
+    m = m15[['t', 'o', 'h', 'l', 'c']].copy(); m['t'] = pd.to_datetime(m.t)
+    end = m.t.iat[-1] + pd.Timedelta(minutes=15); out = {}
+    for tf in TFS:
+        x = resample(m, tf)
+        x = x[x.t + pd.Timedelta(TF_LEN[tf]) <= end]        # closed frame bars only (Friday's D1 counts on the weekend)
+        out[tf] = direction(x, tf)
+    return out
 
 
 class Stalled(RuntimeError):
@@ -53,7 +57,7 @@ class Stalled(RuntimeError):
 
 
 def scan(b, pairs=PAIRS, log=None, timeout=None):
-    """[{pair, M1, W1, D1, H4, H1}] for every pair this account has.
+    """[{pair, D1, H4, H1}] for every pair this account has.
     log(text): progress line per pair. timeout: seconds one MT5 request may take (None = wait forever, as before);
     when MT5 does not answer, Stalled is raised with the rows done so far in .rows and the place in .where."""
     import concurrent.futures as cf
@@ -67,16 +71,14 @@ def scan(b, pairs=PAIRS, log=None, timeout=None):
 
     out = []
     for p in pairs:
-        t0 = time.time(); row = {'pair': p}; tf = 'symbol'
+        t0 = time.time(); row = {'pair': p}; tf = 'M15'
         try:
-            call(b.name, p)
-            for key, tf, n in TFS:
-                d = call(rates, b, p, tf, n)
-                row[key] = direction(d, key) if d is not None else ''
-            if any(row[k] for k, _, _ in TFS):
+            m15 = call(b.bars, p, DAYS)
+            row.update(arrows(m15))
+            if any(row[k] for k in TFS):
                 out.append(row)
             if log:
-                log(f"  {p:7s} M1 {row['M1'] or '-'}  W1 {row['W1'] or '-'}  D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
+                log(f"  {p:7s} D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
         except cf.TimeoutError:
             ex = Stalled(f'{p} の {tf} で MT5 が {timeout} 秒たっても返事をしない'); ex.rows, ex.where = out, (p, tf)
             raise ex
