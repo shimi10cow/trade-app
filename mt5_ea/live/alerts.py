@@ -33,7 +33,7 @@ PAIRS = ('EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', '
          'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'EURAUD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF')
 DAYS, WARM = 400, 250
 DAY = np.timedelta64(1, 'D'); HOUR = np.timedelta64(1, 'h'); M15 = np.timedelta64(15, 'm')
-ALERTS_V = 2                  # 2026-11-21: settings version (2 = methods 1 / 2 / 6 / 7 presets); older saved profiles are replaced
+ALERTS_V = 4                  # 2026-11-21: settings version (2 = methods 1 / 2 / 6 / 7 presets); older saved profiles are replaced
 SCENE_JA = {'gateway': '出入口', 'fortress': '砦', 'band': '抵抗体'}
 
 # condition catalog: key -> (label, {param: default}); the app (ea_live.js ALERT_CAT) shows the same keys / labels / params
@@ -50,12 +50,15 @@ CATALOG = {
     'touch':   ('線に H4 の山谷が N 個以上（反発の回数）', {'n': 2, 'width': 0.25, 'days': 90}),
     'imp4':    ('H4 の推進線が効いている（押しが推進線の近く）', {'atr': 1.0}),
     'impd':    ('日足の推進線が効いている', {}),
+    'impany':  ('推進トレンドライン（H4 か日足のどちらか）が効いている', {}),
     'noimpbrk': ('H4 の推進線を割っていない', {}),
     'noopp':   ('反対向きの H4 推進線が残っていない', {}),
     'ctr4':    ('H4 の逆トレンドライン（調整線）を抜けている', {}),
     'ctr1':    ('H1 の逆トレンドラインを抜けている', {}),
-    'ctr15':   ('M15 の逆トレンドラインを抜けている', {}),
-    'score':   ('D の点数（線の点数）が N 以上', {'n': 2}),
+    'ctr15':   ('M15 のトレンドライン（調整線）を抜けている', {}),
+    'ctr41':   ('調整トレンドライン（H1 か H4 のどちらか）を抜けている', {}),
+    'uscore':  ('あなたの点数（線＋推進TL＋MA＋調整TL＋M15TL）が N 点以上', {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}),
+    'score':   ('D の点数（EA の線の点数）が N 以上', {'n': 2}),
     'run':     ('直前に伸びすぎていない（H1 の n 本で x ATR 未満）', {'bars': 24, 'atr': 3.0}),
     'madist':  ('H4 の MA から離れすぎていない', {'period': 75, 'atr': 2.0}),
     'depth':   ('押しの深さ（直近の H4 の波に対して）', {'min': 0.1, 'max': 0.382}),
@@ -63,15 +66,16 @@ CATALOG = {
     'hours':   ('時間帯（日本時間、何時から何時まで）', {'from': 8, 'to': 26}),
 }
 
-PRESETS = [   # 2026-11-21 (user): only the trader's own methods 1 / 2 / 6 / 7; the alert comes when entering (M15 Dow turn after the touch)
+PRESETS = [   # 2026-11-21 (user): only the trader's own methods 1 / 2 / 6 / 7; the alert comes when entering (M15 Dow turn after the touch);
+              # + the trader's score (line 1 + impulse TL 2 + H1 MA 1 + correction TL 1 + M15 TL 1) >= 4 (user: selectable, threshold editable)
     dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}}),
+         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
     dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}}),
+         conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
     dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}}),
+         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
     dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, pairs=[],
-         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}}),
+         conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
 ]
 
 
@@ -219,6 +223,18 @@ class Market:
         if key == 'touch':
             P4 = self.P4; m = (P4[0] <= te) & (P4[0] >= te - float(p.get('days', 90)) * DAY) & (np.abs(P4[2] - L) <= float(p.get('width', 0.25)) * A)
             return int(m.sum()) >= int(p.get('n', 2))
+        if key == 'uscore':     # the trader's own entry score (D18): line +1, impulse TL +2, H1 MA +1, correction TL +1, M15 TL +1
+            pts = float(p.get('line', 1))
+            pts += float(p.get('imp', 2)) * bool(self.check('impany', {}, ev)) + float(p.get('ma', 1)) * bool(self.check('h1ma', {'period': 75, 'slope': 5}, ev))
+            pts += float(p.get('ctr', 1)) * bool(self.check('ctr41', {}, ev)) + float(p.get('m15', 1)) * bool(self.check('ctr15', {}, ev))
+            ev['_uscore'] = pts
+            return pts >= float(p.get('n', 4))
+        if key == 'impany':
+            a, b = self.check('imp4', {}, ev), self.check('impd', {}, ev)
+            return None if (a is None and b is None) else bool(a or b)
+        if key == 'ctr41':
+            a, b = self.check('ctr1', {}, ev), self.check('ctr4', {}, ev)
+            return None if (a is None and b is None) else bool(a or b)
         if key in ('imp4', 'impd', 'noimpbrk', 'score'):
             sc = ev.get('_score')
             if sc is None:
@@ -344,7 +360,7 @@ def evaluate(mk, profiles, since=None):
                             timing=prof.get('timing', 'turn'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
-                            met=met))
+                            met=met, uscore=ev.get('_uscore')))
     return res
 
 
@@ -362,6 +378,8 @@ def text(a):
     lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']}（{how}）{('・手法' + a['method']) if a['method'] else ''}",
              f"線 {a['line']:g}・今 {a['price']:g}（{abs(a['price'] - a['line']) / a['atr']:.1f}ATR）",
              f"日足 {o(a['d1'])}・H1 MA75 {o(a['h1'])}・線の山谷 {a['touch']} 個", f"足 {a['jst']}（日本時間）"]
+    if a.get('uscore') is not None:
+        lines.append(f"点数 {a['uscore']:g} 点")
     if a.get('met'):
         lines.append('条件：' + ' / '.join(a['met'][:8]))
     return '\n'.join(lines)
