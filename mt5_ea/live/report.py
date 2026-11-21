@@ -76,9 +76,14 @@ def jst_to_server(s):
 
 
 def server_to_jst_min(ts):
-    """naive broker times -> minutes since 1970 in Japan time (what the page shows)."""
-    t = pd.DatetimeIndex(ts).tz_localize(SERVER_TZ, ambiguous='NaT', nonexistent='shift_forward').tz_convert(JST).tz_localize(None)
-    return ((t - pd.Timestamp('1970-01-01')) // pd.Timedelta(minutes=1)).astype('int64')
+    """naive broker times -> minutes since 1970 in Japan time (what the page shows). The repeated hour when summer time ends is read
+    as summer time (same as runner.to_jst); anything that still cannot be converted becomes -1 and is dropped by the caller (2026-11-21)."""
+    idx = pd.DatetimeIndex(ts)
+    t = idx.tz_localize(SERVER_TZ, ambiguous=np.ones(len(idx), dtype=bool), nonexistent='shift_forward').tz_convert(JST).tz_localize(None)
+    out = np.full(len(t), -1, dtype='int64')
+    ok = ~pd.isna(t)
+    out[ok] = ((t[ok] - pd.Timestamp('1970-01-01')) // pd.Timedelta(minutes=1)).to_numpy().astype('int64')
+    return out
 
 
 # ---------------------------------------------------------------- live trades
@@ -178,7 +183,7 @@ def build(data, refs, T, B, bars, days):
             ok = tm > 0
             out[tf] = [tm[ok].tolist()] + [np.round(x[z].to_numpy()[ok], dig).tolist() for z in 'ohlc']
         charts[sym] = out
-    jmin = lambda t: None if t is None or pd.isna(t) else int(server_to_jst_min([pd.Timestamp(t)])[0])
+    jmin = lambda t: None if t is None or pd.isna(t) else (lambda v: None if v < 0 else v)(int(server_to_jst_min([pd.Timestamp(t)])[0]))
     trades = []
     for i, r in T.iterrows():
         b = B.loc[r.bt] if r.bt >= 0 else None
