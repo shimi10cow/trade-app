@@ -109,7 +109,7 @@ def weekly_arrow(w1, m15_end):
     return direction(w, 'W1')
 
 
-def scan(b, pairs=PAIRS, log=None, timeout=None):
+def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True):
     """[{pair, W1, D1, H4, H1}] for every pair this account has.
     log(text): progress line per pair. timeout: seconds one MT5 request may take (None = wait forever, as before);
     when MT5 does not answer, Stalled is raised with the rows done so far in .rows and the place in .where."""
@@ -130,15 +130,19 @@ def scan(b, pairs=PAIRS, log=None, timeout=None):
             row.update(arrows(m15))
             tf = 'W1'
             try:
+                if not weekly:                          # the hourly run (alerts window) leaves W1 alone: PAIR_ENV.bat on the weekend does it
+                    raise LookupError('weekly off')
                 row['W1'] = weekly_arrow(call(weekly_bars, b, p), pd.to_datetime(m15.t).iat[-1] + pd.Timedelta(minutes=15))
             except cf.TimeoutError:
                 raise
             except Exception as ex:                     # no weekly history: D1/H4/H1 still go
-                row['W1'] = ''; logging.info('pair env %s W1: %s', p, ex)
-            if any(row[k] for k in TFS + ('W1',)):
+                row.pop('W1', None)
+                if not isinstance(ex, LookupError):
+                    logging.info('pair env %s W1: %s', p, ex)
+            if any(row.get(k) for k in TFS + ('W1',)):
                 out.append(row)
             if log:
-                log(f"  {p:7s} W1 {row['W1'] or '-'}  D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
+                log(f"  {p:7s} W1 {row.get('W1') or '-'}  D1 {row['D1'] or '-'}  H4 {row['H4'] or '-'}  H1 {row['H1'] or '-'}   ({time.time() - t0:.1f}秒)")
         except cf.TimeoutError:
             ex = Stalled(f'{p} の {tf} で MT5 が {timeout} 秒たっても返事をしない'); ex.rows, ex.where = out, (p, tf)
             raise ex
