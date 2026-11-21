@@ -307,34 +307,90 @@
         <button onclick="eaLiveMCRun()" style="${btn};margin-top:10px;padding:11px;font-size:13px;${neon('#38bdf8', '56,189,248')}">▶ 実行</button>
         ${res}` : ''}</div>`;
   }
-  // ---------- discretionary alerts (2026-11-21): the PC's alerts.py sends 'そろそろ' notices; settings live in the demo config ----------
-  const ALERT_M = [['1', '手法1', '日足〇・H4 出入口'], ['6', '手法6', '日足✕・H4 出入口'], ['2', '手法2', '日足〇・H4 砦'], ['7', '手法7', '日足✕・H4 砦']];
-  function alertCfg() { const d = (S.dash && S.dash.config && S.dash.config.demo) || null; const a = (d && d.alerts) || {}; return {on: a.on !== false, methods: Array.isArray(a.methods) ? a.methods : ['1', '6', '2', '7']}; }
+  // ---------- discretionary alerts (2026-11-21): profiles the trader builds; the PC's alerts.py evaluates them (same catalog) ----------
+  const ALERT_CAT = {"h4dir": ["H4 の本転換の向きと同じ", {}], "prov": ["H4 の仮のダウが逆向きでない", {}], "d1ma": ["日足の MA が進行方向で、値段がその向こう側", {"period": 75, "slope": 10}], "d1ma_x": ["日足の MA が逆向き（手法 6・7 の場面）", {"period": 75, "slope": 10}], "d1dow": ["日足のダウ（直近の山・谷 2 つずつ）が逆でない", {}], "h4ma": ["H4 の MA が進行方向", {"period": 20, "slope": 3}], "h1ma": ["H1 の MA が進行方向で、値段がその向こう側", {"period": 75, "slope": 5}], "h1ma2": ["H1 の MA（2 本目）が進行方向", {"period": 20, "slope": 3}], "h1order": ["H1 の MA の並び（短い方が進行方向側）", {"fast": 20, "slow": 75}], "touch": ["線に H4 の山谷が N 個以上（反発の回数）", {"n": 2, "width": 0.25, "days": 90}], "imp4": ["H4 の推進線が効いている（押しが推進線の近く）", {"atr": 1.0}], "impd": ["日足の推進線が効いている", {}], "noimpbrk": ["H4 の推進線を割っていない", {}], "noopp": ["反対向きの H4 推進線が残っていない", {}], "ctr4": ["H4 の逆トレンドライン（調整線）を抜けている", {}], "ctr1": ["H1 の逆トレンドラインを抜けている", {}], "ctr15": ["M15 の逆トレンドラインを抜けている", {}], "score": ["D の点数（線の点数）が N 以上", {"n": 2}], "run": ["直前に伸びすぎていない（H1 の n 本で x ATR 未満）", {"bars": 24, "atr": 3.0}], "madist": ["H4 の MA から離れすぎていない", {"period": 75, "atr": 2.0}], "depth": ["押しの深さ（直近の H4 の波に対して）", {"min": 0.1, "max": 0.382}], "days": ["H4 の本転換からの日数", {"min": 0, "max": 30}], "hours": ["時間帯（日本時間、何時から何時まで）", {"from": 8, "to": 26}]};   // key -> [label, {param: default}] (mt5_ea/live/alerts.py CATALOG)
+  const ALERT_PRESETS = [{"id": "p1", "name": "広く：出入口・砦に近づいた", "on": true, "scenes": ["gateway", "fortress"], "timing": "near", "near": 0.3, "away": 1.0, "life": 30, "pairs": [], "conds": {"h4dir": {}}}, {"id": "p2", "name": "DX@ 型：出入口のリターンムーブ", "on": false, "scenes": ["gateway"], "timing": "turn", "near": 0.3, "away": 1.0, "life": 30, "pairs": [], "conds": {"h4dir": {}, "prov": {}, "touch": {"n": 2}, "h1ma": {"period": 75, "slope": 5}, "d1ma": {"period": 75, "slope": 10}, "d1dow": {}, "noopp": {}, "score": {"n": 2}}}, {"id": "p3", "name": "DR@ 型：砦（押し安値・戻り高値）の反発", "on": false, "scenes": ["fortress"], "timing": "turn", "near": 0.3, "away": 1.0, "life": 30, "pairs": [], "conds": {"h4dir": {}, "prov": {}, "touch": {"n": 2}, "noopp": {}, "noimpbrk": {}}}, {"id": "p4", "name": "D@ 型：H4 の抵抗体（山谷 2 回以上）", "on": false, "scenes": ["band"], "timing": "turn", "near": 0.3, "away": 1.0, "life": 60, "pairs": [], "conds": {"h4dir": {}, "prov": {}, "touch": {"n": 2}, "score": {"n": 2}}}, {"id": "p5", "name": "手法 6・7：日足は逆、H4 の流れに乗る", "on": false, "scenes": ["gateway", "fortress"], "timing": "near", "near": 0.3, "away": 1.0, "life": 30, "pairs": [], "conds": {"h4dir": {}, "d1ma_x": {"period": 75, "slope": 10}, "h1ma": {"period": 75, "slope": 5}}}, {"id": "p6", "name": "浅い押し：流れ＋押し 0.1〜0.382", "on": false, "scenes": ["gateway", "fortress"], "timing": "near", "near": 0.3, "away": 1.0, "life": 40, "pairs": [], "conds": {"h4dir": {}, "d1ma": {"period": 75, "slope": 10}, "depth": {"min": 0.1, "max": 0.382}, "days": {"min": 5, "max": 40}}}];   // first set, worked back from the EAs (alerts.py PRESETS)
+  const SCENES = [['gateway', '出入口'], ['fortress', '砦'], ['band', '抵抗体']];
+  const FX25 = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'CADJPY', 'CHFJPY', 'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'EURAUD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF'];
+  const PARAM_JA = {period: '期間', slope: '傾きを見る本数', fast: '短い MA', slow: '長い MA', n: '個数', width: '幅（ATR）', days: '日数', atr: 'ATR', bars: '本数', min: '最小', max: '最大', from: '何時から', to: '何時まで'};
+  const clone = x => JSON.parse(JSON.stringify(x));
+  function alertCfg() {
+    const d = (S.dash && S.dash.config && S.dash.config.demo) || null, a = (d && d.alerts) || {};
+    return {on: a.on !== false, profiles: Array.isArray(a.profiles) && a.profiles.length ? a.profiles : clone(ALERT_PRESETS)};
+  }
   async function saveAlertCfg(a) {
     S.dash = S.dash || {}; S.dash.config = S.dash.config || {}; if (!S.dash.config.demo) S.dash.config.demo = defaultConfig('demo');
     S.dash.config.demo.alerts = a; S.saving = '保存中…'; render();
     try { const r = await fetch(GAS_URL, {method: 'POST', body: JSON.stringify({action: 'eaSaveConfig', key: appKey(), account: 'demo', config: S.dash.config.demo})}).then(x => x.json());
-      S.saving = r && r.success ? '保存済み' : ('保存できませんでした: ' + ((r && r.error) || '')); } catch (e) { S.saving = '保存できませんでした（通信）'; }
+      S.saving = r && r.success ? '保存済み（PC には次の足から）' : ('保存できませんでした: ' + ((r && r.error) || '')); } catch (e) { S.saving = '保存できませんでした（通信）'; }
     try { localStorage.setItem(CACHE_LS, JSON.stringify(S.dash)); } catch (e) {}
-    render(); setTimeout(() => { if (S.saving === '保存済み') { S.saving = ''; render(); } }, 2500);
+    render(); setTimeout(() => { if (/^保存済み/.test(S.saving)) { S.saving = ''; render(); } }, 3000);
   }
   window.eaAlertOn = () => { const a = alertCfg(); a.on = !a.on; saveAlertCfg(a); };
-  window.eaAlertM = m => { const a = alertCfg(); a.methods = a.methods.includes(m) ? a.methods.filter(x => x !== m) : a.methods.concat(m); saveAlertCfg(a); };
+  window.eaAlertP = id => { const a = alertCfg(), p = a.profiles.find(x => x.id === id); if (p) { p.on = !p.on; saveAlertCfg(a); } };
   window.eaAlertOpen = () => { S.alOpen = !S.alOpen; render(); };
+  window.eaAlertNew = () => { S.alEdit = {id: 'p' + Date.now().toString(36), name: '新しい通知', on: true, scenes: ['gateway'], timing: 'near', near: 0.3, away: 1.0, life: 30, pairs: [], conds: {h4dir: {}}}; render(); };
+  window.eaAlertEdit = id => { const p = alertCfg().profiles.find(x => x.id === id); if (p) { S.alEdit = clone(p); render(); } };
+  window.eaAlertReset = () => { if (S.alReset) { const a = alertCfg(); a.profiles = clone(ALERT_PRESETS); S.alReset = false; saveAlertCfg(a); } else { S.alReset = true; render(); } };
+  window.eaAlertClose = () => { S.alEdit = null; render(); };
+  window.eaAlertSet = (k, v) => { const e = S.alEdit; if (!e) return;
+    const nm = document.getElementById('al-name'); if (nm) e.name = nm.value;
+    if (k === 'scene') e.scenes = e.scenes.includes(v) ? e.scenes.filter(x => x !== v) : e.scenes.concat(v);
+    else if (k === 'pair') e.pairs = e.pairs.includes(v) ? e.pairs.filter(x => x !== v) : e.pairs.concat(v);
+    else if (k === 'allpairs') e.pairs = [];
+    else if (k === 'cond') { if (e.conds[v]) delete e.conds[v]; else e.conds[v] = clone(ALERT_CAT[v][1]); }
+    else if (['near', 'away', 'life'].includes(k)) e[k] = Number(v);
+    else e[k] = v;
+    render(); };
+  window.eaAlertParam = (c, k, v) => { const e = S.alEdit; if (e && e.conds[c]) { e.conds[c][k] = Number(v); } };
+  window.eaAlertSave = () => { const e = S.alEdit; if (!e) return; e.name = (document.getElementById('al-name') || {}).value || e.name;
+    if (!e.scenes.length) { S.alMsg = '場面を 1 つ以上選んでください'; render(); return; }
+    const a = alertCfg(), i = a.profiles.findIndex(x => x.id === e.id); if (i >= 0) a.profiles[i] = e; else a.profiles.push(e); S.alEdit = null; S.alMsg = ''; saveAlertCfg(a); };
+  window.eaAlertDel = () => { const e = S.alEdit; if (!e) return; if (!S.alDel) { S.alDel = true; render(); return; }
+    const a = alertCfg(); a.profiles = a.profiles.filter(x => x.id !== e.id); S.alEdit = null; S.alDel = false; saveAlertCfg(a); };
+  function profSummary(p) {
+    const sc = (p.scenes || []).map(x => (SCENES.find(y => y[0] === x) || [0, x])[1]).join('・'), cs = Object.keys(p.conds || {}).filter(k => ALERT_CAT[k]);
+    return `${sc} · ${p.timing === 'turn' ? '反発して M15 転換' : '線に近づいた時'} · 条件 ${cs.length} 個${p.pairs && p.pairs.length ? ' · ' + p.pairs.length + ' ペア' : ''}`;
+  }
+  function alertEditor() {
+    const e = S.alEdit; if (!e) return '';
+    const chip = (on, label, fn) => `<button onclick="${fn}" style="border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;${on ? neon('#22d3ee', '34,211,238') : offBtn}">${label}</button>`;
+    const num = (k, l, step) => `<label style="font-size:11px;color:#94a3b8">${l}<input type="number" step="${step}" value="${e[k]}" onchange="eaAlertSet('${k}',this.value)" style="width:100%;box-sizing:border-box;margin-top:2px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0"></label>`;
+    const cond = k => { const [label, def] = ALERT_CAT[k], on = !!e.conds[k], par = on ? Object.assign({}, def, e.conds[k]) : def;
+      return `<div style="padding:7px 0;border-bottom:1px solid #1e293b"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-size:12px;${on ? 'color:#e2e8f0' : 'color:#94a3b8'}">${esc(label)}</span>
+        <button onclick="eaAlertSet('cond','${k}')" style="flex:none;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:700;${on ? neon('#4ade80', '74,222,128') : offBtn}">${on ? 'ON' : 'OFF'}</button></div>
+        ${on && Object.keys(def).length ? `<div style="display:grid;grid-template-columns:repeat(${Math.min(3, Object.keys(def).length)},minmax(0,1fr));gap:6px;margin-top:5px">${Object.keys(def).map(pk => `<label style="font-size:10px;color:#94a3b8">${PARAM_JA[pk] || pk}<input type="number" step="any" value="${par[pk]}" onchange="eaAlertParam('${k}','${pk}',this.value)" style="width:100%;box-sizing:border-box;margin-top:2px;padding:5px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0"></label>`).join('')}</div>` : ''}</div>`; };
+    return `<div onclick="if(event.target===this)eaAlertClose()" style="position:fixed;inset:0;background:rgba(2,6,23,.72);z-index:310;display:flex;align-items:flex-end">
+      <div style="width:100%;max-height:88vh;overflow:auto;background:#111c31;border:1px solid #26364f;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px"><input id="al-name" value="${esc(e.name)}" style="flex:1;font-size:15px;font-weight:700;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0">
+          <button onclick="eaAlertClose()" style="flex:none;width:36px;height:36px;border-radius:9px;border:1px solid #334155;background:#172033;color:#cbd5e1;font-size:18px">×</button></div>
+        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">場面（線の種類）</div><div style="display:flex;flex-wrap:wrap;gap:6px">${SCENES.map(([k, l]) => chip(e.scenes.includes(k), l, `eaAlertSet('scene','${k}')`)).join('')}</div></div>
+        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">知らせるタイミング</div><div style="display:flex;flex-wrap:wrap;gap:6px">${chip(e.timing !== 'turn', '線に近づいた時', "eaAlertSet('timing','near')")}${chip(e.timing === 'turn', '線で反発して M15 がダウ転換した時', "eaAlertSet('timing','turn')")}</div></div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${num('near', '線までの近さ（ATR）', 0.05)}${num('away', '先に離れた幅（ATR）', 0.1)}${num('life', '線の有効日数', 1)}</div>
+        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">通貨ペア（何も選ばない＝25 ペアすべて）</div><div style="display:flex;flex-wrap:wrap;gap:5px">${chip(!e.pairs.length, 'すべて', "eaAlertSet('allpairs')")}${FX25.map(x => chip(e.pairs.includes(x), x, `eaAlertSet('pair','${x}')`)).join('')}</div></div>
+        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:2px">条件（ON にしたものが全部そろった時だけ届く）</div>${Object.keys(ALERT_CAT).map(cond).join('')}</div>
+        ${S.alMsg ? `<div style="font-size:12px;color:#f87171">${esc(S.alMsg)}</div>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px"><button onclick="eaAlertDel()" style="${btn};${offBtn};color:#f87171">${S.alDel ? 'もう一度押すと削除' : '削除'}</button><button onclick="eaAlertSave()" style="${btn};${neon('#22d3ee', '34,211,238')}">保存</button></div></div></div>`;
+  }
   function alertSection() {
     const a = alertCfg(), list = ((S.dash && S.dash.alerts) || []).slice().reverse();
-    const shown = list.filter(x => a.methods.includes(String(x.Method)));
-    const chip = ([m, l, d]) => `<button onclick="eaAlertM('${m}')" style="${btn};padding:6px 4px;font-size:11px;${a.methods.includes(m) ? neon('#22d3ee', '34,211,238') : offBtn}">${l}<div style="font-size:9px;color:#94a3b8;font-weight:400">${d}</div></button>`;
+    const prow = p => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #1e293b">
+        <button onclick="eaAlertP('${esc(p.id)}')" style="flex:none;border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;${p.on ? neon('#4ade80', '74,222,128') : offBtn}">${p.on ? 'ON' : 'OFF'}</button>
+        <div onclick="eaAlertEdit('${esc(p.id)}')" style="flex:1;cursor:pointer"><div style="font-size:12px;font-weight:700">${esc(p.name)}</div><div style="font-size:10px;color:#94a3b8">${esc(profSummary(p))}</div></div>
+        <span onclick="eaAlertEdit('${esc(p.id)}')" style="color:#94a3b8;cursor:pointer">›</span></div>`;
     const row = x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 2px;border-bottom:1px solid #1e293b;font-size:12px">
-        <div><b>${esc(x.Symbol)}</b> ${dirJa(x.Direction)} · ${esc(x.Kind)} <span style="color:#94a3b8">手法${esc(x.Method)}</span>
-          <div style="color:#94a3b8;font-size:11px">${esc(String(x.Time).slice(5, 16))} · 日足 ${Number(x.D1) === (String(x.Direction) === 'BUY' ? 1 : -1) ? '〇' : '✕'} · H1 MA ${Number(x.H1) ? '〇' : '✕'} · 山谷 ${esc(x.Touch)}</div></div>
+        <div><b>${esc(x.Symbol)}</b> ${dirJa(x.Direction)} · ${esc(x.Kind)}${x.Method ? ` <span style="color:#94a3b8">手法${esc(x.Method)}</span>` : ''}
+          <div style="color:#94a3b8;font-size:11px">${esc(String(x.Time).slice(5, 16))} · ${esc(x.Profile || '')}</div></div>
         <div style="color:#64748b;font-size:11px;text-align:right">線 ${esc(x.Line)}<br>今 ${esc(x.Price)}</div></div>`;
     return `<div class="ea-card" style="padding:8px 12px;margin-top:4px"><button onclick="eaAlertOpen()" style="width:100%;display:flex;justify-content:space-between;background:none;border:0;color:#cbd5e1;font-weight:700;font-size:12px;padding:2px 0">
-      <span>🔔 裁量の通知 ${a.on ? '<span style="color:#4ade80">ON</span>' : '<span style="color:#64748b">OFF</span>'} · 2 週間で ${shown.length} 件</span><span style="color:#94a3b8">${S.alOpen ? '▲' : '▼'}</span></button>
-      ${S.alOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0;line-height:1.5">FX 25 ペアで、H4 の出入口・砦に値段が戻ってきた（線の 0.3ATR 以内）時に Telegram へ。注文はしない。PC の「裁量の通知」の窓が動いている間だけ届く。決まりはチャートの確認のあとで調整する。</div>
-        <button onclick="eaAlertOn()" style="${btn};width:100%;padding:8px;margin-bottom:8px;${a.on ? neon('#4ade80', '74,222,128') : offBtn}">${a.on ? '通知 ON（押すと OFF）' : '通知 OFF（押すと ON）'}</button>
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">${ALERT_M.map(chip).join('')}</div>
-        ${shown.map(row).join('') || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">ここ 2 週間の通知はありません</div>'}` : ''}</div>`;
+      <span>🔔 裁量の通知 ${a.on ? '<span style="color:#4ade80">ON</span>' : '<span style="color:#64748b">OFF</span>'} · ${a.profiles.filter(p => p.on).length} / ${a.profiles.length} 個 · 2 週間で ${list.length} 件</span><span style="color:#94a3b8">${S.alOpen ? '▲' : '▼'}</span></button>
+      ${S.alOpen ? `<div style="font-size:10px;color:#64748b;margin:6px 0;line-height:1.5">FX 25 ペアで、登録した通知の場面・条件がそろった時に Telegram へ（注文はしない）。PC の「裁量の通知」の窓が動いている間だけ届く。行を押すと中身を変えられる。</div>
+        <button onclick="eaAlertOn()" style="${btn};width:100%;padding:8px;margin-bottom:4px;${a.on ? neon('#4ade80', '74,222,128') : offBtn}">${a.on ? '通知 全体 ON（押すと全部 OFF）' : '通知 全体 OFF（押すと ON）'}</button>
+        ${a.profiles.map(prow).join('')}
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin:8px 0"><button onclick="eaAlertNew()" style="${btn};${neon('#22d3ee', '34,211,238')}">＋ 通知を追加</button><button onclick="eaAlertReset()" style="${btn};${offBtn}">${S.alReset ? 'もう一度押す' : '初期に戻す'}</button></div>
+        <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-top:6px">最近届いた通知（2 週間）</div>
+        ${list.map(row).join('') || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">ここ 2 週間の通知はありません</div>'}` : ''}</div>${alertEditor()}`;
   }
   function sigSection() {
     if (!(S.dash && S.dash.signals)) return '';
