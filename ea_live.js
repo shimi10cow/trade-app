@@ -330,29 +330,31 @@
   window.eaAlertOn = () => { const a = alertCfg(); a.on = !a.on; saveAlertCfg(a); };
   window.eaAlertP = id => { const a = alertCfg(), p = a.profiles.find(x => x.id === id); if (p) { p.on = !p.on; saveAlertCfg(a); } };
   window.eaAlertOpen = () => { S.alOpen = !S.alOpen; render(); };
-  window.eaAlertNew = () => { S.alEdit = {id: 'p' + Date.now().toString(36), name: '新しい通知', on: true, scenes: ['gateway'], timing: 'turn', near: 0.3, away: 1.0, life: 30, pairs: [], conds: {h4dir: {}}}; render(); };
+  window.eaAlertNew = () => { S.alEdit = {id: 'p' + Date.now().toString(36), name: '新しい通知', on: true, scenes: ['gateway'], timing: 'turn', timings: ['turn'], near: 0.3, away: 1.0, life: 30, pairs: [], conds: {h4dir: {}}}; render(); };
   window.eaAlertEdit = id => { const p = alertCfg().profiles.find(x => x.id === id); if (p) { S.alEdit = clone(p); render(); } };
   window.eaAlertReset = () => { if (S.alReset) { const a = alertCfg(); a.profiles = clone(ALERT_PRESETS); S.alReset = false; saveAlertCfg(a); } else { S.alReset = true; render(); } };
+  window.eaAlertMore = () => { const nm = document.getElementById('al-name'); if (nm && S.alEdit) S.alEdit.name = nm.value; S.alMore = !S.alMore; render(); };
   window.eaAlertClose = () => { S.alEdit = null; render(); };
   window.eaAlertSet = (k, v) => { const e = S.alEdit; if (!e) return;
     const nm = document.getElementById('al-name'); if (nm) e.name = nm.value;
     if (k === 'scene') e.scenes = e.scenes.includes(v) ? e.scenes.filter(x => x !== v) : e.scenes.concat(v);
     else if (k === 'pair') e.pairs = e.pairs.includes(v) ? e.pairs.filter(x => x !== v) : e.pairs.concat(v);
     else if (k === 'allpairs') e.pairs = [];
+    else if (k === 'timing') { const t = timingsOf(e); e.timings = t.includes(v) ? (t.length > 1 ? t.filter(x => x !== v) : t) : t.concat(v); e.timing = e.timings[0]; }
     else if (k === 'cond') { if (e.conds[v]) delete e.conds[v]; else e.conds[v] = clone(ALERT_CAT[v][1]); }
     else if (['near', 'away', 'life'].includes(k)) e[k] = Number(v);
     else e[k] = v;
     render(); };
   window.eaAlertParam = (c, k, v) => { const e = S.alEdit; if (e && e.conds[c]) { e.conds[c][k] = Number(v); } };
-  window.eaAlertSave = () => { const e = S.alEdit; if (!e) return; e.name = (document.getElementById('al-name') || {}).value || e.name; e.timing = timingOf(e);
+  window.eaAlertSave = () => { const e = S.alEdit; if (!e) return; e.name = (document.getElementById('al-name') || {}).value || e.name; e.timings = timingsOf(e); e.timing = e.timings[0];
     if (!e.scenes.length) { S.alMsg = '場面を 1 つ以上選んでください'; render(); return; }
     const a = alertCfg(), i = a.profiles.findIndex(x => x.id === e.id); if (i >= 0) a.profiles[i] = e; else a.profiles.push(e); S.alEdit = null; S.alMsg = ''; saveAlertCfg(a); };
   window.eaAlertDel = () => { const e = S.alEdit; if (!e) return; if (!S.alDel) { S.alDel = true; render(); return; }
     const a = alertCfg(); a.profiles = a.profiles.filter(x => x.id !== e.id); S.alEdit = null; S.alDel = false; saveAlertCfg(a); };
-  const timingOf = p => (TIMINGS.find(x => x[0] === p.timing) || TIMINGS[0])[0];
+  const timingsOf = p => { const t = (Array.isArray(p.timings) && p.timings.length ? p.timings : [p.timing]).filter(x => TIMINGS.some(y => y[0] === x)); return t.length ? t : ['turn']; };   // 2026-11-21: several at once
   function profSummary(p) {
     const sc = (p.scenes || []).map(x => (SCENES.find(y => y[0] === x) || [0, x])[1]).join('・'), cs = Object.keys(p.conds || {}).filter(k => ALERT_CAT[k]);
-    return `${sc} · ${(TIMINGS.find(x => x[0] === timingOf(p)) || [0, ''])[1]} · 条件 ${cs.length} 個${p.pairs && p.pairs.length ? ' · ' + p.pairs.length + ' ペア' : ''}`;
+    return `${sc} · ${timingsOf(p).map(t => (TIMINGS.find(x => x[0] === t) || [0, ''])[1]).join('・')} · 条件 ${cs.length} 個${p.pairs && p.pairs.length ? ' · ' + p.pairs.length + ' ペア' : ''}`;
   }
   function alertEditor() {
     const e = S.alEdit; if (!e) return '';
@@ -368,12 +370,12 @@
         <div style="display:flex;justify-content:space-between;gap:8px"><input id="al-name" value="${esc(e.name)}" style="flex:1;font-size:15px;font-weight:700;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0">
           <button onclick="eaAlertClose()" style="flex:none;width:36px;height:36px;border-radius:9px;border:1px solid #334155;background:#172033;color:#cbd5e1;font-size:18px">×</button></div>
         <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">場面（線の種類）</div><div style="display:flex;flex-wrap:wrap;gap:6px">${SCENES.map(([k, l]) => chip(e.scenes.includes(k), l, `eaAlertSet('scene','${k}')`)).join('')}</div></div>
-        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">知らせるタイミング（線に触れた後）</div><div style="display:flex;flex-wrap:wrap;gap:6px">${TIMINGS.map(([k, l]) => chip(timingOf(e) === k, l, `eaAlertSet('timing','${k}')`)).join('')}</div>
+        <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">知らせるタイミング（線に触れた後・いくつでも。選んだうち一番早い合図で 1 回）</div><div style="display:flex;flex-wrap:wrap;gap:6px">${TIMINGS.map(([k, l]) => chip(timingsOf(e).includes(k), l, `eaAlertSet('timing','${k}')`)).join('')}</div>
           <div style="font-size:10px;color:#64748b;margin-top:4px">ダウ転換・M15 ストキャスは触れてから 12 時間、H1 ストキャスは 48 時間まで待つ。ストキャス（14,5,3）は予約エントリーと同じ：%K が 20 未満 → %D を上抜け → 20 を上抜けた足（売りは 80）</div></div>
         <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">${num('near', '線に触れたとみる近さ（ATR）', 0.05)}${num('away', '先に離れた幅（ATR）', 0.1)}${num('life', '線の有効日数', 1)}</div>
         <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">通貨ペア（何も選ばない＝25 ペアすべて）</div><div style="display:flex;flex-wrap:wrap;gap:5px">${chip(!e.pairs.length, 'すべて', "eaAlertSet('allpairs')")}${FX25.map(x => chip(e.pairs.includes(x), x, `eaAlertSet('pair','${x}')`)).join('')}</div></div>
         <div><div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:2px">条件（ON のものが全部そろった時だけ届く）</div>${Object.keys(ALERT_CAT).filter(k => e.conds[k]).map(cond).join('')}
-          <button onclick="S.alMore=!S.alMore;render()" style="${btn};${offBtn};margin-top:8px;padding:7px">${S.alMore ? '▲ ほかの条件をしまう' : `▼ ほかの条件を足す（${Object.keys(ALERT_CAT).filter(k => !e.conds[k]).length} 個）`}</button>
+          <button onclick="eaAlertMore()" style="${btn};${offBtn};margin-top:8px;padding:7px">${S.alMore ? '▲ ほかの条件をしまう' : `▼ ほかの条件を足す（${Object.keys(ALERT_CAT).filter(k => !e.conds[k]).length} 個）`}</button>
           ${S.alMore ? Object.keys(ALERT_CAT).filter(k => !e.conds[k]).map(cond).join('') : ''}</div>
         ${S.alMsg ? `<div style="font-size:12px;color:#f87171">${esc(S.alMsg)}</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px"><button onclick="eaAlertDel()" style="${btn};${offBtn};color:#f87171">${S.alDel ? 'もう一度押すと削除' : '削除'}</button><button onclick="eaAlertSave()" style="${btn};${neon('#22d3ee', '34,211,238')}">保存</button></div></div></div>`;

@@ -317,20 +317,18 @@ def events(mk, prof, since):
         q, A = mk.first_near(L, s, born, lf, near, away)
         if q is None:
             continue
-        tm = prof.get('timing') or 'turn'
-        if tm in ('stm15', 'sth1'):
-            hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
-            if hit is None:
-                continue
-            te, px = hit
-        else:                                   # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
-            q = mk.turn_after(q, L, s, A)
-            if q is None:
-                continue
-            te, px = mk.CL[q], float(mk.MC[q])
-        if te < t_from:
+        tms = [t for t in (prof.get('timings') or [prof.get('timing') or 'turn']) if t in ('turn', 'stm15', 'sth1')] or ['turn']   # several: the first signal wins
+        best = None
+        for tm in tms:
+            if tm in ('stm15', 'sth1'):
+                hit = mk.stoch_after(q, L, s, A, 'M15' if tm == 'stm15' else 'H1')
+            else:                               # 'turn' (old settings saved as 'near' also come here: no alert on the touch itself)
+                qt = mk.turn_after(q, L, s, A); hit = None if qt is None else (mk.CL[qt], float(mk.MC[qt]))
+            if hit is not None and (best is None or hit[0] < best[0]):
+                best = (hit[0], hit[1], tm)
+        if best is None or best[0] < t_from:
             continue
-        out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=te, px=px))
+        out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=best[0], px=best[1], tm=best[2]))
     return out
 
 
@@ -357,7 +355,7 @@ def evaluate(mk, profiles, since=None):
             meth = ('1' if d1 else '6') if ev['scene'] == 'gateway' else (('2' if d1 else '7') if ev['scene'] == 'fortress' else '')
             k = mk.k
             res.append(dict(sym=mk.sym, profile=prof.get('id', ''), pname=prof.get('name', ''), kind=SCENE_JA[ev['scene']], side=ev['side'], method=meth,
-                            timing=prof.get('timing', 'turn'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
+                            timing=ev.get('tm', 'turn'), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
                             met=met, uscore=ev.get('_uscore')))
