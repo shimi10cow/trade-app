@@ -86,6 +86,12 @@ def main():
     ok.append(expect_block('証拠金が余力の半分を超える', lambda: b6.open('EURUSD', 1, 2.0, 1.16002 - 0.0005, None, 1, 'T', max_loss=20000)))
     # 7. stop on the wrong side
     ok.append(expect_block('損切りが逆側', lambda: b.open('EURUSD', 1, 0.1, 1.17, None, 1, 'T', max_loss=10000)))
+    # 7b. the trader's own reservation (equity_cap=None): a fixed 0.01 gold lot on a 10,000 JPY account is the trader's choice -> passes;
+    #     but the 11/9 kind of mismatch is still refused for reservations
+    mS = FakeMT5(equity=10_000, margin_free=10_000); bS = broker(mS)
+    ok.append(expect_pass('予約（自分で決めた 0.01 lot、1 万円口座）', lambda: bS.open('XAUUSD', 1, 0.01, 4100.3 - 65, None, 1, 'R', max_loss=10270, equity_cap=None)))
+    ok.append(expect_block('予約でも 2 通りの計算が合わなければ止める', lambda: broker(FakeMT5(profit_in_usd=True)).open('XAUUSD', 1, 0.01, 4100.3 - 65, None, 1, 'R', max_loss=10270, equity_cap=None)))
+    ok.append(expect_block('EA の注文なら 1 万円口座で 0.01 lot ゴールドは止める（5%）', lambda: bS.open('XAUUSD', 1, 0.01, 4100.3 - 65, None, 1, 'S', max_loss=10270)))
     # 8. normal EURUSD: 1% risk, 30 pips -> passes, and the order really is sent
     sp2 = b.spec('EURUSD'); l2, mny, _ = sizing.lots_for(sp2, 1_000_000, 1_000_000, 0.01, 1, 1, 0.0030)
     ok.append(expect_pass(f'ユーロドル 正しいロット {l2} lot（想定 {mny:,.0f} 円）', lambda: b.open('EURUSD', 1, l2, 1.16002 - 0.0030, None, 1, 'T', max_loss=mny)))

@@ -296,7 +296,7 @@ class Runner:
             gas.enqueue('eaSignal', dict(rec, status=why))
             return [f'{key} signal only ({why})']
         try:
-            o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31], max_loss=money)
+            o = self.b.open(sym, side, lots, sl, tp, RV.RES_MAGIC, f'RES {rid}'[:31], max_loss=money, equity_cap=None)   # the trader chose the size
         except OrderBlocked as ex:
             return self._blocked(key, sym, side, lots, ex, rec)
         self.state['tickets'][str(o['ticket'])] = dict(key=key, sim_t='', side=side, entry=o['price'], sl0=sl, lots=o['volume'],

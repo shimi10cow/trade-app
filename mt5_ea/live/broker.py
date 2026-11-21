@@ -41,6 +41,9 @@ class Position:
     time: pd.Timestamp
 
 
+GUARD_MAX_LOSS = 0.05        # 2026-11-21: one EA order may never lose more than 5% of the equity at its stop (the app's risk is at most 2%)
+
+
 class MT5Broker:
     def __init__(self, deviation=20):
         import os
@@ -175,11 +178,13 @@ class MT5Broker:
                     return 1.0 / mid if inv else mid
         return None
 
-    def order_guard(self, sym, side, volume, price, sl, max_loss=None):
+    def order_guard(self, sym, side, volume, price, sl, max_loss=None, equity_cap=None):
         """Last check before any order (EA and reservations), 2026-11-21 (after the 11/9 gold lot bug). Raises OrderBlocked with the
         reason when: the loss at the stop cannot be computed by MT5, two independent ways of computing it disagree (x0.67..x1.5),
         it is more than 1.5x the risk the sizing meant (+ 1 yen), more than GUARD_MAX_LOSS of the equity whatever the settings,
-        or the margin is more than half of the free margin. Returns the checked loss (account currency)."""
+        or the margin is more than half of the free margin. Returns the checked loss (account currency).
+        equity_cap: the share of the equity one order may lose at most (EA orders: GUARD_MAX_LOSS); None for the trader's own
+        reservations, whose size the trader chose in the app (max loss in yen / fixed lots)."""
         mt5 = self.mt5; name = self.name(sym); i = mt5.symbol_info(name); a = mt5.account_info()
         otype = mt5.ORDER_TYPE_BUY if side == 1 else mt5.ORDER_TYPE_SELL
         pr = mt5.order_calc_profit(otype, name, float(volume), float(price), float(sl))
@@ -198,16 +203,16 @@ class MT5Broker:
             logging.warning('%s: no %s/%s quote for the second loss check', sym, getattr(i, 'currency_profit', '?'), a.currency)
         if max_loss is not None and max_loss > 0 and loss > 1.5 * float(max_loss) + 1:
             raise OrderBlocked(f'損失 {loss:,.0f} がロット計算の想定 {max_loss:,.0f} の 1.5 倍を超える')
-        if a.equity > 0 and loss > GUARD_MAX_LOSS * a.equity:
-            raise OrderBlocked(f'損失 {loss:,.0f} が口座の {GUARD_MAX_LOSS:.0%}（{GUARD_MAX_LOSS * a.equity:,.0f}）を超える')
+        if equity_cap and a.equity > 0 and loss > equity_cap * a.equity:
+            raise OrderBlocked(f'損失 {loss:,.0f} が口座の {equity_cap:.0%}（{equity_cap * a.equity:,.0f}）を超える')
         mg = mt5.order_calc_margin(otype, name, float(volume), float(price))
         if mg is not None and a.margin_free > 0 and mg > 0.5 * a.margin_free:
             raise OrderBlocked(f'必要証拠金 {mg:,.0f} が余力 {a.margin_free:,.0f} の半分を超える')
         return loss
 
-    def open(self, sym, side, volume, sl, tp, magic, comment, max_loss=None):
+    def open(self, sym, side, volume, sl, tp, magic, comment, max_loss=None, equity_cap=GUARD_MAX_LOSS):
         mt5 = self.mt5; name = self.name(sym); bid, ask = self.quote(sym)
-        self.order_guard(sym, side, volume, ask if side == 1 else bid, sl, max_loss)
+        self.order_guard(sym, side, volume, ask if side == 1 else bid, sl, max_loss, equity_cap)
         req = dict(action=mt5.TRADE_ACTION_DEAL, symbol=name, volume=float(volume), type=mt5.ORDER_TYPE_BUY if side == 1 else mt5.ORDER_TYPE_SELL,
                    price=ask if side == 1 else bid, sl=float(sl), tp=float(tp or 0), deviation=self.deviation, magic=int(magic),
                    comment=comment[:31], type_time=mt5.ORDER_TIME_GTC)
@@ -233,9 +238,6 @@ class MT5Broker:
                    type=mt5.ORDER_TYPE_SELL if pos.side == 1 else mt5.ORDER_TYPE_BUY, price=bid if pos.side == 1 else ask,
                    deviation=self.deviation, magic=pos.magic, comment=comment[:31], type_time=mt5.ORDER_TIME_GTC)
         return self._send(req)
-
-
-GUARD_MAX_LOSS = 0.05        # 2026-11-21: one order may never lose more than 5% of the equity at its stop, whatever the settings say
 
 
 class OrderBlocked(RuntimeError):
@@ -289,7 +291,7 @@ class PaperBroker:
     def positions(self, magics=None):
         return [p for p in self._pos if magics is None or p.magic in magics]
 
-    def open(self, sym, side, volume, sl, tp, magic, comment, price=None, max_loss=None):
+    def open(self, sym, side, volume, sl, tp, magic, comment, price=None, max_loss=None, equity_cap=None):
         px = self.last_close(sym) if price is None else price
         self._ticket += 1
         self._pos.append(Position(self._ticket, sym, side, volume, px, sl, tp or 0.0, magic, comment, self.now))
