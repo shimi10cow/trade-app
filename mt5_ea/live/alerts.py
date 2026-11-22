@@ -480,7 +480,7 @@ def evaluate(mk, profiles, since=None):
 STAR_ATR = float(os.getenv('EA_STAR_ATR') or 2.5)
 
 
-def armed(mk, profiles, zone=None):
+def armed(mk, profiles, zone=None, at=None):
     """2026-11-22 (user): 「もうすぐ」 for the pair tab, about a day BEFORE the entry. A line of a profile that is on (H4 出入口 / 砦,
     still alive: no H4 close through it, within its life), price has broken out and left it by `away` ATR(H4) at least once, and is now
     within `zone` ATR(H4) of it on the trade side (2.5: in the past alerts of EURUSD / EURJPY price was 1.65 ATR away 24 h before the
@@ -489,7 +489,7 @@ def armed(mk, profiles, zone=None):
     The profile's conditions are checked now, the score without the M15 TL point (4 -> 3 with the presets).
     -> [{sym, side, method, kind, line, dist, text}], one per line."""
     zone = STAR_ATR if zone is None else zone
-    out, seen = [], set(); last = len(mk.TM) - 1
+    out, seen = [], set(); last = len(mk.TM) - 1 if at is None else int(at)      # at: an earlier bar (checks on history)
     if last < 1:
         return out
     now, k = mk.CL[last], mk.k
@@ -498,7 +498,7 @@ def armed(mk, profiles, zone=None):
             continue
         near, away, life, brk = float(prof.get('near', 0.3)), float(prof.get('away', 1.0)), float(prof.get('life', 30)), float(prof.get('brk', 0.0))
         for scene, sd, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
-            if born + int(lf) * DAY < now:
+            if born + int(lf) * DAY < now or born > now:
                 continue
             A = mk.a4(born)
             k0 = int(np.searchsorted(mk.C4, born, side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
@@ -511,7 +511,7 @@ def armed(mk, profiles, zone=None):
             out_ = np.nonzero(d > zone)[0]
             z = q0 + (int(out_[-1]) + 1 if len(out_) else int(np.argmax(d >= away)))     # where this approach began
             tch, _ = mk.touches(L, sd, born, lf, near, away, brk)
-            if any(q >= z and mk.turn_after(q, L, sd, A, n=last - q + 1, stop=None) is not None for q, _n in tch):
+            if any(z <= q <= last and mk.turn_after(q, L, sd, A, n=last - q + 1, stop=None) is not None for q, _n in tch):
                 continue                                                               # turned already (entry / alert)
             ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=1, tq=now)
             ok = True
