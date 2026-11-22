@@ -35,6 +35,8 @@ select,input,textarea{background:#0f172a;color:var(--fg);border:1px solid var(--
   <section class="sec" id="s-bt"></section>
   <section class="sec" id="s-mc"></section>
   <section class="sec" id="s-ex"></section>
+  <section class="sec" id="s-hy"></section>
+  <section class="sec" id="s-mn"></section>
   <section class="sec" id="s-tr"><div id="tv"><div><div class="card" style="padding:8px">
       <div class="chips" id="tfbtn"></div><div class="chips" id="drawbtn"></div><canvas id="cv" height="560"></canvas>
       <div class="note">ローソク：白抜き＝陽線、灰色＝陰線。MA：<span class="sw" style="background:#ef4444"></span>20 <span class="sw" style="background:#22c55e"></span>75 <span class="sw" style="background:#f472b6"></span>200。
@@ -97,8 +99,8 @@ const kv = (k, v, c = '') => `<div class="kv"><div class="k">${k}</div><div clas
 function header() {
   $('#made').textContent = '作成 ' + D.made + (D.btDone ? '' : '（バックテストなし）');
   $('#accbtn').innerHTML = ['demo', 'live'].map(a => `<button class="t ${S.acc === a ? 'on' : ''}" onclick="S.acc='${a}';S.sel=null;draw()">${a === 'live' ? 'リアル' : 'デモ'}口座</button>`).join(' ');
-  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート'], ['s-px', 'チャート分析']];
-  $('#tabs').innerHTML = tabs.filter(([id]) => id !== 's-px' || (D.pairs || []).length).map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="goTab('${id}')">${l}</button>`).join(' ');
+  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-hy', '半年見直し'], ['s-ex', '約定・その他'], ['s-mn', '裁量'], ['s-tr', 'トレードとチャート'], ['s-px', 'チャート分析']];
+  $('#tabs').innerHTML = tabs.filter(([id]) => (id !== 's-px' || (D.pairs || []).length) && (id !== 's-mn' || (D.manual || []).length)).map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="goTab('${id}')">${l}</button>`).join(' ');
   document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.id === (S.tab === 's-px' ? 's-tr' : S.tab)));
 }
 // ------------------------------------------------------------ small charts
@@ -164,10 +166,67 @@ function perSec() {
     <div class="scroll"><table><tr><th class="l"></th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th><th>PF</th><th>DD</th><th>連敗</th></tr>
       ${row('本番（実際）', sl)}${row('この期間のバックテスト', sb)}${row('うち入り損ね（本番に無い）', sm)}</table></div>
     <div class="note" style="margin-top:6px">対象の EA ＝ 今この口座でオンの EA ＋ この口座で取引のあった EA。差（本番 − バックテスト）は、入り損ね・滑り・スプレッド・決済のずれの合計。
-      PC が止まっていた・オンにする前だった・最小ロットで見送った、などで入れなかった分も「実際に EA を回していたらこうだった」として数えている。</div></div>
+      PC が止まっていた・オンにする前だった・最小ロットで見送った、などで入れなかった分も「実際に EA を回していたらこうだった」として数えている。
+      ${(() => { const sw = bc.reduce((a, b) => a + (b.sw || 0), 0), co = bc.reduce((a, b) => a + (b.co || 0), 0);
+        return `<br>バックテストの R はスワップ（指数・BTC。FX・金・銀は極口座でなし）と実際に近いコスト（BTC 0.08%・銀 0.04%）を引いた後：この期間 スワップ ${sg(sw)}・追加コスト ${sg(-co)}。`; })()}</div></div>
     <div class="card"><b>累計 R（時間順）</b> <span class="note"><span class="sw" style="background:#22d3ee"></span>本番 <span class="sw" style="background:#f472b6"></span>この期間のバックテスト <span class="sw" style="background:#fbbf24"></span>入り損ねだけ</span><canvas id="percv"></canvas></div>
     <div class="card"><b>系統ごと</b><div class="scroll"><table><tr><th class="l">系統</th><th>本番 回数</th><th>本番 R</th><th>BT 回数</th><th>BT R</th><th>差</th><th>入り損ね</th><th>入り損ね R</th></tr>${fams.map(frow).join('')}</table></div></div>`;
   timeChart('percv', [{pts: cumPts(bc), color: '#f472b6'}, {pts: cumPts(miss), color: '#fbbf24', dash: [4, 3]}, {pts: cumPts(live), color: '#22d3ee', w: 2}]);
+}
+// ------------------------------------------------------------ 半年見直し（2026-11-22）
+// 11/18 の決まり：半年では良し悪しは決めきれない。回数が少ないうちは判断しない。エッジが半分になる想定は置かない。
+// 本番の平均 R を長期のバックテストの平均と比べ（z）、同じ期間のバックテストで「実行のずれ」か「相場が合わない時期」かを分ける。
+function hySec() {
+  const g = closed(), byK = {}; g.forEach(t => (byK[t.ea] = byK[t.ea] || []).push(t));
+  const bk = {}; if (D.btDone) accBT().all.filter(b => !b.open && b.R != null).forEach(b => (bk[b.ea] = bk[b.ea] || []).push(b));
+  const first = g.length ? Math.min(...g.map(t => t.et).filter(v => v != null)) : null, now = Date.now() / 60000 + 540;
+  const six = now - 182 * 1440, mons = first ? (now - first) / 1440 / 30.4 : 0;
+  const next = first ? (() => { let m = first; while (m <= now) m += 182 * 1440; return tstr(m).slice(0, 10); })() : '—';
+  const keys = [...new Set(Object.keys(byK).concat(Object.keys(bk)).concat(D.on[S.acc] || []))];
+  const rows = keys.map(k => {
+    const a = byK[k] || [], s = stats(a), s6 = stats(a.filter(t => t.et >= six)), e = D.exp[k], pb = stats(bk[k] || []), j = e ? judge(s.n, s.avg, e[0], e[1]) : null;
+    const jb = e && pb.n ? judge(pb.n, pb.avg, e[0], e[1]) : null, gap = s.n && pb.n ? s.avg - pb.avg : null;
+    let v, c;
+    if (s.n < 20) { v = '回数が少ない（まだ判断しない）'; c = 'dim'; }
+    else if (j && j.z >= -1) { v = 'そのまま'; c = 'up'; }
+    else if (gap != null && gap < -0.3 && (!jb || jb.z >= -1)) { v = '実行のずれ（滑り・入り損ね・決済）を確認'; c = 'warn'; }
+    else if (jb && jb.z < -1) { v = '相場が合わない時期（BT も弱い）→ 様子見'; c = 'warn'; }
+    else if (j && j.z >= -2) { v = '様子見'; c = 'warn'; }
+    else { v = '見直し候補'; c = 'dn'; }
+    return {k, s, s6, e, pb, j, gap, v, c, z: j ? j.z : 99};
+  }).sort((a, b) => a.z - b.z);
+  const tr = r => `<tr class="click" onclick="S.fam='';S.sym='';S.eaf='${r.k}';S.tab='s-tr';draw()"><td class="l">${esc(r.k)}${(D.on[S.acc] || []).includes(r.k) ? '' : ' <span class="badge">オフ</span>'}</td>
+    <td>${r.s.n}</td><td class="${cls(r.s.avg)}">${sg(r.s.avg)}</td><td class="dim">${r.e ? f2(r.e[0]) : '—'}</td><td>${mk(r.j)}</td>
+    <td>${r.s6.n}</td><td class="${cls(r.s6.avg)}">${r.s6.n ? sg(r.s6.avg) : '—'}</td><td>${D.btDone ? r.pb.n : ''}</td><td class="${cls(r.pb.avg)}">${D.btDone && r.pb.n ? sg(r.pb.avg) : ''}</td>
+    <td class="${cls(r.gap)}">${r.gap == null ? '—' : sg(r.gap)}</td><td class="l ${r.c}" style="font-size:12px">${r.v}</td></tr>`;
+  const cnt = c => rows.filter(r => r.c === c).length;
+  $('#s-hy').innerHTML = `<div class="card"><b>半年ごとの全体見直し</b>
+    <div class="grid" style="margin-top:6px">${kv('動かした期間', first ? mons.toFixed(1) + ' か月' : '—')}${kv('次の見直し', next)}${kv('そのまま', cnt('up'), 'up')}${kv('様子見・確認', cnt('warn'), 'warn')}${kv('見直し候補', cnt('dn'), 'dn')}</div>
+    <div class="note" style="margin-top:6px">決まり（11/18）：半年では良し悪しを決めきれないので、回数 20 回未満は判断しない。z ＝（本番の平均 R − 長期 BT の平均）÷ ばらつき。−1 より上は誤差の範囲。
+      「実行のずれ」＝ 同じ期間の BT は普通なのに本番だけ悪い（滑り・入り損ね・決済のずれを「突き合わせ」で見る）。「相場が合わない時期」＝ 同じ期間の BT も同じように悪い（EA のせいではなく時期）。</div></div>
+    <div class="card"><div class="scroll"><table><tr><th class="l">EA</th><th>回数</th><th>平均R</th><th>長期BT</th><th>判定(z)</th><th>直近6か月</th><th>6か月 平均R</th><th>期間BT 回数</th><th>期間BT 平均R</th><th>本番−BT</th><th class="l">見立て</th></tr>
+    ${rows.map(tr).join('')}</table></div><div class="note">行を押すとその EA のトレード一覧へ。期間BT はスワップ・コスト込み。</div></div>`;
+}
+// ------------------------------------------------------------ 裁量（2026-11-22：アプリの裁量トレードを R で）
+function mnSec() {
+  const M = (D.manual || []).filter(t => t.R != null && t.d).map(t => Object.assign({}, t, {xt: Date.parse((t.x || t.d).replace(/\//g, '-') + 'T12:00Z') / 60000}))
+    .filter(t => !isNaN(t.xt)).sort((a, b) => a.xt - b.xt);
+  const s = stats(M), s6 = stats(M.filter(t => t.xt >= Date.now() / 60000 - 182 * 1440)), wl = t => t.R > 0.2 ? 1 : t.R < -0.2 ? -1 : 0;
+  const yR = M.filter(t => t.pf && Math.abs(t.R) >= 0.05).map(t => Math.abs(t.pf / t.R)), y = yR.length ? yR.reduce((a, b) => a + b, 0) / yR.length : null;
+  const ru = M.filter(t => t.ruleR != null), dRule = ru.reduce((a, t) => a + t.R - t.ruleR, 0);
+  const grp = (f) => { const o = {}; M.forEach(t => { const k = f(t) || '—'; (o[k] = o[k] || []).push(t); }); return Object.entries(o).sort((a, b) => b[1].length - a[1].length); };
+  const gtab = (title, list) => `<div class="card"><b>${title}</b><div class="scroll"><table><tr><th class="l"></th><th>回数</th><th>勝ち</th><th>負け</th><th>平均R</th><th>合計R</th><th>PF</th></tr>
+    ${list.map(([k, g]) => { const z = stats(g); return `<tr><td class="l">${esc(k)}</td><td>${z.n}</td><td>${g.filter(t => wl(t) === 1).length}</td><td>${g.filter(t => wl(t) === -1).length}</td><td class="${cls(z.avg)}">${sg(z.avg)}</td><td class="${cls(z.sum)}">${sg(z.sum)}</td><td>${f2(z.pf)}</td></tr>`; }).join('')}</table></div></div>`;
+  const mon = grp(t => (t.x || t.d).slice(0, 7)).sort((a, b) => a[0] < b[0] ? 1 : -1);
+  $('#s-mn').innerHTML = `<div class="card"><b>裁量トレード（アプリの記録、R で）</b>
+    <div class="grid" style="margin-top:6px">${kv('回数', s.n)}${kv('勝ち / 負け', M.filter(t => wl(t) === 1).length + ' / ' + M.filter(t => wl(t) === -1).length)}${kv('平均R', sg(s.avg), cls(s.avg))}${kv('合計R', sg(s.sum), cls(s.sum))}
+      ${kv('PF', f2(s.pf))}${kv('最大DD', f2(s.dd, 1) + 'R')}${kv('直近6か月', s6.n + ' 回 ' + sg(s6.sum) + 'R', cls(s6.sum))}${kv('1R の金額（平均）', y ? yen(y).replace('+', '') : '—')}
+      ${kv('ルール通りとの差', ru.length ? sg(dRule) + 'R（' + ru.length + ' 回）' : '—', cls(dRule))}</div>
+    <div class="note">勝ち負けは ±0.2R。R ＝ 取れた幅 ÷ 最初の損切り幅。「ルール通りとの差」＝ 実際 − ルール通りなら（マイナス＝ルールから外れて損した分）。</div></div>
+    <div class="card"><b>累計 R</b><canvas id="mncv"></canvas></div>
+    ${gtab('手法ごと', grp(t => t.rule ? '手法 ' + t.rule : ''))}${gtab('通貨ごと', grp(t => t.pair))}${gtab('月ごと（決済）', mon)}
+    ${gtab('エントリーの振り返り', grp(t => t.eref))}${gtab('決済の振り返り', grp(t => t.xref))}`;
+  timeChart('mncv', [{pts: cumPts(M), color: '#22d3ee', w: 2}]);
 }
 // ------------------------------------------------------------ 月ごと
 function monSec() {
@@ -568,7 +627,7 @@ window.goTab = function (id) {
   if (S.tab === 's-tr') S.tsel = S.sel; if (S.tab === 's-px') S.psel = S.sel;
   S.tab = id; S.sel = id === 's-tr' ? (S.tsel || null) : id === 's-px' ? (S.psel || null) : S.sel; S.view = null; S.pend = null; S.pick = -1; S.mode = 'pan'; draw();
 };
-function draw() { header(); ({'s-sum': sumSec, 's-per': perSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-mc': mcSec, 's-ex': exSec, 's-tr': listSec, 's-px': pxSec})[S.tab](); }
+function draw() { header(); ({'s-sum': sumSec, 's-per': perSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-mc': mcSec, 's-ex': exSec, 's-tr': listSec, 's-px': pxSec, 's-hy': hySec, 's-mn': mnSec})[S.tab](); }
 $('#showex').onchange = draw; addEventListener('resize', () => S.tab === 's-tr' ? chart() : draw());
 draw();
 </script></body></html>

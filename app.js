@@ -1191,6 +1191,8 @@ async function loadData() {
     await entriesP;
     renderAnalysis();      // ③ 分析
     renderGallery();
+    // 2026-11-22: once per device, the sheet's 勝敗 column is redone in R (±0.2R; ±10 pips only where no R). Old GAS: unknown action, tried again next time
+    try { if (localStorage.getItem('wl_r_v1') !== '1') gasPost({action: 'recalcWinLoss'}).then(r => { if (r && r.success) localStorage.setItem('wl_r_v1', '1'); }).catch(() => {}); } catch (e) {}
 
     // 全部揃ったら記録（最後）
     await Promise.all([pairsP, ideasP, reviewsP]);

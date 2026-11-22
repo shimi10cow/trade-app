@@ -592,7 +592,41 @@ def main():
                             logging.warning('trade images: %s', ex)
         except Exception as ex:
             logging.exception('alerts loop: %s', ex)
+        try:
+            auto_import(st, stf)
+        except Exception as ex:
+            logging.warning('auto import: %s', ex)
         time.sleep(20)
+
+
+
+IMPORT_EVERY_MIN = float(os.getenv('EA_IMPORT_EVERY_MIN') or 60)
+
+
+def auto_import(st, stf, now=None, start=None):
+    """2026-11-22 (user): the MT5 import (the trader's own accounts) runs by itself once an hour while this window is open,
+    weekends too (by the clock, not by new bars). Same as the desktop button (run_import.ps1: one import at a time, import.log);
+    started in the background so the alerts go on. The button stays for an import right now. EA_AUTO_IMPORT=0 turns it off.
+    Returns True when an import was started."""
+    if os.getenv('EA_AUTO_IMPORT', '1') == '0':
+        return False
+    now = pd.Timestamp.now(tz='UTC') if now is None else pd.Timestamp(now)
+    last = st.get('import_at')
+    if last and now - pd.Timestamp(last) < pd.Timedelta(minutes=IMPORT_EVERY_MIN):
+        return False
+    st['import_at'] = str(now)
+    stf.write_text(json.dumps(st, ensure_ascii=False), encoding='utf-8')
+    ps1 = Path(__file__).resolve().parents[1] / 'run_import.ps1'
+    if start is None:
+        if os.name != 'nt' or not ps1.exists() or not (Path(os.getenv('EA_DATA_DIR') or (Path.home() / 'TradeEA_data')) / 'import_accounts.json').exists():
+            return False
+        import subprocess
+        start = lambda: subprocess.Popen(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(ps1)],
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    start()
+    logging.info('auto import started (next in %.0f min)', IMPORT_EVERY_MIN)
+    return True
 
 
 if __name__ == '__main__':

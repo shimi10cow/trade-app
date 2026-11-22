@@ -30,7 +30,6 @@ function cachedJson_(key,ttl,loader){
 const GAS_ACTIONS = {
   getEntries:       () => getEntries(),
   getPairs:         () => getPairs(),
-  getAnalysisStats: () => getAnalysisStats(),
   getIdeas:         () => getIdeas(),
   getReviews:       () => getReviews(),
   getCalendar:      () => getCalendarEvents(),
@@ -83,8 +82,8 @@ function doPost(e) {
     result = deleteEntry(body.entryId);
   } else if (action === 'uploadImage') {
     result = uploadImage(body.base64Data, body.filename);
-  } else if (action === 'getSimilarTrades') {
-    result = getSimilarTrades(body.conditions);
+  } else if (action === 'recalcWinLoss') {
+    result = updateWinLossColumn();
   } else if (action === 'updatePair') {
     result = updatePair(body.pairName, body.data);
   } else if (action === 'resetPairFlags') {
@@ -429,199 +428,6 @@ function deleteEntry(entryId) {
 }
 
 // =============================================
-// 類似トレード検索
-// =============================================
-function getSimilarTrades(conditions) {
-  const entries = getEntries();
-  const closed = entries.filter(e => e['勝敗'] === '勝ち' || e['勝敗'] === '負け');
-
-  const scored = closed.map(e => {
-    let score = 0;
-
-    // 方向一致: 30点
-    if (e['Direction'] === conditions.direction) score += 30;
-
-    // 時間足方向: D1=15, H4=15, H1=10
-    if (e['D1'] === conditions.D1) score += 15;
-    if (e['H4'] === conditions.H4) score += 15;
-    if (e['H1'] === conditions.H1) score += 10;
-
-    // MA条件: 各5点
-    if (e['H4MA480.1200'] === conditions.H4MA480)   score += 5;
-    if (e['H4MA乖離']    === conditions.H4MA_kairi) score += 5;
-    if (e['H1MA20.80']   === conditions.H1MA2080)   score += 5;
-    if (e['H4MA20.80']   === conditions.H4MA2080)   score += 5;
-
-    // エントリー根拠: 各2.5点 × 6 = 15点
-    if (e['水平線D1.H4']  === conditions.suihei)    score += 2.5;
-    if (e['H1MAエリア']   === conditions.H1MA_area)  score += 2.5;
-    if (e['TL推進']       === conditions.TL_suishin) score += 2.5;
-    if (e['TL逆トレ']     === conditions.TL_gyaku)   score += 2.5;
-    if (e['TL_M15']       === conditions.TL_M15)     score += 2.5;
-    if (e['直近波理論']   === conditions.chikinha)   score += 2.5;
-
-    // 上位足リスク: 5点
-    if (e['上位足リスク'] === conditions.joui_risk) score += 5;
-
-    return { entry: e, score: Math.round(score) };
-  })
-  .filter(s => s.score >= 40)
-  .sort((a, b) => b.score - a.score)
-  .slice(0, 5);
-
-  // 統計計算
-  const total = scored.length;
-  const wins  = scored.filter(s => s.entry['勝敗'] === '勝ち').length;
-  const winRate  = total > 0 ? Math.round(wins / total * 100) : null;
-  const avgPips  = total > 0
-    ? Math.round(scored.reduce((s, t) => s + (Number(t.entry['実取得pips']) || 0), 0) / total)
-    : null;
-  const avgRR = total > 0
-    ? Math.round(scored.reduce((s, t) => s + (Number(t.entry['実RR']) || 0), 0) / total * 10) / 10
-    : null;
-
-  // アドバイス文章生成
-  const advice = buildAdvice(conditions, scored, winRate, avgPips);
-
-  return {
-    winRate, avgPips, avgRR, total,
-    advice,
-    trades: scored.map(s => ({
-      entryId:   s.entry['EntryID'],
-      pair:      s.entry['PairName'],
-      direction: s.entry['Direction'],
-      date:      s.entry['EntryDate'],
-      timeZone:  s.entry['時間帯'],
-      winLoss:   s.entry['勝敗'],
-      pips:      s.entry['実取得pips'],
-      pl:        s.entry['損益'],
-      review:    s.entry['エントリー振り返り'],
-      exitReview: s.entry['決済振り返り'],
-      score:     s.score
-    }))
-  };
-}
-
-function buildAdvice(cond, scored, winRate, avgPips) {
-  const parts = [];
-
-  // 方向一致チェック
-  const dirArrow = cond.direction === 'Sell' ? '↓' : '↑';
-  if (cond.D1 === dirArrow && cond.H4 === dirArrow) {
-    parts.push(`D1${cond.D1}H4${cond.H4}で${cond.direction}方向が揃っています。`);
-  } else if (cond.D1 !== dirArrow || cond.H4 !== dirArrow) {
-    parts.push(`⚠ 上位足と方向が一致していない部分があります。`);
-  }
-
-  // 根拠の強さ
-  const goodConds = ['suihei', 'H1MA_area', 'TL_suishin', 'TL_gyaku', 'TL_M15', 'chikinha']
-    .filter(k => cond[k] === '〇').length;
-  if (goodConds >= 4) parts.push(`エントリー根拠が${goodConds}つ揃っています。`);
-  else if (goodConds <= 1) parts.push(`⚠ エントリー根拠が少ない（${goodConds}つ）。`);
-
-  // 乖離警告
-  if (cond.H4MA_kairi === '✕') parts.push(`乖離あり。過去データでは勝率が下がる傾向があります。`);
-
-  // 統計
-  if (winRate !== null) {
-    parts.push(`類似パターン${scored.length}件：勝率${winRate}%、平均${avgPips >= 0 ? '+' : ''}${avgPips}pips。`);
-  } else {
-    parts.push(`類似パターンのデータがまだ少ないです。`);
-  }
-
-  return parts.join(' ');
-}
-
-// =============================================
-// 全体統計
-// =============================================
-function getAnalysisStats() {
-  const entries = getEntries();
-  const closed  = entries.filter(e => e['勝敗'] === '勝ち' || e['勝敗'] === '負け');
-
-  const total    = closed.length;
-  const wins     = closed.filter(e => e['勝敗'] === '勝ち').length;
-  const winRate  = total > 0 ? Math.round(wins / total * 100) : 0;
-  const totalPips = closed.reduce((s, e) => s + (Number(e['実取得pips']) || 0), 0);
-  const avgRR    = total > 0
-    ? Math.round(closed.reduce((s, e) => s + (Number(e['実RR']) || 0), 0) / total * 10) / 10
-    : 0;
-
-  // 月次集計
-  const monthly = {};
-  closed.forEach(e => {
-    const d = e['EntryDate'];
-    const month = d ? d.substring(0, 7).replace('/', '-') : '不明';
-    if (!monthly[month]) monthly[month] = 0;
-    monthly[month] += Number(e['実取得pips']) || 0;
-  });
-
-  // 条件別勝率（上位5件）
-  const condStats = computeConditionStats(closed);
-
-  // インサイト生成
-  const insights = buildInsights(closed, condStats);
-
-  return { total, wins, winRate, totalPips, avgRR, monthly, condStats, insights };
-}
-
-function computeConditionStats(entries) {
-  const conditions = [
-    { key: 'H4MA480.1200', goodVal: '◎', label: 'H4MA480 良好' },
-    { key: 'H4MA乖離',    goodVal: '✕', label: '乖離なし' },
-    { key: '水平線D1.H4', goodVal: '〇', label: '水平線あり' },
-    { key: 'H1MAエリア',  goodVal: '〇', label: 'H1MAエリアあり' },
-    { key: 'TL逆トレ',   goodVal: '〇', label: 'TL逆トレあり' },
-    { key: 'TL_M15',     goodVal: '〇', label: 'TL M15あり' },
-    { key: '上位足リスク', goodVal: 'ナシ', label: '上位足リスクなし' },
-  ];
-
-  return conditions.map(c => {
-    const subset = entries.filter(e => e[c.key] === c.goodVal);
-    const w = subset.filter(e => e['勝敗'] === '勝ち').length;
-    return {
-      label:   c.label,
-      count:   subset.length,
-      winRate: subset.length > 0 ? Math.round(w / subset.length * 100) : 0
-    };
-  }).sort((a, b) => b.winRate - a.winRate);
-}
-
-function buildInsights(entries, condStats) {
-  const insights = [];
-
-  // ビビり決済の損失試算
-  const bibiTrades = entries.filter(e => e['決済振り返り'] === 'ビビり決済');
-  if (bibiTrades.length > 0) {
-    const lostPips = bibiTrades.reduce((s, e) => {
-      const actual = Number(e['実取得pips']) || 0;
-      const target = Number(e['TakeProfitPips']) || 0;
-      return s + Math.max(0, target - actual);
-    }, 0);
-    if (lostPips > 0) {
-      insights.push(`「ビビり決済」${bibiTrades.length}件で約${lostPips}pips機会損失。`);
-    }
-  }
-
-  // 乖離ありの勝率
-  const kairiEntries = entries.filter(e => e['H4MA乖離'] === '◎');
-  if (kairiEntries.length >= 3) {
-    const kw = kairiEntries.filter(e => e['勝敗'] === '勝ち').length;
-    const kr = Math.round(kw / kairiEntries.length * 100);
-    if (kr < 55) {
-      insights.push(`H4MA乖離ありの勝率${kr}%（${kairiEntries.length}件）。見送ると改善の可能性。`);
-    }
-  }
-
-  // 最高勝率条件
-  if (condStats.length > 0 && condStats[0].winRate >= 65) {
-    insights.push(`「${condStats[0].label}」時の勝率${condStats[0].winRate}%（${condStats[0].count}件）が最高。`);
-  }
-
-  return insights;
-}
-
-// =============================================
 // DriveApp 認証テスト（GASエディタから一度手動で実行してください）
 // 実行すると OAuth 認証ダイアログが表示されます → 承認してください
 // =============================================
@@ -752,29 +558,33 @@ function uploadImage(base64Data, filename, mime) {   // mime: default image/jpeg
 
 
 // =============================================
-// 勝敗列一括更新（±10pips閾値）
-// GASエディタから手動実行: updateWinLossColumn()
+// 勝敗列一括更新（2026-11-22: R 基準 ±0.2R。R が無い行だけ ±10pips）
+// アプリが 1 回だけ呼ぶ（action recalcWinLoss）。GAS エディタから updateWinLossColumn() でも可。
+// 列はヘッダー名で探す。値が変わる行だけ書く
 // =============================================
 function updateWinLossColumn() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(entriesSheetName_());
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-
-  // AQ列(実取得pips) = 43列目、AP列(勝敗) = 42列目
-  const pipCol = 43;  // AQ
-  const resultCol = 42; // AP
-
-  const pipValues = sheet.getRange(2, pipCol, lastRow - 1, 1).getValues();
-  const updates = pipValues.map(([pips]) => {
-    if (pips === '' || pips === null) return [''];
-    const p = parseFloat(pips);
-    if (isNaN(p)) return [''];
-    return [p > 10 ? '勝ち' : (p < -10 ? '負け' : '引き分け')];
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
+  const lastRow = sheet.getLastRow(), lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return {success: true, changed: 0};
+  const head = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+  const c = n => head.indexOf(n);
+  const cWL = c('勝敗'), cP = c('実取得pips'), cSL = c('StopLossPips'), cR = c('実リスクリワード'), cSt = c('ステータス');
+  if (cWL < 0) return {success: false, error: '勝敗 列がありません'};
+  const rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  let changed = 0; const col = [];
+  rows.forEach((r, i) => {
+    const p = cP >= 0 ? parseFloat(r[cP]) : NaN, sl = cSL >= 0 ? parseFloat(r[cSL]) : NaN, rr = cR >= 0 ? r[cR] : '';
+    let R = (isFinite(p) && sl > 0) ? p / sl : (rr !== '' && isFinite(parseFloat(rr)) ? parseFloat(rr) : NaN);
+    let v = '';
+    if (isFinite(R)) v = R > 0.2 ? '勝ち' : (R < -0.2 ? '負け' : '引き分け');
+    else if (isFinite(p)) v = p > 10 ? '勝ち' : (p < -10 ? '負け' : '引き分け');
+    else if (cSt >= 0 && String(r[cSt]).indexOf('決済') < 0) v = String(r[cWL] || '');   // still open: leave as it is
+    else v = String(r[cWL] || '');
+    if (String(r[cWL] || '') !== v) changed++;
+    col.push([v === '' && r[cWL] instanceof Date ? r[cWL] : v]);
   });
-
-  sheet.getRange(2, resultCol, updates.length, 1).setValues(updates);
-  Logger.log('勝敗列を' + updates.length + '件更新しました');
+  if (changed) sheet.getRange(2, cWL + 1, col.length, 1).setValues(col);
+  return {success: true, changed: changed};
 }
 
 // =============================================

@@ -233,7 +233,19 @@ function ealReportData_(b) {
   const p = PropertiesService.getScriptProperties();
   let rk = p.getProperty('REPORT_KEY');
   if (!rk) { rk = Utilities.getUuid().replace(/-/g, ''); p.setProperty('REPORT_KEY', rk); }
-  return {success: true, trades: strip(ealRows_('trades')), daily: strip(ealRows_('daily')), config: cfg, repmarks: strip(ealRows_('repmarks')), reportKey: rk};
+  return {success: true, trades: strip(ealRows_('trades')), daily: strip(ealRows_('daily')), config: cfg, repmarks: strip(ealRows_('repmarks')), reportKey: rk,
+          manual: ealManualTrades_()};
+}
+
+/** 2026-11-22: the trader's own closed trades (Trades sheet, not EA) for the report's 裁量 page. Only the fields the page reads. */
+function ealManualTrades_() {
+  if (typeof getEntries !== 'function') return [];
+  const F = ['EntryID', 'EntryDate', 'EntryTime', 'ExitDate', 'PairName', 'PairName（元）', 'Direction', 'ステータス', 'DowRule', 'Lot', '損益', 'StopLossPips',
+             '実取得pips', '実リスクリワード', 'ルール準拠pips', 'ルール準拠損益', 'エントリー振り返り', '決済振り返り', '勝敗', 'Source', 'TradeType'];
+  try {
+    return (getEntries() || []).filter(e => String(e['ステータス'] || '').indexOf('決済') >= 0 && !/EA/i.test(String(e.Source || e.TradeType || '')))
+      .map(e => { const o = {}; F.forEach(k => { if (e[k] !== undefined && e[k] !== '') o[k] = e[k] instanceof Date ? Utilities.formatDate(e[k], 'Asia/Tokyo', 'yyyy/MM/dd') : e[k]; }); return o; });
+  } catch (e) { return []; }
 }
 
 /** Report page: the trader's mark / lines on one trade. kind 'trade' = a live trade (EA_Trades, same columns as the app);

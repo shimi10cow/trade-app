@@ -205,6 +205,44 @@ def backtest(broker, syms_keys, start, days_back, cache=None):
     return pd.DataFrame(out), bars
 
 
+# 2026-11-22 (user): the period backtest with the costs the account really pays, so 突き合わせ compares like with like.
+# Swap (XM, docs/OPEN_ITEMS.md 11/8): yearly rate of the price, today's values; FX / gold / silver are swap-free on the KIWAMI account.
+# Indices: one day per night, Friday night 3 days. BTC: every night, weekends too. Long / short.
+SWAP_YEAR = {'US30': (-0.065, 0.009), 'US500': (-0.065, 0.009), 'US100': (-0.065, 0.009), 'JP225': (-0.033, -0.013),
+             'BTCUSD': (-0.259, -0.103)}
+# Cost per trade as a share of the price, above what the engines already take (1.2e-4 price space = 0.012 % for these log-priced symbols)
+EXTRA_COST = {'BTCUSD': 0.0008 - 0.00012, 'XAGUSD': 0.0004 - 0.00012}
+
+
+def swap_days(sym, t, x):
+    """Swap days held from t to x (server time): the server midnights crossed; indices count Friday night as 3, BTC every night."""
+    if t is None or x is None or pd.isna(t) or pd.isna(x) or x <= t:
+        return 0
+    nights = pd.date_range(pd.Timestamp(t).normalize() + pd.Timedelta(days=1), pd.Timestamp(x).normalize(), freq='D')
+    if sym == 'BTCUSD':
+        return len(nights)
+    # a rollover at midnight after Mon..Fri (the night starting Friday is charged 3 days); weekend midnights are not trading nights
+    return sum(3 if (n - pd.Timedelta(days=1)).weekday() == 4 else 1 for n in nights if (n - pd.Timedelta(days=1)).weekday() < 5)
+
+
+def costs_swaps(B):
+    """B with R after swap and the extra cost (R_raw keeps the engine's R; swapR / costR the parts taken off)."""
+    if not len(B):
+        return B
+    B = B.copy(); B['R_raw'] = B.R; B['swapR'] = 0.0; B['costR'] = 0.0
+    for i, b in B.iterrows():
+        if b.R is None or pd.isna(b.R) or b.sl is None or pd.isna(b.sl) or not b.entry:
+            continue
+        risk = abs(float(b.entry) - float(b.sl))
+        if risk <= 0:
+            continue
+        rate = SWAP_YEAR.get(b.sym)
+        sw = (rate[0] if b.side > 0 else rate[1]) / 365 * swap_days(b.sym, b.t, b.exit_t) * float(b.entry) / risk if rate else 0.0
+        co = EXTRA_COST.get(b.sym, 0.0) * float(b.entry) / risk
+        B.at[i, 'swapR'] = round(sw, 4); B.at[i, 'costR'] = round(co, 4); B.at[i, 'R'] = float(b.R) + sw - co
+    return B
+
+
 def match(T, B):
     """live trade <-> backtest trade of the same EA, side and signal bar (+-15 minutes), separately for each account."""
     T = T.copy(); T['bt'] = -1
@@ -290,6 +328,29 @@ def pair_charts(broker, pairs):
 
 
 # ---------------------------------------------------------------- page
+def manual_trades(rows):
+    """The trader's own closed trades (GAS ealManualTrades_) -> the report's 裁量 page. R as in the app: 実取得pips / StopLossPips,
+    else 実リスクリワード; ルール通りの R = ルール準拠pips / StopLossPips."""
+    f = lambda v: (lambda x: x if math.isfinite(x) else None)(float(v)) if str(v).strip() not in ('', 'None', 'nan') and _isnum(v) else None
+    out = []
+    for r in rows or []:
+        p, sl, rr = f(r.get('実取得pips')), f(r.get('StopLossPips')), f(r.get('実リスクリワード'))
+        R = p / sl if p is not None and sl else rr
+        rp = f(r.get('ルール準拠pips'))
+        out.append(dict(d=str(r.get('EntryDate') or '')[:10].replace('-', '/'), x=str(r.get('ExitDate') or '')[:10].replace('-', '/'),
+                        pair=str(r.get('PairName（元）') or r.get('PairName') or ''), side=str(r.get('Direction') or ''), rule=str(r.get('DowRule') or ''),
+                        R=None if R is None else round(R, 3), ruleR=None if rp is None or not sl else round(rp / sl, 3), pf=f(r.get('損益')), lot=f(r.get('Lot')),
+                        eref=str(r.get('エントリー振り返り') or ''), xref=str(r.get('決済振り返り') or ''), missed='見逃し' in str(r.get('ステータス') or '')))
+    return out
+
+
+def _isnum(v):
+    try:
+        float(v); return True
+    except (TypeError, ValueError):
+        return False
+
+
 def build(data, refs, T, B, bars, days, pcharts=None):
     accs = [a for a in ('demo', 'live') if len(T) and (T.Account == a).any()] or ['demo']
     # chart bars: Japan-time minutes; M15 / H1 / H4 / D1 (resampled in broker time, so D1 = the broker's day like MT5)
@@ -326,7 +387,8 @@ def build(data, refs, T, B, bars, days, pcharts=None):
     bt = []
     for j, b in B.iterrows() if len(B) else []:
         bt.append(dict(j=int(j), ea=b.key, fam=refs['fam'].get(b.key, 'OLD'), sym=b.sym, side=int(b.side), et=jmin(b.t), ep=num(b.entry), sl=num(b.get('sl')),
-                       xt=jmin(b.exit_t), xp=num(b.exit), R=num(b.R, 3), open=bool(b.open)))
+                       xt=jmin(b.exit_t), xp=num(b.exit), R=num(b.R, 3), open=bool(b.open),
+                       sw=num(b.get('swapR'), 3), co=num(b.get('costR'), 3)))
     rm = {}
     for r in (data.get('repmarks') or []):
         rm[str(r.get('ID'))] = dict(v=txt(r.get('Verdict')), tags=txt(r.get('Tags')), cm=txt(r.get('Comment')), xv=txt(r.get('ExitVerdict')),
@@ -339,7 +401,7 @@ def build(data, refs, T, B, bars, days, pcharts=None):
     payload = dict(made=pd.Timestamp.now(tz=JST).strftime('%Y-%m-%d %H:%M'), accs=accs, trades=trades, btl=bt, repmarks=rm, charts=charts, daily=daily, on=on,
                    fams=refs['fams'], famOf=refs['fam'], exp=refs['exp'], famBt=refs['fam_bt'], bt=refs['bt'], btDone=bool(len(B)), days=days,
                    gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []),
-                   pairs=pairs, pcharts=pcharts or {})
+                   pairs=pairs, pcharts=pcharts or {}, manual=manual_trades(data.get('manual')))
     html = (Path(__file__).with_name('report_template.html')).read_text(encoding='utf-8')
     return html.replace('/*__DATA__*/null', json.dumps(clean(payload), ensure_ascii=False, separators=(',', ':'), default=str))
 
@@ -417,6 +479,7 @@ def main(argv=None):
                     bars[s] = broker.bars(s, days_back + 400)[['t', 'o', 'h', 'l', 'c']]
                 except Exception:
                     pass
+    B = costs_swaps(B)
     T, _ = match(T, B)
     pcharts = {}
     if not a.no_pairs and not a.bars_dir:
