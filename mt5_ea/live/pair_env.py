@@ -170,7 +170,7 @@ def main(argv=None):
     import os
     import time
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pairs', default=''); ap.add_argument('--timeout', type=float, default=60); ap.add_argument('--no-send', action='store_true')
+    ap.add_argument('--pairs', default=''); ap.add_argument('--timeout', type=float, default=60); ap.add_argument('--w1-timeout', type=float, default=300); ap.add_argument('--no-send', action='store_true')
     a = ap.parse_args(argv)
     from mt5_ea.live import gas
     from mt5_ea.live.broker import MT5Broker
@@ -185,19 +185,23 @@ def main(argv=None):
     pairs = tuple(x.strip().upper() for x in a.pairs.split(',') if x.strip()) or app_pairs(gas)
     stalled = None
     # 2026-11-22 (user): this button also refreshes the ⭐「もうすぐ」 (same rules and app settings as the alerts window)
-    star, prof = [], None
+    star, prof, ends = [], None, {}
     try:
         from mt5_ea.live import alerts as al
         cfg = al.settings_from(gas.call('eaAlert', {'alerts': []}, timeout=60), {'on': True, 'profiles': al.PRESETS})
         prof = [x for x in cfg.get('profiles') or [] if x.get('on')] if cfg.get('on', True) else []
-
-        def each(p, m15):
-            if p in al.PAIRS and prof:
-                star.extend(al.armed(al.Market(p, m15.reset_index(drop=True)), prof, star=cfg.get('star')))
     except Exception as ex:
-        logging.warning('star: %s', ex); each = None
+        logging.warning('star: %s', ex); al = None
+
+    def each(p, m15):
+        ends[p] = pd.to_datetime(m15.t).iat[-1] + pd.Timedelta(minutes=15)
+        if al is not None and prof and p in al.PAIRS:
+            star.extend(al.armed(al.Market(p, m15.reset_index(drop=True)), prof, star=cfg.get('star')))
+    # 2026-11-22: two rounds. 1) D1 / H4 / H1 and the ⭐ for every pair, sent at once. 2) W1 afterwards: MT5 can hang on one symbol's
+    # weekly history (BTCJPY did), and a hung MT5 call cannot be cancelled, so it must not hold up the other pairs.
+    say('① 日足・H4・H1 と ⭐')
     try:
-        rows = scan(b, pairs, log=say, timeout=a.timeout, each=each)
+        rows = scan(b, pairs, log=say, timeout=a.timeout, weekly=False, each=each)
     except Stalled as ex:
         rows, stalled = ex.rows, ex
         say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
@@ -217,7 +221,35 @@ def main(argv=None):
                 say(f'⭐ は送れませんでした: {ex}')
     if stalled:
         os._exit(2)                                     # the stuck MT5 call cannot be cancelled: leave without waiting for it
-
+    # ② W1: FX first, the rest (BTC, indices, ...) last; on a hang, send what is done and stop
+    import concurrent.futures as cf
+    # MT5 makes every timeframe from its M1 history: 3 years of W1 = 3 years of M1. A symbol this terminal has never shown (BTCJPY:
+    # the EAs use BTCUSD; 24/7, ~1.6 million M1 bars) is downloaded the first time, which can take minutes -> a longer wait here.
+    # MT5 goes on downloading after a time-out, so the next press is usually quick.
+    say(f'\n② 週足（初めての銘柄は MT5 が 3 年分の履歴をダウンロードするので、1 つ数分かかることがあります。最大 {a.w1_timeout:.0f} 秒待ちます）')
+    fx = lambda p: 0 if len(p) == 6 and p.isalpha() and p[:3] not in ('BTC', 'ETH', 'XAU', 'XAG') else 1
+    todo = sorted((r['pair'] for r in rows if r['pair'] in ends), key=fx)
+    pool = cf.ThreadPoolExecutor(1); w1rows = []
+    for p in todo:
+        try:
+            t1 = time.time(); w = pool.submit(weekly_bars, b, p).result(timeout=a.w1_timeout)
+            x = weekly_arrow(w, ends[p])
+            if x:
+                w1rows.append({'pair': p, 'W1': x})
+            say(f'  {p:7s} W1 {x or "-"}   ({time.time() - t1:.1f}秒)')
+        except cf.TimeoutError:
+            say(f'  {p:7s} W1 は MT5 が {a.w1_timeout:.0f} 秒たっても返事をしないので、ここで止めます（残りの週足は前のまま。'
+                '裏でダウンロードが続くので、しばらくしてもう一度押すと進むことが多い）')
+            stalled = True
+            break
+        except Exception as ex:
+            say(f'  {p:7s} W1 とばした（{str(ex)[:60]}）')
+    if w1rows and not a.no_send:
+        res = gas.call('eaPairEnv', {'pairs': w1rows}, timeout=90)
+        say(f"週足 {len(w1rows)} ペアを送りました（書き換えた所: {(res or {}).get('changed', 0)}）")
+    if stalled:
+        os._exit(2)
+    pool.shutdown(wait=False)
 
 if __name__ == '__main__':
     main()
