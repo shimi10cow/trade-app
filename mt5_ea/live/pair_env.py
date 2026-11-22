@@ -201,7 +201,7 @@ def main(argv=None):
     # weekly history (BTCJPY did), and a hung MT5 call cannot be cancelled, so it must not hold up the other pairs.
     say('① 日足・H4・H1 と ⭐')
     try:
-        rows = scan(b, pairs, log=say, timeout=a.timeout, weekly=False, each=each)
+        rows = scan(b, pairs, log=say, timeout=a.timeout or None, weekly=False, each=each)
     except Stalled as ex:
         rows, stalled = ex.rows, ex
         say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
@@ -226,13 +226,21 @@ def main(argv=None):
     # MT5 makes every timeframe from its M1 history: 3 years of W1 = 3 years of M1. A symbol this terminal has never shown (BTCJPY:
     # the EAs use BTCUSD; 24/7, ~1.6 million M1 bars) is downloaded the first time, which can take minutes -> a longer wait here.
     # MT5 goes on downloading after a time-out, so the next press is usually quick.
-    say(f'\n② 週足（初めての銘柄は MT5 が 3 年分の履歴をダウンロードするので、1 つ数分かかることがあります。最大 {a.w1_timeout:.0f} 秒待ちます）')
+    say('\n② 週足' + (f'（初めての銘柄は MT5 が 3 年分の履歴をダウンロードするので数分かかることがあります。最大 {a.w1_timeout:.0f} 秒待ちます。'
+                     '先に PAIR_ENV_FIRST.bat で全部取っておくと速い）' if a.w1_timeout else '（時間の制限なし：全部取れるまで待ちます）'))
     fx = lambda p: 0 if len(p) == 6 and p.isalpha() and p[:3] not in ('BTC', 'ETH', 'XAU', 'XAG') else 1
     todo = sorted((r['pair'] for r in rows if r['pair'] in ends), key=fx)
     pool = cf.ThreadPoolExecutor(1); w1rows = []
     for p in todo:
         try:
-            t1 = time.time(); w = pool.submit(weekly_bars, b, p).result(timeout=a.w1_timeout)
+            t1 = time.time(); fut = pool.submit(weekly_bars, b, p)
+            while True:                                 # a line every 30 s while MT5 downloads (0 = no limit: PAIR_ENV_FIRST.bat)
+                try:
+                    w = fut.result(timeout=30); break
+                except cf.TimeoutError:
+                    if a.w1_timeout and time.time() - t1 >= a.w1_timeout:
+                        raise
+                    say(f'  {p:7s} W1 …MT5 が履歴をダウンロード中（{time.time() - t1:.0f}秒）')
             x = weekly_arrow(w, ends[p])
             if x:
                 w1rows.append({'pair': p, 'W1': x})
