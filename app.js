@@ -734,12 +734,11 @@ function renderHistoryList() {
     const isMissed = t['ステータス'] === '決済（見逃し）';
     const badgeClass = t.Direction === 'Buy' ? 'buy' : 'sell';
     const dirArrow = t.Direction === 'Buy' ? '▲' : '▼';
-    const pips = parseFloat(t['実取得pips']) || 0;
+    const r = tradeR_(t);
     // History colors have separate meanings:
     // left rail = direction (buy red / sell blue, same as the home cards; missed orange)
-    // pips text = result (profit green / loss red / flat neutral)
-    const pipsColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
-    const pipsSign = pips > 0 ? '+' : '';
+    // R text = result (profit green / loss red / flat neutral)
+    const pipsColor = rCol_(r);
     const borderColor = isMissed ? '#f59e0b' : (t.Direction === 'Buy' ? '#f43f5e' : '#3b82f6');
 
     return `
@@ -752,7 +751,7 @@ function renderHistoryList() {
               ${isMissed ? '<span class="badge" style="background:rgba(245,158,11,0.2); color:#f59e0b;">見逃し</span>' : ''}
               ${/EA/i.test(String(t.Source || t.TradeType || '')) ? '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">EA</span>' : '<span class="badge" style="background:rgba(148,163,184,0.14);color:#cbd5e1;">裁量</span>'}${t.Source === '予約' ? '<span class="badge" style="background:rgba(34,211,238,0.12);color:#22d3ee;">予約</span>' : ''}
             </div>
-            <div style="font-weight:700; font-size:15px; color:${pipsColor};">${pipsSign}${pips.toFixed(1)} <span style="font-size:10px;">pips</span></div>
+            <div style="font-weight:700; font-size:15px; color:${pipsColor};">${rTxt_(r)}</div>
           </div>
           <div style="font-size:11px; color:#94a3b8; display:flex; justify-content:space-between;">
             <span>${formatDateDisplay(t.EntryDate)} ${formatTimeDisplay(t.EntryTime)} · ｽｺｱ: ${t['エントリースコア'] || '-'}</span>
@@ -993,6 +992,8 @@ function openEntryModal(isMissed = false) {
   document.getElementById('ne-dow-rule').value = '1';
   document.getElementById('ne-rr-display').textContent = 'RR: --';
   document.getElementById('ne-rr-display').className = 'calc-info';
+  ['ne-sl', 'ne-tp'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });   // hidden pips (2026-11-22)
+  try { calculateRR(); } catch (e) {}
 
   const sel = document.getElementById('ne-pair');
   sel.innerHTML = '<option value="">選択...</option>';
@@ -2012,11 +2013,10 @@ function openReviewModal(weekKey) {
   const closed = weekTrades.filter(t => t['ステータス'] === '決済' && !/EA/i.test(String(t.Source || t.TradeType || '')));   // 裁量だけ
   let wins = 0, profit = 0, slSum = 0, slN = 0, entryOk = 0, exitOk = 0;
   closed.forEach(t => {
-    const pips = parseFloat(t['実取得pips']) || 0;
-    if (pips > 10) wins++;
+    if (tradeWL_(t) === 1) wins++;
     profit += parseFloat(t['損益']) || 0;
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-    if (sl > 0) { slSum += sl; slN++; }
+    const r = tradeR_(t);
+    if (r != null) { slSum += r; slN++; }      // 2026-11-22: total R (was the average SL pips)
     if (isEntryCompliant(t)) entryOk++;
     const er = t['決済振り返り'] || '';
     if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
@@ -2035,7 +2035,7 @@ function openReviewModal(weekKey) {
     stat('損益', (profit >= 0 ? '+' : '-') + '¥' + fmtYen(Math.abs(profit)), profit >= 0 ? '#4ade80' : '#f87171') +
     stat('ｴﾝﾄﾘｰ遵守', n ? Math.round(entryOk / n * 100) + '%' : '--') +
     stat('決済遵守', n ? Math.round(exitOk / n * 100) + '%' : '--') +
-    stat('SL平均', slN ? avgSl.toFixed(0) + 'p' : '--', avgSl > 0 && avgSl < 50 ? '#f87171' : '#4ade80');
+    stat('合計 R', slN ? rTxt_(slSum) : '--', slSum >= 0 ? '#4ade80' : '#f87171');
   renderReviewEAStats_(weekStart);
 
   // ── トレード一覧（タップで該当トレードの詳細へ） ──
@@ -2043,14 +2043,14 @@ function openReviewModal(weekKey) {
     ? '<div style="color:#64748b; font-size:12px; text-align:center; padding:10px;">対象週のトレードはありません</div>'
     : weekTrades.map(t => {
         const idx = App.data.entries.indexOf(t);
-        const pips = parseFloat(t['実取得pips']) || 0;
-        const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+        const r = tradeR_(t);
+        const col = rCol_(r);
         const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
         const isMissed = (t['ステータス'] || '').includes('見逃し');
         return `<div onclick="openTradeDetailFromReview(${idx})" style="display:flex; justify-content:space-between; align-items:center; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:12px; cursor:pointer;">
           <span style="color:#94a3b8;">${d}</span>
           <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃し</span>' : ''}</span>
-          <span style="display:flex; align-items:center; gap:6px;"><span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span><span style="color:#475569;">›</span></span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? rTxt_(r) : t['ステータス']}</span><span style="color:#475569;">›</span></span>
         </div>`;
       }).join('');
 
@@ -2187,15 +2187,15 @@ function _renderRetroReviewModal(retroKey) {
   } else {
     document.getElementById('retro-trades-list').innerHTML = weekTrades.map((t, i) => {
       const idx = App.data.entries.indexOf(t);
-      const pips = parseFloat(t['実取得pips']) || 0;
-      const col = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+      const r = tradeR_(t);
+      const col = rCol_(r);
       const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
       const existing = t['後日振り返り'] || '';
       return `<div style="background:#0f172a; border-radius:8px; padding:10px; margin-bottom:10px; border:1px solid #334155;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; cursor:pointer;" onclick="openRetroTradeDetail(${idx})">
           <span style="color:#94a3b8;">${d}</span>
           <span style="font-weight:700; color:#e2e8f0;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}</span>
-          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
+          <span style="color:${col}; font-weight:700;">${t['ステータス'] === '決済' ? rTxt_(r) : t['ステータス']}</span>
           <span style="color:#475569;">›</span>
         </div>
         <textarea class="form-input retro-trade-memo" data-entry-id="${t['EntryID']}" rows="2" style="width:100%; font-size:12px;" placeholder="チャートを見て…良いトレードだったか？">${existing}</textarea>
@@ -2375,9 +2375,8 @@ function maybeShowMonthlySummary() {
   let wins = 0, profit = 0, entryOk = 0, exitOk = 0;
   let cum = 0, peak = 0, maxDD = 0;
   monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1).forEach(t => {
-    const pips = parseFloat(t['実取得pips']) || 0;
     const pl = parseFloat(t['損益']) || 0;
-    if (pips > 10) wins++;
+    if (tradeWL_(t) === 1) wins++;
     profit += pl;
     cum += pl;
     if (cum > peak) peak = cum;
@@ -2387,13 +2386,12 @@ function maybeShowMonthlySummary() {
     if (er === '決済タイミングOK' || er === '完璧決済') exitOk++;
   });
   const n = monthTrades.length;
-  const losses = monthTrades.filter(t => (parseFloat(t['実取得pips']) || 0) < -10).length;
+  const losses = monthTrades.filter(t => tradeWL_(t) === -1).length;
   const draws  = n - wins - losses;
   // ルール準拠損益・PIPS
   const ruleProfit = monthTrades.reduce((s, t) => s + (parseFloat(t['ルール準拠損益'] || t['ルール準拠pips'] || 0)), 0);
   const totalPips = monthTrades.reduce((s, t) => s + (parseFloat(t['実取得pips']) || 0), 0);
-  const totalR = monthTrades.reduce((s, t) => { const r = parseFloat(t['実リスクリワード']); const sl = parseFloat(t['StopLossPips']) || 0;
-    return s + (!isNaN(r) ? r : (sl > 0 ? (parseFloat(t['実取得pips']) || 0) / sl : 0)); }, 0);   // 2026-11-21: R instead of pips
+  const totalR = monthTrades.reduce((s, t) => s + (tradeR_(t) || 0), 0);   // 2026-11-21: R instead of pips
   const avgRR = n > 0 ? (monthTrades.reduce((s, t) => s + (parseFloat(t['実RR']) || 0), 0) / n) : 0;
 
   const fmtYen = (v) => new Intl.NumberFormat('ja-JP').format(Math.round(v));
@@ -2420,17 +2418,17 @@ function maybeShowMonthlySummary() {
   const sorted = monthTrades.slice().sort((a, b) => String(a.EntryDate) < String(b.EntryDate) ? -1 : 1);
   document.getElementById('monthly-trades').innerHTML = sorted.map(t => {
     const idx = App.data.entries.indexOf(t);
-    const pips = parseFloat(t['実取得pips']) || 0;
+    const r    = tradeR_(t);
     const rr   = parseFloat(t['実RR']) || 0;
     const pl   = parseFloat(t['損益']) || 0;
-    const pipColor = pips > 0 ? '#10b981' : (pips < 0 ? '#ef4444' : '#94a3b8');
+    const pipColor = rCol_(r);
     const d = String(t.EntryDate || '').split('T')[0].replace(/\//g, '-').slice(5).replace('-', '/');
     const isMissed = (t['ステータス'] || '').includes('見逃し');
     return `<div onclick="closeMonthlyModal(); openTradeDetail(${idx})" style="display:flex; align-items:center; gap:6px; padding:7px 10px; background:#0f172a; border-radius:6px; margin-bottom:4px; font-size:11px; cursor:pointer; border:1px solid #1e293b;">
       <span style="color:#64748b; min-width:30px;">${d}</span>
       <span style="font-weight:700; color:#e2e8f0; flex:1;">${t['PairName（元）'] || t.PairName || ''} ${t.Direction === 'Buy' ? '▲' : '▼'}${isMissed ? ' <span style="color:#f59e0b;">見逃</span>' : ''}</span>
-      <span style="color:${pipColor}; font-weight:700; min-width:44px; text-align:right;">${t['ステータス'] === '決済' ? (pips > 0 ? '+' : '') + pips.toFixed(1) + 'p' : t['ステータス']}</span>
-      <span style="color:#94a3b8; min-width:36px; text-align:right;">RR${rr > 0 ? rr.toFixed(1) : '--'}</span>
+      <span style="color:${pipColor}; font-weight:700; min-width:44px; text-align:right;">${t['ステータス'] === '決済' ? rTxt_(r) : t['ステータス']}</span>
+      <span style="color:#94a3b8; min-width:36px; text-align:right;">${t['Lot'] ? t['Lot'] + 'L' : ''}</span>
       <span style="color:${pl >= 0 ? '#4ade80' : '#f87171'}; min-width:52px; text-align:right;">${pl !== 0 ? (pl > 0 ? '+' : '') + fmtYen(pl) : '--'}</span>
       <span style="color:#475569;">›</span>
     </div>`;
@@ -2859,8 +2857,7 @@ function renderGallery() {
   // 勝敗・エントリー振り返り・決済振り返り・トレード評価フィルター
   if (winLoss !== 'all') {
     galleryTrades = galleryTrades.filter(t => {
-      const pips = parseFloat(t['実取得pips']) || 0;
-      return winLoss === 'win' ? pips > 10 : pips < -10;
+      return winLoss === 'win' ? tradeWL_(t) === 1 : tradeWL_(t) === -1;
     });
   }
   if (entryRef !== 'all') {
@@ -2894,9 +2891,9 @@ function renderGallery() {
     const rawUrl = tradeExitImages(t)[0];
     const isPath = rawUrl && rawUrl.includes('/') && !rawUrl.startsWith('http') && !rawUrl.startsWith('data:');
     const imgUrl = getImageUrl(rawUrl, 400);
-    const pips = parseFloat(t['実取得pips']) || 0;
-    const isWin = pips > 10;
-    const isEven = pips >= -5 && pips <= 10;
+    const wl = tradeWL_(t);
+    const isWin = wl === 1;
+    const isEven = wl === 0;
     const color = isWin ? '#10b981' : (isEven ? '#f59e0b' : '#ef4444');
     const quality = String(t['お気に入り'] || '');
     const qualityMark = quality === 'GOOD' ? '○' : (quality === 'BAD' ? '×' : '');
@@ -2959,13 +2956,12 @@ function renderRecentTrades() {
   };
 
   const rows = trades.map(t => {
-    const pips = parseFloat(t['実取得pips']) || 0;
+    const r = tradeR_(t);
     const profit = parseFloat(t['損益']) || 0;
     const pair = t['PairName（元）'] || t['PairName'] || t['Pair'] || '-';
     const dir = t['Direction'] || t['方向'] || '';
     const isMissed = (t['ステータス'] || '').includes('見逃し');
-    const pipsColor = pips > 0 ? '#10b981' : pips < 0 ? '#ef4444' : '#94a3b8';
-    const pipsSign = pips > 0 ? '+' : '';
+    const pipsColor = rCol_(r);
     const profitSign = profit > 0 ? '+' : '';
     const profitStr = profit !== 0
       ? `${profitSign}${new Intl.NumberFormat('ja-JP').format(profit)}円`
@@ -2984,7 +2980,7 @@ function renderRecentTrades() {
         <div style="min-width:34px; color:#94a3b8; font-size:11px;">${fmtDate(t.EntryDate)}</div>
         <div style="flex:1; padding:0 8px; font-size:13px; font-weight:700; color:#e2e8f0;">${pair} ${dirBadge}${missedBadge}</div>
         <div style="text-align:right; min-width:80px;">
-          <div style="font-size:13px; font-weight:700; color:${pipsColor};">${pipsSign}${pips.toFixed(1)}<span style="font-size:10px;">pips</span></div>
+          <div style="font-size:13px; font-weight:700; color:${pipsColor};">${rTxt_(r)}</div>
           <div style="font-size:10px; color:${pipsColor}; opacity:0.85;">${profitStr}</div>
         </div>
       </div>
@@ -3019,9 +3015,7 @@ function updateMonthlyStats() {
     const profit = parseFloat(t['損益']) || 0;
     totalProfit += profit;
     totalPips += parseFloat(t['実取得pips']) || 0;
-    const pips = parseFloat(t['実取得pips']) || 0;
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-    if (sl > 0) totalRR += pips / sl;
+    totalRR += tradeR_(t) || 0;
     if (isEntryCompliant(t)) entryPerfect++;
     const exitRef = t['決済振り返り'] || '';
     if (exitRef === '決済タイミングOK' || exitRef === '完璧決済') exitPerfect++;
@@ -3037,15 +3031,15 @@ function updateMonthlyStats() {
   const clsRate = (v) => v >= 70 ? 'pos' : (v >= 50 ? '' : 'neg');
   document.getElementById('top-profit').textContent = fmtCur(totalProfit);
   document.getElementById('top-profit').className = 'val ' + cls(totalProfit);
-  document.getElementById('top-pips').textContent = Math.round(totalPips) + ' pips';
-  document.getElementById('top-pips').className = 'val ' + cls(totalPips);
+  { const ys = monthTrades.map(tradeRYen_).filter(v => v); const y = ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : 0;   // 2026-11-22: 1R in yen instead of pips
+    document.getElementById('top-pips').textContent = y ? fmtCur(Math.round(y)) : '--'; document.getElementById('top-pips').className = 'val'; }
   const entryRate = total > 0 ? (entryPerfect / total * 100).toFixed(1) : '--';
   const exitRate = total > 0 ? (exitPerfect / total * 100).toFixed(1) : '--';
   document.getElementById('top-entry-rate').textContent = entryRate !== '--' ? entryRate + '%' : '--';
   document.getElementById('top-entry-rate').className = 'val ' + (entryRate !== '--' ? clsRate(parseFloat(entryRate)) : '');
   document.getElementById('top-exit-rate').textContent = exitRate !== '--' ? exitRate + '%' : '--';
   document.getElementById('top-exit-rate').className = 'val ' + (exitRate !== '--' ? clsRate(parseFloat(exitRate)) : '');
-  document.getElementById('top-rr').textContent = totalRR.toFixed(2);
+  document.getElementById('top-rr').textContent = rTxt_(totalRR);
   document.getElementById('top-rr').className = 'val ' + cls(totalRR);
 
   // ルール通りなら比較ウィジェット
@@ -3197,7 +3191,7 @@ function applyAnalysisFilters() {
   let totalLot = 0, lotCount = 0;
   let avgRRSum = 0, validRRCount = 0;
   // 理論値: ルール準拠pips/損益の合計（全トレード）
-  let theoryPipsTotal = 0, theoryProfitTotal = 0;
+  let theoryPipsTotal = 0, theoryProfitTotal = 0, theoryRActual = 0;
   // ルール遵守率: エントリー・決済別
   let entryPerfectCount = 0, exitPerfectCount = 0;
 
@@ -3217,7 +3211,7 @@ function applyAnalysisFilters() {
 
     // 勝敗判定: ±10pips閾値
     // 勝ち: pips > 10 / 負け: pips < -10 / 引き分け: -10 <= pips <= 10
-    const wl = eaType === 'ea' ? (Number(t.R) > 0.05 ? 1 : Number(t.R) < -0.05 ? -1 : 0) : (pips > 10 ? 1 : pips < -10 ? -1 : 0);   // EA: by R
+    const wl = eaType === 'ea' ? (Number(t.R) > 0.05 ? 1 : Number(t.R) < -0.05 ? -1 : 0) : tradeWL_(t);   // EA: by R, discretionary: by R too (2026-11-22)
     if (wl === 1) {
       wins++;
       winPips += pips;
@@ -3231,17 +3225,14 @@ function applyAnalysisFilters() {
     }
 
     // RR: 実取得pips / StopLossPips
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-    if (sl > 0) {
-      avgRRSum += (pips / sl);
-      validRRCount++;
-    }
+    { const r = eaType === 'ea' ? Number(t.R) : tradeR_(t);
+      if (r != null && isFinite(r) && !(eaType === 'ea' && t.R === '')) { avgRRSum += r; validRRCount++; } }
 
     // 理論pips: ルール準拠pips列の合計（全トレード）
     const rawRulePips = t['ルール準拠pips'] ?? t['ルール準拠Pips'];
     if (rawRulePips !== undefined && rawRulePips !== '' && rawRulePips !== null) {
-      const rp = parseFloat(rawRulePips);
-      if (!isNaN(rp)) theoryPipsTotal += rp;
+      const rp = parseFloat(rawRulePips), sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+      if (!isNaN(rp) && sl > 0) { theoryPipsTotal += rp / sl; theoryRActual += tradeR_(t) || 0; }   // 2026-11-22: in R
     }
     // 理論損益: ルール準拠損益列の合計（手入力値）
     const rawRuleProfit = t['ルール準拠損益'];
@@ -3277,7 +3268,7 @@ function applyAnalysisFilters() {
   // 理論値 / ルール外乖離
   const theoryPips = theoryPipsTotal;
   const theoryProfit = theoryProfitTotal;
-  const deviationPips = totalPips - theoryPips;
+  const deviationPips = theoryRActual - theoryPips;
   const deviationProfit = totalProfit - theoryProfit;
 
   // Top banner is calculated independently by updateMonthlyStats()
@@ -3334,14 +3325,15 @@ function applyAnalysisFilters() {
     ${csClose()}
     ${csOpen('pips', '📈 R 統計（実取得 ÷ 最初の損切り）')}
     ${(() => {   // 2026-11-21 (user): pips differ between FX / gold / indices, so results are shown in R
-      const R = filtered.map(t => { const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0; const p = parseFloat(t['実取得pips']);
-        const r = parseFloat(t['実リスクリワード']); return !isNaN(r) ? r : (sl > 0 && !isNaN(p) ? p / sl : NaN); }).filter(v => !isNaN(v));
+      const R = filtered.map(t => tradeR_(t)).filter(v => v != null && !isNaN(v));
+      const Y = filtered.map(tradeRYen_).filter(v => v), yAvg = Y.length ? Y.reduce((a, b) => a + b, 0) / Y.length : 0;
       const n = R.length, sum = R.reduce((x, y) => x + y, 0), W = R.filter(v => v > 0), L = R.filter(v => v <= 0);
       const avg = v => v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0, f = v => (v > 0 ? '+' : '') + v.toFixed(2);
       const card = (lbl, val, cls) => `<div class="metric-card"><div class="metric-label">${lbl}</div><div class="metric-value ${cls}">${val}<span class="metric-unit">R</span></div></div>`;
       let c = 0, pk = 0, dd = 0; R.forEach(v => { c += v; pk = Math.max(pk, c); dd = Math.max(dd, pk - c); });
       return card('合計', f(sum), classForNum(sum)) + card('1 トレード平均（期待値）', n ? f(sum / n) : '--', classForNum(sum)) + card('勝ちの平均', W.length ? f(avg(W)) : '--', 'pos')
         + card('負けの平均', L.length ? f(avg(L)) : '--', 'neg') + card('一番大きい勝ち', n ? f(Math.max(...R)) : '--', 'pos') + card('最大の落ち込み（DD）', n ? '-' + dd.toFixed(2) : '--', 'neg')
+        + `<div class="metric-card"><div class="metric-label">1R の金額（平均）</div><div class="metric-value">${yAvg ? fmtCurrency(Math.round(yAvg)) : '--'}</div></div>`
         + `<div style="grid-column:1/-1;font-size:10px;color:#64748b">R を出せたのは ${n} / ${filtered.length} 件（最初の損切りが入っていないものは除く）</div>`;
     })()}
     ${csClose()}
@@ -3374,16 +3366,16 @@ function applyAnalysisFilters() {
     ${csClose()}
     ${csOpen('theory', '🔮 理論値')}
     <div class="metric-card">
-      <div class="metric-label">理論pips</div>
-      <div class="metric-value ${classForNum(theoryPips)}">${theoryPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+      <div class="metric-label">ルール通りなら（R）</div>
+      <div class="metric-value ${classForNum(theoryPips)}">${rTxt_(theoryPips)}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">理論損益</div>
       <div class="metric-value ${classForNum(theoryProfit)}" style="font-size:15px;">${fmtCurrency(Math.round(theoryProfit))}</div>
     </div>
     <div class="metric-card">
-      <div class="metric-label">ルール外乖離pips</div>
-      <div class="metric-value ${classForNum(deviationPips)}">${deviationPips > 0 ? '+' : ''}${deviationPips.toFixed(1)}<span class="metric-unit">pips</span></div>
+      <div class="metric-label">ルール外の差（R）</div>
+      <div class="metric-value ${classForNum(deviationPips)}">${rTxt_(deviationPips)}</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">ルール外乖離額</div>
@@ -3421,16 +3413,13 @@ function buildPlanComparisonHTML(trades) {
     const n = subset.length;
     let wins = 0, pips = 0, rrSum = 0, rrN = 0;
     subset.forEach(t => {
-      const p = parseFloat(t['実取得pips']) || 0;
-      pips += p;
-      if (p > 10) wins++;
-      const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
-      if (sl > 0) { rrSum += p / sl; rrN++; }
+      if (tradeWL_(t) === 1) wins++;
+      const r = tradeR_(t);
+      if (r != null) { rrSum += r; rrN++; }
     });
     return {
       n,
       winRate: n ? (wins / n * 100).toFixed(0) : '--',
-      avgPips: n ? (pips / n).toFixed(1) : '--',
       avgRR: rrN ? (rrSum / rrN).toFixed(2) : '--',
     };
   };
@@ -3457,8 +3446,7 @@ function buildPlanComparisonHTML(trades) {
         </tr>
         ${row('件数', plan.n + '件', direct.n + '件', false)}
         ${row('勝率', plan.winRate + '%', direct.winRate + '%', false)}
-        ${row('平均pips', plan.avgPips, direct.avgPips, true)}
-        ${row('平均実RR', plan.avgRR, direct.avgRR, true)}
+        ${row('平均 R', plan.avgRR, direct.avgRR, true)}
       </table>
     </div>`;
 }
@@ -3939,7 +3927,7 @@ function renderHeatmap(trades) {
     if (dow < 1 || dow > 5) return;
     const key = `${hour}-${dow - 1}`;
     grid[key].count++;
-    grid[key].pips += parseFloat(t['実取得pips']) || 0;
+    grid[key].pips += tradeR_(t) || 0;
     grid[key].trades.push(t);
     plottedCount++;
   });
@@ -4243,7 +4231,7 @@ function showEquityTooltip(event, index) {
   if (!tooltip) return;
   const fmt = (val) => new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(Math.round(val));
   const profit = parseFloat(p.trade['損益']) || 0;
-  const pips = parseFloat(p.trade['実取得pips']) || 0;
+  const r = tradeR_(p.trade);
   const pair = p.trade['PairName（元）'] || p.trade.PairName || p.trade.Pair || '';
   const dir = p.trade.Direction || '';
   const dateStr = p.trade.EntryDate ? String(p.trade.EntryDate).split('T')[0].replace(/\//g, '-') : '';
@@ -4252,7 +4240,7 @@ function showEquityTooltip(event, index) {
   tooltip.innerHTML = `
     <div style="font-size:10px;color:#64748b;margin-bottom:2px;">${dateStr}</div>
     <div style="font-weight:700;margin-bottom:3px;">${pair} ${dir}</div>
-    <div style="color:${pc};">${fmt(profit)} / ${pips >= 0 ? '+' : ''}${pips.toFixed(1)}pips</div>
+    <div style="color:${pc};">${fmt(profit)} / ${rTxt_(r)}</div>
     <div style="color:${cc};font-size:10px;margin-top:2px;">累計: ${fmt(p.cum)}</div>`;
   tooltip.style.display = 'block';
   const rect = document.getElementById('chart-equity').getBoundingClientRect();
@@ -4686,7 +4674,7 @@ function showEntryRevengeAlert() {
     });
   if (realTrades.length > 0) {
     const last = realTrades[0];
-    const pips = parseFloat(last['実取得pips']) || 0;
+    const r = tradeR_(last), pips = r != null ? r : (parseFloat(last['実取得pips']) || 0) / 30;
     if (pips < 0) {
       const pair = last['PairName（元）'] || last['PairName'] || last['Pair'] || '不明';
       const profit = parseFloat(last['損益']) || 0;
@@ -4696,7 +4684,7 @@ function showEntryRevengeAlert() {
         bg: 'rgba(239,68,68,0.12)',
         border: '#ef4444',
         color: '#fca5a5',
-        msg: `<strong>直近トレードが損失です。</strong><br>📌 ${pair}：${pips.toFixed(1)}pips　${fmtProfit}<br>冷静に、このエントリーがルールに合致しているか確認してください。`
+        msg: `<strong>直近トレードが損失です。</strong><br>📌 ${pair}：${r != null ? rTxt_(r) : ''}　${fmtProfit}<br>冷静に、このエントリーがルールに合致しているか確認してください。`
       });
     }
   }
@@ -4997,22 +4985,17 @@ function calculateSimilarTrades(prefix) {
   let countRR = 0;
 
   similars.forEach(s => {
-    totalPips += s.pips;
-    if (s.pips > 10) totalWin++;
-    const sl = parseFloat(s.trade['StopLossPips']) || parseFloat(s.trade['SL']) || 0;
-    if (sl > 0) {
-      totalRR += (s.pips / sl);
-      countRR++;
-    }
+    if (tradeWL_(s.trade) === 1) totalWin++;
+    const r = tradeR_(s.trade);
+    if (r != null) { totalRR += r; countRR++; }
   });
 
   const winRate = (totalWin / similars.length * 100).toFixed(1);
   const avgRR = countRR > 0 ? (totalRR / countRR).toFixed(2) : '--';
-  const avgPips = (totalPips / similars.length).toFixed(1);
 
   outSum.innerHTML = `
     対象: ${similars.length}件 <br>
-    勝率: <strong style="color:#10b981;">${winRate}%</strong> ｜ 平均: <strong>${avgPips}pips</strong> ｜ 平均RR: <strong>${avgRR}</strong>
+    勝率: <strong style="color:#10b981;">${winRate}%</strong> ｜ 平均: <strong>${avgRR === '--' ? '--' : (avgRR > 0 ? '+' : '') + avgRR + 'R'}</strong>
   `;
 
   // Render Top 5
@@ -5123,6 +5106,22 @@ function calcTimezone(timeStr) {
   return ''; // 12-15は対象外
 }
 
+// 2026-11-22 (user): results are read in R everywhere. pips stay in the sheet (StopLossPips / 実取得pips) for the SL width and lot math.
+// R = realised pips / first SL pips; when no SL is known, the R typed in the detail (実リスクリワード).
+function tradeR_(t){
+  if(!t)return null;
+  var p=parseFloat(t['実取得pips']),sl=parseFloat(t['StopLossPips'])||parseFloat(t['SL'])||0;
+  if(isFinite(p)&&sl>0)return p/sl;
+  var s=t['実リスクリワード'];if(s===''||s==null)s=t.R;      // EA rows carry R
+  var r=parseFloat(s);
+  return (s!==''&&s!=null&&isFinite(r))?r:null;
+}
+function rTxt_(r,d){return r==null||!isFinite(r)?'--':(r>0?'+':'')+r.toFixed(d==null?2:d)+'R';}
+function rCol_(r){return r==null?'#94a3b8':r>0?'#10b981':r<0?'#ef4444':'#94a3b8';}
+var WIN_R_=0.2;     // win / loss / even line in R (was ±10 pips)
+function tradeWL_(t){var r=tradeR_(t);if(r!=null)return r>WIN_R_?1:r<-WIN_R_?-1:0;var p=parseFloat(t&&t['実取得pips'])||0;return p>10?1:p<-10?-1:0;}
+// 1R in yen: how much this trade risked (|損益 ÷ R|), so the lot size shows up in money for every instrument (FX, gold, indices)
+function tradeRYen_(t){var r=tradeR_(t),pl=parseFloat(t&&t['損益']);return (r&&Math.abs(r)>=0.05&&isFinite(pl)&&pl)?Math.abs(pl/r):null;}
 function plannedPipSize_(pair){
   pair=String(pair||'').replace(/[#._-]+$/,'').toUpperCase();
   if(/BTC|ETH|LTC|XRP/.test(pair))return pair.includes('JPY')?1000:10;
@@ -5144,48 +5143,81 @@ function updatePlannedPips_(prefix){
     if(pe&&ex>0&&(pe.value===''||pe.dataset.auto==='1')){pe.value=Math.round((dir==='BUY'?ex-entry:entry-ex)/pip*10)/10;pe.dataset.auto='1';}}
   if(prefix==='ne')calculateRR();else{calculateRRTD();calculateRuleMetrics();}
 }
+// SL width as a price difference (pips stay hidden): 0.00320 for EURUSD, 0.320 for USDJPY, 12.50 for gold
+function slWidthTxt_(prefix){
+  var e=Number(document.getElementById(prefix+'-entry-price')?.value),s=Number(document.getElementById(prefix+'-sl-price')?.value);
+  if(!(e>0&&s>0))return '--';
+  var pip=plannedPipSize_(document.getElementById(prefix+'-pair')?.value||''),d=pip>=1?2:Math.round(-Math.log10(pip))+1;
+  return Math.abs(e-s).toFixed(d);
+}
 function calculateRR() {
   const tp = parseFloat(document.getElementById('ne-tp').value);
   const sl = parseFloat(document.getElementById('ne-sl').value);
   const disp = document.getElementById('ne-rr-display');
-
+  const w = document.getElementById('ne-slw'), g = document.getElementById('ne-tpr');
+  if (w) w.textContent = slWidthTxt_('ne');
   if (!isNaN(tp) && !isNaN(sl) && sl > 0) {
     const rr = (tp / sl).toFixed(2);
     disp.textContent = `RR: 1 : ${rr}`;
     disp.className = rr >= 2.0 ? 'calc-info text-green' : 'calc-info text-red';
+    if (g) { g.textContent = rr + 'R'; g.style.color = rr >= 2.0 ? '#10b981' : '#f8fafc'; }
   } else {
     disp.textContent = `RR: --`;
     disp.className = 'calc-info';
+    if (g) { g.textContent = '--'; g.style.color = '#f8fafc'; }
   }
 }
 
+// Detail: R is the field the trader sees. It fills itself from the prices (exit vs entry ÷ first SL); typing an R by hand sets the
+// hidden realised pips to R × SL pips, so the sheet keeps 実取得pips / StopLossPips / 実リスクリワード in step (2026-11-22).
 function calculateRRTD() {
   const pips = parseFloat(document.getElementById('td-pips').value);
   const sl = parseFloat(document.getElementById('td-sl').value);
-  const disp = document.getElementById('td-rr-display');
-
-  if (!isNaN(pips) && !isNaN(sl) && sl > 0) {
-    const r = pips / sl, rr = r.toFixed(2);
-    disp.textContent = `${r > 0 ? '+' : ''}${rr}R`;
-    disp.style.color = r >= 2.0 ? '#10b981' : (r >= 0 ? '#f8fafc' : '#ef4444');
-  } else {
-    disp.textContent = `--`;
-    disp.style.color = '#f8fafc';
-  }
+  const rEl = document.getElementById('td-r');
+  const w = document.getElementById('td-slw'), g = document.getElementById('td-tpr'), y = document.getElementById('td-r-yen');
+  if (w) w.textContent = slWidthTxt_('td');
+  const tp = parseFloat(document.getElementById('td-tp').value);
+  if (g) g.textContent = (!isNaN(tp) && sl > 0) ? (tp / sl).toFixed(2) + 'R' : '--';
+  if (rEl && rEl.dataset.manual === '1') {            // R typed by hand: it stays, the hidden pips follow the SL
+    const rv = parseFloat(rEl.value), pe = document.getElementById('td-pips');
+    if (pe && !isNaN(rv) && sl > 0) pe.value = String(Math.round(rv * sl * 10) / 10);
+  } else if (rEl && document.activeElement !== rEl && !isNaN(pips) && sl > 0) rEl.value = (pips / sl).toFixed(2);
+  const r = parseFloat(rEl ? rEl.value : '');
+  if (rEl) rEl.style.color = isNaN(r) ? '#f8fafc' : (r >= 2.0 ? '#10b981' : (r >= 0 ? '#f8fafc' : '#ef4444'));
+  const pl = parseFloat(document.getElementById('td-profit').value);
+  if (y) y.textContent = (!isNaN(r) && Math.abs(r) >= 0.05 && !isNaN(pl) && pl) ? yenSigned_(Math.round(Math.abs(pl / r))).replace(/^[+-]/, '') : '--';
+}
+function tdRTyped_() {
+  const rEl = document.getElementById('td-r'), pe = document.getElementById('td-pips');
+  const r = parseFloat(rEl.value), sl = parseFloat(document.getElementById('td-sl').value);
+  rEl.dataset.manual = rEl.value === '' ? '' : '1';
+  if (pe) { pe.dataset.auto = ''; pe.value = (!isNaN(r) && sl > 0) ? String(Math.round(r * sl * 10) / 10) : (rEl.value === '' ? '' : pe.value); }
+  calculateRRTD(); calculateRuleMetrics(); calculateExitMetrics();
+}
+function tdRuleRTyped_() {
+  const v = document.getElementById('td-rule-r').value, r = parseFloat(v), sl = parseFloat(document.getElementById('td-sl').value);
+  const rp = document.getElementById('td-rule-pips');
+  if (rp) rp.value = v === '' ? '' : ((!isNaN(r) && sl > 0) ? String(Math.round(r * sl * 10) / 10) : rp.value);
+  calculateRuleMetrics();
+}
+// after the detail opens: show the stored rule pips as R
+function tdRuleRFromPips_() {
+  const rp = parseFloat(document.getElementById('td-rule-pips')?.value), sl = parseFloat(document.getElementById('td-sl')?.value);
+  const el = document.getElementById('td-rule-r'); if (!el) return;
+  el.value = (!isNaN(rp) && sl > 0) ? (rp / sl).toFixed(2) : '';
 }
 
 function calculateExitMetrics() {}
 
 function calculateRuleMetrics() {
-  const pips = parseFloat(document.getElementById('td-pips').value);
+  const r = parseFloat(document.getElementById('td-r')?.value);
   const profit = parseFloat(document.getElementById('td-profit').value);
-  const rPipsEl = document.getElementById('td-rule-pips');
-  const rPips = parseFloat(rPipsEl.value);
+  const ruleR = parseFloat(document.getElementById('td-rule-r')?.value);
   const prDisp = document.getElementById('td-rule-profit');
 
-  // Formula: ルール準拠損益 = 損益 × (ルール準拠pips / 実取得pips)
-  if (!isNaN(profit) && !isNaN(pips) && pips !== 0 && !isNaN(rPips)) {
-    const rProfit = Math.round(profit * (rPips / pips));
+  // ルール準拠損益 = 損益 × (ルール通りの R / 実際の R)  (same as the old pips ratio)
+  if (!isNaN(profit) && !isNaN(r) && r !== 0 && !isNaN(ruleR)) {
+    const rProfit = Math.round(profit * (ruleR / r));
     prDisp.textContent = yenSigned_(rProfit);
     prDisp.style.color = '#f8fafc';
   } else {
@@ -5572,6 +5604,9 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
+  { const rEl = document.getElementById('td-r'); if (rEl) { const r0 = tradeR_(t); rEl.dataset.manual = ''; rEl.value = r0 == null ? '' : r0.toFixed(2); } }
+  tdRuleRFromPips_();
+  setTimeout(function () { try { tdRuleRFromPips_(); calculateRRTD(); calculateRuleMetrics(); } catch (e) {} }, 0);
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -5824,16 +5859,16 @@ function onStatusChange() {
 
 async function saveTradeDetail() {
   // Validation
-  const _valPips = parseFloat(document.getElementById('td-pips').value);
+  const _valPips = parseFloat(document.getElementById('td-r')?.value);
   const _valProfit = parseFloat(document.getElementById('td-profit').value);
   const _valSL = parseFloat(document.getElementById('td-sl')?.value);
   if (!isNaN(_valPips) && !isNaN(_valProfit)) {
     if (_valPips < 0 && _valProfit > 0) {
-      alert('入力エラー: 実取得pipsがマイナスなのに損益がプラスになっています。');
+      alert('入力エラー: R がマイナスなのに損益がプラスになっています。');
       return;
     }
     if (_valPips > 0 && _valProfit < 0) {
-      alert('入力エラー: 実取得pipsがプラスなのに損益がマイナスになっています。');
+      alert('入力エラー: R がプラスなのに損益がマイナスになっています。');
       return;
     }
   }
@@ -5867,18 +5902,22 @@ async function saveTradeDetail() {
       'ステータス': document.getElementById('td-status').value,
       '実取得pips': document.getElementById('td-pips').value,
       '勝敗': (() => {
-        const _p = parseFloat(document.getElementById('td-pips').value);
-        if (isNaN(_p) || document.getElementById('td-pips').value === '') return '';
-        return _p > 10 ? '勝ち' : (_p < -10 ? '負け' : '引き分け');
+        const _v = document.getElementById('td-r')?.value || '', _r = parseFloat(_v);      // 2026-11-22: by R (±WIN_R_)
+        if (_v === '' || isNaN(_r)) return '';
+        return _r > WIN_R_ ? '勝ち' : (_r < -WIN_R_ ? '負け' : '引き分け');
       })(),
       '損益': document.getElementById('td-profit').value,
-      'ルール準拠pips': document.getElementById('td-rule-pips').value,
+      'ルール準拠pips': (() => {      // kept in pips for the sheet: ルール通りの R × SL pips (2026-11-22)
+        const v = document.getElementById('td-rule-r')?.value || '', r = parseFloat(v), sl = parseFloat(document.getElementById('td-sl')?.value);
+        if (v === '') return '';
+        return (!isNaN(r) && sl > 0) ? String(Math.round(r * sl * 10) / 10) : document.getElementById('td-rule-pips').value;
+      })(),
       'ルール準拠損益': (() => {
-        const _pips = parseFloat(document.getElementById('td-pips').value);
+        const _r = parseFloat(document.getElementById('td-r')?.value);
         const _profit = parseFloat(document.getElementById('td-profit').value);
-        const _rPips = parseFloat(document.getElementById('td-rule-pips').value);
-        if (!isNaN(_profit) && !isNaN(_pips) && _pips !== 0 && !isNaN(_rPips)) {
-          return String(Math.round(_profit * (_rPips / _pips)));
+        const _ruleR = parseFloat(document.getElementById('td-rule-r')?.value);
+        if (!isNaN(_profit) && !isNaN(_r) && _r !== 0 && !isNaN(_ruleR)) {
+          return String(Math.round(_profit * (_ruleR / _r)));
         }
         return '';
       })(),
@@ -5888,7 +5927,8 @@ async function saveTradeDetail() {
         if (!isNaN(_pips) && !isNaN(_sl) && _sl > 0) {
           return (_pips / _sl).toFixed(2);
         }
-        return '';
+        const _r = parseFloat(document.getElementById('td-r')?.value);      // no SL known: the R typed by hand
+        return isNaN(_r) ? '' : _r.toFixed(2);
       })(),
       'エントリー振り返り': document.getElementById('td-entry-ref').value,
       'エントリー時メモ': document.getElementById('td-entry-memo')?.value || '',

@@ -111,8 +111,8 @@
           <div class="val" id="top-profit">¥0</div>
         </div>
         <div class="stat-box">
-          <div class="lbl">今月 取得値幅</div>
-          <div class="val" id="top-pips">0.0</div>
+          <div class="lbl">今月 1R の金額（平均）</div>
+          <div class="val" id="top-pips">--</div>
         </div>
         <div class="stat-box">
           <div class="lbl">エントリー遵守率</div>
@@ -123,7 +123,7 @@
           <div class="val" id="top-exit-rate">--</div>
         </div>
         <div class="stat-box" style="grid-column: span 2;">
-          <div class="lbl">今月 実RR (合計)</div>
+          <div class="lbl">今月 R（合計）</div>
           <div class="val" id="top-rr">0.00</div>
         </div>
         <div class="stat-box" style="grid-column: span 2;">
@@ -561,11 +561,13 @@
             <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="ne-tp-price" style="text-align:center;padding:10px 4px;" oninput="updatePlannedPips_('ne')"></div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top:8px;">
-            <div class="grid-item"><span class="grid-label">SL (pips)</span><input type="number" min="0" class="form-input" id="ne-sl"  readonly style="text-align:center; min-width:0; padding:10px 4px;"></div>
-            <div class="grid-item"><span class="grid-label">TP (pips)</span><input type="number" min="0" class="form-input" id="ne-tp"  readonly style="text-align:center; min-width:0; padding:10px 4px;"></div>
+            <!-- 2026-11-22: results in R. The pips stay in hidden fields (saved as StopLossPips / TakeProfitPips) -->
+            <input type="hidden" id="ne-sl"><input type="hidden" id="ne-tp">
+            <div class="grid-item"><span class="grid-label">損切り幅</span><div class="form-input" id="ne-slw" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
+            <div class="grid-item"><span class="grid-label">狙い</span><div class="form-input" id="ne-tpr" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
             <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="ne-lot" step="0.01" style="text-align:center; min-width:0; padding:10px 4px;"></div>
           </div>
-          <div class="calc-info" id="ne-rr-display">RR: --</div>
+          <div class="calc-info" id="ne-rr-display" style="display:none">RR: --</div>
         </div>
         
         <!-- 指標前エントリー / 再エントリー -->
@@ -835,21 +837,24 @@
             <div class="grid-item"><span class="grid-label">TP価格</span><input type="number" step="any" class="form-input" id="td-tp-price" style="text-align:center;padding:10px 4px;" oninput="updatePlannedPips_('td')"></div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px;">
-            <div class="grid-item"><span class="grid-label">SL (pips)</span><input type="number" min="0" class="form-input" id="td-sl" style="text-align:center; padding:10px 4px;"  readonly></div>
-            <div class="grid-item"><span class="grid-label">TP (pips)</span><input type="number" min="0" class="form-input" id="td-tp" style="text-align:center; padding:10px 4px;"  readonly></div>
+            <input type="hidden" id="td-sl"><input type="hidden" id="td-tp">
+            <div class="grid-item"><span class="grid-label">損切り幅</span><div class="form-input" id="td-slw" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
+            <div class="grid-item"><span class="grid-label">狙い</span><div class="form-input" id="td-tpr" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
             <div class="grid-item"><span class="grid-label">Lot</span><input type="number" class="form-input" id="td-lot" step="0.01" style="text-align:center; padding:10px 4px;"></div>
           </div>
 
           <div id="closing-fields">
             <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;">
-              <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics(); calculateExitMetrics()"></div>
-              <div class="grid-item"><span class="grid-label">実取得pips</span><input type="number" class="form-input" id="td-pips" style="text-align:center; padding:10px 4px;" step="0.1" oninput="this.dataset.auto='';calculateRRTD(); calculateRuleMetrics(); calculateExitMetrics()"></div>
-              <div class="grid-item"><span class="grid-label">R</span><div class="form-input" id="td-rr-display" style="text-align:center; padding:10px 4px; background:#0f172a;">--</div></div>
+              <div class="grid-item"><span class="grid-label">損益(¥)</span><input type="number" class="form-input" id="td-profit" style="text-align:center; padding:10px 4px;" oninput="calculateRRTD(); calculateRuleMetrics(); calculateExitMetrics()"></div>
+              <input type="hidden" id="td-pips">
+              <div class="grid-item"><span class="grid-label">R</span><input type="number" class="form-input" id="td-r" step="0.01" inputmode="decimal" placeholder="決済価格で自動" style="text-align:center; padding:10px 4px;" oninput="tdRTyped_()"></div>
+              <div class="grid-item"><span class="grid-label">1R の金額</span><div class="form-input" id="td-r-yen" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
             </div>
             <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 8px;">
               <div class="grid-item">
-                <span class="grid-label">ルール準拠Pips</span>
-                <input type="number" class="form-input" id="td-rule-pips" step="0.1" style="text-align:center; padding:10px 4px;" oninput="calculateRuleMetrics()">
+                <span class="grid-label">ルール通りなら R</span>
+                <input type="hidden" id="td-rule-pips">
+                <input type="number" class="form-input" id="td-rule-r" step="0.01" inputmode="decimal" style="text-align:center; padding:10px 4px;" oninput="tdRuleRTyped_()">
               </div>
               <div class="grid-item">
                 <span class="grid-label">ルール準拠損益</span>
@@ -1400,10 +1405,10 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261122h" charset="utf-8"></script>
+  <script src="./app.js?v=20261122i" charset="utf-8"></script>
   <script src="./ea_ideas.js?v=20261113b" charset="utf-8"></script>
   <script src="./opendata.js?v=20261122b" charset="utf-8"></script>
-  <script src="./mt5_tab.js?v=20261122d" charset="utf-8"></script>
+  <script src="./mt5_tab.js?v=20261122e" charset="utf-8"></script>
   <script src="./ea_live.js?v=20261122a" charset="utf-8"></script>
 </body>
 </html>
