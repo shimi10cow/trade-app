@@ -5138,6 +5138,10 @@ function updatePlannedPips_(prefix){
   if(!entry||!dir){if(slEl)slEl.value='';if(tpEl)tpEl.value='';return;}
   if(slEl)slEl.value=slPrice>0?Math.round(Math.max(0,(dir==='BUY'?entry-slPrice:slPrice-entry)/pip)*10)/10:'';
   if(tpEl)tpEl.value=tpPrice>0?Math.round(Math.max(0,(dir==='BUY'?tpPrice-entry:entry-tpPrice)/pip)*10)/10:'';
+  // 2026-11-22: the realised pips from the entry / exit prices (only when empty or filled here before: a hand-typed value stays),
+  // so typing the SL price alone gives the R at once
+  if(prefix==='td'){var ex=Number(document.getElementById('td-exit-price')?.value),pe=document.getElementById('td-pips');
+    if(pe&&ex>0&&(pe.value===''||pe.dataset.auto==='1')){pe.value=Math.round((dir==='BUY'?ex-entry:entry-ex)/pip*10)/10;pe.dataset.auto='1';}}
   if(prefix==='ne')calculateRR();else{calculateRRTD();calculateRuleMetrics();}
 }
 function calculateRR() {
@@ -5161,9 +5165,9 @@ function calculateRRTD() {
   const disp = document.getElementById('td-rr-display');
 
   if (!isNaN(pips) && !isNaN(sl) && sl > 0) {
-    const rr = (pips / sl).toFixed(1);
-    disp.textContent = `1 : ${rr}`;
-    disp.style.color = rr >= 2.0 ? '#10b981' : (rr >= 0 ? '#f8fafc' : '#ef4444');
+    const r = pips / sl, rr = r.toFixed(2);
+    disp.textContent = `${r > 0 ? '+' : ''}${rr}R`;
+    disp.style.color = r >= 2.0 ? '#10b981' : (r >= 0 ? '#f8fafc' : '#ef4444');
   } else {
     disp.textContent = `--`;
     disp.style.color = '#f8fafc';
@@ -5559,6 +5563,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-entry-price').value = fmtPx(t['EntryPrice'] || t['エントリー価格']);
   document.getElementById('td-exit-price').value = fmtPx(t['ExitPrice'] || t['決済価格']);
   document.getElementById('td-sl-price').value = t['InitialSLPrice'] || t['SLPrice'] || t['損切り価格'] || '';
+  { const pe = document.getElementById('td-pips'); if (pe) pe.dataset.auto = ''; }
+  setTimeout(function () { try { updatePlannedPips_('td'); } catch (e) {} }, 0);      // SL pips, realised pips, R at once
   document.getElementById('td-tp-price').value = t['TakeProfitPrice'] || t['TPPrice'] || t['利確価格'] || '';
   document.getElementById('td-exit-time').value = formatTimeDisplay(t['ExitTime'] || t['決済時刻'] || '');
 

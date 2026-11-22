@@ -427,6 +427,14 @@ def main(argv=None):
             pcharts = pair_charts(broker, pl)
         except Exception as ex:
             log.warning('all-pairs charts: %s', ex); print(f'  全通貨のチャートは作れませんでした（{ex}）', flush=True)
+    if not a.bars_dir:                                    # 2026-11-22: chart images of imported trades still without one (e.g. made over the weekend)
+        try:
+            from mt5_ea.live import gas as _gas, trade_images
+            n = trade_images.run(broker, _gas, limit=30, log=lambda x: print(x, flush=True))
+            if n:
+                print(f'  取り込んだトレードの画像：{n} 件', flush=True)
+        except Exception as ex:
+            log.warning('trade images: %s', ex)
     html = build(data, refs, T, B, bars, days_back, pcharts)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     f = out / 'report_latest.html'                 # 2026-11-22 (user): always the same file, overwritten (bookmark it)
