@@ -309,7 +309,7 @@ function resetPairFlags() {
 // トレード保存
 // =============================================
 // 2026-11-22: columns added later to the trades sheet; created on first use (OANDA order / position book screenshot at entry)
-const ENTRY_EXTRA_COLS_ = ['OrderBookImage'];
+const ENTRY_EXTRA_COLS_ = ['OrderBookImage', 'OrderBookExitImage'];
 function ensureEntryCols_(sheet, headers, data) {
   const miss = ENTRY_EXTRA_COLS_.filter(k => data && data[k] !== undefined && headers.indexOf(k) < 0);
   if (!miss.length) return headers;

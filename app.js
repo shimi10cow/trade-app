@@ -5336,12 +5336,13 @@ function addImageFileToList_(file,listKey,render){
   var arr=App.state[listKey]||(App.state[listKey]=[]);if(arr.length>=4){showToast('画像は最大4枚です');return false;}
   var reader=new FileReader();reader.onload=function(e){arr.push(e.target.result);render();};reader.readAsDataURL(file);return true;
 }
-// ---- OANDA オーダーブックの画像（2026-11-22）：エントリーごとに 1 枚。後で棒の長さから価格ごとの % を読む
-function onObImage(input,where){var f=input.files&&input.files[0];input.value='';if(!f||!String(f.type||'').startsWith('image/'))return;var r=new FileReader();r.onload=function(e){if(where==='ne')App.state.neOB=e.target.result;else App.state.tdOB={preview:e.target.result};renderOb_(where);};r.readAsDataURL(f);}
-function clearObImage(where){if(where==='ne')App.state.neOB='';else App.state.tdOB=null;renderOb_(where);}
+// ---- OANDA のオープンデータ（オーダーブック）の画像（2026-11-22）：エントリー時（ne / td）・決済時（tdx）に 1 枚ずつ
+const OB_SLOTS_={ne:{state:'neOB',label:'📊 エントリー時のオープンデータ（OANDA）を追加'},td:{state:'tdOB',label:'📊 エントリー時の画像を追加'},tdx:{state:'tdOBx',label:'📊 決済時の画像を追加'}};
+function onObImage(input,where){var f=input.files&&input.files[0];input.value='';if(!f||!String(f.type||'').startsWith('image/'))return;var r=new FileReader();r.onload=function(e){App.state[OB_SLOTS_[where].state]=where==='ne'?e.target.result:{preview:e.target.result};renderOb_(where);};r.readAsDataURL(f);}
+function clearObImage(where){App.state[OB_SLOTS_[where].state]=where==='ne'?'':null;renderOb_(where);}
 function renderOb_(where){var wrap=document.getElementById(where+'-ob-wrap'),img=document.getElementById(where+'-ob-preview'),lab=document.getElementById(where+'-ob-label');if(!wrap||!img)return;
-  var src=where==='ne'?(App.state.neOB||''):(App.state.tdOB?(App.state.tdOB.preview||getImageUrl(App.state.tdOB.raw)||App.state.tdOB.raw):'');
-  img.src=src||'';wrap.style.display=src?'block':'none';if(lab)lab.textContent=src?'✅ オーダーブック画像あり（タップで差し替え）':'📊 オーダーブック（OANDA）の画像を追加';}
+  var v=App.state[OB_SLOTS_[where].state],src=where==='ne'?(v||''):(v?(v.preview||getImageUrl(v.raw)||v.raw):'');
+  img.src=src||'';wrap.style.display=src?'block':'none';if(lab)lab.textContent=src?'✅ '+OB_SLOTS_[where].label.replace('📊 ','').replace('を追加','')+'あり（タップで差し替え）':OB_SLOTS_[where].label;}
 window.onObImage=onObImage;window.clearObImage=clearObImage;
 
 function previewUploadImage(input){selectImagePasteTarget_('entry');if(input.files&&input.files[0]){addImageFileToList_(input.files[0],'neImages',renderNewEntryImages_);input.value='';}}
@@ -5620,7 +5621,8 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailExitImages=tradeExitImages(t).map(raw=>({raw:raw}));
   App.state.imagePasteTarget='entry';
   setTimeout(renderTradeDetailImages_,0);
-  App.state.tdOB=String(t['OrderBookImage']||'').trim()?{raw:String(t['OrderBookImage']).trim()}:null; setTimeout(function(){renderOb_('td');},0);
+  App.state.tdOB=String(t['OrderBookImage']||'').trim()?{raw:String(t['OrderBookImage']).trim()}:null;
+  App.state.tdOBx=String(t['OrderBookExitImage']||'').trim()?{raw:String(t['OrderBookExitImage']).trim()}:null; setTimeout(function(){renderOb_('td');renderOb_('tdx');},0);
 
   // 事前チャート（トレードプラン時のシナリオ画像・読み取り専用）
   const planImgArea = document.getElementById('td-plan-image-area');
@@ -5953,9 +5955,10 @@ async function saveTradeDetail() {
       await saveImgs(App.state.detailEntryImages||[],entryFields,'entry');
       await saveImgs(App.state.detailExitImages||[],exitFields,'exit');
     }
-    { const ob=App.state.tdOB, had=String(t['OrderBookImage']||'');
-      if(ob&&ob.preview) updateData['OrderBookImage']=await uploadImageSmart(ob.preview,'orderbook_'+Date.now()+'.jpg',2600,0.92);
-      else if(!ob&&had) updateData['OrderBookImage']=''; }
+    for (const [k,field,pre] of [['tdOB','OrderBookImage','orderbook'],['tdOBx','OrderBookExitImage','orderbook_exit']]) {
+      const ob=App.state[k], had=String(t[field]||'');
+      if(ob&&ob.preview) updateData[field]=await uploadImageSmart(ob.preview,pre+'_'+Date.now()+'.jpg',2600,0.92);
+      else if(!ob&&had) updateData[field]=''; }
 
     const res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);
 
@@ -6118,7 +6121,7 @@ function showToast(msg) {
 
 function renderIdeas() {
   const categoryFilter = document.getElementById('idea-category-filter')?.value || 'all';
-  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && i['カテゴリ'] !== 'EAのネタ')   // EAのネタ: the 📌 取りたい所 notebook (ea_ideas.js)
+  const active = App.data.ideas.filter(i => i['ステータス'] !== '解決済み' && i['カテゴリ'] !== 'EAのネタ' && i['カテゴリ'] !== 'オープンデータ')   // EAのネタ: 📌 取りたい所 (ea_ideas.js), オープンデータ: 📊 (opendata.js)
     .filter(i => categoryFilter === 'all' || (i['カテゴリ'] || 'その他') === categoryFilter);
 
   const list = document.getElementById('idea-list');
@@ -6224,7 +6227,7 @@ function ideaSliderGo(sid, idx) {
 }
 
 function openIdeaHistoryModal() {
-  const done = App.data.ideas.filter(i => i['ステータス'] === '解決済み');
+  const done = App.data.ideas.filter(i => i['ステータス'] === '解決済み' && i['カテゴリ'] !== 'オープンデータ');
   const modal = document.getElementById('modal-idea-history');
   const list  = document.getElementById('idea-history-modal-list');
   if (!modal || !list) return;
@@ -6318,7 +6321,7 @@ function openNewIdeaModal() {
   document.getElementById('idea-date').value = today;
   document.getElementById('idea-text').value = '';
   let lastCat = 'マインド'; try { lastCat = localStorage.getItem('ideaLastCategory_v1') || lastCat; } catch (e) {}
-  if (lastCat === 'EAのネタ') lastCat = 'マインド';
+  if (lastCat === 'EAのネタ' || lastCat === 'オープンデータ') lastCat = 'マインド';
   document.getElementById('idea-category').value = lastCat;   // the last category used
   App.state.ideaNewImages    = ['', '', ''];
   App.state.ideaNewUploading = [false, false, false];
