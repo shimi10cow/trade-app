@@ -389,7 +389,7 @@ function impAdopt_(b) {
   ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(function (k) { if (!String(t[k] || '').trim() && tr[k]) { t[k] = tr[k]; put[k] = tr[k]; } });
   if (Object.keys(put).length) { trEnsureCols_(T, ['TrendAuto']); t.TrendAuto = JSON.stringify(Object.assign({src: tr._src}, put)); }
   t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t.AdoptedAt = tradesNow_(); trWrite_(T, t);
-  return {success: true, status: t['ステータス'], entryId: t.EntryID};
+  return {success: true, status: t['ステータス'], entryId: t.EntryID, trend: put};
 }
 function impTrendAt_(pair, ms) {
   const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, p = (alias[String(pair).toUpperCase()] || String(pair)).toUpperCase(), out = {};

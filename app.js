@@ -5948,20 +5948,32 @@ async function saveTradeDetail() {
     });
     updateData['エントリースコア'] = String(calcScore);
 
+    // 2026-11-22: from MT5 「記録にする」 the rest runs in the background (the history opens at once; images upload behind it;
+    // the update is sent after the record itself has finished)
+    const bgMt5 = App.state.fromMt5Adopt && String(App.state.fromMt5Adopt) === String(entryId);
+    const imgsE = (App.state.detailEntryImages || []).slice(), imgsX = (App.state.detailExitImages || []).slice(), obE = App.state.tdOB, obX = App.state.tdOBx;
+    if (bgMt5) {
+      Object.assign(t, updateData); App.state.fromMt5Adopt = null;
+      closeTradeDetail(); hideLoader(); renderPositions();
+      if (typeof openHistoryModal === 'function') openHistoryModal();
+      showToast('💾 裏で保存しています');
+      try { await (App.state.adoptP || {})[entryId]; } catch (e) {}
+    }
     // 画像保存：Entry / Exit 各最大4枚。既存画像は維持し、新規data URLだけアップロードする。
     {
       const entryFields=['ChartImage','ChartImage2','ChartImage3','ChartImage4'];
       const exitFields=['決済チャート','決済チャート2','決済チャート3','決済チャート4'];
       const saveImgs=async function(items,fields,prefix){for(let i=0;i<4;i++){var item=items[i];if(!item){updateData[fields[i]]='';continue;}updateData[fields[i]]=item.preview?await uploadImageSmart(item.preview,prefix+'_'+(i+1)+'_'+Date.now()+'.jpg'):item.raw;}};
-      await saveImgs(App.state.detailEntryImages||[],entryFields,'entry');
-      await saveImgs(App.state.detailExitImages||[],exitFields,'exit');
+      await saveImgs(imgsE,entryFields,'entry');
+      await saveImgs(imgsX,exitFields,'exit');
     }
-    for (const [k,field,pre] of [['tdOB','OrderBookImage','orderbook'],['tdOBx','OrderBookExitImage','orderbook_exit']]) {
-      const ob=App.state[k], had=String(t[field]||'');
+    for (const [ob,field,pre] of [[obE,'OrderBookImage','orderbook'],[obX,'OrderBookExitImage','orderbook_exit']]) {
+      const had=String(t[field]||'');
       if(ob&&ob.preview) updateData[field]=await uploadImageSmart(ob.preview,pre+'_'+Date.now()+'.jpg',2600,0.92);
       else if(!ob&&had) updateData[field]=''; }
 
     const res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);
+    if (bgMt5) { showToast(res.queued ? '📥 保存待ちに入れました（電波が戻ったら送ります）' : '✅ ' + (t['PairName（元）'] || '') + ' を保存しました'); if (window.renderHistoryList) try { renderHistoryList(); } catch (e) {} return; }
 
     const payloadStatus = updateData['ステータス'];
     const payloadPips = updateData['実取得pips'];
