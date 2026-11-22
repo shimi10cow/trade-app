@@ -605,7 +605,7 @@ const objDraftBase = d => { const t = objOf(d.key) || {}; return {v: t.v || '', 
     if (drag && G) { const d = mark(), l = d.lines[drag.k], o = drag.o, dp = G.toP(q.y) - G.toP(drag.q.y), dx = q.x - drag.q.x;
       const sh = tm => G.toT(G.tx(tm) + dx);
       l.p1 = o.p1 + dp; if (o.p2 != null) l.p2 = o.p2 + dp;
-      if (l.type !== 'h' && l.type !== 'ea') { if (o.t1 != null) l.t1 = sh(o.t1); if (o.t2 != null) l.t2 = sh(o.t2); }
+      if (o.t1 != null) l.t1 = sh(o.t1); if (o.t2 != null) l.t2 = sh(o.t2);   // 2026-11-22 (user): a horizontal line's start follows too, on a candle
       if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; if (o.p2 != null && l.op2 == null) l.op2 = o.op2 != null ? o.op2 : o.p2; }
       l.at2 = nowJ(); d.dirty = true; S.pick = drag.k; S.pickAt = q; chart(); return; }
     if (S.mode === 'pan') { const bw = (cv.clientWidth - 68) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
