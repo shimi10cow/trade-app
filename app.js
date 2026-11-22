@@ -4611,7 +4611,6 @@ async function savePairEdit() {
     renderPairs();
     renderPlans();
     try { writeFastCache('pairs', App.data.pairs); } catch (e) {}
-    showToast('💾 保存しています（裏で送ります）');
     (async () => {
       try {
         const res = await gasPostQueued({ action: 'updatePair', pairName, data: updateData }, 'ペア更新: ' + pairName);
@@ -6018,7 +6017,6 @@ async function saveTradeDetail() {
       Object.assign(t, updateData); App.state.fromMt5Adopt = null;
       closeTradeDetail(); hideLoader(); renderPositions();
       if (typeof openHistoryModal === 'function') openHistoryModal();
-      showToast('💾 記録して、裏で保存しています');
       try { if (window.mt5AdoptNow) await window.mt5AdoptNow(entryId); delete t._mt5Draft; }
       catch (e) { showToast('⚠️ 記録できませんでした: ' + e.message); return; }
     }

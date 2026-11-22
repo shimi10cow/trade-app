@@ -33,7 +33,7 @@
     return `<div style="font-size:12px;color:#94a3b8;line-height:1.6;margin-bottom:10px">OANDA のオープンオーダー・オープンポジションの画面のスクショを選ぶだけで保存します（何枚でもまとめて選べます）。通貨や時刻はあとで画像から読み取ります。</div>
       <input type="file" id="od-file" accept="image/*" multiple style="display:none" onchange="odAdd(event)">
       <button type="button" class="btn-primary" onclick="document.getElementById('od-file').click()" style="width:100%;padding:14px;font-size:15px">📷 スクショを選ぶ</button>
-      ${st.q.length ? `<div style="font-size:12px;color:#fbbf24;margin-top:8px">⏳ 裏で保存中：のこり ${st.q.filter(w => !w.err).length} 枚。この画面を閉じても、ほかのページに移っても続きます（アプリ自体は閉じないでください）</div>` : ''}
+      ${st.q.length ? `<div style="font-size:12px;color:#fbbf24;margin-top:8px">⏳ 保存中：のこり ${st.q.filter(w => !w.err).length} 枚。この画面を閉じても、ほかのページに移っても続きます（アプリ自体は閉じないでください）</div>` : ''}
       <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:16px 0 6px">ためたもの（${xs.length} 枚${st.q.length ? ` ＋ 保存中 ${st.q.length} 枚` : ''}）</div>
       ${xs.length || st.q.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">${wait}${grid}</div>` : '<div style="font-size:12px;color:#64748b;padding:8px 0">まだありません</div>'}`;
   }
@@ -82,7 +82,7 @@
     if (!files.length) return;
     const at = jst();
     for (const f of files) st.q.push({id: String(Date.now()) + Math.random().toString(36).slice(2, 6), at, data: await read(f)});
-    paint(); badge(); showToast(`📊 ${files.length} 枚を裏で保存します（閉じても大丈夫）`); pump();
+    paint(); badge(); pump();
   };
   window.odRetry = function (id) { const w = st.q.find(x => x.id === id); if (w) { w.err = 0; pump(); paint(); } };
   addEventListener('beforeunload', e => { if (st.q.some(x => !x.err)) { e.preventDefault(); e.returnValue = ''; } });
