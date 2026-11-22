@@ -427,6 +427,20 @@ def clean(o):
     return o
 
 
+def phone_upload(f, out):
+    """2026-11-22 (user): the same report on the phone. Sent to GAS (kept as one private Drive file, overwritten each time); the phone
+    opens <GAS URL>?action=report&k=<key> (bookmark it once; the URL stays the same). Never fails the report."""
+    try:
+        import base64
+        from mt5_ea.live import gas
+        r = gas.call('eaReportUpload', {'html64': base64.b64encode(f.read_bytes()).decode()}, timeout=300)
+        url = f"{os.getenv('EA_GAS_URL', '')}?action=report&k={r.get('viewKey')}"
+        (out / 'phone_url.txt').write_text(url + '\n', encoding='utf-8')
+        print(f'スマホ用にも送りました（{len(f.read_bytes()) / 1e6:.1f} MB）。スマホではこの URL を開く（ブックマーク推奨、毎回同じ URL）:\n  {url}', flush=True)
+    except Exception as ex:
+        print(f'スマホ用には送れませんでした（{str(ex)[:150]}）。GAS 反映がまだなら、反映してからもう一度。', flush=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--days', type=int, default=0, help='how far back (0 = from the first EA trade)')
@@ -511,6 +525,8 @@ def main(argv=None):
     f = out / 'report_latest.html'                 # 2026-11-22 (user): always the same file, overwritten (bookmark it)
     f.write_text(html, encoding='utf-8')
     print(f'できました: {f}（毎回このファイルに上書き）', flush=True)
+    if not a.bars_dir and not a.data:
+        phone_upload(f, out)
     if not a.no_open:
         webbrowser.open(f.as_uri())
     return f

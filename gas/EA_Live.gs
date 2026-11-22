@@ -69,7 +69,7 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaNeedImages: 1, eaEntryImages: 1, eaPairEnv: 1, eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
+const EAL_EA_ACTIONS_ = {eaReportUpload: 1, eaNeedImages: 1, eaEntryImages: 1, eaPairEnv: 1, eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
 const EAL_APP_ACTIONS_ = {eaImportTrend: 1, eaImportRepair: 1, eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
@@ -85,7 +85,7 @@ function routeEALive_(action, body) {
     else if (EAL_APP_ACTIONS_[action]) ealAuth_(body, 'app');
     else return null;                                   // not ours: let Code.gs handle it (old EA actions)
     const fn = {eaHeartbeat: ealHeartbeat_, eaTradeOpen: ealTradeOpen_, eaTradeClose: ealTradeClose_, eaSignal: ealSignal_, eaLog: ealLog_,
-                eaPairEnv: ealPairEnv_, eaNeedImages: b2 => impNeedImages_(b2), eaEntryImages: b2 => impSetImages_(b2), eaAlert: ealAlert_, eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
+                eaPairEnv: ealPairEnv_, eaReportUpload: ealReportUpload_, eaNeedImages: b2 => impNeedImages_(b2), eaEntryImages: b2 => impSetImages_(b2), eaAlert: ealAlert_, eaReportData: ealReportData_, eaGetDashboard: ealDashboard_, eaTradeComment: ealTradeComment_, eaTradeExclude: ealTradeExclude_, eaSignalMark: ealSignalMark_, eaTradeImage: ealTradeImage_, eaSaveConfig: ealSaveConfig_, eaGetTrades: ealGetTrades_,
                 eaResList: ealResList_, eaResFilled: ealResFilled_, eaResSave: ealResSave_, eaStop: ealStop_,
                 eaImportSettings: () => ({success: true, settings: JSON.parse(PropertiesService.getScriptProperties().getProperty('IMPORT_SETTINGS') || '{}')}),
                 eaImportBatch: b2 => impBatch_(b2), eaImportRequest: b2 => impRequest_(b2), eaImportStatus: () => impStatus_(),
@@ -267,6 +267,44 @@ function ealManualTrades_() {
     return (getEntries() || []).filter(e => String(e['ステータス'] || '').indexOf('決済') >= 0 && !/EA/i.test(String(e.Source || e.TradeType || '')))
       .map(e => { const o = {}; F.forEach(k => { if (e[k] !== undefined && e[k] !== '') o[k] = e[k] instanceof Date ? Utilities.formatDate(e[k], 'Asia/Tokyo', 'yyyy/MM/dd') : e[k]; }); return o; });
   } catch (e) { return []; }
+}
+
+/** 2026-11-22 (user): the weekly report on the phone. The PC sends the finished HTML (report.py); it is kept as ONE private Drive
+ *  file (overwritten each time, never shared) and served by doGet ?action=report&k=<view key> (Code.gs), so one bookmarked URL
+ *  always shows the newest report. The key is made once and returned to the PC, which prints the URL. */
+function ealReportUpload_(b) {
+  const p = PropertiesService.getScriptProperties(), token = ScriptApp.getOAuthToken();
+  const blob = Utilities.newBlob(Utilities.base64Decode(String(b.html64 || '')), 'text/html', 'EA_report_latest.html');
+  if (!blob.getBytes().length) throw new Error('empty report');
+  let id = p.getProperty('REPORT_FILE_ID'), ok = false;
+  if (id) {                                                           // overwrite the same file
+    const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files/' + id + '?uploadType=media',
+      {method: 'patch', contentType: 'text/html', payload: blob.getBytes(), headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
+    ok = r.getResponseCode() < 300;
+  }
+  if (!ok) {                                                          // first time (or the file was deleted): a new private file
+    const boundary = 'rep_' + Utilities.getUuid().replace(/-/g, '');
+    const head = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: 'EA_report_latest.html', mimeType: 'text/html'})
+      + '\r\n--' + boundary + '\r\nContent-Type: text/html\r\n\r\n';
+    const body = Utilities.newBlob(head).getBytes().concat(blob.getBytes()).concat(Utilities.newBlob('\r\n--' + boundary + '--').getBytes());
+    const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      {method: 'post', contentType: 'multipart/related; boundary=' + boundary, payload: body, headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
+    const j = JSON.parse(r.getContentText() || '{}'); if (!j.id) throw new Error('Drive: ' + r.getContentText().slice(0, 200));
+    id = j.id; p.setProperty('REPORT_FILE_ID', id);
+  }
+  let k = p.getProperty('REPORT_VIEW_KEY');
+  if (!k) { k = Utilities.getUuid().replace(/-/g, ''); p.setProperty('REPORT_VIEW_KEY', k); }
+  p.setProperty('REPORT_UPLOADED_AT', ealNow_());
+  return {success: true, viewKey: k, bytes: blob.getBytes().length};
+}
+/** doGet ?action=report&k=...: the newest report as a page (phone browser). Wrong / missing key: a short message only. */
+function ealReportView_(q) {
+  const p = PropertiesService.getScriptProperties(), k = p.getProperty('REPORT_VIEW_KEY'), id = p.getProperty('REPORT_FILE_ID');
+  if (!k || String(q.k || '') !== k || !id) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">レポートの URL が違うか、まだ作られていません。</p>');
+  const r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', {headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true});
+  if (r.getResponseCode() >= 300) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">レポートを読めませんでした（' + r.getResponseCode() + '）。PC でもう一度作ってください。</p>');
+  return HtmlService.createHtmlOutput(r.getContentText('UTF-8')).setTitle('EA 成績レポート')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /** Report page: the trader's mark / lines on one trade. kind 'trade' = a live trade (EA_Trades, same columns as the app);
