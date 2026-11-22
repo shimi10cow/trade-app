@@ -533,7 +533,7 @@ def armed(mk, profiles, zone=None, at=None, star=None):
             meth = ('1' if d1 else '6') if scene == 'gateway' else (('2' if d1 else '7') if scene == 'fortress' else '')
             dist = round(float(max(d[-1], 0.0)), 1)
             out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line, dist=dist,
-                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}（あと {dist} ATR）"))
+                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}（{dist}ATR 乖離）"))
     return out
 
 
