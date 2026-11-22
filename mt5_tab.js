@@ -48,6 +48,8 @@
   // Only 保存 in the detail records it (in the background: eaImportAdopt, then the detail's update) and opens the history.
   // Closing the detail without saving leaves the trade in 確認が必要なトレード. The trend arrows of the entry time are read
   // (eaImportTrend, read only) and filled into the empty arrows while the detail is open.
+  // 2026-11-22 (user): which account a trade came from. The label from import_accounts.json (shown in 口座の状態), else …123
+  function accName(login) { const a = ((S.d && S.d.status && S.d.status.accounts) || {})[login] || {}; return a.label ? String(a.label) : '…' + String(login).slice(-3); }
   window.mt5Adopt = function (id) {
     const dr = ((S.d && S.d.drafts) || []).find(x => String(x.trade.EntryID) === String(id));
     if (!dr || typeof openTradeDetail !== 'function') return;
@@ -219,7 +221,7 @@
   }
   function draftCard(x) {
     const t = x.trade, buy = String(t.Direction) === 'Buy', id = esc(t.EntryID), pr = Number(t['損益']);
-    const accs = String(t.Accounts || '').split(',').filter(String);
+    const accs = String(t.Accounts || '').split(',').map(a => a.trim()).filter(String);
     const cands = (x.candidates || []).map(c => {
       const cp = Number(c['損益']), money = c['損益'] !== '' && c['損益'] != null && !isNaN(cp) ? ` ${yen(cp)}` : '';
       const st = c['ステータス'] === '保有中' ? ' 保有中' : '';
@@ -232,7 +234,7 @@
           ${esc(t['PairName（元）'])} <span class="badge ${buy ? 'buy' : 'sell'}">${buy ? '▲ Buy' : '▼ Sell'}</span></label>
         <div style="text-align:right;font-weight:800;color:${t.ExitDate ? (pr >= 0 ? '#4ade80' : '#f87171') : '#22d3ee'}">${t.ExitDate ? yen(pr) : '保有中'}<div style="font-size:11px;color:#94a3b8;font-weight:600">${(() => { const r = typeof tradeR_ === 'function' ? tradeR_(t) : null; return r == null ? '' : esc(rTxt_(r)); })()}</div></div></div>
       <div style="font-size:11px;color:#94a3b8;line-height:1.6">${esc(String(t.EntryDate).slice(5))} ${esc(t.EntryTime)} @ ${esc(px(t.EntryPrice))}${t.ExitDate ? ` → ${esc(String(t.ExitDate).slice(5))} ${esc(t.ExitTime)} @ ${esc(px(t.ExitPrice))}` : ''}
-        <br>${esc(t.Lot)} lot · ${accs.length} 口座 · ${x.positions} ポジション${String(t.MergeMode) === 'manual' ? ' · 手で直した' : ''}
+        <br>${esc(t.Lot)} lot · <span style="color:#cbd5e1">${accs.map(accName).map(esc).join('・') || '口座不明'}</span> · ${x.positions} ポジション${String(t.MergeMode) === 'manual' ? ' · 手で直した' : ''}
         · ${String(t.ChartImage || '').trim() ? '<span style="color:#4ade80">🖼 画像あり</span>' : '<span style="color:#64748b">画像は作成待ち</span>'}</div>
       <button onclick="mt5Exp('${id}')" style="align-self:flex-start;background:none;border:0;color:#22d3ee;font-size:11px;font-weight:700;padding:0">${exp ? '▲ 中身を閉じる' : `▼ 中身を見る（${x.positions} ポジション）`}</button>
       ${exp ? posList(x.executions) : ''}
