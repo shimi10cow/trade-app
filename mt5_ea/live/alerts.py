@@ -340,6 +340,44 @@ def ea_lines(sym, m, life=30, scenes=('gateway', 'fortress', 'band')):
     return out
 
 
+def ea_chart_objects(sym, m, life=30):
+    """2026-11-22 (report's chart analysis): everything the EAs would watch now, for one pair.
+      h lines : ea_lines() (gateway / fortress / band still alive) + the current protected level of the major Dow on D1 / H4 / H1 / M15
+                (押し安値 in an uptrend, 戻り高値 in a downtrend)
+      trendlines: D1 / H4 / H1 lines still open (tlines.build, the DL / HL rules), M15 correction lines still unbroken (C EA)
+    -> [dict(type 'h' | 't', kind, tf, side, t1, p1, t2, p2)] in real prices; t = bar open time (server time)"""
+    from mt5_ea.live.eas import tlines, c as C15
+    from env_recognition import dow_trend
+    from env_recognition.pivots import atr
+    mk = Market(sym, m); F = mk.F; k = 100.0 if sym.endswith('JPY') else 1.0; out = []
+    for x in ea_lines(sym, m, life):
+        out.append(dict(type='h', kind=x['kind'], tf='H4', side=x['side'], t1=x['born'] - pd.Timedelta(hours=4), p1=x['price'], t2=None, p2=None))
+    D = F.m15_all.set_index('t').resample('1D').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
+    frames = {'D1': (D, dow_trend.run(D[['t', 'o', 'h', 'l', 'c']], 'D1')), 'H4': (F.h4.reset_index(drop=True), F.R4),
+              'H1': (F.h1.reset_index(drop=True), F.R1), 'M15': (F.m15.reset_index(drop=True), F.R15)}
+    for tf, (df, R) in frames.items():
+        T = pd.to_datetime(df.t).reset_index(drop=True)
+        tr, prot = (R['bars'][-1] if R['bars'] else (None, None))
+        if tr in ('up', 'down') and prot is not None:
+            anc = [e.get('prot_anchor') for e in R['all_events'] if e.get('machine') == 'major' and e.get('prot_price') is not None and abs(float(e['prot_price']) - float(prot)) < 1e-12]
+            ia = int(anc[-1]) if anc and anc[-1] is not None else len(df) - 1
+            out.append(dict(type='h', kind='prot', tf=tf, side=1 if tr == 'up' else -1, t1=T[min(ia, len(T) - 1)], p1=float(prot) * k, t2=None, p2=None))
+        if tf in ('D1', 'H4', 'H1'):
+            A = np.asarray(atr(df), float)
+            for ln in tlines.build(df, R, A, tf, early=True, h4c=None, maxspan=60 if tf == 'D1' else None):
+                if ln['why'] != 'open':
+                    continue
+                (ia, pa), (ib, pb) = ln['anchor'], ln['pts'][-1]
+                if ib >= len(T) or ia >= len(T):
+                    continue
+                out.append(dict(type='t', kind='tl', tf=tf, side=int(ln['side']), t1=T[ia], p1=float(pa) * k, t2=T[ib], p2=float(pb) * k))
+    LS, _ = C15.lines(F); T15 = pd.to_datetime(F.m15.t).reset_index(drop=True)
+    for ia, pa, ib, pb, cr, en, kind, broken in LS:
+        if en is None and not broken and ib < len(T15):
+            out.append(dict(type='t', kind='cl15', tf='M15', side=-1 if kind == 'hi' else 1, t1=T15[ia], p1=float(pa) * k, t2=T15[ib], p2=float(pb) * k))
+    return out
+
+
 def events(mk, prof, since):
     """moments where price came back to one of the profile's lines (timing near / turn) at or after `since`"""
     out = []; t_from = np.datetime64(pd.Timestamp(since)) if since is not None else np.datetime64(pd.Timestamp(mk.start))

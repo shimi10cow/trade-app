@@ -274,9 +274,12 @@ def pair_charts(broker, pairs):
             try:                                                       # the EA's H4 lines still alive (gateway / fortress / band)
                 from mt5_ea.live import alerts
                 m4 = pair_env.bars_any(broker, p, 400)[['t', 'o', 'h', 'l', 'c']]
-                ls = alerts.ea_lines(p, m4)
-                bt = server_to_jst_min([x['born'] for x in ls]) if ls else []
-                o['ea'] = [dict(kind=x['kind'], side=x['side'], p=round(x['price'], dig), t=int(b)) for x, b in zip(ls, bt) if b > 0]
+                ls = alerts.ea_chart_objects(p, m4)                 # h lines + trendlines the EAs watch now
+                t1 = server_to_jst_min([x['t1'] for x in ls]) if ls else []
+                t2 = server_to_jst_min([x['t2'] if x['t2'] is not None else x['t1'] for x in ls]) if ls else []
+                o['ea'] = [dict(type=x['type'], kind=x['kind'], tf=x['tf'], side=x['side'], t=int(a), p=round(x['p1'], dig),
+                                t2=(int(b) if x['type'] == 't' else None), p2=(round(x['p2'], dig) if x['type'] == 't' else None))
+                           for x, a, b in zip(ls, t1, t2) if a > 0 and (x['type'] != 't' or b > 0)]
             except Exception as ex:
                 log.warning('EA lines %s: %s', p, ex); o['ea'] = []
             out[p] = o

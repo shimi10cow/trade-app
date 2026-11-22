@@ -67,7 +67,9 @@ D.trades.forEach(t => t.kind = 'L');
 // the time they were deleted, so later analysis can see what was changed.
 (D.pairs || []).forEach(p => { p.kind = 'P'; p.id = 'PAIR|' + p.sym; const rm = D.repmarks[p.id] || {}; p.cm = rm.cm || ''; p.flag = rm.tags || '';
   const saved = (p.lines || []).slice(), have = new Set(saved.filter(l => l.eid).map(l => l.eid));
-  ((D.pcharts[p.sym] || {}).ea || []).forEach(e => { const eid = e.kind + '|' + e.side + '|' + e.t + '|' + e.p; if (!have.has(eid)) saved.push({type: 'ea', src: 'ea', eid, kind: e.kind, side: e.side, t1: e.t, p1: e.p, tf: 'H4'}); });
+  ((D.pcharts[p.sym] || {}).ea || []).forEach(e => { const eid = [e.kind, e.tf || 'H4', e.side, e.t, e.p, e.t2 || '', e.p2 || ''].join('|'); if (have.has(eid)) return;
+    if (e.type === 't') saved.push({type: 't', src: 'ea', eid, kind: e.kind, side: e.side, tf: e.tf, t1: e.t, p1: e.p, t2: e.t2, p2: e.p2});
+    else saved.push({type: 'ea', src: 'ea', eid, kind: e.kind, side: e.side, t1: e.t, p1: e.p, tf: e.tf || 'H4'}); });
   p.lines = saved; });
 const live = ls => (ls || []).filter(l => !l.del);
 const nowJ = () => { const d = new Date(Date.now() + 9 * 3600e3); return d.toISOString().slice(0, 16).replace('T', ' '); };
@@ -306,7 +308,7 @@ function pxList() {
 function drawBtns() {
   const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart()">${l}</button>`;
   $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}
-    <span class="note">${S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es' ? 'チャートを 1 回押す' : S.mode === 't' ? '2 点を押す（右に伸びる）' : S.mode === 'b' ? '対角の 2 点を押す' : '線を押すと ✕（削除）、ドラッグで移動。トレンドライン・ボックスは選ぶと出る □ をドラッグで角度・大きさ'}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
+`;
 }
 // ------------------------------------------------------------ chart
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
@@ -314,20 +316,22 @@ function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (l
 function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
 const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false}, S.draft.saved = sig(S.draft), S.draft);
 let G = null;   // geometry of the last drawn chart (for clicks)
-const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#cbd5e1']};
+const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#cbd5e1'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
+const eaName = l => l.kind === 'prot' ? (l.side > 0 ? '押し安値' : '戻り高値') + '（' + TFN[l.tf] + '）' : l.kind === 'tl' ? TFN[l.tf] + ' トレンドライン' : l.kind === 'cl15' ? 'M15 調整ライン' : (EAK[l.kind] || [''])[0];
 const curLines = t => (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
 function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
 function drawObj(x, l, sel) {
   const {Y, tx, W, padR, dig} = G, R = W - padR;
-  const col = l.type === 'ea' ? (EAK[l.kind] || ['', '#e2e8f0'])[1] : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
-  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
+  const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' || l.src === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
   const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
   if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
   else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
-    const nm = l.type === 'x' ? '決済' : EAK[l.kind][0] + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
+    const nm = l.type === 'x' ? '決済' : l.kind === 'prot' ? eaName(l) + (l.moved ? '・動かした' : '') : eaName(l) + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
     lab(nm + ' ' + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
   else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
-    const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
+    const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke();
+    if (l.src === 'ea' || l.note) lab((l.src === 'ea' ? eaName(l) + (l.moved ? '・動かした' : '') + ' ' : '') + (l.note || ''), bx + 4, by - 4); }
   else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
     x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); if (l.note) lab(l.note, Math.min(a, b) + 3, Math.min(Y(l.p1), Y(l.p2)) + 11); }
   else if (l.type === 'eb' || l.type === 'es') { const up = l.type === 'eb', xx = tx(l.t1), yy = Y(l.p1); x.setLineDash([]); x.beginPath();
@@ -424,7 +428,7 @@ function info(t) {
 const FLAGS = ['狙う（買い）', '狙う（売り）', '様子見'];
 function objNote(d) {           // the one-line note of the picked object
   const l = S.pick >= 0 ? d.lines[S.pick] : null; if (!l || l.del) return '';
-  const nm = l.type === 'ea' ? 'EA の' + EAK[l.kind][0] : {h: '水平線', t: 'トレンドライン', b: 'ボックス', eb: '買いたい所', es: '売りたい所', x: '決済ライン'}[l.type];
+  const nm = l.type === 'ea' || l.src === 'ea' ? 'EA の' + eaName(l) : {h: '水平線', t: 'トレンドライン', b: 'ボックス', eb: '買いたい所', es: '売りたい所', x: '決済ライン'}[l.type];
   return `<div style="margin-top:8px"><span class="mut" style="font-size:12px;font-weight:700">✏️ 選んだ${esc(nm)}の一言</span>
     <input id="objnote" style="width:100%;margin-top:4px" maxlength="60" value="${esc(l.note || '')}" placeholder="例：ここで反発を待つ" oninput="objSetNote(this.value)"></div>`;
 }
@@ -520,12 +524,13 @@ const objDraftBase = d => { const t = objOf(d.key) || {}; return {v: t.v || '', 
   cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 4) moved = true; if (!moved) return;
     const q = pos(e);
     if (drag && drag.h && G) { const d = mark(), l = d.lines[drag.k];       // one of the 2 points: angle / size
+      if (l.src === 'ea' && !l.moved) { l.moved = 1; l.op = drag.o.p1; l.op2 = drag.o.p2; l.ot1 = drag.o.t1; l.ot2 = drag.o.t2; }
       l['t' + drag.h] = G.toT(q.x); l['p' + drag.h] = G.toP(q.y); l.at2 = nowJ(); d.dirty = true; chart(); return; }
     if (drag && G) { const d = mark(), l = d.lines[drag.k], o = drag.o, dp = G.toP(q.y) - G.toP(drag.q.y), dx = q.x - drag.q.x;
       const sh = tm => G.toT(G.tx(tm) + dx);
       l.p1 = o.p1 + dp; if (o.p2 != null) l.p2 = o.p2 + dp;
       if (l.type !== 'h' && l.type !== 'ea') { if (o.t1 != null) l.t1 = sh(o.t1); if (o.t2 != null) l.t2 = sh(o.t2); }
-      if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; }
+      if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; if (o.p2 != null && l.op2 == null) l.op2 = o.op2 != null ? o.op2 : o.p2; }
       l.at2 = nowJ(); d.dirty = true; S.pick = drag.k; S.pickAt = q; chart(); return; }
     if (S.mode === 'pan') { const bw = (cv.clientWidth - 68) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
     });
