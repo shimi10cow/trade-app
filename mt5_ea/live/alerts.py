@@ -366,12 +366,14 @@ def tf_levels(df, R, k, tf):
         i = int(e['idx'])
         if e['action'] == 'REVERSAL' and e.get('broken_price') is not None:
             L, s = float(e['broken_price']), (1 if e['to'] == 'up' else -1)
+            a0 = e.get('broken_anchor')                    # the line starts at the swing that was broken (the 出入口 itself)
             if alive(i, L, s) and round(L, 6) not in seen:
-                seen.add(round(L, 6)); out.append(dict(type='h', kind='gateway', tf=tf, side=s, t1=T[min(i, n - 1)], p1=L * k))
+                seen.add(round(L, 6)); out.append(dict(type='h', kind='gateway', tf=tf, side=s, t1=T[min(int(a0) if a0 is not None else i, n - 1)], p1=L * k))
         elif e.get('action') == 'breakout_protect' and e.get('prot_price') is not None:
             L, s = float(e['prot_price']), (1 if e['trend'] == 'up' else -1)
+            a0 = e.get('prot_anchor')
             if alive(i, L, s) and round(L, 6) not in seen:
-                seen.add(round(L, 6)); out.append(dict(type='h', kind='band', tf=tf, side=0, t1=T[min(i, n - 1)], p1=L * k))
+                seen.add(round(L, 6)); out.append(dict(type='h', kind='band', tf=tf, side=0, t1=T[min(int(a0) if a0 is not None else i, n - 1)], p1=L * k))
     piv = sorted(tlines.pivots(R), key=lambda p: p[3]); have = []
     for ii, (i, kind, p, av) in enumerate(piv):
         if av >= n or not np.isfinite(A[av]):
@@ -403,7 +405,7 @@ def ea_chart_objects(sym, m, life=30):
     for tf, (df, R) in frames.items():
         T = pd.to_datetime(df.t).reset_index(drop=True)
         out += tf_levels(df, R, k, tf)
-        if tf in ('D1', 'H4', 'H1'):
+        if tf in ('D1', 'H4', 'H1', 'M15'):              # every line still open on every timeframe (2026-11-22, user)
             A = np.asarray(atr(df), float)
             for ln in tlines.build(df, R, A, tf, early=True, h4c=None, maxspan=60 if tf == 'D1' else None):
                 if ln['why'] != 'open':
