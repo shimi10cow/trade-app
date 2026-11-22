@@ -182,11 +182,12 @@ class Market:
                 return CT[i], float(CC[i])
         return None
 
-    def turn_after(self, q, L, s, A):
-        """first M15 Dow turn toward the bounce within 12 hours of the touch (bar index), or None"""
+    def turn_after(self, q, L, s, A, n=48, stop=0.4):
+        """first M15 Dow turn toward the bounce within n bars (12 hours) of the touch (bar index), or None.
+        stop: give up once an M15 close is this many ATR through the line (None = never)."""
         c15, k15, p15, t15 = self.P15; TM, MC, CL = self.TM, self.MC, self.CL
-        for k in range(q, min(q + 48, len(TM))):
-            if s * (MC[k] - L) < -0.4 * A:
+        for k in range(q, min(q + n, len(TM))):
+            if stop is not None and s * (MC[k] - L) < -stop * A:
                 return None
             m = (c15 <= CL[k])
             lo = np.nonzero(m & (t15 >= TM[q] - 2 * HOUR) & (k15 == ('lo' if s > 0 else 'hi')))[0]
@@ -477,9 +478,10 @@ def evaluate(mk, profiles, since=None):
 
 
 def armed(mk, profiles):
-    """2026-11-22 (user): 「もうすぐエントリー」 for the pair tab. A line of a profile that is on, price came back to it (a touch) within the
-    last 12 hours, it has not gone 0.4 ATR through since, the M15 turn has not come yet (that is the alert itself), and the profile's
-    conditions are met now. -> [{sym, side, method, kind, line, text}], one per line."""
+    """2026-11-22 (user): 「もうすぐエントリー」 for the pair tab: know it BEFORE the entry. A line of a profile that is on, price came back
+    to it (a touch), and since then: no H4 close through the line (the line's own end rule, brk), no M15 turn yet (the turn is the entry / the alert). No 12-hour limit (user: keep it until it fails).
+    The profile's conditions are met now, the score without the M15 TL point (user: "one M15 TL more and it is a full entry",
+    so 4 -> 3 with the presets). -> [{sym, side, method, kind, line, text}], one per line."""
     out, seen = [], set(); last = len(mk.TM) - 1
     if last < 1:
         return out
@@ -495,13 +497,19 @@ def armed(mk, profiles):
             if not tch:
                 continue
             q, n = tch[-1]
-            if last - q >= 48 or (sd * (mk.MC[q:last + 1] - L) < -0.4 * A).any() or mk.turn_after(q, L, sd, A) is not None:
+            brk = float(prof.get('brk', 0.0))
+            k0 = int(np.searchsorted(mk.C4, mk.TM[q], side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
+            if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < -brk * A).any():        # an H4 close went through the line: gone
+                continue
+            if mk.turn_after(q, L, sd, A, n=last - q + 1, stop=None) is not None:      # turned already (entry / alert)
                 continue
             ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=n, tq=mk.CL[q])
             ok = True
             for key, par in (prof.get('conds') or {}).items():
                 if key in CATALOG:
                     p = dict(CATALOG[key][1]); p.update(par or {})
+                    if key == 'uscore':                     # without the M15 TL point: that one comes with the entry
+                        p['n'] = float(p.get('n', 4)) - float(p.get('m15', 1)); p['m15'] = 0
                     if not mk.check(key, p, ev):
                         ok = False; break
             if not ok:

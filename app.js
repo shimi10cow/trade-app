@@ -1397,12 +1397,14 @@ async function sendPairHistory() {
 window.sendPairHistory = sendPairHistory;
 
 // 2026-11-22 (user): 「もうすぐエントリー」. The alerts window (PC) writes Pairs Armed when price is back at a line of an alert that is on and
-// only the M15 turn is missing; cleared when it turns (the alert comes) or the line fails. Hidden when older than 3 hours (PC stopped).
+// only the M15 turn is missing (the score without the M15 TL point); cleared when it turns (the alert comes) or an H4 close goes through
+// the line. A star can stay for many hours, so "PC stopped" is read from the newest of ArmedAt / AutoAt (the same window writes AutoAt
+// every hour on weekdays): hidden when both are older than 3 days (Friday's stars stay over the weekend).
 function pairArmed_(p) {
-  const t = String(p['Armed'] || '').trim(), at = String(p['ArmedAt'] || '').trim();
+  const t = String(p['Armed'] || '').trim();
   if (!t) return '';
-  const ms = Date.parse(at.replace(' ', 'T'));
-  return (!isNaN(ms) && Date.now() - ms > 3 * 3600e3) ? '' : t;
+  const ms = Math.max(...[p['ArmedAt'], p['AutoAt']].map(v => Date.parse(String(v || '').trim().replace(' ', 'T'))).filter(v => !isNaN(v)), 0);
+  return (ms && Date.now() - ms > 3 * 86400e3) ? '' : t;
 }
 function renderPairs() {
   const container = document.getElementById('pairs-list');
