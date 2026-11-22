@@ -311,8 +311,15 @@
   const clone = x => JSON.parse(JSON.stringify(x));
   function alertCfg() {
     const d = (S.dash && S.dash.config && S.dash.config.demo) || null, a = (d && d.alerts) || {};
-    return {on: a.on !== false, v: 4, profiles: a.v === 4 && Array.isArray(a.profiles) && a.profiles.length ? a.profiles : clone(ALERT_PRESETS)};   // v2 (11/21): methods 1 / 2 / 6 / 7
+    return {on: a.on !== false, v: 4, profiles: a.v === 4 && Array.isArray(a.profiles) && a.profiles.length ? a.profiles : clone(ALERT_PRESETS),   // v2 (11/21): methods 1 / 2 / 6 / 7
+            star: Object.assign(clone(STAR_DEFAULT), a.star || {})};
   }
+  // 2026-11-22 (user): how the pair tab's ⭐「もうすぐ」 is given, editable here. zone = within how many ATR(H4) of the line;
+  // the score of the alerts (line / impulse TL / H1 MA / correction TL / M15 TL) with its own points and total; default: without M15 TL, 3 or more
+  const STAR_DEFAULT = {zone: 2.5, n: 3, line: 1, imp: 2, ma: 1, ctr: 1, m15: 0};
+  const STAR_LBL = [['zone', '線から何 ATR(H4) 以内', 0.1], ['n', '合計 何点以上', 0.5], ['line', '線の点', 0.5], ['imp', '推進TL の点', 0.5], ['ma', 'H1 MA の点', 0.5], ['ctr', '調整TL の点', 0.5], ['m15', 'M15TL の点', 0.5]];
+  window.eaStarSet = (k, v) => { const a = alertCfg(), x = Number(v); if (!isFinite(x) || x < 0) return; a.star[k] = x; setTimeout(() => saveAlertCfg(a), 0); };   // after the input's own change / blur
+  window.eaStarReset = () => { const a = alertCfg(); a.star = clone(STAR_DEFAULT); saveAlertCfg(a); };
   async function saveAlertCfg(a) {
     S.dash = S.dash || {}; S.dash.config = S.dash.config || {}; if (!S.dash.config.demo) S.dash.config.demo = defaultConfig('demo');
     S.dash.config.demo.alerts = a; S.saving = '保存中…'; render();
@@ -391,6 +398,11 @@
         <button onclick="eaAlertOn()" style="${btn};width:100%;padding:8px;margin-bottom:4px;${a.on ? neon('#4ade80', '74,222,128') : offBtn}">${a.on ? '通知 全体 ON（押すと全部 OFF）' : '通知 全体 OFF（押すと ON）'}</button>
         ${a.profiles.map(prow).join('')}
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin:8px 0"><button onclick="eaAlertNew()" style="${btn};${neon('#22d3ee', '34,211,238')}">＋ 通知を追加</button><button onclick="eaAlertReset()" style="${btn};${offBtn}">${S.alReset ? 'もう一度押す' : '初期に戻す'}</button></div>
+        <div style="border:1px solid #334155;border-radius:10px;padding:8px 10px;margin:8px 0">
+          <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:12px">⭐ もうすぐ の付け方（通貨ペアタブ）</b><button onclick="eaStarReset()" style="${btn};${offBtn};padding:3px 8px;font-size:11px">初期に戻す</button></div>
+          <div style="font-size:10px;color:#64748b;margin:4px 0 6px;line-height:1.5">オンの通知の線（H4 出入口・砦）から一度 1 ATR 以上離れたあと、ここの距離まで近づき、点数がここ以上なら ⭐。変えると PC には次の足から。</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">${STAR_LBL.map(([k, l, st]) => `<label style="font-size:11px;color:#94a3b8">${l}<input type="number" min="0" step="${st}" value="${esc(a.star[k])}" onchange="eaStarSet('${k}', this.value)" style="width:100%;box-sizing:border-box;margin-top:2px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px"></label>`).join('')}</div>
+        </div>
         <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-top:6px">最近届いた通知（2 週間）</div>
         ${list.map(row).join('') || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">ここ 2 週間の通知はありません</div>'}` : ''}</div>${alertEditor()}`;
   }

@@ -477,10 +477,10 @@ def evaluate(mk, profiles, since=None):
     return res
 
 
-STAR_ATR = float(os.getenv('EA_STAR_ATR') or 2.5)
+STAR_DEFAULT = {'zone': float(os.getenv('EA_STAR_ATR') or 2.5), 'n': 3, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 0}   # = ea_live.js STAR_DEFAULT
 
 
-def armed(mk, profiles, zone=None, at=None):
+def armed(mk, profiles, zone=None, at=None, star=None):
     """2026-11-22 (user): 「もうすぐ」 for the pair tab, about a day BEFORE the entry. A line of a profile that is on (H4 出入口 / 砦,
     still alive: no H4 close through it, within its life), price has broken out and left it by `away` ATR(H4) at least once, and is now
     within `zone` ATR(H4) of it on the trade side (2.5: in the past alerts of EURUSD / EURJPY price was 1.65 ATR away 24 h before the
@@ -488,7 +488,8 @@ def armed(mk, profiles, zone=None, at=None):
     `zone` (trend went on), when an H4 close goes through the line, or once the M15 turn came after a touch (the entry / the alert).
     The profile's conditions are checked now, the score without the M15 TL point (4 -> 3 with the presets).
     -> [{sym, side, method, kind, line, dist, text}], one per line."""
-    zone = STAR_ATR if zone is None else zone
+    st = dict(STAR_DEFAULT); st.update({k: v for k, v in (star or {}).items() if k in STAR_DEFAULT})   # the app's ⭐ settings
+    zone = float(st['zone']) if zone is None else zone
     out, seen = [], set(); last = len(mk.TM) - 1 if at is None else int(at)      # at: an earlier bar (checks on history)
     if last < 1:
         return out
@@ -516,12 +517,12 @@ def armed(mk, profiles, zone=None, at=None):
             ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=1, tq=now)
             ok = True
             for key, par in (prof.get('conds') or {}).items():
-                if key in CATALOG:
+                if key in CATALOG and key != 'uscore':     # the score: the ⭐'s own points and total below
                     p = dict(CATALOG[key][1]); p.update(par or {})
-                    if key == 'uscore':                     # without the M15 TL point: that one comes with the entry
-                        p['n'] = float(p.get('n', 4)) - float(p.get('m15', 1)); p['m15'] = 0
                     if not mk.check(key, p, ev):
                         ok = False; break
+            if ok and float(st['n']) > 0:
+                ok = bool(mk.check('uscore', {k: float(st[k]) for k in ('n', 'line', 'imp', 'ma', 'ctr', 'm15')}, ev))
             if not ok:
                 continue
             line = round(L * k, 5 if k == 1.0 else 3)
@@ -564,6 +565,8 @@ def settings_from(r, cur):
     out = dict(cur); out['on'] = s.get('on', True)
     if s.get('v') == ALERTS_V and isinstance(s.get('profiles'), list) and s['profiles']:   # older saved sets -> the presets
         out['profiles'] = s['profiles']
+    if isinstance(s.get('star'), dict):                       # 2026-11-22: the ⭐ settings from the app
+        out['star'] = s['star']
     return out
 
 
@@ -617,7 +620,7 @@ def main():
                         try:
                             mk = Market(sym, b.bars(sym, DAYS))
                             try:
-                                arm += armed(mk, profs)          # 2026-11-22: 「もうすぐエントリー」 for the pair tab
+                                arm += armed(mk, profs, star=cfg.get('star'))          # 2026-11-22: 「もうすぐエントリー」 for the pair tab
                             except Exception as ex:
                                 logging.warning('%s armed: %s', sym, ex)
                             for a in evaluate(mk, profs, since):
