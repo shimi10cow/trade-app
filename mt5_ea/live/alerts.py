@@ -570,6 +570,22 @@ def settings_from(r, cur):
     return out
 
 
+def desktop_button():
+    """2026-11-22 (user): a desktop button for this window alone (⭐ / pair arrows / MT5 import without the EA, e.g. on weekends).
+    Made once on Windows when it is missing (setup_live_ea_desktop.ps1 makes it too); never fails the window."""
+    if os.name != 'nt':
+        return
+    try:
+        import subprocess
+        bat = Path(__file__).resolve().parents[1] / 'ALERTS_START.bat'
+        ps = ("$d=[Environment]::GetFolderPath('Desktop'); $f=Join-Path $d '星と向きを反映（EAなし）.lnk'; if (-not (Test-Path $f)) {"
+              f" $s=(New-Object -ComObject WScript.Shell).CreateShortcut($f); $s.TargetPath='{bat}'; $s.WorkingDirectory='{bat.parent}';"
+              " $s.IconLocation='%SystemRoot%\\System32\\shell32.dll,221'; $s.Save() }")
+        subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, timeout=30)
+    except Exception as ex:
+        logging.info('desktop button: %s', ex)
+
+
 def _single_instance(path):
     """Hold an OS lock on `path` for the life of the process; False when another copy holds it."""
     f = open(path, 'a+')
@@ -607,6 +623,7 @@ def main():
     except Exception as ex:
         logging.warning('GAS: %s', ex)
     print('裁量の通知を始めました（注文はしません）。この窓を閉じると止まります。', flush=True)
+    desktop_button()
     first = True
     while True:
         try:
