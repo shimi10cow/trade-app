@@ -966,6 +966,35 @@
                 </label>
               </div>
 
+              <!-- 決済画像アップロード（保有中のみ表示） -->
+              <div id="td-exit-upload-area" style="display:none; margin-top:10px;">
+                <label class="image-add-target" data-image-target="exit" onclick="selectImagePasteTarget_('exit')" style="display:flex; align-items:center; gap:8px; background:#1e293b; border:1px dashed #334155; border-radius:10px; padding:12px 14px; cursor:pointer;">
+                  <span style="font-size:18px;">📷</span>
+                  <span id="td-exit-upload-label-text" style="font-size:12px; color:#94a3b8;">決済画像を追加</span>
+                  <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
+                </label>
+              </div>
+
+
+              <!-- 事前チャート（トレードプラン時のシナリオ画像） -->
+              <div id="td-plan-image-area" style="display:none; margin-top:10px;">
+                <div style="font-size:11px; color:#38bdf8; margin-bottom:4px;">📋 事前チャート（プラン時）</div>
+                <img id="td-plan-image-preview" style="width:100%; border-radius:8px; border:1px solid #38bdf8;" referrerpolicy="no-referrer">
+              </div>
+
+              <!-- エントリー画像スロット（常に表示、反省の直後） -->
+              <div id="td-top-image-area" style="display:none; margin-top:10px; position:relative;">
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
+                <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
+                
+              </div>
+
+              <!-- 決済画像スロット -->
+              <div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
+                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 決済写真</div>
+                <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;" referrerpolicy="no-referrer">
+                
+              </div>
               <!-- OANDA のオープンデータ（オーダーブック）：エントリー時・決済時（2026-11-22） -->
               <div style="margin-top:10px;">
                 <div style="font-size:11px; color:#f59e0b; font-weight:700;">📊 オープンデータ（OANDA）</div>
@@ -987,34 +1016,6 @@
                 </div>
               </div>
 
-              <!-- 事前チャート（トレードプラン時のシナリオ画像） -->
-              <div id="td-plan-image-area" style="display:none; margin-top:10px;">
-                <div style="font-size:11px; color:#38bdf8; margin-bottom:4px;">📋 事前チャート（プラン時）</div>
-                <img id="td-plan-image-preview" style="width:100%; border-radius:8px; border:1px solid #38bdf8;" referrerpolicy="no-referrer">
-              </div>
-
-              <!-- エントリー画像スロット（常に表示、反省の直後） -->
-              <div id="td-top-image-area" style="display:none; margin-top:10px; position:relative;">
-                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 エントリー写真</div>
-                <img id="td-image-preview" style="width:100%; border-radius:8px; border:1px solid #334155;" referrerpolicy="no-referrer">
-                
-              </div>
-
-              <!-- 決済画像アップロード（保有中のみ表示） -->
-              <div id="td-exit-upload-area" style="display:none; margin-top:10px;">
-                <label class="image-add-target" data-image-target="exit" onclick="selectImagePasteTarget_('exit')" style="display:flex; align-items:center; gap:8px; background:#1e293b; border:1px dashed #334155; border-radius:10px; padding:12px 14px; cursor:pointer;">
-                  <span style="font-size:18px;">📷</span>
-                  <span id="td-exit-upload-label-text" style="font-size:12px; color:#94a3b8;">決済画像を追加</span>
-                  <input type="file" id="td-exit-image-upload" accept="image/*" style="display:none;" onchange="previewUploadImageTD(this)">
-                </label>
-              </div>
-
-              <!-- 決済画像スロット -->
-              <div id="td-exit-image-container" style="display:none; margin-top:8px; position:relative;">
-                <div style="font-size:11px; color:#64748b; margin-bottom:4px;">📷 決済写真</div>
-                <img id="td-exit-image-preview" style="width:100%; max-height:300px; object-fit:contain; border-radius:8px; border:1px solid #334155; background:#000;" referrerpolicy="no-referrer">
-                
-              </div>
               <div class="form-row" style="align-items:flex-start; margin-top:10px;"><div class="memo-label-stack"><span class="form-label" style="font-size:10px;">後日振り返り</span><button type="button" class="voice-memo-btn" onclick="voiceMemo(&quot;td-retro-review&quot;,this)">🎙️ 音声入力</button></div><div class="memo-field-wrap"><textarea class="form-input" id="td-retro-review" rows="3" placeholder="後日チャートを見直して気づいたこと..."></textarea><button type="button" class="memo-clear-btn" onclick="document.getElementById('td-retro-review').value=''">✕</button></div></div>
             </div>
           </div>
@@ -1399,10 +1400,10 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261122d" charset="utf-8"></script>
+  <script src="./app.js?v=20261122e" charset="utf-8"></script>
   <script src="./ea_ideas.js?v=20261113b" charset="utf-8"></script>
   <script src="./opendata.js?v=20261122b" charset="utf-8"></script>
-  <script src="./mt5_tab.js?v=20261122a" charset="utf-8"></script>
+  <script src="./mt5_tab.js?v=20261122b" charset="utf-8"></script>
   <script src="./ea_live.js?v=20261122a" charset="utf-8"></script>
 </body>
 </html>

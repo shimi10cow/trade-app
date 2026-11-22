@@ -44,7 +44,19 @@
     act('保存中…', 'eaImportSaveSettings', S.d.settings, () => '設定を保存しました（次の取り込みから使われます）');
   };
   const feat = () => (S.d && S.d.features) || {};          // what the deployed GAS can do (older GAS: no trash / undo)
-  window.mt5Adopt = id => act('保存中…', 'eaImportAdopt', {entryId: id}, r => r.status === '決済' ? '記録にしました（決済）' : '記録にしました（保有中）');
+  // 2026-11-22: after 記録にする the trade's detail opens (the same screen as a history trade) to fill in the rest;
+  // saving there finishes it and opens the history. The trend arrows are pre-filled by GAS (the PC's arrows at the entry time).
+  window.mt5Adopt = async function (id) {
+    let ok = false;
+    await act('保存中…', 'eaImportAdopt', {entryId: id}, r => { ok = true; return r.status === '決済' ? '記録にしました（決済）' : '記録にしました（保有中）'; });
+    if (!ok || typeof openTradeDetail !== 'function') return;
+    for (let k = 0; k < 30; k++) {                         // loadData() is reading the trades again
+      const i = (App.data.entries || []).findIndex(t => String(t.EntryID) === String(id) && t['ステータス'] !== '下書き');
+      if (i >= 0) { App.state.fromMt5Adopt = String(id); openTradeDetail(i, false, false); showToast('足りない所を入れて「保存」すると履歴に入ります'); return; }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    showToast('記録しました（履歴から開けます）');
+  };
   window.mt5Link = (d, e) => act('紐付け中…', 'eaImportLink', {draftId: d, entryId: e}, () => '手入力のトレードに紐付けました');
   window.mt5Split = id => act('分けています…', 'eaImportSplit', {draftId: id}, r => r.parts ? r.parts + ' つに分けました' : '分けるものがありません');
   window.mt5Discard = function (id) {

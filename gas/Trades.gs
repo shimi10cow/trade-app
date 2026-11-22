@@ -284,6 +284,7 @@ function impBatch_(b) {
     const tid = tids[0];
     if (tid && byId[tid]) {
       const row = byId[tid], all = E2.rows.filter(function (r) { return String(r.TradeID) === tid || ids.indexOf(String(r.ExecID)) >= 0; });
+      if (!all.length) return;                                    // never rewrite a trade from zero executions
       const agg = impAggregate_(all), f = impFields_(agg);
       if (String(row.MergeMode) === 'manual') { ['ExitPrice', 'ExitDate', 'ExitTime', '損益', 'Profit', 'Swap', '実取得pips'].forEach(function (k) { row[k] = f[k]; }); }
       else Object.keys(f).forEach(function (k) {
@@ -338,7 +339,7 @@ function impStatus_() {
   const T = trRead_(), E = execRead_();
   const st = impGet_('IMPORT_SETTINGS', {groupHours: 24, mergeAcross: true});
   const linkH = Number(st.linkHours) > 0 ? Number(st.linkHours) : IMP_LINK_HOURS_;
-  const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き'; }).map(function (t) {
+  const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き' && String(t['PairName（元）'] || t.PairName || '').trim(); }).map(function (t) {   // empty shells are not listed
     const ex = impExecOf_(E, t.EntryID);
     // link candidates: hand-written trades (open or closed, the whole history) with the same pair and direction whose
     // entry is within linkH hours; not drafts / trash / missed entries / reservations / trades already linked to MT5
@@ -370,8 +371,33 @@ function impFind_(T, id) { const t = T.rows.filter(function (r) { return String(
 /** app: keep a draft as a real record (status from whether it is closed). */
 function impAdopt_(b) {
   const T = trRead_(), t = impFind_(T, b.entryId);
+  // 2026-11-22: an empty shell (no executions / no pair, e.g. left by merging drafts whose executions were elsewhere) is never recorded
+  if (!String(t['PairName（元）'] || t.PairName || '').trim() || !Number(t.ExecCount || 0)) throw new Error('約定のない空のトレードなので記録にできません（ゴミ箱へ）');
+  // 2026-11-22: empty trend arrows get the PC's automatic arrows of the entry time (Pair_Auto_Log), else the pair tab's arrows;
+  // TrendAuto keeps what was filled in, so later corrections in the trade detail can be compared
+  const tr = impTrendAt_(String(t['PairName（元）'] || t.PairName || ''), impEntryMs_(t)), put = {};
+  ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(function (k) { if (!String(t[k] || '').trim() && tr[k]) { t[k] = tr[k]; put[k] = tr[k]; } });
+  if (Object.keys(put).length) { trEnsureCols_(T, ['TrendAuto']); t.TrendAuto = JSON.stringify(Object.assign({src: tr._src}, put)); }
   t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t.AdoptedAt = tradesNow_(); trWrite_(T, t);
-  return {success: true, status: t['ステータス']};
+  return {success: true, status: t['ステータス'], entryId: t.EntryID};
+}
+function impTrendAt_(pair, ms) {
+  const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, p = (alias[String(pair).toUpperCase()] || String(pair)).toUpperCase(), out = {};
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), lg = ss.getSheetByName('Pair_Auto_Log');
+  const toMs = function (x) { if (x instanceof Date) return x.getTime(); const d = new Date(String(x || '').replace(' ', 'T')); return d.getTime(); };
+  if (lg && lg.getLastRow() > 1 && isFinite(ms)) {
+    lg.getRange(2, 1, lg.getLastRow() - 1, 4).getValues().forEach(function (r) {      // rows in time order: the last one before the entry wins
+      if (String(r[1]).toUpperCase() === p && toMs(r[0]) <= ms - 9 * 3600e3) out[String(r[2])] = String(r[3]);   // ms = Japan wall time written as UTC (impDT_)
+    });
+    if (Object.keys(out).length) out._src = 'auto';
+  }
+  const sh = ss.getSheetByName(PAIRS_SHEET);
+  if (sh) {
+    const v = sh.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); }), pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
+    const row = v.slice(1).find(function (r) { return String(r[pc]).trim().toUpperCase() === p; });
+    if (row) ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(function (k) { const j = h.indexOf(k); if (!out[k] && j >= 0 && String(row[j]).trim()) { out[k] = String(row[j]).trim(); out._src = !out._src ? 'pairs' : (out._src.indexOf('pairs') < 0 ? out._src + '+pairs' : out._src); } });
+  }
+  return out;
 }
 /** app: a trade recorded from the MT5 tab goes back to "確認が必要なトレード".
  *  - recorded from a draft (Source MT5): back to a draft
@@ -481,6 +507,7 @@ function impMerge_(b) {
   if (Object.keys(kinds).length > 1) throw new Error('通貨か向きが違うものはまとめられません（' + Object.keys(kinds).join(' / ') + '）');
   if (ds.some(function (d) { return d['ステータス'] !== '下書き'; })) throw new Error('まとめられるのは確認が必要なトレードだけです');
   const rs = E.rows.filter(function (r) { return ids.indexOf(String(r.TradeID)) >= 0; });
+  if (!rs.length) throw new Error('まとめる約定が見つかりません（取り込みをやり直してください）');   // 2026-11-22: no empty shells
   const keepRow = ds[0]; Object.assign(keepRow, impFields_(impAggregate_(rs)), {MergeMode: 'manual'}); trWrite_(T, keepRow);
   execSetTradeId_(E, rs.map(function (r) { return r.ExecID; }), String(keepRow.EntryID));
   ds.slice(1).map(function (d) { return d._row; }).sort(function (a, b) { return b - a; }).forEach(function (r) { T.sh.deleteRow(r); });

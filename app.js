@@ -5764,6 +5764,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
 function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
+  if (App.state.fromMt5Adopt && !App.state.savingDetail) App.state.fromMt5Adopt = null;
   // レビューから開いた詳細 → 閉じたらレビューに戻る
   if (App.state.returnToRetroReview) {
     const key = App.state.returnToRetroReview;
@@ -5968,9 +5969,12 @@ async function saveTradeDetail() {
       playCloseSound(parseFloat(payloadPips) > 0);
     }
 
+    const fromMt5 = App.state.fromMt5Adopt && String(App.state.fromMt5Adopt) === String(entryId);
+    App.state.fromMt5Adopt = null;
     closeTradeDetail();
     renderPositions();
     showToast(res.queued ? '📥 オフラインのため保存待ちに追加しました' : '保存しました ✅');
+    if (fromMt5 && (updateData['ステータス'] || t['ステータス']) !== '保有中' && typeof openHistoryModal === 'function') openHistoryModal();   // MT5 tab -> 記録にする -> detail -> history
   } catch (e) {
     alert('エラー: ' + e.message);
   } finally {

@@ -203,7 +203,7 @@ function ealPairEnv_(b) {
   const pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
   const by = {}; xs.forEach(x => { by[String(x.pair || '')] = x; });
   const ok = a => a === '↑' || a === '↓' || a === '→', now = ealNow_();
-  let changed = 0;
+  let changed = 0; const log = [];
   const cols = EAL_ENV_TF_.concat(EAL_ENV_TF_.map(k => 'Auto_' + k), ['AutoAt']).map(k => h.indexOf(k));
   for (let i = 1; i < v.length; i++) {
     const x = by[String(v[i][pc]).trim()];
@@ -211,11 +211,16 @@ function ealPairEnv_(b) {
     EAL_ENV_TF_.forEach(k => {
       const a = String(x[k] || ''), ia = h.indexOf('Auto_' + k), im = h.indexOf(k);
       if (!ok(a)) return;
-      if (String(v[i][ia]) !== a) { v[i][ia] = a; if (im >= 0 && String(v[i][im]) !== a) { v[i][im] = a; changed++; } }
+      if (String(v[i][ia]) !== a) { v[i][ia] = a; log.push([now, String(v[i][pc]).trim(), k, a]); if (im >= 0 && String(v[i][im]) !== a) { v[i][im] = a; changed++; } }
     });
     v[i][h.indexOf('AutoAt')] = now;
   }
   cols.forEach(c => { if (c >= 0) { const rg = sh.getRange(2, c + 1, v.length - 1, 1); if (c === h.indexOf('AutoAt')) rg.setNumberFormat('@'); rg.setValues(v.slice(1).map(r => [r[c]])); } });
+  if (log.length) {                       // 2026-11-22: every change of an automatic arrow, so a trade can get the arrows of its entry time
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID); let lg = ss.getSheetByName('Pair_Auto_Log');
+    if (!lg) { lg = ss.insertSheet('Pair_Auto_Log'); lg.getRange(1, 1, 1, 4).setValues([['At', 'Pair', 'TF', 'Arrow']]); lg.setFrozenRows(1); }
+    const rg = lg.getRange(lg.getLastRow() + 1, 1, log.length, 4); rg.setNumberFormat('@'); rg.setValues(log);
+  }
   pairsCacheClear_();
   try { CacheService.getScriptCache().remove('hybrid_config_v2'); } catch (e) {}
   return {success: true, changed: changed, names: names};
