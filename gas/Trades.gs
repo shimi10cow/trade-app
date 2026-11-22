@@ -210,7 +210,16 @@ function impAggregate_(rs) {
     exec_ids: rs.map(function (r) { return String(r.ExecID); }), entry_time: (ins.slice().sort(byT)[0] || first).DealTime || '',
     entry_price: wavg(ins), exit_time: closed ? (outs.slice().sort(byT).pop() || {}).DealTime || '' : '', exit_price: closed ? wavg(outs) : '',
     lot: Math.round(vin * 1e4) / 1e4, profit: Math.round(rs.reduce(function (a, r) { return a + Number(r.Profit || 0) + Number(r.Swap || 0) + Number(r.Commission || 0); }, 0) * 100) / 100,
-    swap: rs.reduce(function (a, r) { return a + Number(r.Swap || 0); }, 0), open: !closed, sl: sl, tp: tp, exec_count: rs.length};
+    swap: rs.reduce(function (a, r) { return a + Number(r.Swap || 0); }, 0), open: !closed, sl: sl, tp: tp, exec_count: rs.length,
+    exit_by: closed ? impExitBy_(outs.slice().sort(byT).pop()) : {}};
+}
+/** 2026-11-22: how the last exit happened, from the MT5 deal comment ("[sl 0.56300]" / "[tp 1.08500]" / "so ..." stop out).
+ *  Kept as data only (ExitBy / ExitSLPrice / ExitTPPrice): the stop at the exit is the LAST stop (it may have been moved). */
+function impExitBy_(r) {
+  const c = String((r || {}).Comment || ''), m = c.match(/\[(sl|tp)\s*([0-9.]+)\]/i);
+  if (m) return {by: m[1].toLowerCase(), price: Number(m[2])};
+  if (/^so[\s:]/i.test(c) || /stop ?out/i.test(c)) return {by: 'so', price: ''};
+  return {by: c ? 'other' : 'manual', price: ''};
 }
 function impAppPair_(sym) { return typeof mt5AppPair_ === 'function' ? mt5AppPair_(sym) : String(sym || '').toUpperCase(); }
 function impDT_(s) { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/); return m ? {date: m[1] + '/' + m[2] + '/' + m[3], time: m[4] + ':' + m[5], ms: Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5])} : {date: '', time: '', ms: NaN}; }
@@ -221,6 +230,7 @@ function impFields_(a) {
   const pips = typeof mt5Pips_ === 'function' && a.exit_price !== '' ? mt5Pips_(a.symbol, a.direction, a.entry_price, a.exit_price) : '';
   return {'PairName（元）': pair, PairName: pair, Direction: dir, EntryDate: en.date, EntryTime: en.time, EntryPrice: a.entry_price, Lot: a.lot,
     InitialSLPrice: a.sl || '', TakeProfitPrice: a.tp || '', ExitPrice: a.exit_price, ExitDate: ex.date, ExitTime: ex.time,
+    ExitBy: (a.exit_by || {}).by || '', ExitSLPrice: (a.exit_by || {}).by === 'sl' ? a.exit_by.price : '', ExitTPPrice: (a.exit_by || {}).by === 'tp' ? a.exit_by.price : '',
     '損益': a.open ? '' : a.profit, Profit: a.open ? '' : a.profit, Swap: a.swap, '実取得pips': a.open ? '' : pips,
     Accounts: a.accounts.join(','), ExecCount: a.exec_count};
 }
@@ -286,7 +296,7 @@ function impBatch_(b) {
       const row = byId[tid], all = E2.rows.filter(function (r) { return String(r.TradeID) === tid || ids.indexOf(String(r.ExecID)) >= 0; });
       if (!all.length) return;                                    // never rewrite a trade from zero executions
       const agg = impAggregate_(all), f = impFields_(agg);
-      if (String(row.MergeMode) === 'manual') { ['ExitPrice', 'ExitDate', 'ExitTime', '損益', 'Profit', 'Swap', '実取得pips'].forEach(function (k) { row[k] = f[k]; }); }
+      if (String(row.MergeMode) === 'manual') { ['ExitPrice', 'ExitDate', 'ExitTime', '損益', 'Profit', 'Swap', '実取得pips', 'ExitBy', 'ExitSLPrice', 'ExitTPPrice'].forEach(function (k) { row[k] = f[k]; }); }
       else Object.keys(f).forEach(function (k) {
         if (row['ステータス'] !== '下書き') {             // a kept record: hand-written fields stay, MT5 only fills what is empty
           if (['PairName（元）', 'PairName', 'Direction', 'EntryDate', 'EntryTime'].indexOf(k) >= 0) return;
