@@ -155,6 +155,76 @@ def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True):
     return out
 
 
+# ---- M1 (monthly), 2026-11-22: once a week from PAIR_ENV.bat only.
+# MT5 builds monthly bars from M1 history (15+ years needed = ~7-8 GB for 42 symbols), so the monthly arrow comes from the free daily
+# reference rates of FRED (Federal Reserve Bank of St. Louis, public data) instead. A monthly bar made from daily closes gave the same
+# arrow as the real monthly bar in 154 of 154 months on EURUSD and USDJPY (2014-2026). Metals, US indices, BTC: no long free daily
+# series here -> left to the trader.
+FRED = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id={}'
+FRED_USD = {'EUR': ('DEXUSEU', 1), 'GBP': ('DEXUSUK', 1), 'AUD': ('DEXUSAL', 1), 'NZD': ('DEXUSNZ', 1),   # USD per 1 unit
+            'JPY': ('DEXJPUS', -1), 'CAD': ('DEXCAUS', -1), 'CHF': ('DEXSZUS', -1)}                    # units per 1 USD
+FRED_OTHER = {'OIL': 'DCOILWTICO', 'BRENT': 'DCOILBRENTEU', 'NATGAS': 'DHHNGSP', 'JP225': 'NIKKEI225'}
+M1_YEARS = 25
+
+
+def fred_series(sid, get=None):
+    """daily values of one FRED series (date index). get(url) -> text, for tests."""
+    import io
+    if get is None:
+        import requests
+        get = lambda u: requests.get(u, timeout=30, headers={'User-Agent': 'trade-app pair_env'}).text
+    d = pd.read_csv(io.StringIO(get(FRED.format(sid))))
+    d.columns = ['t', 'v']
+    d['t'] = pd.to_datetime(d.t, errors='coerce'); d['v'] = pd.to_numeric(d.v, errors='coerce')      # '.' / '' = holiday
+    d = d.dropna()
+    return d[d.t >= pd.Timestamp.now() - pd.DateOffset(years=M1_YEARS)].set_index('t').v
+
+
+def daily_for(pair, cache, get=None):
+    """daily closes of an app pair from FRED, or None."""
+    def usd(cur):
+        if cur == 'USD':
+            return None
+        if cur not in cache:
+            sid, k = FRED_USD[cur]; x = fred_series(sid, get); cache[cur] = x if k > 0 else 1 / x
+        return cache[cur]
+    if pair in FRED_OTHER:
+        if pair not in cache:
+            cache[pair] = fred_series(FRED_OTHER[pair], get)
+        return cache[pair]
+    a, b = pair[:3], pair[3:]
+    if len(pair) != 6 or (a != 'USD' and a not in FRED_USD) or (b != 'USD' and b not in FRED_USD):
+        return None
+    ua, ub = usd(a), usd(b)                              # USD value of 1 unit
+    if ua is None:
+        return (1 / ub).dropna()
+    if ub is None:
+        return ua.dropna()
+    return (ua / ub).dropna()
+
+
+def monthly_arrow(daily, now=None):
+    """M1 arrow from daily closes: monthly bars (first / max / min / last of the closes), closed months only."""
+    now = pd.Timestamp(now) if now is not None else pd.Timestamp.now()
+    m = daily.resample('MS').agg(['first', 'max', 'min', 'last']).dropna().reset_index()
+    m.columns = ['t', 'o', 'h', 'l', 'c']
+    m = m[m.t + pd.DateOffset(months=1) <= now]
+    return direction(m, 'M1')
+
+
+def monthly_arrows(pairs, log=None, get=None):
+    cache, out = {}, {}
+    for p in pairs:
+        try:
+            d = daily_for(p, cache, get)
+            if d is not None and len(d) > 200:
+                out[p] = monthly_arrow(d)
+        except Exception as ex:
+            if log:
+                log(f'  M1 {p}: 読めなかった（{str(ex)[:80]}）')
+    return out
+
+
 def main(argv=None):
     """PAIR_ENV.bat: read the arrows from MT5 (the demo terminal, read only) and send them to the app once.
     python -m mt5_ea.live.pair_env [--pairs EURUSD,USDJPY] [--timeout 60] [--no-send]"""
@@ -181,6 +251,12 @@ def main(argv=None):
     except Stalled as ex:
         rows, stalled = ex.rows, ex
         say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
+    say('\n月足（M1）：FRED の日ごとのレートから（週 1 回、このボタンの時だけ）')
+    mo = monthly_arrows([r['pair'] for r in rows], log=say)
+    for r in rows:
+        if mo.get(r['pair']):
+            r['M1'] = mo[r['pair']]
+    say('  ' + ' / '.join(f"{p} {v}" for p, v in mo.items()) if mo else '  （月足は取れませんでした。M1 は自分で入力のまま）')
     if a.no_send:
         say('（--no-send: 送りません）')
     elif rows:
