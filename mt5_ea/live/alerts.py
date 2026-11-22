@@ -371,6 +371,16 @@ def ea_chart_objects(sym, m, life=30):
                 if ib >= len(T) or ia >= len(T):
                     continue
                 out.append(dict(type='t', kind='tl', tf=tf, side=int(ln['side']), t1=T[ia], p1=float(pa) * k, t2=T[ib], p2=float(pb) * k))
+    # 2026-11-22 (user, chart analysis): 砦 = the CURRENT H4 protected level only (one line); older fortress levels that are still
+    # alive are shown as 抵抗体. The other timeframes keep their own 押し安値 / 戻り高値.
+    cur4 = next((o for o in out if o['kind'] == 'prot' and o['tf'] == 'H4'), None)
+    if cur4 is not None:
+        cur4['kind'] = 'fortress'
+    for o in out:
+        if o['kind'] == 'fortress' and o is not cur4:
+            o['kind'] = 'band'; o['side'] = 0
+    if cur4 is not None:                                     # the old fortress at the same price as the current one: not twice
+        out[:] = [o for o in out if not (o is not cur4 and o['type'] == 'h' and abs(o['p1'] - cur4['p1']) < 1e-9)]
     LS, _ = C15.lines(F); T15 = pd.to_datetime(F.m15.t).reset_index(drop=True)
     for ia, pa, ib, pb, cr, en, kind, broken in LS:
         if en is None and not broken and ib < len(T15):

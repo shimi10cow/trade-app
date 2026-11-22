@@ -327,8 +327,8 @@ function drawObj(x, l, sel) {
   const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
   if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
   else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
-    const nm = l.type === 'x' ? '決済' : l.kind === 'prot' ? eaName(l) + (l.moved ? '・動かした' : '') : eaName(l) + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
-    lab(nm + ' ' + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+    const nm = l.type === 'x' ? '決済' : l.kind === 'prot' || l.kind === 'band' ? eaName(l) + (l.moved ? '・動かした' : '') : eaName(l) + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
+    lab(nm + (l.kind === 'band' ? '' : ' ' + Number(l.p1).toFixed(dig)) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
   else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
     const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke();
     if (l.src === 'ea' || l.note) lab((l.src === 'ea' ? eaName(l) + (l.moved ? '・動かした' : '') + ' ' : '') + (l.note || ''), bx + 4, by - 4); }
