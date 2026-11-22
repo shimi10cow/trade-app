@@ -272,30 +272,45 @@ function ealManualTrades_() {
 /** 2026-11-22 (user): the weekly report on the phone. The PC sends the finished HTML (report.py); it is kept as ONE private Drive
  *  file (overwritten each time, never shared) and served by doGet ?action=report&k=<view key> (Code.gs), so one bookmarked URL
  *  always shows the newest report. The key is made once and returned to the PC, which prints the URL. */
+// 2026-11-22: parts. 'html' (b.html64): the whole page (doGet ?action=report). 'main' / 'pairs' (b.data64): the report's data as JSON,
+// read by the app's report.html (no Google banner, faster); 'pairs' = the all-pairs charts, loaded only when that tab opens.
+const EAL_REPORT_PART_ = {html: ['REPORT_FILE_ID', 'EA_report_latest.html', 'text/html'], main: ['REPORT_MAIN_ID', 'EA_report_main.json', 'application/json'],
+                          pairs: ['REPORT_PAIRS_ID', 'EA_report_pairs.json', 'application/json']};
 function ealReportUpload_(b) {
-  const p = PropertiesService.getScriptProperties(), token = ScriptApp.getOAuthToken();
-  const blob = Utilities.newBlob(Utilities.base64Decode(String(b.html64 || '')), 'text/html', 'EA_report_latest.html');
+  const p = PropertiesService.getScriptProperties(), token = ScriptApp.getOAuthToken(), part = EAL_REPORT_PART_[String(b.part || 'html')];
+  if (!part) throw new Error('unknown part');
+  const blob = Utilities.newBlob(Utilities.base64Decode(String(b.html64 || b.data64 || '')), part[2], part[1]);
   if (!blob.getBytes().length) throw new Error('empty report');
-  let id = p.getProperty('REPORT_FILE_ID'), ok = false;
+  let id = p.getProperty(part[0]), ok = false;
   if (id) {                                                           // overwrite the same file
     const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files/' + id + '?uploadType=media',
-      {method: 'patch', contentType: 'text/html', payload: blob.getBytes(), headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
+      {method: 'patch', contentType: part[2], payload: blob.getBytes(), headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
     ok = r.getResponseCode() < 300;
   }
   if (!ok) {                                                          // first time (or the file was deleted): a new private file
     const boundary = 'rep_' + Utilities.getUuid().replace(/-/g, '');
-    const head = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: 'EA_report_latest.html', mimeType: 'text/html'})
-      + '\r\n--' + boundary + '\r\nContent-Type: text/html\r\n\r\n';
+    const head = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: part[1], mimeType: part[2]})
+      + '\r\n--' + boundary + '\r\nContent-Type: ' + part[2] + '\r\n\r\n';
     const body = Utilities.newBlob(head).getBytes().concat(blob.getBytes()).concat(Utilities.newBlob('\r\n--' + boundary + '--').getBytes());
     const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       {method: 'post', contentType: 'multipart/related; boundary=' + boundary, payload: body, headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
     const j = JSON.parse(r.getContentText() || '{}'); if (!j.id) throw new Error('Drive: ' + r.getContentText().slice(0, 200));
-    id = j.id; p.setProperty('REPORT_FILE_ID', id);
+    id = j.id; p.setProperty(part[0], id);
   }
   let k = p.getProperty('REPORT_VIEW_KEY');
   if (!k) { k = Utilities.getUuid().replace(/-/g, ''); p.setProperty('REPORT_VIEW_KEY', k); }
   p.setProperty('REPORT_UPLOADED_AT', ealNow_());
   return {success: true, viewKey: k, bytes: blob.getBytes().length};
+}
+/** doGet ?action=reportData&k=...&part=main|pairs: the report's data for the app's report.html (JSON; wrong key: an error object). */
+function ealReportData2_(q) {
+  const p = PropertiesService.getScriptProperties(), k = p.getProperty('REPORT_VIEW_KEY'), part = EAL_REPORT_PART_[String(q.part || 'main')];
+  const out = o => ContentService.createTextOutput(typeof o === 'string' ? o : JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+  if (!k || String(q.k || '') !== k) return out({success: false, error: 'key'});
+  const id = part && part[2] === 'application/json' ? p.getProperty(part[0]) : '';
+  if (!id) return out({success: false, error: 'not made yet'});
+  const r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', {headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true});
+  return r.getResponseCode() < 300 ? out(r.getContentText('UTF-8')) : out({success: false, error: 'drive ' + r.getResponseCode()});
 }
 /** doGet ?action=report&k=...: the newest report as a page (phone browser). Wrong / missing key: a short message only. */
 function ealReportView_(q) {

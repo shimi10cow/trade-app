@@ -376,6 +376,11 @@ function tfBtns(home) {
 window.step = function (k) { const o = S.order || []; if (!o.length) return; const i = o.indexOf(S.sel); const j = i < 0 ? 0 : Math.max(0, Math.min(o.length - 1, i + k)); if (o[j] !== S.sel) pick(o[j]); };
 function pxSec() {      // all pairs of the app: weekend chart analysis with the EA's lines
   const ps = D.pairs || [];
+  if (D.pairsUrl && !D._pairs) {      // the phone page (report.html): the all-pairs charts are loaded only now (they are the big part)
+    D._pairs = 1; D.pcharts = D.pcharts || {};
+    fetch(D.pairsUrl).then(r => r.json()).then(j => { if (j && j.success === false) throw new Error(j.error); D.pcharts = j || {}; D._pairs = 2; if (S.tab === 's-px') draw(); })
+      .catch(e => { D._pairs = 0; mkMsg && mkMsg('全通貨のチャートを読み込めませんでした: ' + e.message, '#f87171'); });
+  }
   if (!S.sel && ps.length) S.sel = 'P' + ps[0].sym;
   pxList();
   tfBtns('最新へ');
@@ -469,7 +474,7 @@ function chart() {
   if (!t) { $('#tinfo').innerHTML = ''; return; }
   info(t);
   const SRC = t.kind === 'P' ? D.pcharts : D.charts, B = (SRC[t.sym] || {})[S.tf], dig = (SRC[t.sym] || {}).dig ?? 5;
-  if (!B || !B[0].length) { x.fillStyle = '#94a3b8'; x.fillText('この銘柄・足のチャートデータがありません', 12, 24); return; }
+  if (!B || !B[0].length) { x.fillStyle = '#94a3b8'; x.fillText(t.kind === 'P' && D._pairs === 1 ? '全通貨のチャートを読み込み中…' : 'この銘柄・足のチャートデータがありません', 12, 24); return; }
   const [T, O, Hh, L, C] = B, n = T.length, key = S.sel + S.tf;
   if (t.kind === 'P' && (!S.view || S.view.key !== key)) { const want = {M15: 160, H1: 160, H4: 150, D1: 200}[S.tf]; S.view = {key, n: want, i0: Math.max(0, n - want + 12)}; }
   if (!S.view || S.view.key !== key) { const a = bs(T, t.et), b = t.xt ? bs(T, t.xt) : a, span = Math.max(b - a, 1), want = {M15: 160, H1: 140, H4: 120, D1: 140}[S.tf], nn = Math.max(want, span + 40);

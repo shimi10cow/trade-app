@@ -411,7 +411,12 @@ def build(data, refs, T, B, bars, days, pcharts=None):
                    gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []),
                    pairs=pairs, pcharts=pcharts or {}, manual=manual_trades(data.get('manual')))
     html = (Path(__file__).with_name('report_template.html')).read_text(encoding='utf-8')
+    global LAST_PAYLOAD
+    LAST_PAYLOAD = payload                      # for the phone upload (the app's report.html reads the data from GAS)
     return html.replace('/*__DATA__*/null', json.dumps(clean(payload), ensure_ascii=False, separators=(',', ':'), default=str))
+
+
+LAST_PAYLOAD = None
 
 
 def clean(o):
@@ -427,16 +432,40 @@ def clean(o):
     return o
 
 
+def app_url():
+    """the trade app's address (GitHub Pages of this repository): EA_APP_URL, else from the git remote"""
+    u = os.getenv('EA_APP_URL', '').strip()
+    if u:
+        return u.rstrip('/') + '/'
+    try:
+        import subprocess
+        r = subprocess.run(['git', '-C', str(ROOT), 'remote', 'get-url', 'origin'], capture_output=True, text=True, timeout=20).stdout.strip()
+        m = re.search(r'github\.com[:/]([^/]+)/([^/.]+)', r)
+        if m:
+            return f'https://{m.group(1).lower()}.github.io/{m.group(2)}/'
+    except Exception:
+        pass
+    return ''
+
+
 def phone_upload(f, out):
-    """2026-11-22 (user): the same report on the phone. Sent to GAS (kept as one private Drive file, overwritten each time); the phone
-    opens <GAS URL>?action=report&k=<key> (bookmark it once; the URL stays the same). Never fails the report."""
+    """2026-11-22 (user): the report on the phone, like the trade app (no Google banner, quicker). The data goes to GAS as two JSON
+    files (main; the all-pairs charts apart, loaded only when that tab opens); the app's report.html reads them. The URL stays
+    the same: bookmark it / add it to the home screen once. Never fails the report."""
     try:
         import base64
+        from urllib.parse import quote
         from mt5_ea.live import gas
-        r = gas.call('eaReportUpload', {'html64': base64.b64encode(f.read_bytes()).decode()}, timeout=300)
-        url = f"{os.getenv('EA_GAS_URL', '')}?action=report&k={r.get('viewKey')}"
+        P = dict(LAST_PAYLOAD or {}); pc = P.pop('pcharts', None) or {}; P['pcharts'] = {}
+        enc = lambda o: base64.b64encode(json.dumps(clean(o), ensure_ascii=False, separators=(',', ':'), default=str).encode('utf-8')).decode()
+        a = enc(P); b = enc(pc)
+        r = gas.call('eaReportUpload', {'part': 'main', 'data64': a}, timeout=300)
+        gas.call('eaReportUpload', {'part': 'pairs', 'data64': b}, timeout=300)
+        g = os.getenv('EA_GAS_URL', '')
+        url = f"{app_url()}report.html#k={r.get('viewKey')}&g={quote(g, safe='')}"
         (out / 'phone_url.txt').write_text(url + '\n', encoding='utf-8')
-        print(f'スマホ用にも送りました（{len(f.read_bytes()) / 1e6:.1f} MB）。スマホではこの URL を開く（ブックマーク推奨、毎回同じ URL）:\n  {url}', flush=True)
+        print(f'スマホ用にも送りました（{len(a) * 3 / 4 / 1e6:.1f} MB ＋ 全通貨チャート {len(b) * 3 / 4 / 1e6:.1f} MB）。'
+              f'スマホではこの URL を開く（ホーム画面に追加しておくと、アプリのように開ける。毎回同じ URL）:\n  {url}', flush=True)
     except Exception as ex:
         print(f'スマホ用には送れませんでした（{str(ex)[:150]}）。GAS 反映がまだなら、反映してからもう一度。', flush=True)
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>EA レポート</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="EA レポート">
+<meta name="theme-color" content="#0b1220"><link rel="apple-touch-icon" href="icon-180x180.png">
+<style>body{margin:0;background:#0b1220;color:#94a3b8;font:14px -apple-system,"Hiragino Sans",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:16px;box-sizing:border-box}</style>
+</head><body><div id="msg">EA レポートを読み込み中…</div>
+<script>
+/* 2026-11-22 (user): the EA weekly report on the phone like the trade app (no Google banner). The PC sends the report's data to GAS
+   (mt5_ea/live/report.py phone_upload); this page reads it and shows it with the same page as the PC (mt5_ea/live/report_template.html).
+   URL: report.html#k=<view key>&g=<GAS URL> (printed by the PC; kept on this phone, so the home-screen icon works without it). */
+(async () => {
+  const msg = t => { document.getElementById('msg').textContent = t; };
+  const h = new URLSearchParams(location.hash.slice(1));
+  let k = h.get('k'), g = h.get('g');
+  try { if (k) localStorage.setItem('eaRepK', k); else k = localStorage.getItem('eaRepK');
+        if (g) localStorage.setItem('eaRepG', g); else g = localStorage.getItem('eaRepG'); } catch (e) {}
+  if (!k || !g) { msg('URL が足りません。PC でレポートを作った時に出る URL を開いてください。'); return; }
+  const base = g + '?action=reportData&k=' + encodeURIComponent(k);
+  try {
+    const [tpl, data] = await Promise.all([
+      fetch('mt5_ea/live/report_template.html?t=' + Date.now()).then(r => { if (!r.ok) throw new Error('page ' + r.status); return r.text(); }),
+      fetch(base + '&part=main').then(r => r.text())]);
+    if (/^\s*\{"success":false/.test(data)) { msg(/key/.test(data) ? 'URL の鍵が違います。PC で出た最新の URL を開いてください。' : 'まだレポートが送られていません。PC で EA_REPORT.bat を押してください。'); return; }
+    const json = data.replace(/^\s*\{/, '{"pairsUrl":' + JSON.stringify(base + '&part=pairs') + ',').replace(/<\/script/gi, '<\\/script');
+    document.open(); document.write(tpl.replace('/*__DATA__*/null', json)); document.close();
+  } catch (e) { msg('読み込めませんでした（' + e.message + '）。電波を確かめて開き直してください。'); }
+})();
+</script></body></html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v284';
+const CACHE_NAME = 'trade-app-v285';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -29,7 +29,9 @@ self.addEventListener('fetch', event => {
     url.pathname.endsWith('/ea_ideas.js') ||
     url.pathname.endsWith('/opendata.js') ||
     url.pathname.endsWith('/mt5_tab.js') ||
-    url.pathname.endsWith('/style.css');
+    url.pathname.endsWith('/style.css') ||
+    url.pathname.endsWith('/report.html') ||               // the EA report page (2026-11-22): always fresh, never stored
+    url.pathname.endsWith('/report_template.html');
 
   if (liveAsset) {
     // Code/UI files must always come from the network. Keeping old JS as an
