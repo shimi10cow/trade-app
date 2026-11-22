@@ -477,11 +477,18 @@ def evaluate(mk, profiles, since=None):
     return res
 
 
-def armed(mk, profiles):
-    """2026-11-22 (user): 「もうすぐエントリー」 for the pair tab: know it BEFORE the entry. A line of a profile that is on, price came back
-    to it (a touch), and since then: no H4 close through the line (the line's own end rule, brk), no M15 turn yet (the turn is the entry / the alert). No 12-hour limit (user: keep it until it fails).
-    The profile's conditions are met now, the score without the M15 TL point (user: "one M15 TL more and it is a full entry",
-    so 4 -> 3 with the presets). -> [{sym, side, method, kind, line, text}], one per line."""
+STAR_ATR = float(os.getenv('EA_STAR_ATR') or 2.5)
+
+
+def armed(mk, profiles, zone=None):
+    """2026-11-22 (user): 「もうすぐ」 for the pair tab, about a day BEFORE the entry. A line of a profile that is on (H4 出入口 / 砦,
+    still alive: no H4 close through it, within its life), price has broken out and left it by `away` ATR(H4) at least once, and is now
+    within `zone` ATR(H4) of it on the trade side (2.5: in the past alerts of EURUSD / EURJPY price was 1.65 ATR away 24 h before the
+    alert on the median; with 2.5 the star came a median 24 h ahead, 16 h for the first quarter). Gone when price runs further than
+    `zone` (trend went on), when an H4 close goes through the line, or once the M15 turn came after a touch (the entry / the alert).
+    The profile's conditions are checked now, the score without the M15 TL point (4 -> 3 with the presets).
+    -> [{sym, side, method, kind, line, dist, text}], one per line."""
+    zone = STAR_ATR if zone is None else zone
     out, seen = [], set(); last = len(mk.TM) - 1
     if last < 1:
         return out
@@ -489,21 +496,24 @@ def armed(mk, profiles):
     for prof in profiles:
         if not prof.get('on') or (prof.get('pairs') and mk.sym not in prof['pairs']):
             continue
-        near, away, life = float(prof.get('near', 0.3)), float(prof.get('away', 1.0)), float(prof.get('life', 30))
+        near, away, life, brk = float(prof.get('near', 0.3)), float(prof.get('away', 1.0)), float(prof.get('life', 30)), float(prof.get('brk', 0.0))
         for scene, sd, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
             if born + int(lf) * DAY < now:
                 continue
-            tch, A = mk.touches(L, sd, born, lf, near, away, float(prof.get('brk', 0.0)))
-            if not tch:
+            A = mk.a4(born)
+            k0 = int(np.searchsorted(mk.C4, born, side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
+            if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < -brk * A).any():      # an H4 close went through the line: gone
                 continue
-            q, n = tch[-1]
-            brk = float(prof.get('brk', 0.0))
-            k0 = int(np.searchsorted(mk.C4, mk.TM[q], side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
-            if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < -brk * A).any():        # an H4 close went through the line: gone
+            q0 = int(np.searchsorted(mk.TM, born))
+            d = sd * (mk.MC[q0:last + 1] - L) / A
+            if not len(d) or not (d >= away).any() or d[-1] > zone:                    # never left yet / too far now
                 continue
-            if mk.turn_after(q, L, sd, A, n=last - q + 1, stop=None) is not None:      # turned already (entry / alert)
-                continue
-            ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=n, tq=mk.CL[q])
+            out_ = np.nonzero(d > zone)[0]
+            z = q0 + (int(out_[-1]) + 1 if len(out_) else int(np.argmax(d >= away)))     # where this approach began
+            tch, _ = mk.touches(L, sd, born, lf, near, away, brk)
+            if any(q >= z and mk.turn_after(q, L, sd, A, n=last - q + 1, stop=None) is not None for q, _n in tch):
+                continue                                                               # turned already (entry / alert)
+            ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=1, tq=now)
             ok = True
             for key, par in (prof.get('conds') or {}).items():
                 if key in CATALOG:
@@ -520,8 +530,9 @@ def armed(mk, profiles):
             seen.add((sd, scene, line))
             d1 = mk.check('d1ma', {'period': 75, 'slope': 10}, ev)
             meth = ('1' if d1 else '6') if scene == 'gateway' else (('2' if d1 else '7') if scene == 'fortress' else '')
-            out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line,
-                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}"))
+            dist = round(float(max(d[-1], 0.0)), 1)
+            out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line, dist=dist,
+                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}（あと {dist} ATR）"))
     return out
 
 
