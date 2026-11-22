@@ -265,7 +265,7 @@ def match(T, B):
 
 
 # ---------------------------------------------------------------- every pair of the app (weekend chart analysis, 2026-11-22)
-PAIR_DAYS = {'D1': 3 * 365, 'H4': 250, 'H1': 60, 'M15': 14}     # + 400 days of M15 for the EA lines (same as the alerts window)     # how far back each timeframe is shown (file size: ~8 MB for 42 pairs)
+PAIR_DAYS = {'D1': 3 * 365, 'H4': 250, 'H1': 60, 'M15': 28}     # + 400 days of M15 for the EA lines (same as the alerts window)     # how far back each timeframe is shown (file size: ~8 MB for 42 pairs)
 
 
 def _dig(sym, broker=None, name=None):
@@ -508,7 +508,7 @@ def main(argv=None):
         try:
             from mt5_ea.live import gas, pair_env
             pl = pair_env.app_pairs(gas)
-            print(f'  全通貨のチャート（{len(pl)} ペア、日足 3 年・H4 250 日・H1 60 日・M15 14 日）', flush=True)
+            print(f'  全通貨のチャート（{len(pl)} ペア、日足 3 年・H4 250 日・H1 60 日・M15 28 日）', flush=True)
             pcharts = pair_charts(broker, pl)
         except Exception as ex:
             log.warning('all-pairs charts: %s', ex); print(f'  全通貨のチャートは作れませんでした（{ex}）', flush=True)
