@@ -959,6 +959,7 @@ function openEntryModal(isMissed = false) {
   App.state.planContext = null; // 直接エントリー時はプラン文脈をリセット
   App.state.neFavorite = false;
   App.state.neImages = [];
+  App.state.neOB = ''; setTimeout(function(){renderOb_('ne');},0);
   App.state.imagePasteTarget = 'entry';
   updateNeFavButton();
   setTimeout(function(){renderNewEntryImages_();},0);
@@ -2561,10 +2562,10 @@ function shrinkLongSide_(dataUrl, maxSide, quality) {
     img.onerror = () => resolve(dataUrl); img.src = dataUrl;
   });
 }
-async function uploadImageSmart(dataUrl, filename) {
+async function uploadImageSmart(dataUrl, filename, maxSide, quality) {
   if (!navigator.onLine) return compressForSpreadsheet(dataUrl);
   try {
-    const small = await shrinkLongSide_(dataUrl, 1600, 0.85);
+    const small = await shrinkLongSide_(dataUrl, maxSide || 1600, quality || 0.85);
     const res = await gasPost({ action: 'uploadImage', base64Data: small, filename: filename || ('img_' + Date.now() + '.jpg') });
     if (res.success && res.fileId) return 'drive_images/' + res.fileId + '.jpg';
   } catch (e) {
@@ -5281,6 +5282,8 @@ async function submitEntryData() {
     // 画像保存：Drive優先、失敗時はbase64フォールバック
     const neImgs=(App.state.neImages||[]).slice(0,4);
     for(let i=0;i<neImgs.length;i++) entryData[i===0?'ChartImage':'ChartImage'+(i+1)] = await uploadImageSmart(neImgs[i], 'entry_'+(i+1)+'_'+Date.now()+'.jpg');
+    // OANDA のオーダーブック（2026-11-22）：棒の長さを後で測るので大きめ・高画質で保存
+    if (App.state.neOB) entryData['OrderBookImage'] = await uploadImageSmart(App.state.neOB, 'orderbook_' + Date.now() + '.jpg', 2600, 0.92);
 
     // GAS に saveEntry POST（オフライン時はキューに退避）
     const res = await gasPostQueued({ action: 'saveEntry', data: entryData }, 'エントリー記録: ' + pairName);
@@ -5333,6 +5336,14 @@ function addImageFileToList_(file,listKey,render){
   var arr=App.state[listKey]||(App.state[listKey]=[]);if(arr.length>=4){showToast('画像は最大4枚です');return false;}
   var reader=new FileReader();reader.onload=function(e){arr.push(e.target.result);render();};reader.readAsDataURL(file);return true;
 }
+// ---- OANDA オーダーブックの画像（2026-11-22）：エントリーごとに 1 枚。後で棒の長さから価格ごとの % を読む
+function onObImage(input,where){var f=input.files&&input.files[0];input.value='';if(!f||!String(f.type||'').startsWith('image/'))return;var r=new FileReader();r.onload=function(e){if(where==='ne')App.state.neOB=e.target.result;else App.state.tdOB={preview:e.target.result};renderOb_(where);};r.readAsDataURL(f);}
+function clearObImage(where){if(where==='ne')App.state.neOB='';else App.state.tdOB=null;renderOb_(where);}
+function renderOb_(where){var wrap=document.getElementById(where+'-ob-wrap'),img=document.getElementById(where+'-ob-preview'),lab=document.getElementById(where+'-ob-label');if(!wrap||!img)return;
+  var src=where==='ne'?(App.state.neOB||''):(App.state.tdOB?(App.state.tdOB.preview||getImageUrl(App.state.tdOB.raw)||App.state.tdOB.raw):'');
+  img.src=src||'';wrap.style.display=src?'block':'none';if(lab)lab.textContent=src?'✅ オーダーブック画像あり（タップで差し替え）':'📊 オーダーブック（OANDA）の画像を追加';}
+window.onObImage=onObImage;window.clearObImage=clearObImage;
+
 function previewUploadImage(input){selectImagePasteTarget_('entry');if(input.files&&input.files[0]){addImageFileToList_(input.files[0],'neImages',renderNewEntryImages_);input.value='';}}
 function setImageFileInput_(input,file,previewFn,slot){
   if(!input||!file||!String(file.type||'').startsWith('image/'))return false;
@@ -5609,6 +5620,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   App.state.detailExitImages=tradeExitImages(t).map(raw=>({raw:raw}));
   App.state.imagePasteTarget='entry';
   setTimeout(renderTradeDetailImages_,0);
+  App.state.tdOB=String(t['OrderBookImage']||'').trim()?{raw:String(t['OrderBookImage']).trim()}:null; setTimeout(function(){renderOb_('td');},0);
 
   // 事前チャート（トレードプラン時のシナリオ画像・読み取り専用）
   const planImgArea = document.getElementById('td-plan-image-area');
@@ -5941,6 +5953,9 @@ async function saveTradeDetail() {
       await saveImgs(App.state.detailEntryImages||[],entryFields,'entry');
       await saveImgs(App.state.detailExitImages||[],exitFields,'exit');
     }
+    { const ob=App.state.tdOB, had=String(t['OrderBookImage']||'');
+      if(ob&&ob.preview) updateData['OrderBookImage']=await uploadImageSmart(ob.preview,'orderbook_'+Date.now()+'.jpg',2600,0.92);
+      else if(!ob&&had) updateData['OrderBookImage']=''; }
 
     const res=await gasPostQueued({action:'updateEntry',entryId:entryId,data:updateData},'トレード更新: '+entryId);if(!res.success)throw new Error(res.error||'保存に失敗しました');Object.assign(t,updateData);
 

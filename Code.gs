@@ -308,6 +308,15 @@ function resetPairFlags() {
 // =============================================
 // トレード保存
 // =============================================
+// 2026-11-22: columns added later to the trades sheet; created on first use (OANDA order / position book screenshot at entry)
+const ENTRY_EXTRA_COLS_ = ['OrderBookImage'];
+function ensureEntryCols_(sheet, headers, data) {
+  const miss = ENTRY_EXTRA_COLS_.filter(k => data && data[k] !== undefined && headers.indexOf(k) < 0);
+  if (!miss.length) return headers;
+  sheet.getRange(1, headers.length + 1, 1, miss.length).setValues([miss]);
+  return headers.concat(miss);
+}
+
 function saveEntry(entryData) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -317,8 +326,8 @@ function saveEntry(entryData) {
     const sheet = ss.getSheetByName(entriesSheetName_());
 
     // ヘッダー取得
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-      .map(h => String(h).trim());
+    const headers = ensureEntryCols_(sheet, sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+      .map(h => String(h).trim()), entryData);
 
     // EntryID生成（UUIDの先頭8文字）
     const entryId = Utilities.getUuid().substring(0, 8);
@@ -362,14 +371,15 @@ function updateEntry(entryId, updateData) {
   try {
     const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(entriesSheetName_());
     const data = sheet.getDataRange().getValues();
-    const headers = data[0].map(h => String(h).trim());
+    const headers0 = data[0].map(h => String(h).trim());
+    const headers = ensureEntryCols_(sheet, headers0, updateData);
     const idCol = headers.indexOf('EntryID');
 
     if (idCol < 0) return { success: false, error: 'EntryID列が見つかりません' };
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][idCol]).trim() === String(entryId).trim()) {
-        const row = data[i].slice();
+        const row = data[i].slice().concat(new Array(headers.length - headers0.length).fill(''));
         if (typeof tradesCollapse_ === 'function' && typeof tradesActive_ === 'function' && tradesActive_()) {
           const cur = {}; headers.forEach((h, j) => cur[h] = row[j]);
           updateData = tradesCollapse_(updateData, tradesExpand_(cur));
