@@ -366,10 +366,18 @@ function pxList() {
 }
 // tools (2026-11-22): each tool draws ONE object and goes back to ✋ 動かす. In ✋ 動かす: tap an object -> ✕ appears (tap ✕ to delete),
 // drag an object to move it, drag the empty chart to scroll.
+// undo (2026-11-22, user): every add / move / delete / note of an object is kept; ↶ 戻る (or Ctrl+Z) puts the lines back one step.
+// The history belongs to the trade / pair that is open (up to 50 steps) and is not saved; the undone state is saved as usual.
+function snap(d, tag) { if (!d) return; d.hist = d.hist || []; if (tag && d.histTag === tag) return; d.histTag = tag || '';
+  d.hist.push(JSON.stringify(d.lines)); if (d.hist.length > 50) d.hist.shift(); drawBtns(); }
+window.undoLine = function () { const t = cur(); if (!t) return; const d = draft(t); if (!d.hist || !d.hist.length) return;
+  d.lines = JSON.parse(d.hist.pop()); d.histTag = ''; d.dirty = true; S.pick = -1; S.pend = null; drawBtns(); chart(); markPanel(); };
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA/.test((e.target || {}).tagName || '')) { e.preventDefault(); undoLine(); } });
 function drawBtns() {
   const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart()">${l}</button>`;
   $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}
-`;
+    ${(() => { const t = cur(), d = t && S.draft && S.draft.key === S.sel ? S.draft : null, n = d && d.hist ? d.hist.length : 0;
+      return `<button class="t" onclick="undoLine()" ${n ? '' : 'disabled style="opacity:.4"'}>↶ 戻る${n ? ' (' + n + ')' : ''}</button>`; })()}`;
 }
 // ------------------------------------------------------------ chart
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
@@ -499,7 +507,7 @@ function objNote(d) {           // the one-line note of the picked object
   return `<div style="margin-top:8px"><span class="mut" style="font-size:12px;font-weight:700">✏️ 選んだ${esc(nm)}の一言</span>
     <input id="objnote" style="width:100%;margin-top:4px" maxlength="60" value="${esc(l.note || '')}" placeholder="例：ここで反発を待つ" oninput="objSetNote(this.value)"></div>`;
 }
-window.objSetNote = v => { const t = cur(), d = draft(t), l = d.lines[S.pick]; if (!l) return; l.note = v; l.at2 = nowJ(); if (l.src === 'ea') l.moved = l.moved || 0; d.dirty = true; chart(); mkMsg(); };
+window.objSetNote = v => { const t = cur(), d = draft(t), l = d.lines[S.pick]; if (!l) return; snap(d, 'note' + S.pick); l.note = v; l.at2 = nowJ(); if (l.src === 'ea') l.moved = l.moved || 0; d.dirty = true; chart(); mkMsg(); };
 window.mkFlag = v => { const d = draft(cur()); d.flag = d.flag === v ? '' : v; d.dirty = true; markPanel(); };
 function markPanel() {
   const t = cur(); if (!t) { $('#tmark').innerHTML = ''; return; } const d = draft(t);
@@ -590,6 +598,7 @@ const objDraftBase = d => { const t = objOf(d.key) || {}; return {v: t.v || '', 
   });
   cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 4) moved = true; if (!moved) return;
     const q = pos(e);
+    if (drag && !drag.snapped) { drag.snapped = 1; const d0 = mark(); if (d0) { d0.histTag = ''; d0.hist = d0.hist || []; d0.hist.push(JSON.stringify(Object.assign([], d0.lines, {[drag.k]: drag.o}))); if (d0.hist.length > 50) d0.hist.shift(); } }
     if (drag && drag.h && G) { const d = mark(), l = d.lines[drag.k];       // one of the 2 points: angle / size
       if (l.src === 'ea' && !l.moved) { l.moved = 1; l.op = drag.o.p1; l.op2 = drag.o.p2; l.ot1 = drag.o.t1; l.ot2 = drag.o.t2; }
       l['t' + drag.h] = G.toT(q.x); l['p' + drag.h] = G.toP(q.y); l.at2 = nowJ(); d.dirty = true; chart(); return; }
@@ -603,15 +612,16 @@ const objDraftBase = d => { const t = objOf(d.key) || {}; return {v: t.v || '', 
     });
   cv.addEventListener('pointerup', e => { const was = p, dr = drag; p = null; drag = null; if (!was || !G) return; const t = cur(); if (!t) return; const d = draft(t), q = pos(e);
     if (S.mode === 'pan') {
-      if (was.del) { const l = d.lines[S.pick]; if (l) { if (l.src === 'ea' || t.kind === 'P') l.del = nowJ(); else d.lines.splice(S.pick, 1); d.dirty = true; } S.pick = -1; chart(); markPanel(); return; }
+      if (dr && dr.snapped) drawBtns();
+      if (was.del) { const l = d.lines[S.pick]; if (l) { snap(d); if (l.src === 'ea' || t.kind === 'P') l.del = nowJ(); else d.lines.splice(S.pick, 1); d.dirty = true; } S.pick = -1; chart(); markPanel(); return; }
       if (dr) { if (!moved && !dr.h) { S.pick = dr.k; S.pickAt = q; } chart(); markPanel(); return; }
       if (!moved) { S.pick = -1; chart(); markPanel(); }
       return;
     }
     if (moved && !S.pend) return;
     if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y), base = {tf: S.tf, at: nowJ()};
-    if (S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es') { d.lines.push(Object.assign({type: S.mode, t1: tm, p1: pr}, base)); }
-    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = Object.assign({type: S.mode, t1: tm, p1: pr, t2: tm, p2: pr}, base); chart(); return; } S.pend.t2 = tm; S.pend.p2 = pr; d.lines.push(S.pend); S.pend = null; }
+    if (S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es') { snap(d); d.lines.push(Object.assign({type: S.mode, t1: tm, p1: pr}, base)); }
+    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = Object.assign({type: S.mode, t1: tm, p1: pr, t2: tm, p2: pr}, base); chart(); return; } S.pend.t2 = tm; S.pend.p2 = pr; snap(d); d.lines.push(S.pend); S.pend = null; }
     d.dirty = true; S.pick = d.lines.length - 1; S.pickAt = q; S.mode = 'pan'; drawBtns(); chart(); markPanel(); });
   cv.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 0.87); }, {passive: false});
   cv.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = Math.abs(e.touches[0].clientX - e.touches[1].clientX); }, {passive: true});

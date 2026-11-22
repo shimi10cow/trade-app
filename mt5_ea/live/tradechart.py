@@ -132,6 +132,12 @@ def draw_tf(m15, tf, side, entry_t, entry_px, sl, tp=None, exit_t=None, exit_px=
         if focus == 'exit' and exit_t is not None and entry_t >= exit_t - (before + after) * bar * 0.85:
             start = min(start, entry_t - 25 * bar)              # keep the entry in view when it fits
         end = anchor + after * bar
+        if focus == 'trade':                                    # 2026-11-22 (user): one chart per timeframe, the whole trade in view
+            last = exit_t if exit_t is not None else x.index[-1]
+            span = max(1, int((last - entry_t) / bar))
+            b0, a0 = {'D1': (90, 10), 'H4': (90, 15), 'H1': (96, 12), 'M15': (96, 16)}[tf]
+            b0 = max(24, min(b0, 400 - span)) if tf == 'M15' else b0   # a long hold on M15: less before, the trade itself always fits
+            start, end = entry_t - b0 * bar, last + a0 * bar
         g = x[(x.index >= start) & (x.index <= end)]
         if len(g) < 10:
             return None
