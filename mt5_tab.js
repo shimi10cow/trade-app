@@ -44,32 +44,48 @@
     act('保存中…', 'eaImportSaveSettings', S.d.settings, () => '設定を保存しました（次の取り込みから使われます）');
   };
   const feat = () => (S.d && S.d.features) || {};          // what the deployed GAS can do (older GAS: no trash / undo)
-  // 2026-11-22: 記録にする opens the trade's detail AT ONCE (a local copy of the draft); the record itself runs in the background.
-  // When it is done, the trend arrows GAS filled in (the PC's arrows at the entry time) go into the detail where still empty.
-  // Saving the detail sends the update after the record has finished and opens the history (app.js saveTradeDetail).
+  // 2026-11-22 (user): 記録にする opens the trade's detail AT ONCE (a local copy of the draft) and records NOTHING yet.
+  // Only 保存 in the detail records it (in the background: eaImportAdopt, then the detail's update) and opens the history.
+  // Closing the detail without saving leaves the trade in 確認が必要なトレード. The trend arrows of the entry time are read
+  // (eaImportTrend, read only) and filled into the empty arrows while the detail is open.
   window.mt5Adopt = function (id) {
     const dr = ((S.d && S.d.drafts) || []).find(x => String(x.trade.EntryID) === String(id));
-    if (!dr || typeof openTradeDetail !== 'function') return act('保存中…', 'eaImportAdopt', {entryId: id}, r => '記録にしました');
-    const t = Object.assign({}, dr.trade); t['ステータス'] = t.ExitDate ? '決済' : '保有中';
+    if (!dr || typeof openTradeDetail !== 'function') return;
+    const t = Object.assign({}, dr.trade); t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t._mt5Draft = 1;
     let i = (App.data.entries || []).findIndex(x => String(x.EntryID) === String(id));
     if (i >= 0) App.data.entries[i] = t; else { App.data.entries.push(t); i = App.data.entries.length - 1; }
-    S.d.drafts = S.d.drafts.filter(x => x !== dr); render();
     App.state.fromMt5Adopt = String(id); openTradeDetail(i, false, false);
-    App.state.adoptP = App.state.adoptP || {};
-    App.state.adoptP[id] = call('eaImportAdopt', {entryId: id}).then(r => {
-      if (!r || r.success === false) throw new Error((r && r.error) || '記録できませんでした');
-      const tr = r.trend || {};
-      if (App.state.activeTradeIndex === i && document.getElementById('modal-trade-detail').classList.contains('active'))
-        ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(k => { if (!tr[k] || t[k]) return; t[k] = tr[k];
-          const g = document.getElementById('td-tf-' + k.toLowerCase()); if (g && !g.querySelector('.toggle-btn.active')) g.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.textContent.trim() === tr[k])); });
-      if (typeof loadData === 'function') try { loadData(); } catch (e) {}
-      load(); return r;
-    }).catch(e => { showToast('⚠️ 記録できませんでした: ' + e.message); load(); throw e; });
+    call('eaImportTrend', {entryId: id}).then(r => {
+      const tr = (r && r.trend) || {};
+      if (App.state.fromMt5Adopt !== String(id)) return;
+      ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(k => { if (!tr[k]) return;
+        const g = document.getElementById('td-tf-' + k.toLowerCase()); if (g && !g.querySelector('.toggle-btn.active')) g.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.textContent.trim() === tr[k])); });
+    }).catch(() => {});
+  };
+  // called by saveTradeDetail (app.js) when 保存 is pressed for a trade opened from 記録にする
+  window.mt5AdoptNow = async function (id) {
+    S.d.drafts = ((S.d && S.d.drafts) || []).filter(x => String(x.trade.EntryID) !== String(id)); render();
+    const r = await call('eaImportAdopt', {entryId: id});
+    if (!r || r.success === false) throw new Error((r && r.error) || '記録できませんでした');
+    load(); return r;
+  };
+  // the detail was closed without saving: drop the local copy, the draft stays in the list
+  window.mt5AdoptCancel = function (id) {
+    App.data.entries = (App.data.entries || []).filter(x => !(String(x.EntryID) === String(id) && x._mt5Draft));
+    if (typeof renderPositions === 'function') try { renderPositions(); } catch (e) {}
   };
   window.mt5Link = (d, e) => act('紐付け中…', 'eaImportLink', {draftId: d, entryId: e}, () => '手入力のトレードに紐付けました');
   window.mt5Split = id => act('分けています…', 'eaImportSplit', {draftId: id}, r => r.parts ? r.parts + ' つに分けました' : '分けるものがありません');
+  // 2026-11-22 (user): ask once in the page; OK -> the row disappears at once and the trash move runs in the background
   window.mt5Discard = function (id) {
-    if (feat().trash) return act('移しています…', 'eaImportDiscard', {draftId: id}, () => 'ゴミ箱に移しました（下の「ゴミ箱」から戻せます）');
+    const dr = findDraft(id);
+    if (feat().trash) return confirmSheet(`<div style="font-size:15px;font-weight:800;margin-bottom:6px">このトレードを削除しますか？</div>
+        <div style="font-size:12px;color:#94a3b8">${dr ? esc((dr.trade['PairName（元）'] || '') + ' ' + (dr.trade.Direction || '') + ' ' + (dr.trade.EntryDate || '') + ' ' + (dr.trade.EntryTime || '')) : ''}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:8px">ゴミ箱に移します（下の「ゴミ箱」から戻せます）。</div>`, '削除する', () => {
+      S.d.drafts = ((S.d && S.d.drafts) || []).filter(x => String(x.trade.EntryID) !== String(id)); render();
+      call('eaImportDiscard', {draftId: id}).then(r => { if (!r || r.success === false) throw new Error((r && r.error) || '失敗'); load(); })
+        .catch(e => { if (typeof showToast === 'function') showToast('⚠️ 削除できませんでした: ' + e.message); load(); });
+    });
     if (confirm('今の裏側（GAS）ではゴミ箱がまだ使えないため、消すと戻せず、同じ約定は次から出ません。消しますか？\n（次の GAS のデプロイからゴミ箱になります）'))
       act('削除中…', 'eaImportDiscard', {draftId: id}, () => '消しました');
   };

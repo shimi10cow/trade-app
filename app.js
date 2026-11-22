@@ -5764,7 +5764,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
 
 function closeTradeDetail() {
   document.getElementById('modal-trade-detail').classList.remove('active');
-  if (App.state.fromMt5Adopt && !App.state.savingDetail) App.state.fromMt5Adopt = null;
+  if (App.state.fromMt5Adopt && !App.state.savingDetail) { if (window.mt5AdoptCancel) window.mt5AdoptCancel(App.state.fromMt5Adopt); App.state.fromMt5Adopt = null; }
   // レビューから開いた詳細 → 閉じたらレビューに戻る
   if (App.state.returnToRetroReview) {
     const key = App.state.returnToRetroReview;
@@ -5956,8 +5956,9 @@ async function saveTradeDetail() {
       Object.assign(t, updateData); App.state.fromMt5Adopt = null;
       closeTradeDetail(); hideLoader(); renderPositions();
       if (typeof openHistoryModal === 'function') openHistoryModal();
-      showToast('💾 裏で保存しています');
-      try { await (App.state.adoptP || {})[entryId]; } catch (e) {}
+      showToast('💾 記録して、裏で保存しています');
+      try { if (window.mt5AdoptNow) await window.mt5AdoptNow(entryId); delete t._mt5Draft; }
+      catch (e) { showToast('⚠️ 記録できませんでした: ' + e.message); return; }
     }
     // 画像保存：Entry / Exit 各最大4枚。既存画像は維持し、新規data URLだけアップロードする。
     {

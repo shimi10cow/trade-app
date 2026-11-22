@@ -188,7 +188,42 @@ function execRead_() {
   const sh = execSheet_(), n = sh.getLastRow();
   if (n < 2) return {sh: sh, rows: []};
   const v = sh.getRange(2, 1, n - 1, EXEC_HEADERS_.length).getValues();
-  return {sh: sh, rows: v.map(function (r, i) { const o = {_row: i + 2}; EXEC_HEADERS_.forEach(function (k, j) { o[k] = r[j]; }); return o; })};
+  // 2026-11-22: "account:ticket" was turned into a time duration by the sheet ("3718737 days, 19:02:00"), so the same execution
+  // was added again on every import and executions lost their trade. The ID is always rebuilt from Account and Deal.
+  return {sh: sh, rows: v.map(function (r, i) { const o = {_row: i + 2}; EXEC_HEADERS_.forEach(function (k, j) { o[k] = r[j]; }); o.ExecID = execId_(o); return o; })};
+}
+function execId_(o) {
+  const acc = String(o.Account === undefined ? '' : o.Account).replace(/\.0+$/, '').trim(), deal = String(o.Deal === undefined ? '' : o.Deal).replace(/\.0+$/, '').trim();
+  return acc && deal ? acc + ':' + deal : String(o.ExecID || '');
+}
+/** 2026-11-22: repair of the Executions sheet (runs at the start of every import; also eaImportRepair):
+ *  1. ExecID as text from Account:Deal  2. the same execution only once (the row with a trade wins)
+ *  3. executions without a trade -> the recorded / linked trade with the same pair, direction and account whose time span holds them
+ *     (or the draft made from them)  4. drafts left without executions (copies made by the bug) are removed. */
+function impRepair_() {
+  let E = execRead_(); if (!E.rows.length) return {success: true};
+  const col = EXEC_HEADERS_.indexOf('ExecID') + 1;
+  const rg = E.sh.getRange(2, col, E.rows.length, 1); rg.setNumberFormat('@'); rg.setValues(E.rows.map(function (r) { return [r.ExecID]; }));
+  const keep = {}, drop = [];
+  E.rows.forEach(function (r) { const k = r.ExecID, o = keep[k]; if (!o) { keep[k] = r; return; } if (!o.TradeID && r.TradeID) { drop.push(o._row); keep[k] = r; } else drop.push(r._row); });
+  drop.sort(function (a, b) { return b - a; }).forEach(function (row) { E.sh.deleteRow(row); });
+  E = execRead_();
+  const T = trRead_(), live = T.rows.filter(function (t) { return ['ゴミ箱'].indexOf(String(t['ステータス'])) < 0 && String(t['PairName（元）'] || t.PairName || '').trim(); });
+  const ms = function (s) { return impDT_(String(s || '').replace(/\//g, '-')).ms; };
+  const span = function (t) { const a = impEntryMs_(t), b = t.ExitDate ? impDT_(String(t.ExitDate).replace(/\//g, '-').slice(0, 10) + ' ' + String(t.ExitTime || '23:59').slice(0, 5)).ms : Infinity; return [a - 60e3, b + 60e3]; };
+  const byPos = {}; E.rows.filter(function (r) { return !String(r.TradeID || '').trim(); }).forEach(function (r) { (byPos[r.Account + ':' + r.PositionID] = byPos[r.Account + ':' + r.PositionID] || []).push(r); });
+  let linked = 0;
+  Object.keys(byPos).forEach(function (k) {
+    const rs = byPos[k], a = impAggregate_(rs), pair = String(impAppPair_(a.symbol)).toUpperCase(), dir = String(a.direction).toUpperCase() === 'BUY' ? 'Buy' : 'Sell', t0 = ms(a.entry_time), acc = String(rs[0].Account).replace(/\.0+$/, '').trim();
+    const fits = live.filter(function (t) { const sp = span(t); return String(t['PairName（元）'] || t.PairName).toUpperCase() === pair && String(t.Direction) === dir && t0 >= sp[0] && t0 <= sp[1] && (!t.Accounts || String(t.Accounts).split(',').map(function (z) { return z.replace(/\.0+$/, '').trim(); }).indexOf(acc) >= 0); });
+    const best = fits.filter(function (t) { return t['ステータス'] !== '下書き'; })[0] || fits[0];
+    if (best) { execSetTradeId_(E, rs.map(function (r) { return r.ExecID; }), String(best.EntryID)); linked += rs.length; }
+  });
+  const has = {}; execRead_().rows.forEach(function (r) { if (r.TradeID) has[String(r.TradeID)] = 1; });
+  const empty = T.rows.filter(function (t) { return t['ステータス'] === '下書き' && !has[String(t.EntryID)]; }).map(function (t) { return t._row; });
+  empty.sort(function (a, b) { return b - a; }).forEach(function (row) { T.sh.deleteRow(row); });
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  return {success: true, duplicates: drop.length, linked: linked, emptyDrafts: empty.length};
 }
 function execSetTradeId_(E, ids, tradeId) {
   const want = {}; ids.forEach(function (x) { want[String(x)] = 1; });
@@ -271,6 +306,7 @@ function impTakeRequest_() {
 
 /** PC: results of one import run. */
 function impBatch_(b) {
+  const rep = impRepair_();
   const E = execRead_(), have = {}; E.rows.forEach(function (r) { have[String(r.ExecID)] = r; });
   const now = tradesNow_(), add = [];
   (b.executions || []).forEach(function (x) {
@@ -279,7 +315,7 @@ function impBatch_(b) {
     add.push(EXEC_HEADERS_.map(function (k) { return o[k] === undefined ? '' : o[k]; }));
     have[String(x.ExecID)] = o;
   });
-  if (add.length) E.sh.getRange(E.sh.getLastRow() + 1, 1, add.length, EXEC_HEADERS_.length).setValues(add);
+  if (add.length) { const r0 = E.sh.getLastRow() + 1; E.sh.getRange(r0, 1, add.length, 1).setNumberFormat('@'); E.sh.getRange(r0, 1, add.length, EXEC_HEADERS_.length).setValues(add); }   // ExecID as text: no time conversion
   const E2 = execRead_(), byExec = {}; E2.rows.forEach(function (r) { byExec[String(r.ExecID)] = r; });
   const T = trRead_(); trEnsureCols_(T, ['Accounts', 'ExecCount', 'MergeMode', 'Source', 'ExitPrice', 'ExitDate', 'ExitTime', 'Profit', 'Swap', 'EntryPrice', 'InitialSLPrice', 'TakeProfitPrice']);
   const byId = {}; T.rows.forEach(function (r) { byId[String(r.EntryID)] = r; });
@@ -324,7 +360,7 @@ function impBatch_(b) {
   impProps_().setProperty('IMPORT_STATUS', JSON.stringify(status));
   const req = impGet_('IMPORT_REQUEST', null);
   if (req && (!b.request_id || req.id === b.request_id)) impProps_().deleteProperty('IMPORT_REQUEST');
-  return {success: true, executionsNew: add.length, updated: updated, linked: linked, drafts: drafts};
+  return {success: true, executionsNew: add.length, updated: updated, linked: linked, drafts: drafts, repair: rep};
 }
 
 const IMP_LINK_HOURS_ = 3;      // default: a draft's link candidates are hand-written entries within this many hours
@@ -349,7 +385,10 @@ function impStatus_() {
   const T = trRead_(), E = execRead_();
   const st = impGet_('IMPORT_SETTINGS', {groupHours: 24, mergeAcross: true});
   const linkH = Number(st.linkHours) > 0 ? Number(st.linkHours) : IMP_LINK_HOURS_;
-  const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き' && String(t['PairName（元）'] || t.PairName || '').trim(); }).map(function (t) {   // empty shells are not listed
+  // 2026-11-22: a draft that is the same trade as one already recorded (pair, direction, entry date / time, lot) is not listed
+  const recKey = function (t) { return [String(t['PairName（元）'] || t.PairName || '').toUpperCase(), t.Direction, String(t.EntryDate || '').replace(/\//g, '-').slice(0, 10), String(t.EntryTime || '').slice(0, 5), Number(t.Lot || 0)].join('|'); };
+  const recorded = {}; T.rows.forEach(function (t) { if (['下書き', IMP_TRASH_].indexOf(String(t['ステータス'])) < 0) recorded[recKey(t)] = 1; });
+  const drafts = T.rows.filter(function (t) { return t['ステータス'] === '下書き' && String(t['PairName（元）'] || t.PairName || '').trim() && !recorded[recKey(t)]; }).map(function (t) {   // empty shells / copies of recorded trades are not listed
     const ex = impExecOf_(E, t.EntryID);
     // link candidates: hand-written trades (open or closed, the whole history) with the same pair and direction whose
     // entry is within linkH hours; not drafts / trash / missed entries / reservations / trades already linked to MT5
@@ -390,6 +429,12 @@ function impAdopt_(b) {
   if (Object.keys(put).length) { trEnsureCols_(T, ['TrendAuto']); t.TrendAuto = JSON.stringify(Object.assign({src: tr._src}, put)); }
   t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t.AdoptedAt = tradesNow_(); trWrite_(T, t);
   return {success: true, status: t['ステータス'], entryId: t.EntryID, trend: put};
+}
+/** app (read only): the trend arrows of a draft's entry time, for the detail opened from 記録にする (nothing is recorded). */
+function impTrend_(b) {
+  const T = trRead_(), t = impFind_(T, b.entryId);
+  const tr = impTrendAt_(String(t['PairName（元）'] || t.PairName || ''), impEntryMs_(t)); delete tr._src;
+  return {success: true, trend: tr};
 }
 function impTrendAt_(pair, ms) {
   const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, p = (alias[String(pair).toUpperCase()] || String(pair)).toUpperCase(), out = {};
