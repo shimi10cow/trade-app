@@ -270,12 +270,17 @@ function markSec() {
   const by = {}; X.forEach(x => { const k = x.method ? '手法 ' + x.method : '線から遠い（3 ATR 超）'; by[k] = (by[k] || 0) + 1; });
   const yn = v => v ? '<span class="up">○</span>' : '<span class="dim">－</span>';
   return `<div class="card"><b>エントリーしたかった所（チャート分析の印、PC が自動で分類）</b>
+    ${(() => { const n = X.length, a = X.filter(x => x.alertDt != null).length, st = X.filter(x => x.starLead != null).length;
+      return `<div class="grid" style="margin-top:6px">${kv('通知が出ていた', a + ' / ' + n, a / n >= 0.6 ? 'up' : 'warn')}${kv('⭐ が付いていた', st + ' / ' + n, st / n >= 0.6 ? 'up' : 'warn')}</div>`; })()}
     <div class="chips" style="margin-top:6px">${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="pill">${k}：${n}</span>`).join('')}</div>
-    <div class="scroll"><table><tr><th class="l">通貨</th><th class="l">日時</th><th>売買</th><th>手法</th><th class="l">線（乖離）</th><th>推進TL</th><th>調整TL</th><th>H1MA</th><th>M15TL</th><th>点数</th></tr>
+    <div class="scroll"><table><tr><th class="l">通貨</th><th class="l">日時</th><th>売買</th><th>手法</th><th class="l">線（乖離）</th><th>推進TL</th><th>調整TL</th><th>H1MA</th><th>M15TL</th><th>点数</th><th>通知</th><th>⭐</th></tr>
     ${X.map(x => `<tr class="click" onclick="S.more=false;goTab('s-px');pick('P${x.sym}')"><td class="l"><b>${esc(x.sym)}</b></td><td class="l">${tstr(x.t).slice(5)}</td><td class="${x.side > 0 ? 'up' : 'dn'}">${x.side > 0 ? '買' : '売'}</td>
       <td>${x.method || '—'}</td><td class="l">${x.kind ? esc(x.kind) + ' ' + (x.dist != null ? x.dist + 'ATR' : '') : '<span class="dim">なし</span>'}</td>
-      <td>${yn(x.imp)}</td><td>${yn(x.ctr)}</td><td>${yn(x.ma)}</td><td>${yn(x.m15)}</td><td><b>${x.score ?? '—'}</b></td></tr>`).join('')}</table></div>
-    <div class="note">印を置いた時点までのチャートで、PC が通知と同じ決まりで判定（H4 の出入口・砦は 3 ATR(H4) 以内なら「その線」とみなす。手法 1・2 は日足〇、6・7 は日足✕）。点数は線 1・推進TL 2・調整TL 1・H1 MA 1・M15TL 1。行を押すとその通貨のチャートへ。</div></div>`;
+      <td>${yn(x.imp)}</td><td>${yn(x.ctr)}</td><td>${yn(x.ma)}</td><td>${yn(x.m15)}</td><td><b>${x.score ?? '—'}</b></td>
+      <td>${x.alertDt != null ? `<span class="up">○</span> <span class="dim">${x.alertDt > 0 ? x.alertDt + 'h 後' : x.alertDt < 0 ? -x.alertDt + 'h 前' : 'ちょうど'}</span>` : '<span class="dn">×</span>'}</td>
+      <td>${x.starLead != null ? `<span class="up">○</span> <span class="dim">${x.starLead}h 前から</span>` : '<span class="dn">×</span>'}</td></tr>`).join('')}</table></div>
+    <div class="note">印を置いた時点までのチャートで、PC が通知と同じ決まりで判定（H4 の出入口・砦は 3 ATR(H4) 以内なら「その線」とみなす。手法 1・2 は日足〇、6・7 は日足✕）。点数は線 1・推進TL 2・調整TL 1・H1 MA 1・M15TL 1。行を押すとその通貨のチャートへ。
+      通知・⭐ は答え合わせ：今の通知の設定で、その時のチャートを PC がやり直した結果（通知＝同じ向きで印の前後 24 時間以内、⭐＝印の何時間前から付いていたか、48 時間まで）。× が多い形は、通知の条件で拾えていない形。</div></div>`;
 }
 // ------------------------------------------------------------ 月ごと
 function monSec() {

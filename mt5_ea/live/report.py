@@ -334,7 +334,7 @@ def pair_charts(broker, pairs):
     return out
 
 
-def mark_auto(broker, repmarks, log_=print):
+def mark_auto(broker, repmarks, log_=print, cfg=None):
     """2026-11-22 (user): the trader's 「買いたい所 / 売りたい所」 on the all-pairs charts, sorted afterwards (alerts.classify_point):
     手法 1 / 2 / 6 / 7, the H4 line it sits on and how far, and the score items. Nothing to tick by hand."""
     from mt5_ea.live import alerts, pair_env
@@ -355,6 +355,19 @@ def mark_auto(broker, repmarks, log_=print):
             m = pair_env.bars_any(broker, sym, 520)[['t', 'o', 'h', 'l', 'c']].copy(); m['t'] = pd.to_datetime(m.t)
         except Exception as ex:
             log.warning('marks %s: %s', sym, ex); continue
+        # 2026-11-22 (user): the alerts' answer check. With the settings of the alerts window (the app's, else the presets): would the
+        # Telegram alert have come near the mark (same side, within 24 h), and from how many hours before was the ⭐ on?
+        A = (cfg or {}).get('alerts') or {}
+        profs = [p for p in (A.get('profiles') if A.get('v') == alerts.ALERTS_V and A.get('profiles') else alerts.PRESETS) if p.get('on')] if A.get('on', True) else []
+        star = A.get('star')
+        tes = [jmin_to_server(l.get('t1')) for l in ls]; tes = [t for t in tes if t is not None]
+        mk = fired = None
+        if profs and tes:
+            try:
+                mk = alerts.Market(sym, m.reset_index(drop=True))
+                fired = alerts.evaluate(mk, profs, min(tes) - pd.Timedelta(days=3))
+            except Exception as ex:
+                log.warning('marks %s replay: %s', sym, ex); mk = None
         for l in ls:
             te = jmin_to_server(l.get('t1'))
             if te is None or l.get('p1') is None:
@@ -363,7 +376,23 @@ def mark_auto(broker, repmarks, log_=print):
                 c = alerts.classify_point(sym, m, te, 1 if l['type'] == 'eb' else -1, float(l['p1']))
             except Exception as ex:
                 log.warning('mark %s: %s', sym, ex); c = None
-            out.append(dict(sym=sym, side=1 if l['type'] == 'eb' else -1, t=int(l['t1']), p=float(l['p1']), tf=l.get('tf') or '', note=l.get('note') or '', **(c or {})))
+            side = 1 if l['type'] == 'eb' else -1; chk = {}
+            if mk is not None:
+                near = [a for a in fired or [] if a['side'] == side and abs((pd.Timestamp(a['t']) - te) / pd.Timedelta(hours=1)) <= 24]
+                if near:
+                    a = min(near, key=lambda a: abs(pd.Timestamp(a['t']) - te))
+                    chk.update(alertDt=round((pd.Timestamp(a['t']) - te) / pd.Timedelta(hours=1), 1), alertKind=f"手法{a.get('method') or ''} {a.get('kind')}")
+                lead = None
+                for h in range(0, 49):                       # the ⭐ at the mark and up to 48 hours before it
+                    i = int(np.searchsorted(mk.CL, np.datetime64(te - pd.Timedelta(hours=h)), side='right')) - 1
+                    if i < 1:
+                        break
+                    if any(x['side'] == side for x in alerts.armed(mk, profs, at=i, star=star)):
+                        lead = h
+                    elif lead is not None:
+                        break
+                chk['starLead'] = lead
+            out.append(dict(sym=sym, side=side, t=int(l['t1']), p=float(l['p1']), tf=l.get('tf') or '', note=l.get('note') or '', **(c or {}), **chk))
     if out:
         log_(f'  エントリーしたかった所 {len(out)} か所を、手法・点数に分けました')
     return out
@@ -589,7 +618,7 @@ def main(argv=None):
     marks = []
     if not a.bars_dir:
         try:
-            marks = mark_auto(broker, data.get('repmarks'), log_=lambda x: print(x, flush=True))
+            marks = mark_auto(broker, data.get('repmarks'), log_=lambda x: print(x, flush=True), cfg=(data.get('config') or {}).get('demo'))
         except Exception as ex:
             log.warning('marks: %s', ex)
     html = build(data, refs, T, B, bars, days_back, pcharts, marks)
