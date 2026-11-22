@@ -343,6 +343,29 @@ function impBatch_(b) {
       if (!agg.open && row['ステータス'] === '保有中') row['ステータス'] = '決済';
       trWrite_(T, row); execSetTradeId_(E2, ids, tid); updated++; return;
     }
+    // 2026-11-22 (user: the same trade came in twice): the PC groups positions only inside one import, so an entry read by a later import
+    // (another account, an added position, the hourly auto import) made a second draft. Now it joins a DRAFT with the same pair and
+    // direction when it was entered within the grouping hours of that draft's first entry or while the draft was still open, with the
+    // same rule as the PC (across accounts only when 口座をまたいでまとめる is on). Recorded trades are never changed this way.
+    const gh = Number((b.settings || {}).group_hours) > 0 ? Number(b.settings.group_hours) : 24, across = !/^(0|false|off)$/i.test(String((b.settings || {}).merge_across == null ? '1' : b.settings.merge_across));
+    const a0 = impFields_(a), t0 = impEntryMs_(a0), accA = String(a0.Accounts || '').split(',').filter(String);
+    const host = T.rows.filter(function (d) {
+      if (d['ステータス'] !== '下書き' || String(d.MergeMode) === 'manual' || !isFinite(t0)) return false;
+      if (String(d['PairName（元）'] || d.PairName || '').toUpperCase() !== String(a0['PairName（元）'] || a0.PairName || '').toUpperCase() || String(d.Direction) !== String(a0.Direction)) return false;
+      const accD = String(d.Accounts || '').split(',').filter(String);
+      if (!across && (accD.length !== 1 || accA.length !== 1 || accD[0] !== accA[0])) return false;
+      const d0 = impEntryMs_(d), dEnd = d.ExitDate ? impDT_(String(d.ExitDate).replace(/\//g, '-').slice(0, 10) + ' ' + String(d.ExitTime || '23:59').slice(0, 5)).ms : Infinity;
+      return isFinite(d0) && t0 >= d0 - 60e3 && (t0 - d0 <= gh * 3600e3 || t0 <= dEnd);
+    }).sort(function (x, y) { return impEntryMs_(x) - impEntryMs_(y); })[0];
+    if (host) {
+      const hid = String(host.EntryID); execSetTradeId_(E2, ids, hid);
+      const all = E2.rows.filter(function (r) { return String(r.TradeID) === hid; }), agg = impAggregate_(all), f2 = impFields_(agg);
+      Object.keys(f2).forEach(function (k) { host[k] = f2[k]; });
+      // images made by the PC for the old span are made again for the joined trade (images the trader put in himself stay)
+      if (host.ImgAutoEntry) { ['ChartImage', 'ChartImage2', 'ChartImage3', 'ChartImage4'].forEach(function (k) { host[k] = ''; }); host.ImgAutoEntry = ''; }
+      if (host.ImgAutoExit) { ['決済チャート', '決済チャート2', '決済チャート3', '決済チャート4'].forEach(function (k) { host[k] = ''; }); host.ImgAutoExit = ''; }
+      trWrite_(T, host); updated++; return;
+    }
     // new trades are never linked automatically (user 2026-10-25): every one becomes a draft to check in the MT5 tab,
     // which lists the hand-written candidates (impStatus_)
     const f = impFields_(a);
