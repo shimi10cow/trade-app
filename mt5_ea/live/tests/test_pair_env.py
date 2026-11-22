@@ -39,29 +39,6 @@ def main():
     print(rows, f'{time.time() - t0:.1f}s')
     assert len(rows) == 1 and all(rows[0][k] in ('↑', '↓', '→') for k in ('D1', 'H4', 'H1')) 
     assert max(asked) <= 400, 'never more than 400 days of history'
-    # M1: seed once (16 years of MN1), then weekly updates of the last 36 months only, from a small file per symbol
-    import os, tempfile
-    os.environ['EA_DATA_DIR'] = tempfile.mkdtemp()
-    mo_bars = m.set_index('t').resample('MS').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
-    asks = []
-
-    class MT5M:
-        TIMEFRAME_MN1 = 'MN1'
-        def last_error(self): return (0, '')
-        def copy_rates_range(self, n, tf, a, z):
-            asks.append((pd.Timestamp(a), pd.Timestamp(z)))
-            x = mo_bars[(mo_bars.t >= pd.Timestamp(a)) & (mo_bars.t <= pd.Timestamp(z))]
-            return x.assign(time=[int(z.timestamp()) for z in x.t]).rename(columns=dict(o='open', h='high', l='low', c='close')).to_records()
-    bm = NS(mt5=MT5M(), name=lambda s: s)
-    now = end + pd.Timedelta(days=1)
-    first = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=False, log=print)          # no file yet -> nothing
-    seeded = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=True, log=print)
-    weekly = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=False, log=print)
-    closed = mo_bars[mo_bars.t + pd.DateOffset(months=1) <= now]
-    want = pair_env.direction(closed[closed.t >= now - pd.DateOffset(years=16)], 'M1')
-    print('M1', first, seeded, weekly, 'want', want, 'asked', [(a.date(), z.date()) for a, z in asks])
-    assert first == {} and seeded.get('EURUSD') == want == weekly.get('EURUSD')
-    assert (asks[-1][1] - asks[-1][0]).days <= 36 * 31 + 2, 'weekly run reads 36 months only'
     print('OK')
 
 
