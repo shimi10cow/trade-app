@@ -1396,6 +1396,14 @@ async function sendPairHistory() {
 }
 window.sendPairHistory = sendPairHistory;
 
+// 2026-11-22 (user): 「もうすぐエントリー」. The alerts window (PC) writes Pairs Armed when price is back at a line of an alert that is on and
+// only the M15 turn is missing; cleared when it turns (the alert comes) or the line fails. Hidden when older than 3 hours (PC stopped).
+function pairArmed_(p) {
+  const t = String(p['Armed'] || '').trim(), at = String(p['ArmedAt'] || '').trim();
+  if (!t) return '';
+  const ms = Date.parse(at.replace(' ', 'T'));
+  return (!isNaN(ms) && Date.now() - ms > 3 * 3600e3) ? '' : t;
+}
 function renderPairs() {
   const container = document.getElementById('pairs-list');
   if (App.data.pairs.length === 0) {
@@ -1441,6 +1449,7 @@ function renderPairs() {
       }
 
       const analysisIndicator = getPairAnalysisIndicator(pairName);
+      const armed = pairArmed_(p);
       const planDir = (p['プラン方向'] || '').trim();
       const planBadge = planDir
         ? `<span class="badge ${planDir === 'Buy' ? 'buy' : 'sell'}" style="margin-left:6px;">📋 ${planDir === 'Buy' ? '▲' : '▼'}${planDir}</span>`
@@ -1454,8 +1463,11 @@ function renderPairs() {
         : '';
       html += `
         <div class="list-card" onclick="openPairEdit('${pairName}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:12px 16px; margin-bottom:${planDir ? '0' : '4px'}; border-radius:8px; border:1px solid ${planDir ? '#38bdf8' : '#1e293b'};">
+          <div style="min-width:0;">
           <div style="font-weight:700; font-size:15px; display:flex; align-items:center; color:${color};">
-            ${pairName} ${arrowHtml} ${analysisIndicator} ${planBadge}
+            ${armed ? '<span title="もうすぐエントリー（M15 の転換が来たら合図）" style="margin-right:6px;font-size:15px;">⭐</span>' : ''}${pairName} ${arrowHtml} ${analysisIndicator} ${planBadge}
+          </div>
+          ${armed ? `<div style="font-size:11px;color:#fbbf24;margin-top:3px;">もうすぐ：${armed.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]))}</div>` : ''}
           </div>
           <div style="color:#64748b; font-size:18px;">›</div>
         </div>

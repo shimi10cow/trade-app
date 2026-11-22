@@ -476,6 +476,47 @@ def evaluate(mk, profiles, since=None):
     return res
 
 
+def armed(mk, profiles):
+    """2026-11-22 (user): 「もうすぐエントリー」 for the pair tab. A line of a profile that is on, price came back to it (a touch) within the
+    last 12 hours, it has not gone 0.4 ATR through since, the M15 turn has not come yet (that is the alert itself), and the profile's
+    conditions are met now. -> [{sym, side, method, kind, line, text}], one per line."""
+    out, seen = [], set(); last = len(mk.TM) - 1
+    if last < 1:
+        return out
+    now, k = mk.CL[last], mk.k
+    for prof in profiles:
+        if not prof.get('on') or (prof.get('pairs') and mk.sym not in prof['pairs']):
+            continue
+        near, away, life = float(prof.get('near', 0.3)), float(prof.get('away', 1.0)), float(prof.get('life', 30))
+        for scene, sd, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
+            if born + int(lf) * DAY < now:
+                continue
+            tch, A = mk.touches(L, sd, born, lf, near, away, float(prof.get('brk', 0.0)))
+            if not tch:
+                continue
+            q, n = tch[-1]
+            if last - q >= 48 or (sd * (mk.MC[q:last + 1] - L) < -0.4 * A).any() or mk.turn_after(q, L, sd, A) is not None:
+                continue
+            ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[last]), tm='turn', n=n, tq=mk.CL[q])
+            ok = True
+            for key, par in (prof.get('conds') or {}).items():
+                if key in CATALOG:
+                    p = dict(CATALOG[key][1]); p.update(par or {})
+                    if not mk.check(key, p, ev):
+                        ok = False; break
+            if not ok:
+                continue
+            line = round(L * k, 5 if k == 1.0 else 3)
+            if (sd, scene, line) in seen:
+                continue
+            seen.add((sd, scene, line))
+            d1 = mk.check('d1ma', {'period': 75, 'slope': 10}, ev)
+            meth = ('1' if d1 else '6') if scene == 'gateway' else (('2' if d1 else '7') if scene == 'fortress' else '')
+            out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line,
+                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}"))
+    return out
+
+
 def scan(sym, m, since=None, profiles=None):
     return evaluate(Market(sym, m), profiles or PRESETS[:1], since)
 
@@ -551,11 +592,16 @@ def main():
             if str(last) != st['last_bar']:
                 since = pd.Timestamp(last) - (pd.Timedelta(minutes=15) if first else pd.Timedelta(hours=1))
                 profs = [p for p in cfg.get('profiles') or [] if p.get('on')] if cfg.get('on', True) else []
-                new = []
+                new, arm = [], []
                 if profs:
                     for sym in PAIRS:
                         try:
-                            for a in evaluate(Market(sym, b.bars(sym, DAYS)), profs, since):
+                            mk = Market(sym, b.bars(sym, DAYS))
+                            try:
+                                arm += armed(mk, profs)          # 2026-11-22: 「もうすぐエントリー」 for the pair tab
+                            except Exception as ex:
+                                logging.warning('%s armed: %s', sym, ex)
+                            for a in evaluate(mk, profs, since):
                                 aid = f"{a['profile']}|{a['timing']}|{a['sym']}|{a['kind']}|{a['side']}|{a['line']}|{a['born']}|{a['touch_t']}"
                                 if aid in st['sent']:
                                     continue
@@ -563,7 +609,8 @@ def main():
                         except Exception as ex:
                             logging.warning('%s: %s', sym, ex)
                 try:      # GAS: record the alerts, get the app's settings back
-                    r = gas.call('eaAlert', {'alerts': [{k: (str(v) if isinstance(v, pd.Timestamp) else (' / '.join(v) if isinstance(v, list) else v)) for k, v in a.items()} for a in new]}, timeout=60)
+                    r = gas.call('eaAlert', {'alerts': [{k: (str(v) if isinstance(v, pd.Timestamp) else (' / '.join(v) if isinstance(v, list) else v)) for k, v in a.items()} for a in new],
+                                             'armed': [{'sym': x['sym'], 'text': x['text']} for x in arm]}, timeout=60)
                     cfg = settings_from(r, cfg)
                 except Exception as ex:
                     logging.warning('GAS: %s', ex)

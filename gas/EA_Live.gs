@@ -181,9 +181,30 @@ function ealAlert_(b) {
       a.line, a.price, a.atr, a.d1, a.h1, a.touch, String(a.born || '').slice(0, 16), now, String(a.pname || '').slice(0, 80), a.timing || '', String(a.met || '').slice(0, 500), a.n || 1]);
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, EAL_.alerts.length).setValues(rows);
   }
+  if (Array.isArray(b.armed)) ealArmed_(b.armed);       // 2026-11-22: 「もうすぐエントリー」 per pair (only when the PC sends the list)
   let s = {on: true};                                  // profiles: none saved yet -> the PC uses its presets (alerts.py PRESETS)
   ealRows_('config').forEach(r => { if (String(r.Account) === 'demo') { try { const c = JSON.parse(r.ConfigJSON); if (c.alerts) s = Object.assign(s, c.alerts); } catch (e) {} } });
   return {success: true, settings: s};
+}
+
+/** 2026-11-22 (user): pairs where an alert is waiting only for the M15 turn (price came back to the line, the profile's conditions are
+ *  met). Pairs column Armed = short text for the pair list (「↑ 手法2 H4砦 1.08500」, several joined by ' / '), ArmedAt = when.
+ *  Pairs not in the list are cleared. Written only when something changed. */
+function ealArmed_(xs) {
+  const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PAIRS_SHEET);
+  const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+  const need = ['Armed', 'ArmedAt'].filter(k => h.indexOf(k) < 0);
+  if (need.length) { sh.getRange(1, h.length + 1, 1, need.length).setValues([need]); need.forEach(k => { h.push(k); v.forEach((r, i) => { if (i) r.push(''); }); }); }
+  const pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName'), ca = h.indexOf('Armed'), ct = h.indexOf('ArmedAt');
+  const by = {}; xs.forEach(x => { const k = String(x.sym || '').toUpperCase(); (by[k] = by[k] || []).push(String(x.text || '').slice(0, 80)); });
+  const now = ealNow_(); let changed = false;
+  for (let i = 1; i < v.length; i++) {
+    const t = (by[String(v[i][pc]).trim().toUpperCase()] || []).join(' / ').slice(0, 300);
+    if (String(v[i][ca] || '') !== t) { v[i][ca] = t; v[i][ct] = t ? now : ''; changed = true; }
+  }
+  if (!changed) return;
+  [ca, ct].forEach(c => { const rg = sh.getRange(2, c + 1, v.length - 1, 1); rg.setNumberFormat('@'); rg.setValues(v.slice(1).map(r => [r[c]])); });
+  pairsCacheClear_();
 }
 
 /** EA PC (alerts window, once an hour): Dow trend arrows per pair (mt5_ea/live/pair_env.py, 2026-11-21).
