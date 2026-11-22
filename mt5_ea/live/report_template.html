@@ -15,7 +15,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:5px 6px;b
 th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card);z-index:1}td.l,th.l{text-align:left}.scroll{overflow:auto;max-height:70vh}
 .up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}.dim{color:var(--dim)}.warn{color:var(--warn)}
 .note{font-size:11px;color:var(--dim);line-height:1.6}tr.click{cursor:pointer}tr.click:hover{background:#16233b}tr.sel{background:#1b2c4a}tr.exr{opacity:.45}
-#tv{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:10px}@media(max-width:1000px){#tv{grid-template-columns:1fr}}
+#tv{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:10px}@media(max-width:1000px){#tv{grid-template-columns:minmax(0,1fr)}#tv>*{min-width:0}}
 canvas{width:100%;display:block;background:#0f172a;border-radius:8px;touch-action:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;align-items:center}.badge{font-size:10px;padding:1px 6px;border-radius:4px;background:#1e293b;color:var(--mut)}
 .badge.miss{background:#3b2a0a;color:#fbbf24}
