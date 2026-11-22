@@ -155,6 +155,12 @@ def backtest(broker, syms_keys, start, days_back, cache=None):
         c = (cache or {}).get(sym) if cache is not None else None
         use = c is not None and c.get('keys') == tuple(sorted(keys)) and c.get('ver') == ver and c.get('start') <= start and c.get('safe') is not None
         C = c['safe'] if use else start
+        last_bar = pd.Timestamp(bars[sym].t.iat[-1])
+        if use and c.get('last') is not None and pd.Timestamp(c['last']) >= last_bar:   # 2026-11-22: no new bar since the last report
+            same = [r for r in c['trades'] if r['t'] >= start]                         # (weekend, run twice): nothing to recalculate
+            out += same
+            print(f"  バックテスト {sym}（{len(keys)} 本）：前回から新しい足がないので、前回の結果をそのまま使います", flush=True)
+            continue
         old = [r for r in c['trades'] if r['t'] < C and r['t'] >= start] if use else []
         x = bars[sym].copy(); x['t'] = pd.to_datetime(x.t).astype('datetime64[us]')
         if use:
@@ -201,7 +207,8 @@ def backtest(broker, syms_keys, start, days_back, cache=None):
             span = [r['t'] for r in allt if r['t'] < safe and (r['open'] or r['exit_t'] is None or r['exit_t'] >= safe)]
             if span:
                 safe = min(span) - pd.Timedelta(minutes=15)
-            cache[sym] = dict(keys=tuple(sorted(keys)), ver=ver, start=min(start, c['start']) if use else start, safe=max(safe, start), trades=allt)
+            cache[sym] = dict(keys=tuple(sorted(keys)), ver=ver, start=min(start, c['start']) if use else start, safe=max(safe, start), trades=allt,
+                              last=last)
     return pd.DataFrame(out), bars
 
 
