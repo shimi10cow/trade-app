@@ -169,8 +169,75 @@ def match(T, B):
     return T, used
 
 
+# ---------------------------------------------------------------- every pair of the app (weekend chart analysis, 2026-11-22)
+PAIR_DAYS = {'D1': 3 * 365, 'H4': 250, 'H1': 60, 'M15': 14}     # + 400 days of M15 for the EA lines (same as the alerts window)     # how far back each timeframe is shown (file size: ~8 MB for 42 pairs)
+
+
+def _dig(sym, broker=None, name=None):
+    try:
+        if broker is not None and hasattr(broker, 'mt5'):
+            i = broker.mt5.symbol_info(name or broker.name(sym))
+            if i is not None:
+                return int(i.digits)
+    except Exception:
+        pass
+    return 3 if sym.endswith('JPY') else (2 if sym in ('XAUUSD', 'US30', 'US500', 'US100', 'US2000', 'JP225', 'UK100', 'EU50', 'BTCUSD', 'BTCJPY', 'OIL', 'BRENT') else (3 if sym in ('XAGUSD', 'NATGAS') else 5))
+
+
+def _tf_arrays(x, dig):
+    tm = server_to_jst_min(x.index); ok = tm > 0
+    return [tm[ok].tolist()] + [np.round(x[z].to_numpy()[ok], dig).tolist() for z in 'ohlc']
+
+
+def pair_charts(broker, pairs):
+    """{pair: {dig, D1, H4, H1, M15}} for every pair of the app. D1 from MT5's D1 bars (3 years; inside the history kept on disk),
+    H4 / H1 / M15 from the last 250 days of M15 (what the alerts window already reads, so nothing new is downloaded)."""
+    from mt5_ea.live import pair_env
+    out = {}
+    now = pd.Timestamp.now(tz='UTC').tz_localize(None) + pd.Timedelta(days=1)
+    for p in pairs:
+        try:
+            m = pair_env.bars_any(broker, p, PAIR_DAYS['H4'])[['t', 'o', 'h', 'l', 'c']].copy()
+            m['t'] = pd.to_datetime(m.t); m = m.set_index('t')
+            dig = _dig(p, broker)
+            o = {'dig': dig}
+            d1 = None
+            if hasattr(broker, 'mt5'):
+                mt5 = broker.mt5
+                for n in pair_env.ALIAS.get(p, (p,)):
+                    try:
+                        r = mt5.copy_rates_range(broker.name(n), mt5.TIMEFRAME_D1, (now - pd.Timedelta(days=PAIR_DAYS['D1'])).to_pydatetime(), now.to_pydatetime())
+                        if r is not None and len(r):
+                            d1 = pd.DataFrame(r).rename(columns=dict(open='o', high='h', low='l', close='c'))
+                            d1['t'] = pd.to_datetime(d1.time, unit='s'); d1 = d1.set_index('t')[['o', 'h', 'l', 'c']]; break
+                    except Exception:
+                        continue
+            if d1 is None:
+                d1 = m.resample('1D', label='left', closed='left').agg({'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}).dropna()
+            o['D1'] = _tf_arrays(d1, dig)
+            end = m.index.max()
+            for tf, rule in (('H4', '4h'), ('H1', '1h'), ('M15', None)):
+                x = m[m.index >= end - pd.Timedelta(days=PAIR_DAYS[tf])]
+                if rule:
+                    x = x.resample(rule, label='left', closed='left').agg({'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}).dropna()
+                o[tf] = _tf_arrays(x, dig)
+            try:                                                       # the EA's H4 lines still alive (gateway / fortress / band)
+                from mt5_ea.live import alerts
+                m4 = pair_env.bars_any(broker, p, 400)[['t', 'o', 'h', 'l', 'c']]
+                ls = alerts.ea_lines(p, m4)
+                bt = server_to_jst_min([x['born'] for x in ls]) if ls else []
+                o['ea'] = [dict(kind=x['kind'], side=x['side'], p=round(x['price'], dig), t=int(b)) for x, b in zip(ls, bt) if b > 0]
+            except Exception as ex:
+                log.warning('EA lines %s: %s', p, ex); o['ea'] = []
+            out[p] = o
+            print(f"  チャート {p}（EA のライン {len(o['ea'])} 本）", flush=True)
+        except Exception as ex:
+            log.warning('pair chart %s: %s', p, ex); print(f'  チャート {p}：とばした（{str(ex)[:60]}）', flush=True)
+    return out
+
+
 # ---------------------------------------------------------------- page
-def build(data, refs, T, B, bars, days):
+def build(data, refs, T, B, bars, days, pcharts=None):
     accs = [a for a in ('demo', 'live') if len(T) and (T.Account == a).any()] or ['demo']
     # chart bars: Japan-time minutes; M15 / H1 / H4 / D1 (resampled in broker time, so D1 = the broker's day like MT5)
     charts = {}
@@ -211,12 +278,15 @@ def build(data, refs, T, B, bars, days):
     for r in (data.get('repmarks') or []):
         rm[str(r.get('ID'))] = dict(v=txt(r.get('Verdict')), tags=txt(r.get('Tags')), cm=txt(r.get('Comment')), xv=txt(r.get('ExitVerdict')),
                                     xtags=txt(r.get('ExitTags')), lines=lines(txt(r.get('Lines'))))
+    pm = {k[5:]: v['lines'] for k, v in rm.items() if k.startswith('PAIR|')}          # lines on the all-pairs charts (EA_ReportMarks ID 'PAIR|EURUSD')
+    pairs = [dict(sym=p, lines=pm.get(p, [])) for p in (pcharts or {})]
     cfg = data.get('config') or {}
     on = {a: sorted(k for k, v in ((cfg.get(a) or {}).get('eas') or {}).items() if isinstance(v, dict) and v.get('mode', 'off') != 'off' and v.get('on', True)) for a in ('demo', 'live')}
     daily = [dict(d=str(r.get('Date'))[:10], acc=r.get('Account'), bal=r.get('Balance'), eq=r.get('Equity'), dd=r.get('DD')) for r in (data.get('daily') or [])]
     payload = dict(made=pd.Timestamp.now(tz=JST).strftime('%Y-%m-%d %H:%M'), accs=accs, trades=trades, btl=bt, repmarks=rm, charts=charts, daily=daily, on=on,
                    fams=refs['fams'], famOf=refs['fam'], exp=refs['exp'], famBt=refs['fam_bt'], bt=refs['bt'], btDone=bool(len(B)), days=days,
-                   gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []))
+                   gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []),
+                   pairs=pairs, pcharts=pcharts or {})
     html = (Path(__file__).with_name('report_template.html')).read_text(encoding='utf-8')
     return html.replace('/*__DATA__*/null', json.dumps(clean(payload), ensure_ascii=False, separators=(',', ':'), default=str))
 
@@ -241,6 +311,7 @@ def main(argv=None):
     ap.add_argument('--out', default=os.getenv('EA_REPORT_DIR') or str(Path(os.getenv('EA_DATA_DIR') or Path.home() / 'TradeEA_data') / 'reports'))
     ap.add_argument('--no-open', action='store_true')
     ap.add_argument('--data'); ap.add_argument('--bars-dir')
+    ap.add_argument('--no-pairs', action='store_true', help='skip the all-pairs charts (smaller, faster)')
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format='%(levelname)s %(message)s')
     print('EA の成績レポートを作ります', flush=True)
@@ -289,7 +360,16 @@ def main(argv=None):
                 except Exception:
                     pass
     T, _ = match(T, B)
-    html = build(data, refs, T, B, bars, days_back)
+    pcharts = {}
+    if not a.no_pairs and not a.bars_dir:
+        try:
+            from mt5_ea.live import gas, pair_env
+            pl = pair_env.app_pairs(gas)
+            print(f'  全通貨のチャート（{len(pl)} ペア、日足 3 年・H4 250 日・H1 60 日・M15 14 日）', flush=True)
+            pcharts = pair_charts(broker, pl)
+        except Exception as ex:
+            log.warning('all-pairs charts: %s', ex); print(f'  全通貨のチャートは作れませんでした（{ex}）', flush=True)
+    html = build(data, refs, T, B, bars, days_back, pcharts)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     f = out / f'report_{pd.Timestamp.now(tz=JST):%Y%m%d_%H%M}.html'
     f.write_text(html, encoding='utf-8')

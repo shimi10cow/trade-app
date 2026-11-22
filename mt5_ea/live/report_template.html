@@ -40,14 +40,14 @@ select,input,textarea{background:#0f172a;color:var(--fg);border:1px solid var(--
       <div class="note">ローソク：白抜き＝陽線、灰色＝陰線。MA：<span class="sw" style="background:#ef4444"></span>20 <span class="sw" style="background:#22c55e"></span>75 <span class="sw" style="background:#f472b6"></span>200。
         ▲▼＝入り、✕＝決済、灰色の○＝バックテストの入り。横線：白＝入り、赤の点線＝最初の損切り、緑＝利確、黄＝決済。
         引いた線・ボックスの色＝引いた足：<span class="sw" style="background:#60a5fa"></span>日足 <span class="sw" style="background:#fb923c"></span>H4 <span class="sw" style="background:#a78bfa"></span>H1 <span class="sw" style="background:#facc15"></span>M15（どの足でも見える）。
-        「動かす」の時はドラッグで移動・ホイールで拡大縮小。</div>
+        ✋ 動かす：何もない所をドラッグでスクロール、線をドラッグで移動、線を押すと ✕（削除）。ホイール・2 本指で拡大縮小。道具は 1 回使うと ✋ に戻る。トレンドラインは右に伸びる。</div>
       <div id="tinfo" style="margin-top:8px"></div><div id="tmark"></div></div></div>
     <div class="card" style="padding:8px"><div class="chips" id="tflt"></div><div class="scroll" style="max-height:85vh"><table id="tlist"></table></div></div></div></section>
 </main>
 <script>
 const D = /*__DATA__*/null;
 const $ = s => document.querySelector(s), esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
-const S = {acc: D.accs[0], tab: 's-sum', tf: 'H1', sel: null, fam: '', res: '', sym: '', eaf: '', kind: '', mode: 'pan', draft: null, mc: {src: 'live', cap: 300000, risk: 1, years: 1, ruin: 30, sims: 2000}};
+const S = {acc: D.accs[0], tab: 's-sum', tf: 'H1', sel: null, pick: -1, pickAt: null, fam: '', res: '', sym: '', eaf: '', kind: '', mode: 'pan', draft: null, mc: {src: 'live', cap: 300000, risk: 1, years: 1, ruin: 30, sims: 2000}};
 const f2 = (v, d = 2) => v == null || isNaN(v) ? '—' : Number(v).toFixed(d), sg = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + Number(v).toFixed(2);
 const yen = v => v == null || isNaN(v) ? '—' : (v < 0 ? '-' : '+') + '¥' + Math.round(Math.abs(v)).toLocaleString('ja-JP');
 const tstr = m => { if (m == null) return '—'; const d = new Date(m * 60000); return d.toISOString().slice(0, 16).replace('T', ' '); };
@@ -62,6 +62,15 @@ const TFC = {D1: '#60a5fa', H4: '#fb923c', H1: '#a78bfa', M15: '#facc15'}, TFN =
 // ------------------------------------------------------------ data per account
 D.btl.forEach(b => { b.kind = 'B'; b.st = b.open ? 'OPEN' : 'CLOSED'; b.id = b.ea + '|' + tstr(b.et) + '|' + b.side; Object.assign(b, {v: '', tags: '', cm: '', xv: '', xtags: '', lines: []}, D.repmarks[b.id] || {}); });
 D.trades.forEach(t => t.kind = 'L');
+// all-pairs charts (2026-11-22): one object per pair; its lines = the trader's saved lines + the EA's H4 lines (gateway / fortress / band)
+// that the trader has not touched. EA lines the trader moved or deleted are saved too (src 'ea', moved / del), deleted lines are kept with
+// the time they were deleted, so later analysis can see what was changed.
+(D.pairs || []).forEach(p => { p.kind = 'P'; p.id = 'PAIR|' + p.sym; const rm = D.repmarks[p.id] || {}; p.cm = rm.cm || ''; p.flag = rm.tags || '';
+  const saved = (p.lines || []).slice(), have = new Set(saved.filter(l => l.eid).map(l => l.eid));
+  ((D.pcharts[p.sym] || {}).ea || []).forEach(e => { const eid = e.kind + '|' + e.side + '|' + e.t + '|' + e.p; if (!have.has(eid)) saved.push({type: 'ea', src: 'ea', eid, kind: e.kind, side: e.side, t1: e.t, p1: e.p, tf: 'H4'}); });
+  p.lines = saved; });
+const live = ls => (ls || []).filter(l => !l.del);
+const nowJ = () => { const d = new Date(Date.now() + 9 * 3600e3); return d.toISOString().slice(0, 16).replace('T', ' '); };
 function trades(all) { return D.trades.filter(t => t.acc === S.acc && (all || $('#showex').checked || !t.ex)); }
 const closed = () => trades().filter(t => t.st === 'CLOSED' && t.R != null);
 function accBT() {   // the period backtest for this account: EAs on now + EAs that traded here
@@ -86,9 +95,9 @@ const kv = (k, v, c = '') => `<div class="kv"><div class="k">${k}</div><div clas
 function header() {
   $('#made').textContent = '作成 ' + D.made + (D.btDone ? '' : '（バックテストなし）');
   $('#accbtn').innerHTML = ['demo', 'live'].map(a => `<button class="t ${S.acc === a ? 'on' : ''}" onclick="S.acc='${a}';S.sel=null;draw()">${a === 'live' ? 'リアル' : 'デモ'}口座</button>`).join(' ');
-  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート']];
-  $('#tabs').innerHTML = tabs.map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="S.tab='${id}';draw()">${l}</button>`).join(' ');
-  document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.id === S.tab));
+  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート'], ['s-px', '全通貨チャート']];
+  $('#tabs').innerHTML = tabs.filter(([id]) => id !== 's-px' || (D.pairs || []).length).map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="goTab('${id}')">${l}</button>`).join(' ');
+  document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.id === (S.tab === 's-px' ? 's-tr' : S.tab)));
 }
 // ------------------------------------------------------------ small charts
 function prep(id, h) { const cv = document.getElementById(id); if (!cv) return null; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = h; cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); return {x, W, H}; }
@@ -253,8 +262,8 @@ function exSec() {
 }
 // ------------------------------------------------------------ トレード一覧
 function items() { const L = trades(true).map(t => t), M = D.btDone ? accBT().missed : []; return L.concat(M); }
-const cur = () => { if (!S.sel) return null; const k = S.sel[0], n = Number(S.sel.slice(1)); return k === 'L' ? D.trades.find(t => t.i === n) : D.btl.find(b => b.j === n); };
-const markIcon = t => (t.v === 'ok' ? '✅' : t.v === 'ng' ? '⛔' : t.v === 'maybe' ? '❔' : '') + (t.xv || t.xtags ? '🚪' : '') + (t.cm ? '💬' : '') + ((t.lines || []).length ? '📐' : '');
+const cur = () => { if (!S.sel) return null; const k = S.sel[0]; if (k === 'P') return (D.pairs || []).find(p => p.sym === S.sel.slice(1)) || null; const n = Number(S.sel.slice(1)); return k === 'L' ? D.trades.find(t => t.i === n) : D.btl.find(b => b.j === n); };
+const markIcon = t => (t.v === 'ok' ? '✅' : t.v === 'ng' ? '⛔' : t.v === 'maybe' ? '❔' : '') + (t.xv || t.xtags ? '🚪' : '') + (t.cm ? '💬' : '') + (live(t.lines).length ? '📐' : '');
 function listSec() {
   const ok = t => (!S.fam || t.fam === S.fam) && (!S.eaf || t.ea === S.eaf) && (!S.sym || t.sym === S.sym) && (!S.kind || t.kind === S.kind) &&
     (!S.res || (S.res === 'w' ? t.R > 0 : S.res === 'l' ? t.R != null && t.R <= 0 : S.res === 'o' ? t.st === 'OPEN' : S.res === 'm' ? !!markIcon(t) : !markIcon(t)));
@@ -270,52 +279,111 @@ function listSec() {
     <td class="l">${tstr(t.et).slice(2)}</td><td class="l">${esc(t.ea)}${t.kind === 'B' ? ' <span class="badge miss">入り損ね</span>' : ''} <span style="font-size:11px">${markIcon(t)}</span></td><td>${t.side > 0 ? '<span class="dn">買</span>' : '<span style="color:#60a5fa">売</span>'}</td>
     <td class="${cls(t.R)}">${t.st === 'OPEN' ? '保有' : sg(t.R)}</td><td class="dim">${t.kind === 'B' ? '—' : b ? (b.open ? '保有' : sg(b.R)) : D.btDone ? '無' : ''}</td></tr>`; }).join('');
   if (!S.sel && all.length) S.sel = all[0].kind + (all[0].kind === 'L' ? all[0].i : all[0].j);
-  $('#tfbtn').innerHTML = ['D1', 'H4', 'H1', 'M15'].map(k => `<button class="t ${S.tf === k ? 'on' : ''}" onclick="S.tf='${k}';S.view=null;draw()">${TFN[k]}</button>`).join(' ') +
-    ` <button class="t" onclick="zoom(0.7)">＋</button><button class="t" onclick="zoom(1.4)">－</button><button class="t" onclick="S.view=null;chart()">この取引へ</button>`;
-  drawBtns(); chart(); markPanel();
+  tfBtns('この取引へ'); drawBtns(); chart(); markPanel();
 }
+function tfBtns(home) {
+  $('#tfbtn').innerHTML = ['D1', 'H4', 'H1', 'M15'].map(k => `<button class="t ${S.tf === k ? 'on' : ''}" onclick="S.tf='${k}';S.view=null;S.pick=-1;draw()">${TFN[k]}</button>`).join(' ') +
+    ` <button class="t" onclick="zoom(0.7)">＋</button><button class="t" onclick="zoom(1.4)">－</button><button class="t" onclick="S.view=null;chart()">${home}</button>`;
+}
+function pxSec() {      // all pairs of the app: weekend chart analysis with the EA's lines
+  const ps = D.pairs || [];
+  if (!S.sel && ps.length) S.sel = 'P' + ps[0].sym;
+  $('#tflt').innerHTML = `<span class="dim">${ps.length} ペア · 線：自分で引いた本数 / EA のライン（動かした・消した）</span>`;
+  $('#tlist').innerHTML = `<tr><th class="l">ペア</th><th>自分の線</th><th>EA のライン</th><th class="l">メモ</th></tr>` + ps.map(p => {
+    const mine = live(p.lines).filter(l => l.src !== 'ea').length, ea = p.lines.filter(l => l.src === 'ea'), mv = ea.filter(l => l.moved && !l.del).length, dl = ea.filter(l => l.del).length;
+    return `<tr class="click ${S.sel === 'P' + p.sym ? 'sel' : ''}" onclick="pick('P${p.sym}')"><td class="l"><b>${esc(p.sym)}</b>${p.flag ? ` <span style="color:#fbbf24">🚩${esc(p.flag)}</span>` : ''}</td><td>${mine || ''}</td>
+      <td class="dim">${live(ea).length}${mv || dl ? `（動 ${mv}・消 ${dl}）` : ''}</td><td class="l dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(p.cm || '')}</td></tr>`; }).join('');
+  tfBtns('最新へ'); drawBtns(); chart(); markPanel();
+}
+// tools (2026-11-22): each tool draws ONE object and goes back to ✋ 動かす. In ✋ 動かす: tap an object -> ✕ appears (tap ✕ to delete),
+// drag an object to move it, drag the empty chart to scroll.
 function drawBtns() {
-  const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode='${m}';S.pend=null;drawBtns()">${l}</button>`;
-  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('del', '🗑 消す')}
-    <span class="note">${S.mode === 'h' ? 'チャートを 1 回押す' : S.mode === 't' || S.mode === 'b' ? '始点と終点を 1 回ずつ押す' : S.mode === 'del' ? '消したい線・ボックスを押す' : ''}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
+  const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart()">${l}</button>`;
+  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}
+    <span class="note">${S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es' ? 'チャートを 1 回押す' : S.mode === 't' ? '2 点を押す（右に伸びる）' : S.mode === 'b' ? '対角の 2 点を押す' : '線を押すと ✕（削除）、線をドラッグで移動'}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
 }
 // ------------------------------------------------------------ chart
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
 function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (let i = 0; i < c.length; i++) { s += c[i]; if (i >= n) s -= c[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
 function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
-const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false});
+const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false});
 let G = null;   // geometry of the last drawn chart (for clicks)
+const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#cbd5e1']};
+const curLines = t => (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
+function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
+function drawObj(x, l, sel) {
+  const {Y, tx, W, padR, dig} = G, R = W - padR;
+  const col = l.type === 'ea' ? (EAK[l.kind] || ['', '#e2e8f0'])[1] : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 3 : (l.ghost ? 1 : 1.6); x.setLineDash(l.ghost ? [3, 3] : l.type === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
+  if (sel) { x.shadowColor = '#fff'; x.shadowBlur = 6; }
+  const lab = (txt, xx, yy) => { x.setLineDash([]); x.shadowBlur = 0; x.fillText(txt, xx, yy); };
+  if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
+  else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
+    const nm = l.type === 'x' ? '決済' : EAK[l.kind][0] + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
+    lab(nm + ' ' + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+  else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
+    const [ex, ey] = l.ghost ? [bx, by] : rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
+  else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
+    x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); if (l.note) lab(l.note, Math.min(a, b) + 3, Math.min(Y(l.p1), Y(l.p2)) + 11); }
+  else if (l.type === 'eb' || l.type === 'es') { const up = l.type === 'eb', xx = tx(l.t1), yy = Y(l.p1); x.setLineDash([]); x.beginPath();
+    x.moveTo(xx, yy); x.lineTo(xx - 7, yy + (up ? 12 : -12)); x.lineTo(xx + 7, yy + (up ? 12 : -12)); x.closePath(); x.fill();
+    x.beginPath(); x.setLineDash([2, 3]); x.moveTo(xx + 8, yy); x.lineTo(Math.min(R, xx + 60), yy); x.stroke();
+    lab((up ? '買いたい ' : '売りたい ') + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), xx + 10, yy + (up ? 24 : -16)); }
+  x.setLineDash([]); x.lineWidth = 1; x.shadowBlur = 0;
+}
+function hitDist(l, q) {           // pixels from the tap to the object (Infinity = not near)
+  const {Y, tx, W, padR} = G, R = W - padR;
+  if (l.del) return Infinity;
+  if (l.type === 'h') return Math.abs(Y(l.p1) - q.y);
+  if (l.type === 'ea' || l.type === 'x') return q.x >= Math.max(0, tx(l.t1)) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
+  if (l.type === 'eb' || l.type === 'es') return Math.hypot(q.x - tx(l.t1), q.y - Y(l.p1) - (l.type === 'eb' ? 6 : -6));
+  const ax0 = tx(l.t1), ay0 = Y(l.p1), bx0 = tx(l.t2), by0 = Y(l.p2);
+  if (l.type === 'b') { const inX = q.x >= Math.min(ax0, bx0) - 6 && q.x <= Math.max(ax0, bx0) + 6, inY = q.y >= Math.min(ay0, by0) - 6 && q.y <= Math.max(ay0, by0) + 6;
+    return inX && inY ? Math.min(Math.abs(q.x - ax0), Math.abs(q.x - bx0), Math.abs(q.y - ay0), Math.abs(q.y - by0), 6) : Infinity; }
+  let ax = ax0, ay = ay0, bx = bx0, by = by0; if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
+  const [ex, ey] = rayEnd(ax, ay, bx, by), L2 = (ex - ax) ** 2 + (ey - ay) ** 2, u = L2 ? Math.max(0, Math.min(1, ((q.x - ax) * (ex - ax) + (q.y - ay) * (ey - ay)) / L2)) : 0;
+  return Math.hypot(q.x - ax - u * (ex - ax), q.y - ay - u * (ey - ay));
+}
+function hitObj(q) { const t = cur(); if (!t || !G) return -1; let best = -1, bd = 12; curLines(t).forEach((l, k) => { const d = hitDist(l, q); if (d < bd) { bd = d; best = k; } }); return best; }
 function chart() {
   const cv = $('#cv'), t = cur(); const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = 560;
   cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); G = null;
   if (!t) { $('#tinfo').innerHTML = ''; return; }
   info(t);
-  const B = (D.charts[t.sym] || {})[S.tf], dig = (D.charts[t.sym] || {}).dig ?? 5;
+  const SRC = t.kind === 'P' ? D.pcharts : D.charts, B = (SRC[t.sym] || {})[S.tf], dig = (SRC[t.sym] || {}).dig ?? 5;
   if (!B || !B[0].length) { x.fillStyle = '#94a3b8'; x.fillText('この銘柄・足のチャートデータがありません', 12, 24); return; }
   const [T, O, Hh, L, C] = B, n = T.length, key = S.sel + S.tf;
+  if (t.kind === 'P' && (!S.view || S.view.key !== key)) { const want = {M15: 160, H1: 160, H4: 150, D1: 200}[S.tf]; S.view = {key, n: want, i0: Math.max(0, n - want + 12)}; }
   if (!S.view || S.view.key !== key) { const a = bs(T, t.et), b = t.xt ? bs(T, t.xt) : a, span = Math.max(b - a, 1), want = {M15: 160, H1: 140, H4: 120, D1: 140}[S.tf], nn = Math.max(want, span + 40);
     S.view = {key, n: Math.min(nn, n), i0: Math.max(0, a - Math.round((nn - span) * 0.55))}; }
   S.view.i0 = Math.max(0, Math.min(n - 10, S.view.i0)); const i0 = S.view.i0, i1 = Math.min(n, i0 + S.view.n);
   const lv = [t.ep, t.sl, t.tp, t.xp].filter(v => v != null && !isNaN(v) && v > 0);
   let lo = Infinity, hi = -Infinity; for (let i = i0; i < i1; i++) { lo = Math.min(lo, L[i]); hi = Math.max(hi, Hh[i]); } lv.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
-  const pr = (hi - lo) * 0.06 || 1; lo -= pr; hi += pr; const padR = 68, bw = (W - padR) / (i1 - i0), X = i => (i - i0 + 0.5) * bw, Y = v => 10 + (hi - v) / (hi - lo) * (H - 34);
+  const pr = (hi - lo) * 0.06 || 1; lo -= pr; hi += pr; const padR = 68, bw = (W - padR) / S.view.n, X = i => (i - i0 + 0.5) * bw, Y = v => 10 + (hi - v) / (hi - lo) * (H - 34);
   const tx = tm => { const k = bs(T, tm); const f = k > 0 && T[k] > tm ? k - 1 + (tm - T[k - 1]) / Math.max(1, T[k] - T[k - 1]) : k; return X(tm > T[n - 1] ? n - 1 + (tm - T[n - 1]) / Math.max(1, T[n - 1] - T[n - 2]) : f); };
-  G = {i0, bw, T, Y, X, lo, hi, H, W, padR, tx, toP: y => hi - (y - 10) / (H - 34) * (hi - lo), toT: xx => { const fi = xx / bw - 0.5 + i0, k = Math.max(0, Math.min(n - 1, Math.round(fi))); return T[k]; }};
+  const dt = n > 1 ? T[n - 1] - T[n - 2] : 15;
+  G = {i0, bw, T, Y, X, lo, hi, H, W, padR, tx, dig, toP: y => hi - (y - 10) / (H - 34) * (hi - lo),
+       toT: xx => { const fi = xx / bw - 0.5 + i0, k = Math.round(fi); return k <= n - 1 ? T[Math.max(0, k)] : T[n - 1] + (k - (n - 1)) * dt; }};
   x.font = '10px sans-serif'; x.fillStyle = '#64748b'; for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5; x.fillText(v.toFixed(dig), W - padR + 4, Y(v) + 3); x.strokeStyle = '#162033'; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W - padR, Y(v)); x.stroke(); }
   const step = Math.max(1, Math.round(90 / bw)); for (let i = i0; i < i1; i += step) x.fillText(tstr(T[i]).slice(5, S.tf === 'D1' ? 10 : 16), X(i) - 20, H - 6);
   for (let i = i0; i < i1; i++) { const up = C[i] >= O[i], y1 = Y(Math.max(O[i], C[i])), y2 = Y(Math.min(O[i], C[i])), w = Math.max(1, bw * 0.7);
     x.strokeStyle = up ? '#e5e7eb' : '#64748b'; x.beginPath(); x.moveTo(X(i), Y(Hh[i])); x.lineTo(X(i), y1); x.moveTo(X(i), y2); x.lineTo(X(i), Y(L[i])); x.stroke();
     if (up) { x.fillStyle = '#0f172a'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); x.strokeRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } else { x.fillStyle = '#64748b'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } }
   [[20, '#ef4444'], [75, '#22c55e'], [200, '#f472b6']].forEach(([p, col]) => { const m = sma(C, p); x.strokeStyle = col; x.lineWidth = 1.3; x.beginPath(); let st = false; for (let i = i0; i < i1; i++) if (m[i] != null) { st ? x.lineTo(X(i), Y(m[i])) : x.moveTo(X(i), Y(m[i])); st = true; } x.stroke(); x.lineWidth = 1; });
-  // drawings (all timeframes; color = the timeframe it was drawn on)
+  // drawings (all timeframes; color = the timeframe it was drawn on). The EA's lines are dashed, from the H4 close that made them to the right.
   x.save(); x.beginPath(); x.rect(0, 0, W - padR, H - 20); x.clip();
-  const dr = (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
-  dr.concat(S.pend ? [Object.assign({ghost: 1}, S.pend)] : []).forEach(l => { const col = TFC[l.tf] || '#e2e8f0'; x.strokeStyle = col; x.lineWidth = l.ghost ? 1 : 1.6; x.setLineDash(l.ghost ? [3, 3] : []);
-    if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(W - padR, Y(l.p1)); x.stroke(); x.fillStyle = col; x.fillText(Number(l.p1).toFixed(dig), W - padR - 60, Y(l.p1) - 3); }
-    else if (l.type === 't' && l.t2 != null) { x.beginPath(); x.moveTo(tx(l.t1), Y(l.p1)); x.lineTo(tx(l.t2), Y(l.p2)); x.stroke(); }
-    else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillStyle = col; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
-      x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); } x.setLineDash([]); x.lineWidth = 1; });
+  const dr = curLines(t);
+  dr.forEach((l, k) => { if (!l.del) drawObj(x, l, k === S.pick); });
+  if (S.pend) drawObj(x, Object.assign({ghost: 1}, S.pend), false);
   x.restore();
+  G.delBtn = null;
+  if (S.pick >= 0 && dr[S.pick] && !dr[S.pick].del && S.pickAt) {          // ✕ next to the picked object
+    const bx = Math.min(W - padR - 14, Math.max(14, S.pickAt.x + 18)), by = Math.max(14, Math.min(H - 34, S.pickAt.y - 18));
+    x.fillStyle = '#7f1d1d'; x.strokeStyle = '#f87171'; x.lineWidth = 1.5; x.beginPath(); x.arc(bx, by, 12, 0, 7); x.fill(); x.stroke();
+    x.strokeStyle = '#fff'; x.lineWidth = 2; x.beginPath(); x.moveTo(bx - 5, by - 5); x.lineTo(bx + 5, by + 5); x.moveTo(bx + 5, by - 5); x.lineTo(bx - 5, by + 5); x.stroke(); x.lineWidth = 1;
+    G.delBtn = {x: bx, y: by};
+  }
+  if (t.kind === 'P') return;
   const ia = bs(T, t.et), ib = t.xt ? bs(T, t.xt) : i1 - 1, hl = (v, col, dash, lab) => { if (v == null || isNaN(v) || !v) return; x.strokeStyle = col; x.setLineDash(dash); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); x.fillStyle = col; x.fillText(lab, X(Math.min(i1 - 1, ib + 3)) + 3, Y(v) + 3); };
   hl(t.sl, '#f87171', [4, 3], '損切り'); hl(t.tp, '#4ade80', [4, 3], '利確'); hl(t.ep, '#e2e8f0', [2, 2], '入り'); hl(t.xp, '#fbbf24', [2, 2], '決済');
   const tri = (i, v, up, col) => { x.fillStyle = col; x.beginPath(); const xx = X(i), yy = Y(v) + (up ? 12 : -12); x.moveTo(xx, yy + (up ? -8 : 8)); x.lineTo(xx - 6, yy + (up ? 4 : -4)); x.lineTo(xx + 6, yy + (up ? 4 : -4)); x.fill(); };
@@ -325,6 +393,8 @@ function chart() {
   if (b && b.ep) { const j = bs(T, b.et); if (j >= i0 && j < i1) { x.strokeStyle = '#94a3b8'; x.beginPath(); x.arc(X(j), Y(b.ep), 6, 0, 7); x.stroke(); } }
 }
 function info(t) {
+  if (t.kind === 'P') { const ea = live(t.lines).filter(l => l.src === 'ea'); $('#tinfo').innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px"><b style="font-size:14px">${esc(t.sym)}</b>
+    ${t.flag ? `<span class="badge" style="background:#3b2a0a;color:#fbbf24">🚩 ${esc(t.flag)}</span>` : ''}<span class="dim">EA のライン ${ea.length} 本（点線：<span style="color:#22d3ee">出入口</span>・<span style="color:#a3e635">砦</span>・<span style="color:#cbd5e1">抵抗体</span>）</span></div>`; return; }
   const b = t.kind === 'L' && t.btj >= 0 ? D.btl.find(z => z.j === t.btj) : null;
   $('#tinfo').innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px"><b style="font-size:14px">${esc(t.ea)}</b>${t.kind === 'B' ? '<span class="badge miss">入り損ね（バックテストだけ）</span>' : ''}<span>${t.side > 0 ? '買い' : '売り'}</span><span>${t.st === 'OPEN' ? '保有中' : '決済'}</span>${t.ex ? `<span class="badge">成績から外した：${esc(t.exw)}</span>` : ''}
     <span>入り ${tstr(t.et)} @ ${px(t, t.ep)}</span><span>最初の損切り ${px(t, t.sl)}</span>${t.tp ? `<span>利確 ${px(t, t.tp)}</span>` : ''}<span>決済 ${tstr(t.xt)} @ ${px(t, t.xp)}</span>
@@ -333,8 +403,28 @@ function info(t) {
     ${t.why ? `<div class="note">理由：${esc(t.why)}</div>` : ''}`;
 }
 // ------------------------------------------------------------ marks (saved to GAS: live trades -> EA_Trades like the app, missed entries -> EA_ReportMarks)
+const FLAGS = ['狙う（買い）', '狙う（売り）', '様子見'];
+function objNote(d) {           // the one-line note of the picked object
+  const l = S.pick >= 0 ? d.lines[S.pick] : null; if (!l || l.del) return '';
+  const nm = l.type === 'ea' ? 'EA の' + EAK[l.kind][0] : {h: '水平線', t: 'トレンドライン', b: 'ボックス', eb: '買いたい所', es: '売りたい所', x: '決済ライン'}[l.type];
+  return `<div style="margin-top:8px"><span class="mut" style="font-size:12px;font-weight:700">✏️ 選んだ${esc(nm)}の一言</span>
+    <input id="objnote" style="width:100%;margin-top:4px" maxlength="60" value="${esc(l.note || '')}" placeholder="例：ここで反発を待つ" oninput="objSetNote(this.value)"></div>`;
+}
+window.objSetNote = v => { const t = cur(), d = draft(t), l = d.lines[S.pick]; if (!l) return; l.note = v; l.at2 = nowJ(); if (l.src === 'ea') l.moved = l.moved || 0; d.dirty = true; chart(); mkMsg(); };
+window.mkFlag = v => { const d = draft(cur()); d.flag = d.flag === v ? '' : v; d.dirty = true; markPanel(); };
 function markPanel() {
   const t = cur(); if (!t) { $('#tmark').innerHTML = ''; return; } const d = draft(t);
+  if (t.kind === 'P') {
+    const ea = d.lines.filter(l => l.src === 'ea'), mine = live(d.lines).filter(l => l.src !== 'ea');
+    $('#tmark').innerHTML = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <div class="mut" style="font-size:12px;font-weight:700">🚩 来週の狙い</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0">
+      ${FLAGS.map(f => `<button class="vb ${d.flag === f ? 'on' : ''}" style="${d.flag === f ? 'border-color:#fbbf24;color:#fbbf24;background:#fbbf2422' : ''}" onclick="mkFlag('${f}')">${f}</button>`).join('')}</div>
+      ${objNote(d)}
+      <div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">💬 一言メモ</div><textarea id="mkcm" rows="2" style="width:100%" oninput="draft(cur()).cm=this.value;draft(cur()).dirty=true;mkMsg()">${esc(d.cm)}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="mkmsg" class="note"></span>
+        <span><span class="note">自分の線 ${mine.length} · EA ${live(ea).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）</span> <button class="t on" onclick="mkSave()">保存</button></span></div></div>`;
+    mkMsg(); return;
+  }
   const vb = (arr, val, fn) => arr.map(([v, l, c]) => `<button class="vb ${val === v ? 'on' : ''}" style="${val === v ? `border-color:${c};color:${c};background:${c}22` : ''}" onclick="${fn}('${v}')">${l}</button>`).join('');
   const tb = (arr, sel, fn) => arr.map(x => `<button class="pill ${sel.includes(x) ? 'on' : ''}" onclick="${fn}('${x}')">${x}</button>`).join('');
   $('#tmark').innerHTML = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
@@ -342,6 +432,7 @@ function markPanel() {
     <div class="chips">${tb(TAGS, d.tags, 'mkT')}</div>
     ${t.st === 'CLOSED' ? `<div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">🚪 決済の判定</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:4px 0">${vb(XVERD, d.xv, 'mkX')}</div>
     <div class="chips">${tb(XTAGS, d.xtags, 'mkXT')}</div>` : ''}
+    ${objNote(d)}
     <div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">💬 コメント</div><textarea id="mkcm" rows="3" style="width:100%" oninput="draft(cur()).cm=this.value;draft(cur()).dirty=true;mkMsg()">${esc(d.cm)}</textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="mkmsg" class="note"></span>
       <span>${d.lines.length ? `<span class="note">線 ${d.lines.length} 本</span> ` : ''}<button class="t on" onclick="mkSave()">保存</button></span></div></div>`;
@@ -354,6 +445,17 @@ window.mkT = v => { const d = draft(cur()); d.tags = d.tags.includes(v) ? d.tags
 window.mkXT = v => { const d = draft(cur()); d.xtags = d.xtags.includes(v) ? d.xtags.filter(x => x !== v) : d.xtags.concat(v); d.dirty = true; markPanel(); };
 window.mkSave = async function () {
   const t = cur(), d = draft(t); if (!D.gas || !D.rkey) { mkMsg('保存先（GAS）が分からないので保存できません。レポートを作り直してください', '#f87171'); return; }
+  if (t.kind === 'P') {      // only the trader's lines and the EA lines he touched are stored (the rest come from the EA again next time)
+    const keep = d.lines.filter(l => l.src !== 'ea' || l.moved || l.del || l.note);
+    const body = {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: '', ea: 'PAIR', symbol: t.sym, direction: '', time: nowJ(), fields: {comment: d.cm, tags: d.flag, lines: keep}};
+    mkMsg('保存中…', '#94a3b8');
+    try { const r = await fetch(D.gas, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
+      if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
+      Object.assign(t, {cm: d.cm, flag: d.flag, lines: JSON.parse(JSON.stringify(d.lines))}); d.dirty = false;
+      D.repmarks[t.id] = {cm: t.cm, tags: t.flag, lines: keep}; pxSec(); mkMsg('保存しました（次のレポートにも出ます）', '#4ade80');
+    } catch (e) { mkMsg('保存できませんでした：' + e.message, '#f87171'); }
+    return;
+  }
   const fields = {verdict: d.v, tags: d.tags.join(','), comment: d.cm, exitVerdict: d.xv, exitTags: d.xtags.join(','), lines: d.lines};
   const body = t.kind === 'L' ? {action: 'eaReportMark', key: D.rkey, kind: 'trade', tradeId: t.id, fields}
     : {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: S.acc, ea: t.ea, symbol: t.sym, direction: t.side > 0 ? 'BUY' : 'SELL', time: tstr(t.et), fields};
@@ -365,25 +467,39 @@ window.mkSave = async function () {
     listSec(); mkMsg('保存しました（アプリ・次のレポートにも出ます）', '#4ade80');
   } catch (e) { mkMsg('保存できませんでした：' + e.message, '#f87171'); }
 };
-// drawing / panning on the chart
+// drawing / panning on the chart. ✋ mode: drag empty chart = scroll, drag an object = move it, tap an object = pick it (✕ to delete)
 (function input() {
-  const cv = $('#cv'); let p = null, pinch = null, moved = false;
+  const cv = $('#cv'); let p = null, pinch = null, moved = false, drag = null;
   const pos = e => { const r = cv.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
-  cv.addEventListener('pointerdown', e => { p = {x: e.clientX, i0: S.view && S.view.i0}; moved = false; cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.abs(e.clientX - p.x) > 4) moved = true;
+  const mark = () => { const t = cur(); return t ? draft(t) : null; };
+  cv.addEventListener('pointerdown', e => {
+    const q = pos(e); p = {x: e.clientX, y: e.clientY, i0: S.view && S.view.i0, q}; moved = false; drag = null; cv.setPointerCapture(e.pointerId);
+    if (S.mode !== 'pan' || !G) return;
+    if (G.delBtn && Math.hypot(q.x - G.delBtn.x, q.y - G.delBtn.y) <= 15) { p.del = true; return; }
+    const k = hitObj(q); if (k >= 0) { const d = mark(); drag = {k, q, o: JSON.parse(JSON.stringify(d.lines[k]))}; }
+  });
+  cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 4) moved = true; if (!moved) return;
+    const q = pos(e);
+    if (drag && G) { const d = mark(), l = d.lines[drag.k], o = drag.o, dp = G.toP(q.y) - G.toP(drag.q.y), dx = q.x - drag.q.x;
+      const sh = tm => G.toT(G.tx(tm) + dx);
+      l.p1 = o.p1 + dp; if (o.p2 != null) l.p2 = o.p2 + dp;
+      if (l.type !== 'h' && l.type !== 'ea') { if (o.t1 != null) l.t1 = sh(o.t1); if (o.t2 != null) l.t2 = sh(o.t2); }
+      if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; }
+      l.at2 = nowJ(); d.dirty = true; S.pick = drag.k; S.pickAt = q; chart(); return; }
     if (S.mode === 'pan') { const bw = (cv.clientWidth - 68) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
-    else if (S.pend && G) { const q = pos(e); S.pend.t2 = G.toT(q.x); S.pend.p2 = G.toP(q.y); chart(); } });
-  cv.addEventListener('pointerup', e => { const was = p; p = null; if (!was || !G || S.mode === 'pan' || (moved && !S.pend)) return; const t = cur(); if (!t) return; const d = draft(t), q = pos(e);
-    if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y);
-    if (S.mode === 'h') { d.lines.push({type: 'h', tf: S.tf, t1: tm, p1: pr}); d.dirty = true; }
-    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = {type: S.mode, tf: S.tf, t1: tm, p1: pr, t2: tm, p2: pr}; chart(); return; } S.pend.t2 = tm; S.pend.p2 = pr; d.lines.push(S.pend); S.pend = null; d.dirty = true; }
-    else if (S.mode === 'del') { let best = -1, bd = 12; d.lines.forEach((l, k) => { let dist = 1e9;
-        if (l.type === 'h') dist = Math.abs(G.Y(l.p1) - q.y);
-        else { const ax = G.tx(l.t1), ay = G.Y(l.p1), bx = G.tx(l.t2), by = G.Y(l.p2);
-          if (l.type === 'b') { const inX = q.x >= Math.min(ax, bx) - 6 && q.x <= Math.max(ax, bx) + 6, inY = q.y >= Math.min(ay, by) - 6 && q.y <= Math.max(ay, by) + 6; dist = inX && inY ? Math.min(Math.abs(q.x - ax), Math.abs(q.x - bx), Math.abs(q.y - ay), Math.abs(q.y - by), 6) : 1e9; }
-          else { const L2 = (bx - ax) ** 2 + (by - ay) ** 2, u = L2 ? Math.max(0, Math.min(1, ((q.x - ax) * (bx - ax) + (q.y - ay) * (by - ay)) / L2)) : 0; dist = Math.hypot(q.x - ax - u * (bx - ax), q.y - ay - u * (by - ay)); } }
-        if (dist < bd) { bd = dist; best = k; } }); if (best >= 0) { d.lines.splice(best, 1); d.dirty = true; } }
-    chart(); markPanel(); });
+    else if (S.pend && G) { S.pend.t2 = G.toT(q.x); S.pend.p2 = G.toP(q.y); chart(); } });
+  cv.addEventListener('pointerup', e => { const was = p, dr = drag; p = null; drag = null; if (!was || !G) return; const t = cur(); if (!t) return; const d = draft(t), q = pos(e);
+    if (S.mode === 'pan') {
+      if (was.del) { const l = d.lines[S.pick]; if (l) { if (l.src === 'ea' || t.kind === 'P') l.del = nowJ(); else d.lines.splice(S.pick, 1); d.dirty = true; } S.pick = -1; chart(); markPanel(); return; }
+      if (dr) { if (!moved) { S.pick = dr.k; S.pickAt = q; } chart(); markPanel(); return; }
+      if (!moved) { S.pick = -1; chart(); markPanel(); }
+      return;
+    }
+    if (moved && !S.pend) return;
+    if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y), base = {tf: S.tf, at: nowJ()};
+    if (S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es') { d.lines.push(Object.assign({type: S.mode, t1: tm, p1: pr}, base)); }
+    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = Object.assign({type: S.mode, t1: tm, p1: pr, t2: tm, p2: pr}, base); chart(); return; } S.pend.t2 = tm; S.pend.p2 = pr; d.lines.push(S.pend); S.pend = null; }
+    d.dirty = true; S.pick = d.lines.length - 1; S.pickAt = q; S.mode = 'pan'; drawBtns(); chart(); markPanel(); });
   cv.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 0.87); }, {passive: false});
   cv.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = Math.abs(e.touches[0].clientX - e.touches[1].clientX); }, {passive: true});
   cv.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { const dd = Math.abs(e.touches[0].clientX - e.touches[1].clientX); if (Math.abs(dd - pinch) > 20) { zoom(dd > pinch ? 0.85 : 1.18); pinch = dd; } } }, {passive: true});
@@ -392,9 +508,15 @@ window.mkSave = async function () {
 addEventListener('beforeunload', e => { if (S.draft && S.draft.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.pick = function (key, tab) {
   if (S.draft && S.draft.dirty && S.draft.key !== key && !confirm('保存していない印・線があります。保存せずに移りますか？')) return;
-  S.sel = key; S.pend = null; if (tab) S.tab = tab; draw();
+  S.sel = key; S.pend = null; S.pick = -1; if (tab) S.tab = tab; draw();
 };
-function draw() { header(); ({'s-sum': sumSec, 's-per': perSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-mc': mcSec, 's-ex': exSec, 's-tr': listSec})[S.tab](); }
+window.goTab = function (id) {
+  if (id === S.tab) return;
+  if (S.draft && S.draft.dirty && !confirm('保存していない印・線があります。保存せずに移りますか？')) return;
+  if (S.tab === 's-tr') S.tsel = S.sel; if (S.tab === 's-px') S.psel = S.sel;
+  S.tab = id; S.sel = id === 's-tr' ? (S.tsel || null) : id === 's-px' ? (S.psel || null) : S.sel; S.view = null; S.pend = null; S.pick = -1; S.mode = 'pan'; draw();
+};
+function draw() { header(); ({'s-sum': sumSec, 's-per': perSec, 's-mon': monSec, 's-ea': eaSec, 's-bt': btSec, 's-mc': mcSec, 's-ex': exSec, 's-tr': listSec, 's-px': pxSec})[S.tab](); }
 $('#showex').onchange = draw; addEventListener('resize', () => S.tab === 's-tr' ? chart() : draw());
 draw();
 </script></body></html>

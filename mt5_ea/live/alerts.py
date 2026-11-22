@@ -314,6 +314,32 @@ class Market:
         return None
 
 
+def ea_lines(sym, m, life=30, scenes=('gateway', 'fortress', 'band')):
+    """2026-11-22 (report's all-pairs charts): the H4 lines the EA / alerts use that are still alive at the last bar.
+    gateway / fortress: born within `life` days and no H4 close through the line since (side-wise); band: born within `life` days.
+    -> [dict(kind, side, price (real price), born (server time, the H4 close that made the line))]"""
+    mk = Market(sym, m); k = 100.0 if sym.endswith('JPY') else 1.0
+    end = mk.C4[-1] if len(mk.C4) else None; out, seen = [], set()
+    if end is None:
+        return out
+    c4 = np.asarray(mk.cx.c4, float); C4 = np.asarray(mk.C4, dtype='datetime64[ns]')
+    for kind, side, L, born, _ in mk.lines(list(scenes), life):
+        born = np.datetime64(born, 'ns')
+        if (np.datetime64(end, 'ns') - born) > np.timedelta64(int(life), 'D'):
+            continue
+        if kind == 'band':
+            key = ('band', round(L, 6))
+            if key in seen:
+                continue
+            seen.add(key); side = 0
+        else:
+            after = c4[C4 > born]
+            if len(after) and (side * (after - L) < 0).any():
+                continue
+        out.append(dict(kind=kind, side=int(side), price=float(L) * k, born=pd.Timestamp(born)))
+    return out
+
+
 def events(mk, prof, since):
     """moments where price came back to one of the profile's lines (timing near / turn) at or after `since`"""
     out = []; t_from = np.datetime64(pd.Timestamp(since)) if since is not None else np.datetime64(pd.Timestamp(mk.start))
