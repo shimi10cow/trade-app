@@ -106,9 +106,44 @@ def live_trades(data, refs):
 
 
 # ---------------------------------------------------------------- backtest of the same period with the live code
-def backtest(broker, syms_keys, start, days_back):
+# 2026-11-22: the backtest is kept between reports (TradeEA_data/reports/bt_cache.pkl). A report only recalculates from
+# `safe` = 14 days before the previous report's last bar (earlier if a trade was still open there) to now; older trades come from
+# the cache. A symbol is recalculated from the start when its EA set changed, when the EA code changed (hash of registry / core /
+# eas/*.py) or when the report starts earlier than the cache. --full ignores the cache.
+CACHE_OVERLAP = pd.Timedelta(days=14)
+
+
+def code_version():
+    import hashlib
+    h = hashlib.sha1(); here = Path(__file__).parent
+    for f in sorted([here / 'registry.py', here / 'core.py', here / 'runner.py'] + list((here / 'eas').glob('*.py'))):
+        try:
+            h.update(f.read_bytes())
+        except Exception:
+            pass
+    return h.hexdigest()[:12]
+
+
+def load_cache(f):
+    import pickle
+    try:
+        return pickle.loads(Path(f).read_bytes()) if f and Path(f).exists() else {}
+    except Exception as ex:
+        log.warning('backtest cache not read (%s): full backtest', ex); return {}
+
+
+def save_cache(f, cache):
+    import pickle
+    try:
+        Path(f).write_bytes(pickle.dumps(cache))
+    except Exception as ex:
+        log.warning('backtest cache not saved (%s)', ex)
+
+
+def backtest(broker, syms_keys, start, days_back, cache=None):
     from mt5_ea.live.runner import compute_symbol
     out, bars = [], {}
+    ver = code_version()
     for sym, keys in sorted(syms_keys.items()):
         eas = [BY_KEY[k] for k in keys]
         warm = max(e.warm_days for e in eas)
@@ -117,7 +152,14 @@ def backtest(broker, syms_keys, start, days_back):
         except Exception as ex:
             log.warning('%s: no bars (%s)', sym, ex); continue
         bars[sym] = m[['t', 'o', 'h', 'l', 'c']].copy()
+        c = (cache or {}).get(sym) if cache is not None else None
+        use = c is not None and c.get('keys') == tuple(sorted(keys)) and c.get('ver') == ver and c.get('start') <= start and c.get('safe') is not None
+        C = c['safe'] if use else start
+        old = [r for r in c['trades'] if r['t'] < C and r['t'] >= start] if use else []
         x = bars[sym].copy(); x['t'] = pd.to_datetime(x.t).astype('datetime64[us]')
+        if use:
+            x = x[x.t >= pd.Timestamp(C) - pd.Timedelta(days=warm + 1)].reset_index(drop=True)
+        sym_out = []
         for z in 'ohlc':
             x[z] = to_space(sym, x[z].to_numpy())
         w1 = None
@@ -130,28 +172,36 @@ def backtest(broker, syms_keys, start, days_back):
                         w1[z] = to_space(sym, w1[z].to_numpy())
             except Exception:
                 w1 = None
-        log.info('backtest %s (%d EAs)', sym, len(keys)); print(f'  バックテスト {sym}（{len(keys)} 本）', flush=True)
+        log.info('backtest %s (%d EAs)', sym, len(keys))
+        print(f"  バックテスト {sym}（{len(keys)} 本）" + (f"：{pd.Timestamp(C):%m/%d} から（それより前は前回の分）" if use else '：最初から'), flush=True)
         try:
             res = compute_symbol(sym, x, warm, keys, w1)
         except Exception as ex:
-            log.warning('%s: backtest failed (%s)', sym, ex); continue
+            log.warning('%s: backtest failed (%s)', sym, ex); out += old; continue
         for k, r in res.items():
             tr = r.get('trades') if isinstance(r, dict) else None
             if tr is not None and len(tr):
                 for _, z in tr.iterrows():
                     t = pd.Timestamp(z['t'])
-                    if t < start:
+                    if t < start or t < C:
                         continue
                     st0 = next((z[c] for c in ('stop0', 'sl0', 'sl') if c in z and pd.notna(z[c])), None)
-                    out.append(dict(key=k, sym=sym, t=t, side=int(z['side']), entry=float(from_space(sym, [z['entry']])[0]),
+                    sym_out.append(dict(key=k, sym=sym, t=t, side=int(z['side']), entry=float(from_space(sym, [z['entry']])[0]),
                                     sl=float(from_space(sym, [st0])[0]) if st0 is not None else None,
                                     exit=float(from_space(sym, [z['exit']])[0]) if pd.notna(z.get('exit')) else None,
                                     exit_t=pd.Timestamp(z['exit_t']) if pd.notna(z.get('exit_t')) else None, R=float(z['R']), open=False))
             for z in (r.get('open') or []) if isinstance(r, dict) else []:
-                if 't' in z and pd.Timestamp(z['t']) >= start:
-                    out.append(dict(key=k, sym=sym, t=pd.Timestamp(z['t']), side=int(z['side']),
+                if 't' in z and pd.Timestamp(z['t']) >= start and pd.Timestamp(z['t']) >= C:
+                    sym_out.append(dict(key=k, sym=sym, t=pd.Timestamp(z['t']), side=int(z['side']),
                                     entry=float(from_space(sym, [z['entry']])[0]) if 'entry' in z else None,
                                     sl=float(from_space(sym, [z['sl']])[0]) if z.get('sl') is not None else None, exit=None, exit_t=None, R=None, open=True))
+        allt = old + sym_out; out += allt
+        if cache is not None:                     # where the next report may start: 14 days before the last bar, before any trade still open there
+            last = pd.Timestamp(bars[sym].t.iat[-1]); safe = last - CACHE_OVERLAP
+            span = [r['t'] for r in allt if r['t'] < safe and (r['open'] or r['exit_t'] is None or r['exit_t'] >= safe)]
+            if span:
+                safe = min(span) - pd.Timedelta(minutes=15)
+            cache[sym] = dict(keys=tuple(sorted(keys)), ver=ver, start=min(start, c['start']) if use else start, safe=max(safe, start), trades=allt)
     return pd.DataFrame(out), bars
 
 
@@ -312,6 +362,7 @@ def main(argv=None):
     ap.add_argument('--no-open', action='store_true')
     ap.add_argument('--data'); ap.add_argument('--bars-dir')
     ap.add_argument('--no-pairs', action='store_true', help='skip the all-pairs charts (smaller, faster)')
+    ap.add_argument('--full', action='store_true', help='backtest the whole period again (ignore the saved backtest)')
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING, format='%(levelname)s %(message)s')
     print('EA の成績レポートを作ります', flush=True)
@@ -352,7 +403,11 @@ def main(argv=None):
                 log.warning('%s: no bars (%s)', s, ex)
     else:
         print(f'  同じ期間（{start:%Y-%m-%d} から）を本番のコードでバックテストし直します（数分かかります）', flush=True)
-        B, bars = backtest(broker, {s: k for s, k in syms_keys.items() if k}, start, max(days_back, 400))
+        cf = Path(a.out) / 'bt_cache.pkl'; Path(a.out).mkdir(parents=True, exist_ok=True)
+        cache = {} if a.full or a.bars_dir else load_cache(cf)
+        B, bars = backtest(broker, {s: k for s, k in syms_keys.items() if k}, start, max(days_back, 400), cache)
+        if not a.bars_dir:
+            save_cache(cf, cache)
         for s in syms_keys:
             if s not in bars:
                 try:
@@ -373,7 +428,8 @@ def main(argv=None):
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     f = out / f'report_{pd.Timestamp.now(tz=JST):%Y%m%d_%H%M}.html'
     f.write_text(html, encoding='utf-8')
-    print(f'できました: {f}', flush=True)
+    (out / 'report_latest.html').write_text(html, encoding='utf-8')          # always the newest under one name (bookmark this one)
+    print(f'できました: {f}（最新はいつも {out / "report_latest.html"}）', flush=True)
     if not a.no_open:
         webbrowser.open(f.as_uri())
     return f
