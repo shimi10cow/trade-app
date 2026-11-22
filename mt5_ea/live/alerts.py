@@ -340,28 +340,69 @@ def ea_lines(sym, m, life=30, scenes=('gateway', 'fortress', 'band')):
     return out
 
 
+LIFE_BARS, BAND_WIN, BAND_TOL = 180, 540, 0.25      # the H4 rules in bars (30 days / 90 days of H4), used on every timeframe
+
+
+def tf_levels(df, R, k, tf):
+    """2026-11-22 (user, chart analysis): the same horizontal lines on every timeframe, from that timeframe's major Dow.
+      gateway  (出入口): the protected level broken at a turn, born within LIFE_BARS, no close through it since
+      fortress (砦)   : the current protected level
+      band     (抵抗体): >= 2 swings within BAND_TOL ATR over BAND_WIN bars, born within LIFE_BARS; and older protected levels
+                        still alive (born within LIFE_BARS, no close through)
+    -> [dict(type 'h', kind, tf, side, t1, p1)] in real prices (k = price-space factor)"""
+    from env_recognition.pivots import atr
+    from mt5_ea.live.eas import tlines
+    T = pd.to_datetime(df.t).reset_index(drop=True); C = df.c.to_numpy(float); n = len(df); A = np.asarray(atr(df), float); out = []
+    alive = lambda i, L, s: (n - 1 - i) <= LIFE_BARS and not (s * (C[i + 1:] - L) < 0).any()
+    tr, prot = (R['bars'][-1] if R['bars'] else (None, None)); cur = None
+    if tr in ('up', 'down') and prot is not None:
+        anc = [e.get('prot_anchor') for e in R['all_events'] if e.get('machine') == 'major' and e.get('prot_price') is not None and abs(float(e['prot_price']) - float(prot)) < 1e-12]
+        ia = int(anc[-1]) if anc and anc[-1] is not None else n - 1
+        cur = float(prot); out.append(dict(type='h', kind='fortress', tf=tf, side=1 if tr == 'up' else -1, t1=T[min(ia, n - 1)], p1=cur * k))
+    seen = set() if cur is None else {round(cur, 6)}
+    for e in R['all_events']:
+        if e.get('machine') != 'major':
+            continue
+        i = int(e['idx'])
+        if e['action'] == 'REVERSAL' and e.get('broken_price') is not None:
+            L, s = float(e['broken_price']), (1 if e['to'] == 'up' else -1)
+            if alive(i, L, s) and round(L, 6) not in seen:
+                seen.add(round(L, 6)); out.append(dict(type='h', kind='gateway', tf=tf, side=s, t1=T[min(i, n - 1)], p1=L * k))
+        elif e.get('action') == 'breakout_protect' and e.get('prot_price') is not None:
+            L, s = float(e['prot_price']), (1 if e['trend'] == 'up' else -1)
+            if alive(i, L, s) and round(L, 6) not in seen:
+                seen.add(round(L, 6)); out.append(dict(type='h', kind='band', tf=tf, side=0, t1=T[min(i, n - 1)], p1=L * k))
+    piv = sorted(tlines.pivots(R), key=lambda p: p[3]); have = []
+    for ii, (i, kind, p, av) in enumerate(piv):
+        if av >= n or not np.isfinite(A[av]):
+            continue
+        prev = [q for q in piv[:ii] if av - q[3] <= BAND_WIN and abs(q[2] - p) <= BAND_TOL * A[av]]
+        if not prev:
+            continue
+        L = float(np.mean([q[2] for q in prev] + [p]))
+        if any(abs(L - x) <= BAND_TOL * A[av] for x, _ in have):
+            continue
+        have.append((L, av))
+        if (n - 1 - av) <= LIFE_BARS and round(L, 6) not in seen and all(abs(L * k - o['p1']) > BAND_TOL * A[av] * k for o in out):
+            out.append(dict(type='h', kind='band', tf=tf, side=0, t1=T[av], p1=L * k))
+    return out
+
+
 def ea_chart_objects(sym, m, life=30):
-    """2026-11-22 (report's chart analysis): everything the EAs would watch now, for one pair.
-      h lines : ea_lines() (gateway / fortress / band still alive) + the current protected level of the major Dow on D1 / H4 / H1 / M15
-                (押し安値 in an uptrend, 戻り高値 in a downtrend)
-      trendlines: D1 / H4 / H1 lines still open (tlines.build, the DL / HL rules), M15 correction lines still unbroken (C EA)
+    """2026-11-22 (report's chart analysis): what the EAs would watch now, for one pair, on D1 / H4 / H1 / M15 alike:
+      horizontal lines from tf_levels() (出入口 / 砦 / 抵抗体) and trendlines (D1 / H4 / H1 open lines of tlines.build, the DL / HL
+      rules; M15 = the C EA's unbroken correction lines)
     -> [dict(type 'h' | 't', kind, tf, side, t1, p1, t2, p2)] in real prices; t = bar open time (server time)"""
     from mt5_ea.live.eas import tlines, c as C15
     from env_recognition import dow_trend
     from env_recognition.pivots import atr
     mk = Market(sym, m); F = mk.F; k = 100.0 if sym.endswith('JPY') else 1.0; out = []
-    for x in ea_lines(sym, m, life):
-        out.append(dict(type='h', kind=x['kind'], tf='H4', side=x['side'], t1=x['born'] - pd.Timedelta(hours=4), p1=x['price'], t2=None, p2=None))
     D = F.m15_all.set_index('t').resample('1D').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
     frames = {'D1': (D, dow_trend.run(D[['t', 'o', 'h', 'l', 'c']], 'D1')), 'H4': (F.h4.reset_index(drop=True), F.R4),
               'H1': (F.h1.reset_index(drop=True), F.R1), 'M15': (F.m15.reset_index(drop=True), F.R15)}
     for tf, (df, R) in frames.items():
         T = pd.to_datetime(df.t).reset_index(drop=True)
-        tr, prot = (R['bars'][-1] if R['bars'] else (None, None))
-        if tr in ('up', 'down') and prot is not None:
-            anc = [e.get('prot_anchor') for e in R['all_events'] if e.get('machine') == 'major' and e.get('prot_price') is not None and abs(float(e['prot_price']) - float(prot)) < 1e-12]
-            ia = int(anc[-1]) if anc and anc[-1] is not None else len(df) - 1
-            out.append(dict(type='h', kind='prot', tf=tf, side=1 if tr == 'up' else -1, t1=T[min(ia, len(T) - 1)], p1=float(prot) * k, t2=None, p2=None))
+        out += tf_levels(df, R, k, tf)
         if tf in ('D1', 'H4', 'H1'):
             A = np.asarray(atr(df), float)
             for ln in tlines.build(df, R, A, tf, early=True, h4c=None, maxspan=60 if tf == 'D1' else None):
@@ -371,20 +412,12 @@ def ea_chart_objects(sym, m, life=30):
                 if ib >= len(T) or ia >= len(T):
                     continue
                 out.append(dict(type='t', kind='tl', tf=tf, side=int(ln['side']), t1=T[ia], p1=float(pa) * k, t2=T[ib], p2=float(pb) * k))
-    # 2026-11-22 (user, chart analysis): 砦 = the CURRENT H4 protected level only (one line); older fortress levels that are still
-    # alive are shown as 抵抗体. The other timeframes keep their own 押し安値 / 戻り高値.
-    cur4 = next((o for o in out if o['kind'] == 'prot' and o['tf'] == 'H4'), None)
-    if cur4 is not None:
-        cur4['kind'] = 'fortress'
-    for o in out:
-        if o['kind'] == 'fortress' and o is not cur4:
-            o['kind'] = 'band'; o['side'] = 0
-    if cur4 is not None:                                     # the old fortress at the same price as the current one: not twice
-        out[:] = [o for o in out if not (o is not cur4 and o['type'] == 'h' and abs(o['p1'] - cur4['p1']) < 1e-9)]
     LS, _ = C15.lines(F); T15 = pd.to_datetime(F.m15.t).reset_index(drop=True)
     for ia, pa, ib, pb, cr, en, kind, broken in LS:
         if en is None and not broken and ib < len(T15):
             out.append(dict(type='t', kind='cl15', tf='M15', side=-1 if kind == 'hi' else 1, t1=T15[ia], p1=float(pa) * k, t2=T15[ib], p2=float(pb) * k))
+    for o in out:
+        o.setdefault('t2', None); o.setdefault('p2', None)
     return out
 
 

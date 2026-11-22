@@ -316,9 +316,12 @@ function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (l
 function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
 const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false}, S.draft.saved = sig(S.draft), S.draft);
 let G = null;   // geometry of the last drawn chart (for clicks)
-const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', ''], band: ['抵抗体', '#e5e7eb'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
+const EAK = {gateway: ['出入口', ''], fortress: ['砦', ''], band: ['抵抗体', '#e5e7eb'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
 // 2026-11-22 (user): one naming for every timeframe: the current protected level = 「◯ 砦」, a past turn = 「◯ 出入口」
 const eaName = l => l.kind === 'prot' || l.kind === 'fortress' ? TFN[l.tf || 'H4'] + ' 砦' : l.kind === 'gateway' ? TFN[l.tf || 'H4'] + ' 出入口' : l.kind === 'tl' ? TFN[l.tf] + ' トレンドライン' : l.kind === 'cl15' ? 'M15 調整ライン' : (EAK[l.kind] || [''])[0];
+// 2026-11-22 (user): which EA lines each chart shows. D1 / H4: their own; H1: + H4 / D1; M15: + H1 / H4 / D1. The trader's own lines: always.
+const SHOWTF = {D1: ['D1'], H4: ['H4'], H1: ['H1', 'H4', 'D1'], M15: ['M15', 'H1', 'H4', 'D1']};
+const vis = l => l.src !== 'ea' || (SHOWTF[S.tf] || []).includes(l.tf || 'H4');
 const curLines = t => (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
 function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
 function drawObj(x, l, sel) {
@@ -350,7 +353,7 @@ function hitHandle(q) { const t = cur(); if (!t || !G || S.pick < 0) return 0; c
   const h = handles(l); for (let i = 0; i < 2; i++) if (Math.hypot(q.x - h[i][0], q.y - h[i][1]) <= 12) return i + 1; return 0; }
 function hitDist(l, q) {           // pixels from the tap to the object (Infinity = not near)
   const {Y, tx, W, padR} = G, R = W - padR;
-  if (l.del) return Infinity;
+  if (l.del || !vis(l)) return Infinity;
   if (l.type === 'h') return Math.abs(Y(l.p1) - q.y);
   if (l.type === 'ea' || l.type === 'x') return q.x >= Math.max(0, tx(l.t1)) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
   if (l.type === 'eb' || l.type === 'es') return Math.hypot(q.x - tx(l.t1), q.y - Y(l.p1) - (l.type === 'eb' ? 6 : -6));
@@ -390,7 +393,7 @@ function chart() {
   // drawings (all timeframes; color = the timeframe it was drawn on). The EA's lines are dashed, from the H4 close that made them to the right.
   x.save(); x.beginPath(); x.rect(0, 0, W - padR, H - 20); x.clip();
   const dr = curLines(t);
-  dr.forEach((l, k) => { if (!l.del) drawObj(x, l, k === S.pick); });
+  dr.forEach((l, k) => { if (!l.del && vis(l)) drawObj(x, l, k === S.pick); });
   if (S.pend) { x.fillStyle = TFC[S.pend.tf] || '#e2e8f0'; x.beginPath(); x.arc(tx(S.pend.t1), Y(S.pend.p1), 4, 0, 7); x.fill(); }   // first point only, no moving preview
   x.restore();
   G.delBtn = null;
