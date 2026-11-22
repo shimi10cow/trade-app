@@ -485,21 +485,35 @@ function impTrend_(b) {
   return {success: true, trend: tr};
 }
 function impTrendAt_(pair, ms) {
-  const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, p = (alias[String(pair).toUpperCase()] || String(pair)).toUpperCase(), out = {};
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), lg = ss.getSheetByName('Pair_Auto_Log');
-  const toMs = function (x) { if (x instanceof Date) return x.getTime(); const d = new Date(String(x || '').replace(' ', 'T')); return d.getTime(); };
-  if (lg && lg.getLastRow() > 1 && isFinite(ms)) {
-    lg.getRange(2, 1, lg.getLastRow() - 1, 4).getValues().forEach(function (r) {      // rows in time order: the last one before the entry wins
-      if (String(r[1]).toUpperCase() === p && toMs(r[0]) <= ms - 9 * 3600e3) out[String(r[2])] = String(r[3]);   // ms = Japan wall time written as UTC (impDT_)
-    });
-    if (Object.keys(out).length) out._src = 'auto';
+  // 2026-11-22 (user, plan A): the arrows the pair tab showed at the entry, i.e. the trader's own view. Per timeframe the newer of
+  //  - his last 「データを送信」 before the entry (Pair_History: what the pair tab said, corrections included) and
+  //  - the last change of the PC's automatic arrow before the entry (Pair_Auto_Log: a change overwrites the pair tab, see ealPairEnv_).
+  // A timeframe with neither (e.g. M1, his own input, never sent) takes the pair tab now.
+  const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, raw = String(pair).toUpperCase(), p = (alias[raw] || raw).toUpperCase();
+  const same = function (x) { const u = String(x || '').trim().toUpperCase(); return u === p || u === raw || (alias[u] || u) === p; };
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID), at = isFinite(ms) ? ms - 9 * 3600e3 : NaN;   // ms = Japan wall time written as UTC (impDT_)
+  const toMs = function (x) { if (x instanceof Date) return x.getTime(); const d = new Date(String(x || '').trim().replace(' ', 'T')); return d.getTime(); };
+  const TF = ['M1', 'W1', 'D1', 'H4', 'H1'], best = {};                // tf -> {v, t, src}
+  const put = function (tf, v, t, src) { v = String(v || '').trim(); if (!v || !(t <= at)) return; if (!best[tf] || t >= best[tf].t) best[tf] = {v: v, t: t, src: src}; };
+  if (isFinite(at)) {
+    const lg = ss.getSheetByName('Pair_Auto_Log');
+    if (lg && lg.getLastRow() > 1) lg.getRange(2, 1, lg.getLastRow() - 1, 4).getValues().forEach(function (r) { if (same(r[1])) put(String(r[2]), r[3], toMs(r[0]), 'auto'); });
+    const ph = ss.getSheetByName(typeof PAIR_HISTORY_SHEET !== 'undefined' ? PAIR_HISTORY_SHEET : 'Pair_History');
+    if (ph && ph.getLastRow() > 1) {
+      const v = ph.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); }), iS = h.indexOf('SentAt'), iP = h.indexOf('PairName');
+      if (iS >= 0 && iP >= 0) v.slice(1).forEach(function (r) { if (!same(r[iP])) return; const t = toMs(r[iS]);
+        TF.forEach(function (k) { const j = h.indexOf(k); if (j >= 0) put(k, r[j], t, 'mine'); }); });
+    }
   }
+  const out = {}, srcs = {};
+  TF.forEach(function (k) { if (best[k]) { out[k] = best[k].v; srcs[best[k].src] = 1; } });
   const sh = ss.getSheetByName(PAIRS_SHEET);
   if (sh) {
     const v = sh.getDataRange().getValues(), h = v[0].map(function (x) { return String(x).trim(); }), pc = h.indexOf('PairName（元）') >= 0 ? h.indexOf('PairName（元）') : h.indexOf('PairName');
-    const row = v.slice(1).find(function (r) { return String(r[pc]).trim().toUpperCase() === p; });
-    if (row) ['M1', 'W1', 'D1', 'H4', 'H1'].forEach(function (k) { const j = h.indexOf(k); if (!out[k] && j >= 0 && String(row[j]).trim()) { out[k] = String(row[j]).trim(); out._src = !out._src ? 'pairs' : (out._src.indexOf('pairs') < 0 ? out._src + '+pairs' : out._src); } });
+    const row = v.slice(1).find(function (r) { return same(r[pc]); });
+    if (row) TF.forEach(function (k) { const j = h.indexOf(k); if (!out[k] && j >= 0 && String(row[j]).trim()) { out[k] = String(row[j]).trim(); srcs.pairs = 1; } });
   }
+  if (Object.keys(srcs).length) out._src = Object.keys(srcs).join('+');
   return out;
 }
 /** app: a trade recorded from the MT5 tab goes back to "確認が必要なトレード".
