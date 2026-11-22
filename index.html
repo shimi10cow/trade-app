@@ -850,17 +850,13 @@
               <div class="grid-item"><span class="grid-label">R</span><input type="number" class="form-input" id="td-r" step="0.01" inputmode="decimal" placeholder="決済価格で自動" style="text-align:center; padding:10px 4px;" oninput="tdRTyped_()"></div>
               <div class="grid-item"><span class="grid-label">1R の金額</span><div class="form-input" id="td-r-yen" style="text-align:center;padding:10px 4px;background:#0f172a;min-width:0;">--</div></div>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 8px;">
-              <div class="grid-item">
-                <span class="grid-label">ルール通りなら R</span>
+            <!-- 2026-11-22 (user): the rule exit price is typed; the rule R and the rule profit follow from it -->
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 8px;">
+              <div class="grid-item"><span class="grid-label">ルール準拠の決済価格</span><input type="number" step="any" class="form-input" id="td-rule-exit-price" inputmode="decimal" style="text-align:center; padding:10px 4px;" oninput="tdRuleFromPrice_()"></div>
+              <div class="grid-item"><span class="grid-label">ルール準拠 R</span>
                 <input type="hidden" id="td-rule-pips">
-                <input type="number" class="form-input" id="td-rule-r" step="0.01" inputmode="decimal" style="text-align:center; padding:10px 4px;" oninput="tdRuleRTyped_()">
-              </div>
-              <div class="grid-item">
-                <span class="grid-label">ルール準拠損益</span>
-                <div class="form-input" id="td-rule-profit" style="text-align:center; padding:10px 4px; background:#0f172a; color:#94a3b8; font-size:12px;">--</div>
-              </div>
-
+                <input type="number" class="form-input" id="td-rule-r" readonly tabindex="-1" style="text-align:center; padding:10px 4px; background:#0f172a;"></div>
+              <div class="grid-item"><span class="grid-label">ルール準拠損益</span><div class="form-input" id="td-rule-profit" style="text-align:center; padding:10px 4px; background:#0f172a; color:#94a3b8; font-size:12px;">--</div></div>
             </div>
             
             <div style="margin-top:16px;">
@@ -1405,7 +1401,7 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261122o" charset="utf-8"></script>
+  <script src="./app.js?v=20261122p" charset="utf-8"></script>
   <script src="./ea_ideas.js?v=20261113b" charset="utf-8"></script>
   <script src="./opendata.js?v=20261122c" charset="utf-8"></script>
   <script src="./mt5_tab.js?v=20261122g" charset="utf-8"></script>

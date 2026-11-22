@@ -5156,7 +5156,7 @@ function updatePlannedPips_(prefix){
   // so typing the SL price alone gives the R at once
   if(prefix==='td'){var ex=Number(document.getElementById('td-exit-price')?.value),pe=document.getElementById('td-pips');
     if(pe&&ex>0&&(pe.value===''||pe.dataset.auto==='1')){pe.value=Math.round((dir==='BUY'?ex-entry:entry-ex)/pip*10)/10;pe.dataset.auto='1';}}
-  if(prefix==='ne')calculateRR();else{calculateRRTD();calculateRuleMetrics();}
+  if(prefix==='ne')calculateRR();else{calculateRRTD();if(document.getElementById('td-rule-exit-price')?.value)tdRuleFromPrice_();else calculateRuleMetrics();}
 }
 // SL width as a price difference (pips stay hidden): 0.00320 for EURUSD, 0.320 for USDJPY, 12.50 for gold
 function slWidthTxt_(prefix){
@@ -5208,6 +5208,18 @@ function tdRTyped_() {
   rEl.dataset.manual = rEl.value === '' ? '' : '1';
   if (pe) { pe.dataset.auto = ''; pe.value = (!isNaN(r) && sl > 0) ? String(Math.round(r * sl * 10) / 10) : (rEl.value === '' ? '' : pe.value); }
   calculateRRTD(); calculateRuleMetrics(); calculateExitMetrics();
+}
+// 2026-11-22 (user): the rule exit price -> ルール準拠 R (from the entry and the first SL, the same way as R) -> ルール準拠 pips / 損益.
+// Without a rule exit price an older trade keeps its stored rule pips (shown as R).
+function tdRuleFromPrice_() {
+  const v = Number(document.getElementById('td-rule-exit-price')?.value), en = Number(document.getElementById('td-entry-price')?.value), sp = Number(document.getElementById('td-sl-price')?.value);
+  const act = document.querySelector('#td-dir button.active'), dir = act ? (/sell|▼/i.test(act.textContent) ? -1 : 1) : 0;
+  const rEl = document.getElementById('td-rule-r'), rp = document.getElementById('td-rule-pips'), sl = parseFloat(document.getElementById('td-sl')?.value);
+  if (v > 0 && en > 0 && sp > 0 && dir && en !== sp) {
+    const r = dir * (v - en) / Math.abs(en - sp);
+    rEl.value = r.toFixed(2); if (rp) rp.value = sl > 0 ? String(Math.round(r * sl * 10) / 10) : rp.value;
+  } else if (document.getElementById('td-rule-exit-price')?.value === '') tdRuleRFromPips_();
+  calculateRuleMetrics();
 }
 function tdRuleRTyped_() {
   const v = document.getElementById('td-rule-r').value, r = parseFloat(v), sl = parseFloat(document.getElementById('td-sl').value);
@@ -5619,9 +5631,10 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   document.getElementById('td-pips').value = t['実取得pips'] || '';
   document.getElementById('td-profit').value = t['損益'] || '';
   document.getElementById('td-rule-pips').value = t['ルール準拠pips'] || t['ルール準拠Pips'] || '';
+  { const rx = document.getElementById('td-rule-exit-price'); if (rx) rx.value = t['ルール準拠決済価格'] || ''; }
   { const rEl = document.getElementById('td-r'); if (rEl) { const r0 = tradeR_(t); rEl.dataset.manual = ''; rEl.value = r0 == null ? '' : r0.toFixed(2); } }
   tdRuleRFromPips_();
-  setTimeout(function () { try { tdRuleRFromPips_(); calculateRRTD(); calculateRuleMetrics(); } catch (e) {} }, 0);
+  setTimeout(function () { try { tdRuleRFromPips_(); calculateRRTD(); if (document.getElementById('td-rule-exit-price')?.value) tdRuleFromPrice_(); else calculateRuleMetrics(); } catch (e) {} }, 0);
 
   document.getElementById('td-entry-ref').value = t['エントリー振り返り'] || '';
   document.getElementById('td-exit-ref').value = t['決済振り返り'] || '';
@@ -5922,6 +5935,7 @@ async function saveTradeDetail() {
         return _r > WIN_R_ ? '勝ち' : (_r < -WIN_R_ ? '負け' : '引き分け');
       })(),
       '損益': document.getElementById('td-profit').value,
+      'ルール準拠決済価格': document.getElementById('td-rule-exit-price')?.value || '',
       'ルール準拠pips': (() => {      // kept in pips for the sheet: ルール通りの R × SL pips (2026-11-22)
         const v = document.getElementById('td-rule-r')?.value || '', r = parseFloat(v), sl = parseFloat(document.getElementById('td-sl')?.value);
         if (v === '') return '';
