@@ -430,6 +430,50 @@ function impAdopt_(b) {
   t['ステータス'] = t.ExitDate ? '決済' : '保有中'; t.AdoptedAt = tradesNow_(); trWrite_(T, t);
   return {success: true, status: t['ステータス'], entryId: t.EntryID, trend: put};
 }
+/** EA PC (alerts window, read only): recorded MT5 trades that still need chart images (2026-11-22).
+ *  needEntry: no ChartImage yet and not drawn before; needExit: closed, no 決済チャート yet and not drawn before. */
+function impNeedImages_(b) {
+  const T = trRead_(), lim = Math.min(20, Number(b.limit || 5)), out = [];
+  T.rows.forEach(function (t) {
+    if (out.length >= lim || ['決済', '保有中'].indexOf(String(t['ステータス'])) < 0) return;
+    if (String(t.Source || '') !== 'MT5' && !String(t.Accounts || '').trim()) return;
+    const pair = String(t['PairName（元）'] || t.PairName || '').trim(); if (!pair || !t.EntryDate) return;
+    const needEntry = !String(t.ChartImage || '').trim() && !t.ImgAutoEntry;
+    const needExit = t['ステータス'] === '決済' && !!t.ExitDate && !String(t['決済チャート'] || '').trim() && !t.ImgAutoExit;
+    if (!needEntry && !needExit) return;
+    const d = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy/MM/dd') : String(v || '').slice(0, 10); };
+    const tm = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'HH:mm') : String(v || '').slice(0, 5); };
+    out.push({id: String(t.EntryID), pair: pair, direction: t.Direction, entryDate: d(t.EntryDate), entryTime: tm(t.EntryTime), exitDate: d(t.ExitDate), exitTime: tm(t.ExitTime),
+      entryPrice: t.EntryPrice, sl: t.InitialSLPrice, tp: t.TakeProfitPrice, exitPrice: t.ExitPrice, needEntry: needEntry, needExit: needExit});
+  });
+  // every execution of the trade (each entry / exit is marked on its own, not the average)
+  if (out.length) {
+    const E = execRead_(), byT = {};
+    E.rows.forEach(function (r) { const k = String(r.TradeID || ''); if (k) (byT[k] = byT[k] || []).push({io: String(r.InOut), t: String(r.DealTime), p: Number(r.DealPrice), v: Number(r.Volume)}); });
+    out.forEach(function (t) { t.deals = byT[t.id] || []; });
+  }
+  // the trader's lines of the pair from the report's chart analysis (EA_ReportMarks 'PAIR|EURUSD'): 抵抗体 / own lines / boxes
+  if (out.length && typeof ealRows_ === 'function') {
+    const alias = {GOLD: 'XAUUSD', SILVER: 'XAGUSD', NGAS: 'NATGAS'}, by = {};
+    ealRows_('repmarks').forEach(function (r) { const id = String(r.ID || ''); if (id.indexOf('PAIR|') === 0) { try { by[id.slice(5)] = JSON.parse(r.Lines || '[]'); } catch (e) {} } });
+    out.forEach(function (t) { const p = (alias[t.pair.toUpperCase()] || t.pair).toUpperCase(); t.lines = (by[p] || []).filter(function (l) { return !l.del; }); });
+  }
+  return {success: true, trades: out};
+}
+/** EA PC: the drawn images of one trade -> Drive; only EMPTY image fields are filled (a hand-made image stays). */
+function impSetImages_(b) {
+  const urls = {};
+  (b.images || []).forEach(function (im) {
+    const up = uploadImage(String(im.png || ''), 'trade_' + String(b.entryId) + '_' + String(im.field) + '.png', 'image/png');
+    if (up && up.success) urls[String(im.field)] = 'https://drive.google.com/file/d/' + up.fileId + '/view';
+  });
+  const T = trRead_(), t = impFind_(T, b.entryId); trEnsureCols_(T, ['ImgAutoEntry', 'ImgAutoExit']);
+  Object.keys(urls).forEach(function (f) { if (!String(t[f] || '').trim()) t[f] = urls[f]; });
+  if (urls.ChartImage || urls.ChartImage2) t.ImgAutoEntry = tradesNow_();
+  if (urls['決済チャート'] || urls['決済チャート2']) t.ImgAutoExit = tradesNow_();
+  trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY);
+  return {success: true, saved: Object.keys(urls).length};
+}
 /** app (read only): the trend arrows of a draft's entry time, for the detail opened from 記録にする (nothing is recorded). */
 function impTrend_(b) {
   const T = trRead_(), t = impFind_(T, b.entryId);

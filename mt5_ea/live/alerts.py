@@ -582,6 +582,14 @@ def main():
                         logging.info('pair env: %d pairs sent, %s changed', len(rows), (r or {}).get('changed'))
                     except Exception as ex:
                         logging.warning('pair env: %s', ex)
+                    if os.getenv('EA_TRADE_IMAGES', '1') != '0':      # 2026-11-22: chart images for imported trades (a few per hour)
+                        try:
+                            from mt5_ea.live import trade_images
+                            n = trade_images.run(b, gas, limit=5, log=lambda x: logging.info(x))
+                            if n:
+                                logging.info('trade images: %d trades', n)
+                        except Exception as ex:
+                            logging.warning('trade images: %s', ex)
         except Exception as ex:
             logging.exception('alerts loop: %s', ex)
         time.sleep(20)
