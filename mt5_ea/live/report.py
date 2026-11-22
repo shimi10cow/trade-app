@@ -426,10 +426,9 @@ def main(argv=None):
             log.warning('all-pairs charts: %s', ex); print(f'  全通貨のチャートは作れませんでした（{ex}）', flush=True)
     html = build(data, refs, T, B, bars, days_back, pcharts)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    f = out / f'report_{pd.Timestamp.now(tz=JST):%Y%m%d_%H%M}.html'
+    f = out / 'report_latest.html'                 # 2026-11-22 (user): always the same file, overwritten (bookmark it)
     f.write_text(html, encoding='utf-8')
-    (out / 'report_latest.html').write_text(html, encoding='utf-8')          # always the newest under one name (bookmark this one)
-    print(f'できました: {f}（最新はいつも {out / "report_latest.html"}）', flush=True)
+    print(f'できました: {f}（毎回このファイルに上書き）', flush=True)
     if not a.no_open:
         webbrowser.open(f.as_uri())
     return f

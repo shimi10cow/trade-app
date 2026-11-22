@@ -300,7 +300,7 @@ function pxSec() {      // all pairs of the app: weekend chart analysis with the
 function drawBtns() {
   const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart()">${l}</button>`;
   $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}
-    <span class="note">${S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es' ? 'チャートを 1 回押す' : S.mode === 't' ? '2 点を押す（右に伸びる）' : S.mode === 'b' ? '対角の 2 点を押す' : '線を押すと ✕（削除）、線をドラッグで移動'}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
+    <span class="note">${S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es' ? 'チャートを 1 回押す' : S.mode === 't' ? '2 点を押す（右に伸びる）' : S.mode === 'b' ? '対角の 2 点を押す' : '線を押すと ✕（削除）、ドラッグで移動。トレンドライン・ボックスは選ぶと出る □ をドラッグで角度・大きさ'}${S.mode !== 'pan' ? `（${TFN[S.tf]} の色で引く）` : ''}</span>`;
 }
 // ------------------------------------------------------------ chart
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
@@ -314,23 +314,27 @@ function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) 
 function drawObj(x, l, sel) {
   const {Y, tx, W, padR, dig} = G, R = W - padR;
   const col = l.type === 'ea' ? (EAK[l.kind] || ['', '#e2e8f0'])[1] : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
-  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 3 : (l.ghost ? 1 : 1.6); x.setLineDash(l.ghost ? [3, 3] : l.type === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
-  if (sel) { x.shadowColor = '#fff'; x.shadowBlur = 6; }
-  const lab = (txt, xx, yy) => { x.setLineDash([]); x.shadowBlur = 0; x.fillText(txt, xx, yy); };
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
+  const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
   if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
   else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
     const nm = l.type === 'x' ? '決済' : EAK[l.kind][0] + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
     lab(nm + ' ' + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
   else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
-    const [ex, ey] = l.ghost ? [bx, by] : rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
+    const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
   else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
     x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); if (l.note) lab(l.note, Math.min(a, b) + 3, Math.min(Y(l.p1), Y(l.p2)) + 11); }
   else if (l.type === 'eb' || l.type === 'es') { const up = l.type === 'eb', xx = tx(l.t1), yy = Y(l.p1); x.setLineDash([]); x.beginPath();
     x.moveTo(xx, yy); x.lineTo(xx - 7, yy + (up ? 12 : -12)); x.lineTo(xx + 7, yy + (up ? 12 : -12)); x.closePath(); x.fill();
     x.beginPath(); x.setLineDash([2, 3]); x.moveTo(xx + 8, yy); x.lineTo(Math.min(R, xx + 60), yy); x.stroke();
     lab((up ? '買いたい ' : '売りたい ') + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), xx + 10, yy + (up ? 24 : -16)); }
+  if (sel && (l.type === 't' || l.type === 'b') && l.t2 != null) handles(l).forEach(([hx, hy]) => {        // the 2 points, only while picked
+    x.setLineDash([]); x.lineWidth = 1.5; x.fillStyle = '#0f172a'; x.strokeStyle = col; x.fillRect(hx - 5, hy - 5, 10, 10); x.strokeRect(hx - 5, hy - 5, 10, 10); });
   x.setLineDash([]); x.lineWidth = 1; x.shadowBlur = 0;
 }
+const handles = l => [[G.tx(l.t1), G.Y(l.p1)], [G.tx(l.t2), G.Y(l.p2)]];
+function hitHandle(q) { const t = cur(); if (!t || !G || S.pick < 0) return 0; const l = curLines(t)[S.pick]; if (!l || l.del || (l.type !== 't' && l.type !== 'b') || l.t2 == null) return 0;
+  const h = handles(l); for (let i = 0; i < 2; i++) if (Math.hypot(q.x - h[i][0], q.y - h[i][1]) <= 12) return i + 1; return 0; }
 function hitDist(l, q) {           // pixels from the tap to the object (Infinity = not near)
   const {Y, tx, W, padR} = G, R = W - padR;
   if (l.del) return Infinity;
@@ -374,7 +378,7 @@ function chart() {
   x.save(); x.beginPath(); x.rect(0, 0, W - padR, H - 20); x.clip();
   const dr = curLines(t);
   dr.forEach((l, k) => { if (!l.del) drawObj(x, l, k === S.pick); });
-  if (S.pend) drawObj(x, Object.assign({ghost: 1}, S.pend), false);
+  if (S.pend) { x.fillStyle = TFC[S.pend.tf] || '#e2e8f0'; x.beginPath(); x.arc(tx(S.pend.t1), Y(S.pend.p1), 4, 0, 7); x.fill(); }   // first point only, no moving preview
   x.restore();
   G.delBtn = null;
   if (S.pick >= 0 && dr[S.pick] && !dr[S.pick].del && S.pickAt) {          // ✕ next to the picked object
@@ -476,10 +480,13 @@ window.mkSave = async function () {
     const q = pos(e); p = {x: e.clientX, y: e.clientY, i0: S.view && S.view.i0, q}; moved = false; drag = null; cv.setPointerCapture(e.pointerId);
     if (S.mode !== 'pan' || !G) return;
     if (G.delBtn && Math.hypot(q.x - G.delBtn.x, q.y - G.delBtn.y) <= 15) { p.del = true; return; }
+    const hh = hitHandle(q); if (hh) { const d = mark(); drag = {k: S.pick, q, h: hh, o: JSON.parse(JSON.stringify(d.lines[S.pick]))}; return; }
     const k = hitObj(q); if (k >= 0) { const d = mark(); drag = {k, q, o: JSON.parse(JSON.stringify(d.lines[k]))}; }
   });
   cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 4) moved = true; if (!moved) return;
     const q = pos(e);
+    if (drag && drag.h && G) { const d = mark(), l = d.lines[drag.k];       // one of the 2 points: angle / size
+      l['t' + drag.h] = G.toT(q.x); l['p' + drag.h] = G.toP(q.y); l.at2 = nowJ(); d.dirty = true; chart(); return; }
     if (drag && G) { const d = mark(), l = d.lines[drag.k], o = drag.o, dp = G.toP(q.y) - G.toP(drag.q.y), dx = q.x - drag.q.x;
       const sh = tm => G.toT(G.tx(tm) + dx);
       l.p1 = o.p1 + dp; if (o.p2 != null) l.p2 = o.p2 + dp;
@@ -487,11 +494,11 @@ window.mkSave = async function () {
       if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; }
       l.at2 = nowJ(); d.dirty = true; S.pick = drag.k; S.pickAt = q; chart(); return; }
     if (S.mode === 'pan') { const bw = (cv.clientWidth - 68) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
-    else if (S.pend && G) { S.pend.t2 = G.toT(q.x); S.pend.p2 = G.toP(q.y); chart(); } });
+    });
   cv.addEventListener('pointerup', e => { const was = p, dr = drag; p = null; drag = null; if (!was || !G) return; const t = cur(); if (!t) return; const d = draft(t), q = pos(e);
     if (S.mode === 'pan') {
       if (was.del) { const l = d.lines[S.pick]; if (l) { if (l.src === 'ea' || t.kind === 'P') l.del = nowJ(); else d.lines.splice(S.pick, 1); d.dirty = true; } S.pick = -1; chart(); markPanel(); return; }
-      if (dr) { if (!moved) { S.pick = dr.k; S.pickAt = q; } chart(); markPanel(); return; }
+      if (dr) { if (!moved && !dr.h) { S.pick = dr.k; S.pickAt = q; } chart(); markPanel(); return; }
       if (!moved) { S.pick = -1; chart(); markPanel(); }
       return;
     }
