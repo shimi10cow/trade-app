@@ -9,6 +9,7 @@ $here = $PSScriptRoot
   @{Name="新EA リアル START"; Target=(Join-Path $here "START_LIVE_EA_REAL.bat"); Icon="%SystemRoot%\System32\shell32.dll,77"},
   @{Name="新EA リアル STOP";  Target=(Join-Path $here "STOP_LIVE_EA_REAL.bat");  Icon="%SystemRoot%\System32\shell32.dll,131"},
   @{Name="ペアの向き 初回の全取得";  Target=(Join-Path $here "PAIR_ENV_FIRST.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
+  @{Name="通知の答え合わせ";  Target=(Join-Path $here "ALERT_REPLAY.bat"); Icon="%SystemRoot%\System32\shell32.dll,23"},
   @{Name="ペアの向き 今すぐ更新";  Target=(Join-Path $here "PAIR_ENV.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
   @{Name="GAS 反映";  Target=(Join-Path $here "GAS_DEPLOY.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
   @{Name="新EA 更新";  Target=(Join-Path $here "UPDATE_LIVE_EA.bat"); Icon="%SystemRoot%\System32\shell32.dll,238"},
