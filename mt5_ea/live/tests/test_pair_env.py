@@ -28,7 +28,7 @@ def main():
         def copy_rates_range(self, n, tf, a, z):
             ranges.append((pd.Timestamp(a), pd.Timestamp(z)))
             x = w[(w.t >= pd.Timestamp(a)) & (w.t <= pd.Timestamp(z))]
-            return x.assign(time=x.t.astype('int64') // 10**9).rename(columns=dict(o='open', h='high', l='low', c='close')).to_records()
+            return x.assign(time=[int(z.timestamp()) for z in x.t]).rename(columns=dict(o='open', h='high', l='low', c='close')).to_records()
     end = m.t.iat[-1]
     orig = pair_env.weekly_bars
     pair_env.weekly_bars = lambda b, p: orig(b, p, now=end + pd.Timedelta(days=1))
@@ -39,15 +39,29 @@ def main():
     print(rows, f'{time.time() - t0:.1f}s')
     assert len(rows) == 1 and all(rows[0][k] in ('↑', '↓', '→') for k in ('D1', 'H4', 'H1')) 
     assert max(asked) <= 400, 'never more than 400 days of history'
-    # M1 from (fake) FRED daily rates made from the same EURUSD closes: same arrow as monthly bars of the M5 data
-    d = m.set_index('t').c.resample('1D').last().dropna()
-    csv = 'observation_date,DEXUSEU\n' + '\n'.join(f'{k:%Y-%m-%d},{v}' for k, v in d.items()) + '\n2026-10-20,.\n'
-    pair_env.M1_YEARS = 30
-    mo = pair_env.monthly_arrows(['EURUSD', 'USDJPY', 'XAUUSD'], log=print, get=lambda u: csv if 'DEXUSEU' in u else (_ for _ in ()).throw(RuntimeError('offline')))
-    mm = m.set_index('t').resample('MS').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
-    mm = mm[mm.t + pd.DateOffset(months=1) <= pd.Timestamp.now()]
-    print('M1', mo, 'real monthly bars:', pair_env.direction(mm, 'M1'))
-    assert mo.get('EURUSD') == pair_env.direction(mm, 'M1') and 'XAUUSD' not in mo and 'USDJPY' not in mo
+    # M1: seed once (16 years of MN1), then weekly updates of the last 36 months only, from a small file per symbol
+    import os, tempfile
+    os.environ['EA_DATA_DIR'] = tempfile.mkdtemp()
+    mo_bars = m.set_index('t').resample('MS').agg(dict(o='first', h='max', l='min', c='last')).dropna().reset_index()
+    asks = []
+
+    class MT5M:
+        TIMEFRAME_MN1 = 'MN1'
+        def last_error(self): return (0, '')
+        def copy_rates_range(self, n, tf, a, z):
+            asks.append((pd.Timestamp(a), pd.Timestamp(z)))
+            x = mo_bars[(mo_bars.t >= pd.Timestamp(a)) & (mo_bars.t <= pd.Timestamp(z))]
+            return x.assign(time=[int(z.timestamp()) for z in x.t]).rename(columns=dict(o='open', h='high', l='low', c='close')).to_records()
+    bm = NS(mt5=MT5M(), name=lambda s: s)
+    now = end + pd.Timedelta(days=1)
+    first = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=False, log=print)          # no file yet -> nothing
+    seeded = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=True, log=print)
+    weekly = pair_env.monthly_arrows(bm, ['EURUSD'], now, seed=False, log=print)
+    closed = mo_bars[mo_bars.t + pd.DateOffset(months=1) <= now]
+    want = pair_env.direction(closed[closed.t >= now - pd.DateOffset(years=16)], 'M1')
+    print('M1', first, seeded, weekly, 'want', want, 'asked', [(a.date(), z.date()) for a, z in asks])
+    assert first == {} and seeded.get('EURUSD') == want == weekly.get('EURUSD')
+    assert (asks[-1][1] - asks[-1][0]).days <= 36 * 31 + 2, 'weekly run reads 36 months only'
     print('OK')
 
 

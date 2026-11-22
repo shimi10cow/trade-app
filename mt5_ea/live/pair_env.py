@@ -155,73 +155,76 @@ def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True):
     return out
 
 
-# ---- M1 (monthly), 2026-11-22: once a week from PAIR_ENV.bat only.
-# MT5 builds monthly bars from M1 history (15+ years needed = ~7-8 GB for 42 symbols), so the monthly arrow comes from the free daily
-# reference rates of FRED (Federal Reserve Bank of St. Louis, public data) instead. A monthly bar made from daily closes gave the same
-# arrow as the real monthly bar in 154 of 154 months on EURUSD and USDJPY (2014-2026). Metals, US indices, BTC: no long free daily
-# series here -> left to the trader.
-FRED = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id={}'
-FRED_USD = {'EUR': ('DEXUSEU', 1), 'GBP': ('DEXUSUK', 1), 'AUD': ('DEXUSAL', 1), 'NZD': ('DEXUSNZ', 1),   # USD per 1 unit
-            'JPY': ('DEXJPUS', -1), 'CAD': ('DEXCAUS', -1), 'CHF': ('DEXSZUS', -1)}                    # units per 1 USD
-FRED_OTHER = {'OIL': 'DCOILWTICO', 'BRENT': 'DCOILBRENTEU', 'NATGAS': 'DHHNGSP', 'JP225': 'NIKKEI225'}
-M1_YEARS = 25
+# ---- M1 (monthly), 2026-11-22: the same Dow on MT5 monthly bars, once a week from PAIR_ENV.bat only.
+# The monthly Dow needs 15 years (EURUSD: 15 years gave the long-history arrow in 130 of 130 months, 12 years in 112), but MT5 builds
+# monthly bars from M1 history (~6 GB for 42 symbols). So the monthly bars are kept in a small file per symbol (TradeEA_data/monthly):
+#   seed (once, PAIR_ENV.bat --seed-monthly): 16 years of MN1 from MT5 -> file; the old M1 files can be deleted afterwards
+#   every week: only the last 36 months from MT5 (inside the history kept on disk) -> replace those months in the file
+M1_SEED_YEARS, M1_RECENT_MONTHS, M1_MIN_BARS = 16, 36, 120
 
 
-def fred_series(sid, get=None):
-    """daily values of one FRED series (date index). get(url) -> text, for tests."""
-    import io
-    if get is None:
-        import requests
-        get = lambda u: requests.get(u, timeout=30, headers={'User-Agent': 'trade-app pair_env'}).text
-    d = pd.read_csv(io.StringIO(get(FRED.format(sid))))
-    d.columns = ['t', 'v']
-    d['t'] = pd.to_datetime(d.t, errors='coerce'); d['v'] = pd.to_numeric(d.v, errors='coerce')      # '.' / '' = holiday
-    d = d.dropna()
-    return d[d.t >= pd.Timestamp.now() - pd.DateOffset(years=M1_YEARS)].set_index('t').v
+def _mdir():
+    import os
+    from pathlib import Path
+    d = Path(os.getenv('EA_DATA_DIR') or Path.home() / 'TradeEA_data') / 'monthly'; d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
-def daily_for(pair, cache, get=None):
-    """daily closes of an app pair from FRED, or None."""
-    def usd(cur):
-        if cur == 'USD':
-            return None
-        if cur not in cache:
-            sid, k = FRED_USD[cur]; x = fred_series(sid, get); cache[cur] = x if k > 0 else 1 / x
-        return cache[cur]
-    if pair in FRED_OTHER:
-        if pair not in cache:
-            cache[pair] = fred_series(FRED_OTHER[pair], get)
-        return cache[pair]
-    a, b = pair[:3], pair[3:]
-    if len(pair) != 6 or (a != 'USD' and a not in FRED_USD) or (b != 'USD' and b not in FRED_USD):
-        return None
-    ua, ub = usd(a), usd(b)                              # USD value of 1 unit
-    if ua is None:
-        return (1 / ub).dropna()
-    if ub is None:
-        return ua.dropna()
-    return (ua / ub).dropna()
-
-
-def monthly_arrow(daily, now=None):
-    """M1 arrow from daily closes: monthly bars (first / max / min / last of the closes), closed months only."""
-    now = pd.Timestamp(now) if now is not None else pd.Timestamp.now()
-    m = daily.resample('MS').agg(['first', 'max', 'min', 'last']).dropna().reset_index()
-    m.columns = ['t', 'o', 'h', 'l', 'c']
-    m = m[m.t + pd.DateOffset(months=1) <= now]
-    return direction(m, 'M1')
-
-
-def monthly_arrows(pairs, log=None, get=None):
-    cache, out = {}, {}
-    for p in pairs:
+def mn1_range(b, p, start, end):
+    """MN1 bars from MT5 between two dates (a date range, never a bar count)."""
+    mt5 = b.mt5; err = None
+    for n in ALIAS.get(p, (p,)):
         try:
-            d = daily_for(p, cache, get)
-            if d is not None and len(d) > 200:
-                out[p] = monthly_arrow(d)
+            r = mt5.copy_rates_range(b.name(n), mt5.TIMEFRAME_MN1, pd.Timestamp(start).to_pydatetime(), pd.Timestamp(end).to_pydatetime())
+            if r is None or len(r) == 0:
+                raise RuntimeError(f'{n}: no MN1 history ({mt5.last_error()})')
+            d = pd.DataFrame(r).rename(columns=dict(open='o', high='h', low='l', close='c'))
+            d['t'] = pd.to_datetime(d.time, unit='s').dt.to_period('M').dt.to_timestamp()
+            return d[['t', 'o', 'h', 'l', 'c']]
         except Exception as ex:
-            if log:
-                log(f'  M1 {p}: 読めなかった（{str(ex)[:80]}）')
+            err = ex
+    raise err
+
+
+def monthly_update(b, p, now, seed=False):
+    """the symbol's monthly bars (file + the recent months from MT5); closed months only. None when there is no file yet."""
+    f = _mdir() / f'{p}.csv'
+    old = pd.read_csv(f, parse_dates=['t']) if f.exists() else None
+    if seed or old is None:
+        if not seed:
+            return None
+        new = mn1_range(b, p, now - pd.DateOffset(years=M1_SEED_YEARS), now + pd.Timedelta(days=1))
+    else:
+        new = mn1_range(b, p, now - pd.DateOffset(months=M1_RECENT_MONTHS), now + pd.Timedelta(days=1))
+    m = new if old is None else pd.concat([old[old.t < new.t.min()], new])
+    m = m[m.t + pd.DateOffset(months=1) <= now].drop_duplicates('t', keep='last').sort_values('t').reset_index(drop=True)
+    m.to_csv(f, index=False)
+    return m
+
+
+def monthly_arrows(b, pairs, now, seed=False, log=None, timeout=None):
+    import concurrent.futures as cf
+    pool = cf.ThreadPoolExecutor(1); out = {}; nofile = []
+    try:
+        for p in pairs:
+            try:
+                m = pool.submit(monthly_update, b, p, now, seed).result(timeout=timeout)
+                if m is None:
+                    nofile.append(p); continue
+                if len(m) >= M1_MIN_BARS:
+                    out[p] = direction(m, 'M1')
+                elif log:
+                    log(f'  M1 {p}: 月足が {len(m)} 本しかない（{M1_MIN_BARS} 本未満は自分で入力）')
+            except cf.TimeoutError:
+                if log:
+                    log(f'  M1 {p}: MT5 が {timeout} 秒返事をしない → ここで打ち切り'); break
+            except Exception as ex:
+                if log:
+                    log(f'  M1 {p}: とばした（{str(ex)[:80]}）')
+    finally:
+        pool.shutdown(wait=False)
+    if nofile and log:
+        log(f'  M1：月足のファイルがまだない {len(nofile)} 銘柄（初回だけ PAIR_ENV.bat --seed-monthly）')
     return out
 
 
@@ -233,6 +236,7 @@ def main(argv=None):
     import time
     ap = argparse.ArgumentParser()
     ap.add_argument('--pairs', default=''); ap.add_argument('--timeout', type=float, default=60); ap.add_argument('--no-send', action='store_true')
+    ap.add_argument('--seed-monthly', action='store_true', help='once: 16 years of monthly bars from MT5 into TradeEA_data/monthly (downloads old M1 history)')
     a = ap.parse_args(argv)
     from mt5_ea.live import gas
     from mt5_ea.live.broker import MT5Broker
@@ -251,12 +255,13 @@ def main(argv=None):
     except Stalled as ex:
         rows, stalled = ex.rows, ex
         say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
-    say('\n月足（M1）：FRED の日ごとのレートから（週 1 回、このボタンの時だけ）')
-    mo = monthly_arrows([r['pair'] for r in rows], log=say)
+    say('\n月足（M1）：MT5 の月足（ファイルに保存した分＋直近 3 年）' + ('　※初回準備：16 年分を読みます。数分〜数十分かかります' if a.seed_monthly else ''))
+    now = pd.Timestamp((b.server_now() if hasattr(b, 'server_now') else None) or pd.Timestamp.now(tz='UTC').tz_localize(None))
+    mo = monthly_arrows(b, [r['pair'] for r in rows], now, seed=a.seed_monthly, log=say, timeout=900 if a.seed_monthly else a.timeout)
     for r in rows:
         if mo.get(r['pair']):
             r['M1'] = mo[r['pair']]
-    say('  ' + ' / '.join(f"{p} {v}" for p, v in mo.items()) if mo else '  （月足は取れませんでした。M1 は自分で入力のまま）')
+    say('  ' + ' / '.join(f"{p} {v}" for p, v in mo.items()) if mo else '  （月足はまだ出せません。M1 は自分で入力のまま）')
     if a.no_send:
         say('（--no-send: 送りません）')
     elif rows:
