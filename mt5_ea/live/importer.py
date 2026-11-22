@@ -91,7 +91,7 @@ def read_period(st, a, now):
     return 'continue', (lambda key, state: int(state[key]) - 3 * 86400 if key in state else now - 90 * 86400), None, '前回の続き'
 
 
-def synced_deals(mt5, frm, to, switched, wait=None, step=2.0):
+def synced_deals(mt5, frm, to, switched, wait=None, step=2.0, label=''):
     """2026-11-22: right after switching accounts the terminal still has the history it cached the last time this account was
     logged in (e.g. 11/9-11/11 deals of one account were missing: only deals up to 10/01 came back). Read again until the number
     of deals stops growing (two equal reads in a row), up to `wait` seconds (25 after a switch, 6 otherwise)."""
@@ -104,7 +104,7 @@ def synced_deals(mt5, frm, to, switched, wait=None, step=2.0):
         time.sleep(step)
         deals = mt5.history_deals_get(frm, to) or []
         same = same + 1 if len(deals) == n else 0; n = len(deals)
-    logging.info('history: %d deals (waited %.0fs)', n, time.time() - t0)
+    logging.info('history %s: %d deals (waited %.0fs)', label, n, time.time() - t0)
     return deals
 
 
@@ -125,7 +125,7 @@ def read_account(acc, since_epoch, until_epoch=None):
                                    f"（ログイン中 {getattr(info, 'login', None)}、{mt5.last_error()}）")
         frm = pd.Timestamp(since_epoch, unit='s').to_pydatetime()
         to = (pd.Timestamp(until_epoch + 1, unit='s') if until_epoch is not None else pd.Timestamp.now(tz='UTC').tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
-        deals = synced_deals(mt5, frm, to, switched)
+        deals = synced_deals(mt5, frm, to, switched, label=acc.get('label') or ('…' + str(acc['login'])[-3:]))
         orders = {o.ticket: o for o in (mt5.history_orders_get(frm, to) or [])}
         rows = []
         for d in deals:
