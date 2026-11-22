@@ -265,7 +265,28 @@ def main(argv=None):
                 state[x['login']] = max(int(x['last']), int(state.get(x['login'], 0)))
         STATE_F.write_text(json.dumps(state), encoding='utf-8')
     logging.info('GAS: %s', {k: v for k, v in r.items() if k != 'success'})
+    chart_images()
     return r
+
+
+def chart_images(limit=30):
+    """2026-11-22 (user): right after the import, the chart images of the new trades (drafts first), so they can be checked in the
+    detail before 記録にする. Bars come from the EA's demo MT5 (the import MT5 is closed by now); read only. Never fails the import;
+    whatever is left is drawn by the alerts window within the hour. EA_IMPORT_IMAGES=0 turns it off."""
+    if os.getenv('EA_IMPORT_IMAGES', '1') == '0':
+        return 0
+    try:
+        path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
+        if path:
+            os.environ['EA_MT5_PATH'] = path
+        from mt5_ea.live import trade_images
+        from mt5_ea.live.broker import MT5Broker
+        n = trade_images.run(MT5Broker(), gas, limit=limit, log=lambda x: logging.info(x))
+        logging.info('import: chart images for %d trades', n or 0)
+        return n
+    except Exception as ex:
+        logging.warning('import: chart images not made (%s); the alerts window makes them within the hour', ex)
+        return 0
 
 
 if __name__ == '__main__':

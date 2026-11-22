@@ -232,7 +232,8 @@
           ${esc(t['PairName（元）'])} <span class="badge ${buy ? 'buy' : 'sell'}">${buy ? '▲ Buy' : '▼ Sell'}</span></label>
         <div style="text-align:right;font-weight:800;color:${t.ExitDate ? (pr >= 0 ? '#4ade80' : '#f87171') : '#22d3ee'}">${t.ExitDate ? yen(pr) : '保有中'}<div style="font-size:11px;color:#94a3b8;font-weight:600">${(() => { const r = typeof tradeR_ === 'function' ? tradeR_(t) : null; return r == null ? '' : esc(rTxt_(r)); })()}</div></div></div>
       <div style="font-size:11px;color:#94a3b8;line-height:1.6">${esc(String(t.EntryDate).slice(5))} ${esc(t.EntryTime)} @ ${esc(px(t.EntryPrice))}${t.ExitDate ? ` → ${esc(String(t.ExitDate).slice(5))} ${esc(t.ExitTime)} @ ${esc(px(t.ExitPrice))}` : ''}
-        <br>${esc(t.Lot)} lot · ${accs.length} 口座 · ${x.positions} ポジション${String(t.MergeMode) === 'manual' ? ' · 手で直した' : ''}</div>
+        <br>${esc(t.Lot)} lot · ${accs.length} 口座 · ${x.positions} ポジション${String(t.MergeMode) === 'manual' ? ' · 手で直した' : ''}
+        · ${String(t.ChartImage || '').trim() ? '<span style="color:#4ade80">🖼 画像あり</span>' : '<span style="color:#64748b">画像は作成待ち</span>'}</div>
       <button onclick="mt5Exp('${id}')" style="align-self:flex-start;background:none;border:0;color:#22d3ee;font-size:11px;font-weight:700;padding:0">${exp ? '▲ 中身を閉じる' : `▼ 中身を見る（${x.positions} ポジション）`}</button>
       ${exp ? posList(x.executions) : ''}
       ${cands ? `<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:11px;color:#94a3b8;align-self:center">手入力の候補（${esc(lh)} 時間以内）:</span>${cands}</div>`

@@ -433,13 +433,17 @@ function impAdopt_(b) {
 /** EA PC (alerts window, read only): recorded MT5 trades that still need chart images (2026-11-22).
  *  needEntry: no ChartImage yet and not drawn before; needExit: closed, no 決済チャート yet and not drawn before. */
 function impNeedImages_(b) {
-  const T = trRead_(), lim = Math.min(20, Number(b.limit || 5)), out = [];
-  T.rows.forEach(function (t) {
-    if (out.length >= lim || ['決済', '保有中'].indexOf(String(t['ステータス'])) < 0) return;
+  const T = trRead_(), lim = Math.min(30, Number(b.limit || 5)), out = [];
+  // 2026-11-22 (user): drafts (MT5 tab, not recorded yet) too, and first: the images are checked in the detail before 記録にする.
+  // A draft is closed when it has an exit (its status stays 下書き).
+  const rows = T.rows.filter(function (t) { return t['ステータス'] === '下書き'; }).concat(T.rows.filter(function (t) { return t['ステータス'] !== '下書き'; }));
+  rows.forEach(function (t) {
+    const st = String(t['ステータス']), draft = st === '下書き';
+    if (out.length >= lim || (!draft && ['決済', '保有中'].indexOf(st) < 0)) return;
     if (String(t.Source || '') !== 'MT5' && !String(t.Accounts || '').trim()) return;
     const pair = String(t['PairName（元）'] || t.PairName || '').trim(); if (!pair || !t.EntryDate) return;
     const needEntry = !String(t.ChartImage || '').trim() && !t.ImgAutoEntry;
-    const needExit = t['ステータス'] === '決済' && !!t.ExitDate && !String(t['決済チャート'] || '').trim() && !t.ImgAutoExit;
+    const needExit = (st === '決済' || draft) && !!t.ExitDate && !String(t['決済チャート'] || '').trim() && !t.ImgAutoExit;
     if (!needEntry && !needExit) return;
     const d = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy/MM/dd') : String(v || '').slice(0, 10); };
     const tm = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'HH:mm') : String(v || '').slice(0, 5); };
