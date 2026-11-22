@@ -275,18 +275,43 @@ def chart_images(limit=30):
     whatever is left is drawn by the alerts window within the hour. EA_IMPORT_IMAGES=0 turns it off."""
     if os.getenv('EA_IMPORT_IMAGES', '1') == '0':
         return 0
+    # The demo MT5 does not have to be open: MetaTrader5.initialize(path) starts it (user 2026-11-22: "I'll forget to open it").
+    # If it was not running before, it is closed again afterwards (only that copy, by its exe path; the EA's own window never is).
+    path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
+    was_running = terminal_running(path) if path else True
     try:
-        path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
         if path:
             os.environ['EA_MT5_PATH'] = path
         from mt5_ea.live import trade_images
         from mt5_ea.live.broker import MT5Broker
+        if not was_running:
+            logging.info('import: starting the demo MT5 for the chart images (closed again afterwards)')
         n = trade_images.run(MT5Broker(), gas, limit=limit, log=lambda x: logging.info(x))
         logging.info('import: chart images for %d trades', n or 0)
         return n
     except Exception as ex:
         logging.warning('import: chart images not made (%s); the alerts window makes them within the hour', ex)
         return 0
+    finally:
+        if path and not was_running:
+            try:
+                import MetaTrader5 as mt5
+                mt5.shutdown()
+            except Exception:
+                pass
+            close_terminal(path)
+
+
+def terminal_running(path):
+    """is a terminal64 with this exe path running now (Windows)? True when it cannot be told (then it is never closed)"""
+    if os.name != 'nt':
+        return True
+    try:
+        ps = f"@(Get-Process terminal64 -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -eq '{path}' }}).Count"
+        r = subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, text=True, timeout=30)
+        return int((r.stdout or '1').strip() or 1) > 0
+    except Exception:
+        return True
 
 
 if __name__ == '__main__':
