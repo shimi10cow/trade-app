@@ -348,7 +348,9 @@ def manual_trades(rows):
         out.append(dict(d=str(r.get('EntryDate') or '')[:10].replace('-', '/'), x=str(r.get('ExitDate') or '')[:10].replace('-', '/'),
                         pair=str(r.get('PairName（元）') or r.get('PairName') or ''), side=str(r.get('Direction') or ''), rule=str(r.get('DowRule') or ''),
                         R=None if R is None else round(R, 3), ruleR=None if rp is None or not sl else round(rp / sl, 3), pf=f(r.get('損益')), lot=f(r.get('Lot')),
-                        eref=str(r.get('エントリー振り返り') or ''), xref=str(r.get('決済振り返り') or ''), missed='見逃し' in str(r.get('ステータス') or '')))
+                        eref=str(r.get('エントリー振り返り') or ''), xref=str(r.get('決済振り返り') or ''), missed='見逃し' in str(r.get('ステータス') or ''),
+                        tm=str(r.get('EntryTime') or '')[:5], plan=str(r.get('計画エントリー') or '') == 'ON',
+                        score=str(r.get('エントリースコア') or '').strip(), zone=str(r.get('時間帯') or '').strip()))
     return out
 
 

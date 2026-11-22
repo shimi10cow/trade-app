@@ -249,7 +249,18 @@ function mnSec() {
     <div class="note">勝ち負けは ±0.2R。R ＝ 取れた幅 ÷ 最初の損切り幅。「ルール通りとの差」＝ 実際 − ルール通りなら（マイナス＝ルールから外れて損した分）。</div></div>
     <div class="card"><b>累計 R</b><canvas id="mncv"></canvas></div>
     ${gtab('手法ごと', grp(t => t.rule ? '手法 ' + t.rule : ''))}${gtab('通貨ごと', grp(t => t.pair))}${gtab('月ごと（決済）', mon)}
-    ${gtab('エントリーの振り返り', grp(t => t.eref))}${gtab('決済の振り返り', grp(t => t.xref))}`;
+    ${gtab('エントリーの振り返り', grp(t => t.eref))}${gtab('決済の振り返り', grp(t => t.xref))}
+    ${gtab('計画 vs 衝動', grp(t => t.plan ? '📋 計画経由' : '衝動（直接）'))}
+    ${gtab('エントリースコアごと', grp(t => t.score ? t.score + ' 点' : '').sort((a, b) => (parseFloat(b[0]) || -1) - (parseFloat(a[0]) || -1)))}
+    ${(() => { const B = [['-1R 未満', v => v < -1], ['-1〜0R', v => v >= -1 && v < 0], ['0〜1R', v => v >= 0 && v < 1], ['1〜2R', v => v >= 1 && v < 2], ['2R 以上', v => v >= 2]];
+      const cnt = B.map(([l, f]) => [l, M.filter(t => f(t.R)).length]), mx = Math.max(1, ...cnt.map(c => c[1]));
+      return `<div class="card"><b>R の分布</b>${cnt.map(([l, n]) => `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px"><span style="width:64px" class="mut">${l}</span>
+        <span style="flex:1;background:#0f172a;border-radius:4px;height:14px"><span style="display:block;height:14px;border-radius:4px;width:${n / mx * 100}%;background:${l.startsWith('-') ? '#f87171' : '#4ade80'}"></span></span><span style="width:28px;text-align:right">${n}</span></div>`).join('')}</div>`; })()}
+    ${gtab('曜日ごと（エントリー）', grp(t => { const d = new Date(t.d.replace(/\//g, '-') + 'T12:00Z'); return isNaN(d) ? '' : '日月火水木金土'[d.getUTCDay()] + '曜'; }).sort((a, b) => '月火水木金土日—'.indexOf(a[0][0]) - '月火水木金土日—'.indexOf(b[0][0])))}
+    ${gtab('時間帯ごと（エントリー、日本時間）', grp(t => { if (t.zone) return t.zone; const h = parseInt(t.tm); return isNaN(h) ? '' : h >= 2 && h < 9 ? 'T2-9' : h < 12 && h >= 9 ? 'T9-12' : h >= 15 && h < 18 ? 'T15-18' : h >= 18 || h < 2 ? 'T18-2' : 'T12-15'; }).sort((a, b) => { const O = ['T2-9', 'T9-12', 'T12-15', 'T15-18', 'T18-2']; return (O.indexOf(a[0]) + 1 || 9) - (O.indexOf(b[0]) + 1 || 9); }))}
+    ${(() => { const all = (D.manual || []).filter(t => t.R != null); const row = (l, g) => { const z = stats(g); return `<tr><td class="l">${l}</td><td>${z.n}</td><td>${z.n ? Math.round(g.filter(t => wl(t) === 1).length / z.n * 100) + '%' : '—'}</td><td class="${cls(z.avg)}">${sg(z.avg)}</td><td class="${cls(z.sum)}">${sg(z.sum)}</td></tr>`; };
+      return `<div class="card"><b>実トレード vs 見逃し</b><div class="scroll"><table><tr><th class="l"></th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th></tr>${row('実トレード', all.filter(t => !t.missed))}${row('見逃し', all.filter(t => t.missed))}</table></div>
+        <div class="note">見逃しの方が平均 R が高いなら、入れなかった場面に良いものが多い（入る条件が厳しすぎる・迷いすぎ）。</div></div>`; })()}`;
   timeChart('mncv', [{pts: cumPts(M), color: '#22d3ee', w: 2}]);
 }
 // ------------------------------------------------------------ 月ごと

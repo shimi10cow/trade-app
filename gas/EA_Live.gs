@@ -262,10 +262,11 @@ function ealReportData_(b) {
 function ealManualTrades_() {
   if (typeof getEntries !== 'function') return [];
   const F = ['EntryID', 'EntryDate', 'EntryTime', 'ExitDate', 'PairName', 'PairName（元）', 'Direction', 'ステータス', 'DowRule', 'Lot', '損益', 'StopLossPips',
-             '実取得pips', '実リスクリワード', 'ルール準拠pips', 'ルール準拠損益', 'エントリー振り返り', '決済振り返り', '勝敗', 'Source', 'TradeType'];
+             '実取得pips', '実リスクリワード', 'ルール準拠pips', 'ルール準拠損益', 'エントリー振り返り', '決済振り返り', '勝敗', 'Source', 'TradeType',
+             '計画エントリー', 'エントリースコア', '時間帯'];
   try {
     return (getEntries() || []).filter(e => String(e['ステータス'] || '').indexOf('決済') >= 0 && !/EA/i.test(String(e.Source || e.TradeType || '')))
-      .map(e => { const o = {}; F.forEach(k => { if (e[k] !== undefined && e[k] !== '') o[k] = e[k] instanceof Date ? Utilities.formatDate(e[k], 'Asia/Tokyo', 'yyyy/MM/dd') : e[k]; }); return o; });
+      .map(e => { const o = {}; F.forEach(k => { if (e[k] !== undefined && e[k] !== '') o[k] = e[k] instanceof Date ? Utilities.formatDate(e[k], 'Asia/Tokyo', k === 'EntryTime' ? 'HH:mm' : 'yyyy/MM/dd') : e[k]; }); return o; });
   } catch (e) { return []; }
 }
 
