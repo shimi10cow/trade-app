@@ -537,6 +537,41 @@ def armed(mk, profiles, zone=None, at=None, star=None):
     return out
 
 
+def classify_point(sym, m15, te, side, price):
+    """2026-11-22 (user): a mark the trader put on the report's chart (エントリーしたかった所) sorted afterwards, the way the alerts see it:
+    the nearest live H4 出入口 / 砦 of that side at that moment (as known then: bars up to the mark only), its distance in ATR(H4),
+    D1 〇 / ✕, so 手法 1 / 2 / 6 / 7, and the score items (推進TL 2, 調整TL 1, H1 MA 1, M15 TL 1, line 1).
+    side +1 buy / -1 sell, te broker time, price in the broker's price."""
+    m = m15[pd.to_datetime(m15.t) <= pd.Timestamp(te)].tail(DAYS * 96).reset_index(drop=True)
+    mk = Market(sym, m); last = len(mk.TM) - 1
+    if last < 200:
+        return None
+    now, k = mk.CL[last], mk.k; px = float(price) / k
+    best = None
+    for scene, sd, L, born, lf in mk.lines({'gateway', 'fortress'}, 30):
+        if sd != side or born > now or born + int(lf) * DAY < now:
+            continue
+        A = mk.a4(born)
+        k0 = int(np.searchsorted(mk.C4, born, side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
+        if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < 0).any():
+            continue
+        d = sd * (px - L) / A
+        if d < -0.5:
+            continue
+        if best is None or abs(d) < abs(best[4]):
+            best = (scene, L, A, born, d)
+    A = best[2] if best else mk.a4(now)
+    ev = dict(scene=best[0] if best else '', side=side, L=best[1] if best else px, A=A, born=best[3] if best else now, te=now, px=px, tm='turn', n=1, tq=now)
+    chk = lambda key, par=None: bool(mk.check(key, par or {}, ev))
+    d1 = chk('d1ma', {'period': 75, 'slope': 10})
+    near = best is not None and best[4] <= 3.0
+    meth = (('1' if d1 else '6') if best[0] == 'gateway' else ('2' if d1 else '7')) if near else ''
+    it = dict(imp=chk('impany'), ma=chk('h1ma', {'period': 75, 'slope': 5}), ctr=chk('ctr41'), m15=chk('ctr15'))
+    return dict(method=meth, kind=SCENE_JA[best[0]] if near else '', line=round(best[1] * k, 5 if k == 1.0 else 3) if near else None,
+                dist=round(float(best[4]), 2) if near else None, d1=d1, h4dir=chk('h4dir'), **it,
+                score=(1 if near else 0) + 2 * it['imp'] + it['ma'] + it['ctr'] + it['m15'])
+
+
 def scan(sym, m, since=None, profiles=None):
     return evaluate(Market(sym, m), profiles or PRESETS[:1], since)
 

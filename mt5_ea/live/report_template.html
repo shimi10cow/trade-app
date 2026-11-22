@@ -72,7 +72,7 @@ const cls = v => v > 0 ? 'up' : v < 0 ? 'dn' : '';
 const px = (t, v) => v == null || isNaN(v) || !v ? '—' : Number(v).toFixed((D.charts[t.sym] || {}).dig ?? 5);
 const famCode = f => (D.fams[f] || {}).code || (f === 'OLD' ? '旧 EA' : f);
 const VERD = [['ok', 'OK', '#4ade80'], ['ng', '入らない方がいい', '#f87171'], ['maybe', '迷う', '#fbbf24']];
-const TAGS = ['伸びすぎ', 'レンジの中', '上位足が逆', '指標の前後', '損切りが遠い', 'その他'];
+const TAGS = ['伸びすぎ', '抵抗体にぶつかる', '逆向きの線を抜けていた', '上位足が逆', 'レンジの中', '指標の前後', '損切りが遠い', 'その他'];   // 2026-11-22: 抵抗体・逆向きの線 added
 const XVERD = [['good', '良い決済', '#4ade80'], ['early', '早すぎた', '#fbbf24'], ['late', '遅すぎた', '#fb923c'], ['tight', '損切りが浅い', '#f87171'], ['wide', '損切りが深い', '#c084fc']];
 const XTAGS = ['M15 の押し安値割れ', 'H1 の押し安値割れ', 'H4 の押し安値割れ', '抵抗帯の手前', '前の高値・安値', 'H1 MA 割れ', 'ダウの転換', 'ライン割れ', 'その他'];
 const TFC = {D1: '#60a5fa', H4: '#fb923c', H1: '#a78bfa', M15: '#facc15'}, TFN = {D1: '日足', H4: 'H4', H1: 'H1', M15: 'M15'};
@@ -260,8 +260,22 @@ function mnSec() {
     ${gtab('時間帯ごと（エントリー、日本時間）', grp(t => { if (t.zone) return t.zone; const h = parseInt(t.tm); return isNaN(h) ? '' : h >= 2 && h < 9 ? 'T2-9' : h < 12 && h >= 9 ? 'T9-12' : h >= 15 && h < 18 ? 'T15-18' : h >= 18 || h < 2 ? 'T18-2' : 'T12-15'; }).sort((a, b) => { const O = ['T2-9', 'T9-12', 'T12-15', 'T15-18', 'T18-2']; return (O.indexOf(a[0]) + 1 || 9) - (O.indexOf(b[0]) + 1 || 9); }))}
     ${(() => { const all = (D.manual || []).filter(t => t.R != null); const row = (l, g) => { const z = stats(g); return `<tr><td class="l">${l}</td><td>${z.n}</td><td>${z.n ? Math.round(g.filter(t => wl(t) === 1).length / z.n * 100) + '%' : '—'}</td><td class="${cls(z.avg)}">${sg(z.avg)}</td><td class="${cls(z.sum)}">${sg(z.sum)}</td></tr>`; };
       return `<div class="card"><b>実トレード vs 見逃し</b><div class="scroll"><table><tr><th class="l"></th><th>回数</th><th>勝率</th><th>平均R</th><th>合計R</th></tr>${row('実トレード', all.filter(t => !t.missed))}${row('見逃し', all.filter(t => t.missed))}</table></div>
-        <div class="note">見逃しの方が平均 R が高いなら、入れなかった場面に良いものが多い（入る条件が厳しすぎる・迷いすぎ）。</div></div>`; })()}`;
+        <div class="note">見逃しの方が平均 R が高いなら、入れなかった場面に良いものが多い（入る条件が厳しすぎる・迷いすぎ）。</div></div>`; })()}
+    ${markSec()}`;
   timeChart('mncv', [{pts: cumPts(M), color: '#22d3ee', w: 2}]);
+}
+// 2026-11-22 (user): the 「買いたい所 / 売りたい所」 marks of the chart analysis, sorted by the PC afterwards (no ticking by hand)
+function markSec() {
+  const X = (D.markAuto || []).slice().sort((a, b) => b.t - a.t); if (!X.length) return '';
+  const by = {}; X.forEach(x => { const k = x.method ? '手法 ' + x.method : '線から遠い（3 ATR 超）'; by[k] = (by[k] || 0) + 1; });
+  const yn = v => v ? '<span class="up">○</span>' : '<span class="dim">－</span>';
+  return `<div class="card"><b>エントリーしたかった所（チャート分析の印、PC が自動で分類）</b>
+    <div class="chips" style="margin-top:6px">${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="pill">${k}：${n}</span>`).join('')}</div>
+    <div class="scroll"><table><tr><th class="l">通貨</th><th class="l">日時</th><th>売買</th><th>手法</th><th class="l">線（乖離）</th><th>推進TL</th><th>調整TL</th><th>H1MA</th><th>M15TL</th><th>点数</th></tr>
+    ${X.map(x => `<tr class="click" onclick="S.more=false;goTab('s-px');pick('P${x.sym}')"><td class="l"><b>${esc(x.sym)}</b></td><td class="l">${tstr(x.t).slice(5)}</td><td class="${x.side > 0 ? 'up' : 'dn'}">${x.side > 0 ? '買' : '売'}</td>
+      <td>${x.method || '—'}</td><td class="l">${x.kind ? esc(x.kind) + ' ' + (x.dist != null ? x.dist + 'ATR' : '') : '<span class="dim">なし</span>'}</td>
+      <td>${yn(x.imp)}</td><td>${yn(x.ctr)}</td><td>${yn(x.ma)}</td><td>${yn(x.m15)}</td><td><b>${x.score ?? '—'}</b></td></tr>`).join('')}</table></div>
+    <div class="note">印を置いた時点までのチャートで、PC が通知と同じ決まりで判定（H4 の出入口・砦は 3 ATR(H4) 以内なら「その線」とみなす。手法 1・2 は日足〇、6・7 は日足✕）。点数は線 1・推進TL 2・調整TL 1・H1 MA 1・M15TL 1。行を押すとその通貨のチャートへ。</div></div>`;
 }
 // ------------------------------------------------------------ 月ごと
 function monSec() {

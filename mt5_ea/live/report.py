@@ -334,6 +334,41 @@ def pair_charts(broker, pairs):
     return out
 
 
+def mark_auto(broker, repmarks, log_=print):
+    """2026-11-22 (user): the trader's 「買いたい所 / 売りたい所」 on the all-pairs charts, sorted afterwards (alerts.classify_point):
+    手法 1 / 2 / 6 / 7, the H4 line it sits on and how far, and the score items. Nothing to tick by hand."""
+    from mt5_ea.live import alerts, pair_env
+    from mt5_ea.live.trade_images import jmin_to_server
+    out = []
+    for r in repmarks or []:
+        rid = str(r.get('ID') or '')
+        if not rid.startswith('PAIR|'):
+            continue
+        try:
+            ls = [l for l in json.loads(r.get('Lines') or '[]') if isinstance(l, dict) and l.get('type') in ('eb', 'es') and not l.get('del')]
+        except Exception:
+            ls = []
+        if not ls:
+            continue
+        sym = rid[5:]
+        try:
+            m = pair_env.bars_any(broker, sym, 520)[['t', 'o', 'h', 'l', 'c']].copy(); m['t'] = pd.to_datetime(m.t)
+        except Exception as ex:
+            log.warning('marks %s: %s', sym, ex); continue
+        for l in ls:
+            te = jmin_to_server(l.get('t1'))
+            if te is None or l.get('p1') is None:
+                continue
+            try:
+                c = alerts.classify_point(sym, m, te, 1 if l['type'] == 'eb' else -1, float(l['p1']))
+            except Exception as ex:
+                log.warning('mark %s: %s', sym, ex); c = None
+            out.append(dict(sym=sym, side=1 if l['type'] == 'eb' else -1, t=int(l['t1']), p=float(l['p1']), tf=l.get('tf') or '', note=l.get('note') or '', **(c or {})))
+    if out:
+        log_(f'  エントリーしたかった所 {len(out)} か所を、手法・点数に分けました')
+    return out
+
+
 # ---------------------------------------------------------------- page
 def manual_trades(rows):
     """The trader's own closed trades (GAS ealManualTrades_) -> the report's 裁量 page. R as in the app: 実取得pips / StopLossPips,
@@ -361,7 +396,7 @@ def _isnum(v):
         return False
 
 
-def build(data, refs, T, B, bars, days, pcharts=None):
+def build(data, refs, T, B, bars, days, pcharts=None, marks=None):
     accs = [a for a in ('demo', 'live') if len(T) and (T.Account == a).any()] or ['demo']
     # chart bars: Japan-time minutes; M15 / H1 / H4 / D1 (resampled in broker time, so D1 = the broker's day like MT5)
     charts = {}
@@ -411,7 +446,7 @@ def build(data, refs, T, B, bars, days, pcharts=None):
     payload = dict(made=pd.Timestamp.now(tz=JST).strftime('%Y-%m-%d %H:%M'), accs=accs, trades=trades, btl=bt, repmarks=rm, charts=charts, daily=daily, on=on,
                    fams=refs['fams'], famOf=refs['fam'], exp=refs['exp'], famBt=refs['fam_bt'], bt=refs['bt'], btDone=bool(len(B)), days=days,
                    gas=os.getenv('EA_GAS_URL', ''), rkey=str(data.get('reportKey') or ''), mcKeys=refs.get('mc_keys', []), mcMonths=refs.get('mc_months', []),
-                   pairs=pairs, pcharts=pcharts or {}, manual=manual_trades(data.get('manual')))
+                   pairs=pairs, pcharts=pcharts or {}, manual=manual_trades(data.get('manual')), markAuto=marks or [])
     html = (Path(__file__).with_name('report_template.html')).read_text(encoding='utf-8')
     global LAST_PAYLOAD
     LAST_PAYLOAD = payload                      # for the phone upload (the app's report.html reads the data from GAS)
@@ -551,7 +586,13 @@ def main(argv=None):
                 print(f'  取り込んだトレードの画像：{n} 件', flush=True)
         except Exception as ex:
             log.warning('trade images: %s', ex)
-    html = build(data, refs, T, B, bars, days_back, pcharts)
+    marks = []
+    if not a.bars_dir:
+        try:
+            marks = mark_auto(broker, data.get('repmarks'), log_=lambda x: print(x, flush=True))
+        except Exception as ex:
+            log.warning('marks: %s', ex)
+    html = build(data, refs, T, B, bars, days_back, pcharts, marks)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     f = out / 'report_latest.html'                 # 2026-11-22 (user): always the same file, overwritten (bookmark it)
     f.write_text(html, encoding='utf-8')
