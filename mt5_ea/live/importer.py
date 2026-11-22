@@ -91,6 +91,23 @@ def read_period(st, a, now):
     return 'continue', (lambda key, state: int(state[key]) - 3 * 86400 if key in state else now - 90 * 86400), None, '前回の続き'
 
 
+def synced_deals(mt5, frm, to, switched, wait=None, step=2.0):
+    """2026-11-22: right after switching accounts the terminal still has the history it cached the last time this account was
+    logged in (e.g. 11/9-11/11 deals of one account were missing: only deals up to 10/01 came back). Read again until the number
+    of deals stops growing (two equal reads in a row), up to `wait` seconds (25 after a switch, 6 otherwise)."""
+    import time
+    wait = (25.0 if switched else 6.0) if wait is None else wait
+    if switched:
+        time.sleep(3.0)
+    deals = mt5.history_deals_get(frm, to) or []; n, same, t0 = len(deals), 0, time.time()
+    while time.time() - t0 < wait and same < 2:
+        time.sleep(step)
+        deals = mt5.history_deals_get(frm, to) or []
+        same = same + 1 if len(deals) == n else 0; n = len(deals)
+    logging.info('history: %d deals (waited %.0fs)', n, time.time() - t0)
+    return deals
+
+
 def read_account(acc, since_epoch, until_epoch=None):
     """Deals of one account since since_epoch (server time), up to until_epoch when given. Returns execution rows."""
     import MetaTrader5 as mt5
@@ -98,16 +115,17 @@ def read_account(acc, since_epoch, until_epoch=None):
     if not ok:
         raise RuntimeError(f"MT5 initialize failed {mt5.last_error()}")
     try:
-        info = mt5.account_info()
+        info = mt5.account_info(); switched = False
         if info is None or int(info.login) != int(acc['login']):          # switch accounts inside the one import MT5
+            switched = True
             mt5.login(int(acc['login']), server=acc.get('server'), timeout=20000)   # no password: the terminal's saved one
             info = mt5.account_info()
             if info is None or int(info.login) != int(acc['login']):
                 raise RuntimeError(f"取り込み用 MT5 でこの口座のパスワードが保存されていない"
                                    f"（ログイン中 {getattr(info, 'login', None)}、{mt5.last_error()}）")
         frm = pd.Timestamp(since_epoch, unit='s').to_pydatetime()
-        to = (pd.Timestamp(until_epoch + 1, unit='s') if until_epoch is not None else pd.Timestamp.utcnow().tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
-        deals = mt5.history_deals_get(frm, to) or []
+        to = (pd.Timestamp(until_epoch + 1, unit='s') if until_epoch is not None else pd.Timestamp.now(tz='UTC').tz_localize(None) + pd.Timedelta(days=2)).to_pydatetime()
+        deals = synced_deals(mt5, frm, to, switched)
         orders = {o.ticket: o for o in (mt5.history_orders_get(frm, to) or [])}
         rows = []
         for d in deals:
