@@ -316,19 +316,21 @@ function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (l
 function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
 const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false}, S.draft.saved = sig(S.draft), S.draft);
 let G = null;   // geometry of the last drawn chart (for clicks)
-const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#cbd5e1'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
+const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#e5e7eb'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
 const eaName = l => l.kind === 'prot' ? (l.side > 0 ? '押し安値' : '戻り高値') + '（' + TFN[l.tf] + '）' : l.kind === 'tl' ? TFN[l.tf] + ' トレンドライン' : l.kind === 'cl15' ? 'M15 調整ライン' : (EAK[l.kind] || [''])[0];
 const curLines = t => (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
 function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
 function drawObj(x, l, sel) {
   const {Y, tx, W, padR, dig} = G, R = W - padR;
   const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
-  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' || l.src === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.kind === 'band' ? [2, 3] : l.type === 'ea' || l.src === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
   const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
   if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
   else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
-    const nm = l.type === 'x' ? '決済' : l.kind === 'prot' || l.kind === 'band' ? eaName(l) + (l.moved ? '・動かした' : '') : eaName(l) + (l.side > 0 ? '（買い側）' : l.side < 0 ? '（売り側）' : '') + (l.moved ? '・動かした' : '');
-    lab(nm + (l.kind === 'band' ? '' : ' ' + Number(l.p1).toFixed(dig)) + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+    // 2026-11-22 (user): 抵抗体 = white dotted line, no text; 砦 / 出入口 = the name only; 押し安値・戻り高値 keep the timeframe and price
+    if (l.kind === 'band') { if (l.note) lab(l.note, Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+    else { const nm = l.type === 'x' ? '決済 ' + Number(l.p1).toFixed(dig) : l.kind === 'prot' ? eaName(l) + ' ' + Number(l.p1).toFixed(dig) : eaName(l);
+      lab(nm + (l.moved ? '・動かした' : '') + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); } }
   else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
     const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke();
     if (l.src === 'ea' || l.note) lab((l.src === 'ea' ? eaName(l) + (l.moved ? '・動かした' : '') + ' ' : '') + (l.note || ''), bx + 4, by - 4); }
