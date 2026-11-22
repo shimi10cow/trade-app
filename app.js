@@ -2926,7 +2926,7 @@ function renderGallery() {
           <div class="no-img-cam" style="display:${imgUrl ? 'none' : 'flex'}; position:absolute; inset:0; align-items:center; justify-content:center; flex-direction:column; color:#334155; font-size:32px; pointer-events:none;">📷</div>
           <div style="position:absolute; top:4px; left:4px; background:rgba(15,23,42,0.8); padding:2px 8px; border-radius:4px; font-size:16px; font-weight:900; color:${qualityColor};">${qualityMark}</div>
           <div style="position:absolute; top:4px; right:4px; background:rgba(15,23,42,0.8); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; color:${color};">
-            ${isWin ? '+' : ''}${pips.toFixed(1)}
+            ${rTxt_(tradeR_(t))}
           </div>
         </div>
         <div style="padding:8px;">
