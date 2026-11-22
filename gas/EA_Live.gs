@@ -332,18 +332,47 @@ function ealReportMark_(b) {
   if (f.comment !== undefined) up.Comment = String(f.comment || '').slice(0, 2000);
   if (f.exitVerdict !== undefined) up.ExitVerdict = ['good', 'early', 'late', 'tight', 'wide'].indexOf(String(f.exitVerdict)) >= 0 ? String(f.exitVerdict) : '';
   if (f.exitTags !== undefined) up.ExitTags = ealTags_(f.exitTags);
-  if (f.lines !== undefined) up.Lines = JSON.stringify(f.lines || []).slice(0, 45000);
   if (b.kind === 'bt') {
     const id = String(b.id || '').slice(0, 120); if (!id) throw new Error('no id');
+    if (f.lines !== undefined) up.Lines = ealLinesFit_(id, b.symbol, f.lines);
     const r = ealRows_('repmarks').find(x => String(x.ID) === id);
     ealWriteRow_('repmarks', r ? r._row : null, Object.assign({ID: id, Account: b.account || '', EA: b.ea || '', Symbol: b.symbol || '', Direction: b.direction || '', Time: b.time || ''}, r || {}, up, {UpdatedAt: ealNow_()}));
     return {success: true};
   }
+  if (f.lines !== undefined) up.Lines = ealLinesFit_('TRADE|' + b.tradeId, '', f.lines);
   const r = ealRows_('trades').find(x => String(x.TradeID) === String(b.tradeId));
   if (!r) throw new Error('trade not found');
   if (up.Verdict !== undefined || up.Tags !== undefined || up.Comment !== undefined) up.CommentAt = ealNow_();
   ealWriteRow_('trades', r._row, Object.assign({}, r, up));
   return {success: true};
+}
+
+/** 2026-11-22 (user): the report's lines grow every week (entry-wish marks, lines, deletions). Nothing is lost and the cell stays light:
+ *  a line deleted more than 7 days ago moves to the sheet EA_ReportLinesLog (pair, kind, made, deleted, the line itself) and leaves
+ *  the cell; when the cell would still be over 45,000 characters the oldest deleted lines move first. Live lines are never moved:
+ *  if they alone are too many, the save is refused with a message (before, the text was cut and the whole cell could break). */
+const EAL_LINES_LOG_ = 'EA_ReportLinesLog', EAL_LINES_MAX_ = 45000, EAL_LINES_KEEP_DEL_DAYS_ = 7;
+function ealLinesFit_(id, sym, lines) {
+  let ls = (Array.isArray(lines) ? lines : []).filter(l => l && typeof l === 'object');
+  const ms = s => { const d = new Date(String(s || '').replace(' ', 'T') + ':00+09:00'); return isNaN(d) ? 0 : d.getTime(); };
+  const cut = Date.now() - EAL_LINES_KEEP_DEL_DAYS_ * 864e5, out = [];
+  ls = ls.filter(l => { if (l.del && ms(l.del) && ms(l.del) < cut) { out.push(l); return false; } return true; });
+  let js = JSON.stringify(ls);
+  if (js.length > EAL_LINES_MAX_) {                                   // still too long: the oldest deleted ones go too
+    const dels = ls.filter(l => l.del).sort((a, b) => ms(a.del) - ms(b.del));
+    while (js.length > EAL_LINES_MAX_ && dels.length) { const l = dels.shift(); out.push(l); ls = ls.filter(x => x !== l); js = JSON.stringify(ls); }
+  }
+  if (js.length > EAL_LINES_MAX_) throw new Error('線が多すぎて保存できません（' + ls.length + ' 本）。古い線をいくつか消してください');
+  if (out.length) {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID); let sh = ss.getSheetByName(EAL_LINES_LOG_);
+    const H = ['ArchivedAt', 'ID', 'Symbol', 'Type', 'Kind', 'TF', 'Made', 'Deleted', 'Price', 'Line'];
+    if (!sh) { sh = ss.insertSheet(EAL_LINES_LOG_); sh.getRange(1, 1, 1, H.length).setValues([H]); sh.setFrozenRows(1); }
+    const key = l => [l.eid || '', l.at || '', l.type || '', l.t1 || '', l.del || ''].join('|');
+    const have = {}; if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, H.length).getValues().forEach(r => { if (String(r[1]) === id) { try { have[key(JSON.parse(r[9]))] = 1; } catch (e) {} } });
+    const now = ealNow_(), rows = out.filter(l => !have[key(l)]).map(l => [now, id, sym || '', l.type || '', l.kind || l.src || '', l.tf || '', l.at || '', l.del || '', l.p1 == null ? '' : l.p1, JSON.stringify(l)]);
+    if (rows.length) { const rg = sh.getRange(sh.getLastRow() + 1, 1, rows.length, H.length); rg.setNumberFormat('@'); rg.setValues(rows); }
+  }
+  return js;
 }
 
 function ealGetTrades_(b) {
