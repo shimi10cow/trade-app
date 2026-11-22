@@ -109,7 +109,7 @@ def weekly_arrow(w1, m15_end):
     return direction(w, 'W1')
 
 
-def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True):
+def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True, each=None):
     """[{pair, W1, D1, H4, H1}] for every pair this account has.
     log(text): progress line per pair. timeout: seconds one MT5 request may take (None = wait forever, as before);
     when MT5 does not answer, Stalled is raised with the rows done so far in .rows and the place in .where."""
@@ -128,6 +128,11 @@ def scan(b, pairs=PAIRS, log=None, timeout=None, weekly=True):
         try:
             m15 = call(bars_any, b, p, DAYS)
             row.update(arrows(m15))
+            if each:                                    # 2026-11-22: the ⭐ from the same bars (PAIR_ENV.bat)
+                try:
+                    each(p, m15)
+                except Exception as ex:
+                    logging.info('pair env %s each: %s', p, ex)
             tf = 'W1'
             try:
                 if not weekly:                          # the hourly run (alerts window) leaves W1 alone: PAIR_ENV.bat on the weekend does it
@@ -179,8 +184,20 @@ def main(argv=None):
     b = MT5Broker(); say(f'  つながりました（{time.time() - t0:.0f}秒）')
     pairs = tuple(x.strip().upper() for x in a.pairs.split(',') if x.strip()) or app_pairs(gas)
     stalled = None
+    # 2026-11-22 (user): this button also refreshes the ⭐「もうすぐ」 (same rules and app settings as the alerts window)
+    star, prof = [], None
     try:
-        rows = scan(b, pairs, log=say, timeout=a.timeout)
+        from mt5_ea.live import alerts as al
+        cfg = al.settings_from(gas.call('eaAlert', {'alerts': []}, timeout=60), {'on': True, 'profiles': al.PRESETS})
+        prof = [x for x in cfg.get('profiles') or [] if x.get('on')] if cfg.get('on', True) else []
+
+        def each(p, m15):
+            if p in al.PAIRS and prof:
+                star.extend(al.armed(al.Market(p, m15.reset_index(drop=True)), prof, star=cfg.get('star')))
+    except Exception as ex:
+        logging.warning('star: %s', ex); each = None
+    try:
+        rows = scan(b, pairs, log=say, timeout=a.timeout, each=each)
     except Stalled as ex:
         rows, stalled = ex.rows, ex
         say(f'\n止まりました: {ex}。ここまでの {len(rows)} ペアだけ送ります。')
@@ -192,6 +209,12 @@ def main(argv=None):
             say('送れませんでした: ' + str((res or {}).get('error')))
             os._exit(1)
         say(f"\n{len(rows)} ペアをアプリに送りました（自動の向きが変わって書き換えた所: {res.get('changed', 0)}）")
+        if prof is not None and not stalled:
+            try:
+                gas.call('eaAlert', {'alerts': [], 'armed': [{'sym': x['sym'], 'text': x['text']} for x in star]}, timeout=60)
+                say(f"⭐ もうすぐ: {len(star)} 本" + ('（' + ' / '.join(f"{x['sym']} {x['text']}" for x in star) + '）' if star else ''))
+            except Exception as ex:
+                say(f'⭐ は送れませんでした: {ex}')
     if stalled:
         os._exit(2)                                     # the stuck MT5 call cannot be cancelled: leave without waiting for it
 
