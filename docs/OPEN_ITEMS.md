@@ -275,6 +275,18 @@
 - 結論：チャートの値段と出来高からの「買い優勢・売り優勢」は、数日〜数週間の向きの予想には使えない。FX の出来高はブローカーごとの tick 数で、本当の注文の量ではないのが大きい。
   長い目の傾向を見たいなら、本物のポジションのデータ（CFTC の建玉 COT＝無料・公開・週 1 回、OANDA のポジションブック＝口座が必要）を検証する方が筋がよい。
 
+### F4. CFTC の建玉（COT）で数週間〜数か月の向き（2026-11-22）
+- データ：CFTC の公開ファイル（無料、www.cftc.gov/files/dea/history/）。通貨先物 5 つ（EUR・JPY・GBP・CAD・CHF）、2003〜2026 年（区分の細かい TFF は 2010 年から）。
+  値段は M5 から、発表後の月曜の最初の値段で入る（先読みなし）。research/studies/cot/（cot_fx.csv・study.py・results/report.md）。
+- 見た区分：大口投機筋（非商業）、小口（報告義務なし）、当業者（商業）、レバレッジファンド、アセットマネージャー（年金・投信など）。
+- 結果
+  - 大口投機筋・小口・当業者・レバレッジファンド：一貫した傾向なし（通貨ごとに向きがばらばら）。
+  - **アセットマネージャーだけ弱い逆張りの傾向**：過去 3 年の中で極端に買い越し（上位 2 割）→ その通貨は次の 13 週で下がりやすい、極端に売り越し（下位 2 割）→ 上がりやすい。
+    13 週ずつ重ならないように数えて 167 回、勝率 57%。ただし CAD（80%、30 回）・CHF・JPY では効くが、EUR・GBP ではほぼ効かない。
+  - 直前 13 週の値動き（モメンタム）：傾向なし。
+- 結論：売買の合図にはならない。使うとしても「週末の環境認識で、アセットマネージャーが極端な通貨（とくに CAD・CHF・JPY）は、その向きに乗りすぎない」程度の参考。
+- 注意：調べる途中で M5 の読み込みが 2009 年からになっていた不具合を見つけ、直してからの数字（2010 年からの TFF の結果はもともと影響なし）。
+
 ### F3. OANDA のオーダーブック・ポジションブックを無料で CSV に貯められるか（2026-11-22 調査）
 - Web ページ（OANDA Global Markets の Order & Position Book）：描画は labs-widgets.oanda.com/orderBook.bundle.js、データは labs-api.oanda.com/graphql の
   `orderPositionBook(instrument, bookType: ORDER|POSITION, recentHours)`（bucketWidth・price・time・buckets{price, longCountPercent, shortCountPercent}）。
