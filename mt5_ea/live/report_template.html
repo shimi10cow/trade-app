@@ -398,7 +398,8 @@ function drawObj(x, l, sel) {
   const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
   x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.kind === 'band' ? [2, 3] : l.type === 'ea' || l.src === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
   const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
-  if (l.type === 'h') { x.beginPath(); x.moveTo(0, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
+  if (l.type === 'h') { const a = l.t1 != null ? Math.max(0, tx(l.t1)) : 0; if (a > R) { x.setLineDash([]); x.lineWidth = 1; return; }      // 2026-11-22 (user): from the point to the right only
+    x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); }
   else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
     // 2026-11-22 (user): 抵抗体 = white dotted line, no text; 砦 / 出入口 = the name only; 押し安値・戻り高値 keep the timeframe and price
     if (l.kind === 'band') { if (l.note) lab(l.note, Math.min(R - 150, a + 4), Y(l.p1) - 3); }
@@ -423,7 +424,7 @@ function hitHandle(q) { const t = cur(); if (!t || !G || S.pick < 0) return 0; c
 function hitDist(l, q) {           // pixels from the tap to the object (Infinity = not near)
   const {Y, tx, W, padR} = G, R = W - padR;
   if (l.del || !vis(l)) return Infinity;
-  if (l.type === 'h') return Math.abs(Y(l.p1) - q.y);
+  if (l.type === 'h') return q.x >= (l.t1 != null ? Math.max(0, tx(l.t1)) : 0) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
   if (l.type === 'ea' || l.type === 'x') return q.x >= Math.max(0, tx(l.t1)) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
   if (l.type === 'eb' || l.type === 'es') return Math.hypot(q.x - tx(l.t1), q.y - Y(l.p1) - (l.type === 'eb' ? 6 : -6));
   const ax0 = tx(l.t1), ay0 = Y(l.p1), bx0 = tx(l.t2), by0 = Y(l.p2);
