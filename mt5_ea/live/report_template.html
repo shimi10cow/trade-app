@@ -95,7 +95,7 @@ const kv = (k, v, c = '') => `<div class="kv"><div class="k">${k}</div><div clas
 function header() {
   $('#made').textContent = '作成 ' + D.made + (D.btDone ? '' : '（バックテストなし）');
   $('#accbtn').innerHTML = ['demo', 'live'].map(a => `<button class="t ${S.acc === a ? 'on' : ''}" onclick="S.acc='${a}';S.sel=null;draw()">${a === 'live' ? 'リアル' : 'デモ'}口座</button>`).join(' ');
-  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート'], ['s-px', '全通貨チャート']];
+  const tabs = [['s-sum', 'まとめ'], ['s-per', '期間のバックテスト'], ['s-mon', '月ごと'], ['s-ea', 'EA ごと'], ['s-bt', '突き合わせ'], ['s-mc', 'モンテカルロ'], ['s-ex', '約定・その他'], ['s-tr', 'トレードとチャート'], ['s-px', 'チャート分析']];
   $('#tabs').innerHTML = tabs.filter(([id]) => id !== 's-px' || (D.pairs || []).length).map(([id, l]) => `<button class="t ${S.tab === id ? 'on' : ''}" onclick="goTab('${id}')">${l}</button>`).join(' ');
   document.querySelectorAll('.sec').forEach(s => s.classList.toggle('on', s.id === (S.tab === 's-px' ? 's-tr' : S.tab)));
 }
@@ -288,12 +288,18 @@ function tfBtns(home) {
 function pxSec() {      // all pairs of the app: weekend chart analysis with the EA's lines
   const ps = D.pairs || [];
   if (!S.sel && ps.length) S.sel = 'P' + ps[0].sym;
+  pxList();
+  tfBtns('最新へ');
+  $('#tfbtn').insertAdjacentHTML('beforeend', ` <label class="mut" style="font-size:12px"><input type="checkbox" ${S.eaOn !== false ? 'checked' : ''} onchange="S.eaOn=this.checked;chart()"> EA のトレードを表示</label>`);
+  drawBtns(); chart(); markPanel();
+}
+function pxList() {
+  const ps = D.pairs || [];
   $('#tflt').innerHTML = `<span class="dim">${ps.length} ペア · 線：自分で引いた本数 / EA のライン（動かした・消した）</span>`;
   $('#tlist').innerHTML = `<tr><th class="l">ペア</th><th>自分の線</th><th>EA のライン</th><th class="l">メモ</th></tr>` + ps.map(p => {
     const mine = live(p.lines).filter(l => l.src !== 'ea').length, ea = p.lines.filter(l => l.src === 'ea'), mv = ea.filter(l => l.moved && !l.del).length, dl = ea.filter(l => l.del).length;
     return `<tr class="click ${S.sel === 'P' + p.sym ? 'sel' : ''}" onclick="pick('P${p.sym}')"><td class="l"><b>${esc(p.sym)}</b>${p.flag ? ` <span style="color:#fbbf24">🚩${esc(p.flag)}</span>` : ''}</td><td>${mine || ''}</td>
       <td class="dim">${live(ea).length}${mv || dl ? `（動 ${mv}・消 ${dl}）` : ''}</td><td class="l dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(p.cm || '')}</td></tr>`; }).join('');
-  tfBtns('最新へ'); drawBtns(); chart(); markPanel();
 }
 // tools (2026-11-22): each tool draws ONE object and goes back to ✋ 動かす. In ✋ 動かす: tap an object -> ✕ appears (tap ✕ to delete),
 // drag an object to move it, drag the empty chart to scroll.
@@ -306,7 +312,7 @@ function drawBtns() {
 function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
 function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (let i = 0; i < c.length; i++) { s += c[i]; if (i >= n) s -= c[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
 function zoom(k) { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); }
-const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false});
+const draft = t => (S.draft && S.draft.key === S.sel) ? S.draft : (S.draft = {key: S.sel, v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: JSON.parse(JSON.stringify(t.lines || [])), dirty: false}, S.draft.saved = sig(S.draft), S.draft);
 let G = null;   // geometry of the last drawn chart (for clicks)
 const EAK = {gateway: ['出入口', '#22d3ee'], fortress: ['砦', '#a3e635'], band: ['抵抗体', '#cbd5e1']};
 const curLines = t => (S.draft && S.draft.key === S.sel) ? S.draft.lines : (t.lines || []);
@@ -387,7 +393,15 @@ function chart() {
     x.strokeStyle = '#fff'; x.lineWidth = 2; x.beginPath(); x.moveTo(bx - 5, by - 5); x.lineTo(bx + 5, by + 5); x.moveTo(bx + 5, by - 5); x.lineTo(bx - 5, by + 5); x.stroke(); x.lineWidth = 1;
     G.delBtn = {x: bx, y: by};
   }
-  if (t.kind === 'P') return;
+  if (t.kind === 'P') {             // the EA's trades of this pair (both accounts), small marks; ☑ in the buttons
+    if (S.eaOn !== false) D.trades.filter(z => z.sym === t.sym && z.et).forEach(z => {
+      const a = bs(T, z.et); if (a < i0 || a >= i1 || !z.ep) return; const up = z.side > 0, col = up ? '#f43f5e' : '#3b82f6', xx = X(a), yy = Y(z.ep);
+      x.globalAlpha = 0.85; x.fillStyle = col; x.beginPath(); x.moveTo(xx, yy + (up ? 4 : -4)); x.lineTo(xx - 5, yy + (up ? 13 : -13)); x.lineTo(xx + 5, yy + (up ? 13 : -13)); x.fill();
+      if (z.xt && z.xp) { const b2 = bs(T, z.xt); if (b2 >= i0 && b2 < i1) { x.strokeStyle = col; x.setLineDash([2, 2]); x.beginPath(); x.moveTo(xx, yy); x.lineTo(X(b2), Y(z.xp)); x.stroke(); x.setLineDash([]);
+        x.fillStyle = z.R > 0 ? '#4ade80' : '#f87171'; x.fillText((z.R > 0 ? '+' : '') + (z.R == null ? '' : Number(z.R).toFixed(1)) + 'R', X(b2) + 3, Y(z.xp) + 3); } }
+      x.fillStyle = col; x.fillText(famCode(z.fam) + (z.acc === 'live' ? '（リ）' : ''), xx + 6, yy + (up ? 22 : -16)); x.globalAlpha = 1; });
+    return;
+  }
   const ia = bs(T, t.et), ib = t.xt ? bs(T, t.xt) : i1 - 1, hl = (v, col, dash, lab) => { if (v == null || isNaN(v) || !v) return; x.strokeStyle = col; x.setLineDash(dash); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); x.fillStyle = col; x.fillText(lab, X(Math.min(i1 - 1, ib + 3)) + 3, Y(v) + 3); };
   hl(t.sl, '#f87171', [4, 3], '損切り'); hl(t.tp, '#4ade80', [4, 3], '利確'); hl(t.ep, '#e2e8f0', [2, 2], '入り'); hl(t.xp, '#fbbf24', [2, 2], '決済');
   const tri = (i, v, up, col) => { x.fillStyle = col; x.beginPath(); const xx = X(i), yy = Y(v) + (up ? 12 : -12); x.moveTo(xx, yy + (up ? -8 : 8)); x.lineTo(xx - 6, yy + (up ? 4 : -4)); x.lineTo(xx + 6, yy + (up ? 4 : -4)); x.fill(); };
@@ -426,7 +440,7 @@ function markPanel() {
       ${objNote(d)}
       <div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">💬 一言メモ</div><textarea id="mkcm" rows="2" style="width:100%" oninput="draft(cur()).cm=this.value;draft(cur()).dirty=true;mkMsg()">${esc(d.cm)}</textarea>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="mkmsg" class="note"></span>
-        <span><span class="note">自分の線 ${mine.length} · EA ${live(ea).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）</span> <button class="t on" onclick="mkSave()">保存</button></span></div></div>`;
+        <span><span class="note">自分の線 ${mine.length} · EA ${live(ea).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）</span></span></div></div>`;
     mkMsg(); return;
   }
   const vb = (arr, val, fn) => arr.map(([v, l, c]) => `<button class="vb ${val === v ? 'on' : ''}" style="${val === v ? `border-color:${c};color:${c};background:${c}22` : ''}" onclick="${fn}('${v}')">${l}</button>`).join('');
@@ -439,38 +453,58 @@ function markPanel() {
     ${objNote(d)}
     <div class="mut" style="font-size:12px;font-weight:700;margin-top:8px">💬 コメント</div><textarea id="mkcm" rows="3" style="width:100%" oninput="draft(cur()).cm=this.value;draft(cur()).dirty=true;mkMsg()">${esc(d.cm)}</textarea>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px"><span id="mkmsg" class="note"></span>
-      <span>${d.lines.length ? `<span class="note">線 ${d.lines.length} 本</span> ` : ''}<button class="t on" onclick="mkSave()">保存</button></span></div></div>`;
+      <span>${d.lines.length ? `<span class="note">線 ${d.lines.length} 本</span> ` : ''}</span></div></div>`;
   mkMsg();
 }
-function mkMsg(txt, col) { const m = $('#mkmsg'); if (!m) return; const d = S.draft && S.draft.key === S.sel ? S.draft : null; m.textContent = txt || (d && d.dirty ? '保存していない変更があります' : ''); m.style.color = col || (d && d.dirty ? '#fbbf24' : ''); }
+function mkMsg(txt, col) { const m = $('#mkmsg'); if (!m) return; if (txt !== undefined) { m.textContent = txt; m.style.color = col || ''; } }
 window.mkV = v => { const d = draft(cur()); d.v = d.v === v ? '' : v; d.dirty = true; markPanel(); };
 window.mkX = v => { const d = draft(cur()); d.xv = d.xv === v ? '' : v; d.dirty = true; markPanel(); };
 window.mkT = v => { const d = draft(cur()); d.tags = d.tags.includes(v) ? d.tags.filter(x => x !== v) : d.tags.concat(v); d.dirty = true; markPanel(); };
 window.mkXT = v => { const d = draft(cur()); d.xtags = d.xtags.includes(v) ? d.xtags.filter(x => x !== v) : d.xtags.concat(v); d.dirty = true; markPanel(); };
-window.mkSave = async function () {
-  const t = cur(), d = draft(t); if (!D.gas || !D.rkey) { mkMsg('保存先（GAS）が分からないので保存できません。レポートを作り直してください', '#f87171'); return; }
+// saving (2026-11-22): automatic, in the background. A change is sent 1.5 s after the last edit, and at once when another trade /
+// pair is opened. No save button. The message under the panel shows 保存中… / 保存しました / 保存できませんでした.
+const objOf = key => { if (!key) return null; const k = key[0]; if (k === 'P') return (D.pairs || []).find(p => p.sym === key.slice(1)) || null; const n = Number(key.slice(1)); return k === 'L' ? D.trades.find(t => t.i === n) : D.btl.find(b => b.j === n); };
+const sig = d => JSON.stringify([d.v, d.flag, d.tags, d.cm, d.xv, d.xtags, d.lines]);
+let SAVING = 0;
+async function saveDraft(d) {
+  const t = objOf(d.key); if (!t) return;
+  if (!D.gas || !D.rkey) { mkMsg('保存先（GAS）が分からないので保存できません。レポートを作り直してください', '#f87171'); return; }
+  const now = sig(d); if (now === d.saved) { d.dirty = false; return; }
+  let body;
   if (t.kind === 'P') {      // only the trader's lines and the EA lines he touched are stored (the rest come from the EA again next time)
     const keep = d.lines.filter(l => l.src !== 'ea' || l.moved || l.del || l.note);
-    const body = {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: '', ea: 'PAIR', symbol: t.sym, direction: '', time: nowJ(), fields: {comment: d.cm, tags: d.flag, lines: keep}};
-    mkMsg('保存中…', '#94a3b8');
-    try { const r = await fetch(D.gas, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
-      if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
-      Object.assign(t, {cm: d.cm, flag: d.flag, lines: JSON.parse(JSON.stringify(d.lines))}); d.dirty = false;
-      D.repmarks[t.id] = {cm: t.cm, tags: t.flag, lines: keep}; pxSec(); mkMsg('保存しました（次のレポートにも出ます）', '#4ade80');
-    } catch (e) { mkMsg('保存できませんでした：' + e.message, '#f87171'); }
-    return;
+    body = {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: '', ea: 'PAIR', symbol: t.sym, direction: '', time: nowJ(), fields: {comment: d.cm, tags: d.flag, lines: keep}};
+  } else {
+    const fields = {verdict: d.v, tags: d.tags.join(','), comment: d.cm, exitVerdict: d.xv, exitTags: d.xtags.join(','), lines: d.lines};
+    body = t.kind === 'L' ? {action: 'eaReportMark', key: D.rkey, kind: 'trade', tradeId: t.id, fields}
+      : {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: S.acc, ea: t.ea, symbol: t.sym, direction: t.side > 0 ? 'BUY' : 'SELL', time: tstr(t.et), fields};
   }
-  const fields = {verdict: d.v, tags: d.tags.join(','), comment: d.cm, exitVerdict: d.xv, exitTags: d.xtags.join(','), lines: d.lines};
-  const body = t.kind === 'L' ? {action: 'eaReportMark', key: D.rkey, kind: 'trade', tradeId: t.id, fields}
-    : {action: 'eaReportMark', key: D.rkey, kind: 'bt', id: t.id, account: S.acc, ea: t.ea, symbol: t.sym, direction: t.side > 0 ? 'BUY' : 'SELL', time: tstr(t.et), fields};
-  mkMsg('保存中…', '#94a3b8');
+  d.saving = 1; SAVING++; if (S.draft === d) mkMsg('保存中…', '#94a3b8');
   try { const r = await fetch(D.gas, {method: 'POST', body: JSON.stringify(body)}).then(x => x.json());
     if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
-    Object.assign(t, {v: d.v, tags: fields.tags, cm: d.cm, xv: d.xv, xtags: fields.exitTags, lines: JSON.parse(JSON.stringify(d.lines))}); d.dirty = false;
-    if (t.kind === 'B') D.repmarks[t.id] = {v: t.v, tags: t.tags, cm: t.cm, xv: t.xv, xtags: t.xtags, lines: t.lines};
-    listSec(); mkMsg('保存しました（アプリ・次のレポートにも出ます）', '#4ade80');
-  } catch (e) { mkMsg('保存できませんでした：' + e.message, '#f87171'); }
-};
+    const copy = JSON.parse(JSON.stringify(d.lines));
+    if (t.kind === 'P') { Object.assign(t, {cm: d.cm, flag: d.flag, lines: copy}); D.repmarks[t.id] = {cm: t.cm, tags: t.flag, lines: body.fields.lines}; }
+    else { Object.assign(t, {v: d.v, tags: d.tags.join(','), cm: d.cm, xv: d.xv, xtags: d.xtags.join(','), lines: copy});
+      if (t.kind === 'B') D.repmarks[t.id] = {v: t.v, tags: t.tags, cm: t.cm, xv: t.xv, xtags: t.xtags, lines: t.lines}; }
+    d.saved = now; d.dirty = sig(d) !== now; d.err = '';
+    if (S.draft === d) mkMsg(d.dirty ? '' : '保存しました', '#4ade80');
+    refreshRow(t);
+  } catch (e) { d.err = e.message; if (S.draft === d) mkMsg('保存できませんでした（自動でもう一度送ります）：' + e.message, '#f87171'); }
+  d.saving = 0; SAVING--;
+}
+function refreshRow(t) {      // the list on the right, without redrawing the panel (keeps the cursor in the text boxes)
+  const tb = $('#tlist'); if (!tb) return; const keep = tb.parentNode.scrollTop;
+  if (S.tab === 's-px' && t.kind === 'P') { const f = $('#tflt').innerHTML; pxList(); tb.parentNode.scrollTop = keep; }
+}
+setInterval(() => {            // the background saver
+  const d = S.draft; if (!d || d.saving) return;
+  if (d.saved === undefined) d.saved = sig(objDraftBase(d));
+  const now = sig(d); if (now === d.saved) { d.dirty = false; return; }
+  d.dirty = true;
+  if (now !== d.last) { d.last = now; d.at = Date.now(); if (!d.err) mkMsg('（自動で保存します）', '#94a3b8'); return; }
+  if (Date.now() - d.at >= (d.err ? 8000 : 1500)) saveDraft(d);
+}, 500);
+const objDraftBase = d => { const t = objOf(d.key) || {}; return {v: t.v || '', flag: t.flag || '', tags: (t.tags || '').split(',').filter(Boolean), cm: t.cm || '', xv: t.xv || '', xtags: (t.xtags || '').split(',').filter(Boolean), lines: t.lines || []}; };
 // drawing / panning on the chart. ✋ mode: drag empty chart = scroll, drag an object = move it, tap an object = pick it (✕ to delete)
 (function input() {
   const cv = $('#cv'); let p = null, pinch = null, moved = false, drag = null;
@@ -512,14 +546,14 @@ window.mkSave = async function () {
   cv.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { const dd = Math.abs(e.touches[0].clientX - e.touches[1].clientX); if (Math.abs(dd - pinch) > 20) { zoom(dd > pinch ? 0.85 : 1.18); pinch = dd; } } }, {passive: true});
   cv.addEventListener('touchend', () => pinch = null);
 })();
-addEventListener('beforeunload', e => { if (S.draft && S.draft.dirty) { e.preventDefault(); e.returnValue = ''; } });
+addEventListener('beforeunload', e => { if (SAVING || (S.draft && S.draft.saved !== undefined && sig(S.draft) !== S.draft.saved)) { e.preventDefault(); e.returnValue = ''; } });
 window.pick = function (key, tab) {
-  if (S.draft && S.draft.dirty && S.draft.key !== key && !confirm('保存していない印・線があります。保存せずに移りますか？')) return;
+  if (S.draft && S.draft.key !== key && sig(S.draft) !== S.draft.saved) saveDraft(S.draft);      // send what was changed, then move on
   S.sel = key; S.pend = null; S.pick = -1; if (tab) S.tab = tab; draw();
 };
 window.goTab = function (id) {
   if (id === S.tab) return;
-  if (S.draft && S.draft.dirty && !confirm('保存していない印・線があります。保存せずに移りますか？')) return;
+  if (S.draft && sig(S.draft) !== S.draft.saved) saveDraft(S.draft);
   if (S.tab === 's-tr') S.tsel = S.sel; if (S.tab === 's-px') S.psel = S.sel;
   S.tab = id; S.sel = id === 's-tr' ? (S.tsel || null) : id === 's-px' ? (S.psel || null) : S.sel; S.view = null; S.pend = null; S.pick = -1; S.mode = 'pan'; draw();
 };
