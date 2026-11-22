@@ -573,7 +573,7 @@ function updateWinLossColumn() {
   const rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   let changed = 0; const col = [];
   rows.forEach((r, i) => {
-    const p = cP >= 0 ? parseFloat(r[cP]) : NaN, sl = cSL >= 0 ? parseFloat(r[cSL]) : NaN, rr = cR >= 0 ? r[cR] : '';
+    const p = cP >= 0 ? parseFloat(r[cP]) : NaN, sl = cSL >= 0 ? Math.abs(parseFloat(r[cSL])) : NaN, rr = cR >= 0 ? r[cR] : '';
     let R = (isFinite(p) && sl > 0) ? p / sl : (rr !== '' && isFinite(parseFloat(rr)) ? parseFloat(rr) : NaN);
     let v = '';
     if (isFinite(R)) v = R > 0.2 ? '勝ち' : (R < -0.2 ? '負け' : '引き分け');

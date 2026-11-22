@@ -1192,7 +1192,7 @@ async function loadData() {
     renderAnalysis();      // ③ 分析
     renderGallery();
     // 2026-11-22: once per device, the sheet's 勝敗 column is redone in R (±0.2R; ±10 pips only where no R). Old GAS: unknown action, tried again next time
-    try { if (localStorage.getItem('wl_r_v1') !== '1') gasPost({action: 'recalcWinLoss'}).then(r => { if (r && r.success) localStorage.setItem('wl_r_v1', '1'); }).catch(() => {}); } catch (e) {}
+    try { if (localStorage.getItem('wl_r_v2') !== '1') gasPost({action: 'recalcWinLoss'}).then(r => { if (r && r.success) localStorage.setItem('wl_r_v2', '1'); }).catch(() => {}); } catch (e) {}
 
     // 全部揃ったら記録（最後）
     await Promise.all([pairsP, ideasP, reviewsP]);
@@ -3247,7 +3247,7 @@ function applyAnalysisFilters() {
     // 理論pips: ルール準拠pips列の合計（全トレード）
     const rawRulePips = t['ルール準拠pips'] ?? t['ルール準拠Pips'];
     if (rawRulePips !== undefined && rawRulePips !== '' && rawRulePips !== null) {
-      const rp = parseFloat(rawRulePips), sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+      const rp = parseFloat(rawRulePips), sl = Math.abs(parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0);   // a few rows hold the SL width with a minus sign
       if (!isNaN(rp) && sl > 0) { theoryPipsTotal += rp / sl; theoryRActual += tradeR_(t) || 0; }   // 2026-11-22: in R
     }
     // 理論損益: ルール準拠損益列の合計（手入力値）
@@ -3602,7 +3602,7 @@ function getRRValues(trades) {
   const rs = [];
   trades.forEach(t => {
     const pips = parseFloat(t['実取得pips']);
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    const sl = Math.abs(parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0);   // a few rows hold the SL width with a minus sign
     if (!isNaN(pips) && sl > 0) rs.push(pips / sl);
   });
   return rs;
@@ -3660,7 +3660,7 @@ function renderRRDistribution(trades) {
   const binTrades = RR_BINS.map(() => []);
   trades.forEach(t => {
     const pips = parseFloat(t['実取得pips']);
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    const sl = Math.abs(parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0);   // a few rows hold the SL width with a minus sign
     if (isNaN(pips) || sl <= 0) return;
     const r = pips / sl;
     const bi = RR_BINS.findIndex(b => b.test(r));
@@ -4009,7 +4009,7 @@ function renderGrowthChart(allTrades) {
     if (!monthly[mk]) monthly[mk] = { profit: 0, pips: 0, rrSum: 0 };
     monthly[mk].profit += parseFloat(t['損益']) || 0;
     monthly[mk].pips   += parseFloat(t['実取得pips']) || 0;
-    const sl = parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0;
+    const sl = Math.abs(parseFloat(t['StopLossPips']) || parseFloat(t['SL']) || 0);   // a few rows hold the SL width with a minus sign
     if (sl > 0) monthly[mk].rrSum += (parseFloat(t['実取得pips']) || 0) / sl;
   });
 
@@ -5126,7 +5126,7 @@ function calcTimezone(timeStr) {
 // R = realised pips / first SL pips; when no SL is known, the R typed in the detail (実リスクリワード).
 function tradeR_(t){
   if(!t)return null;
-  var p=parseFloat(t['実取得pips']),sl=parseFloat(t['StopLossPips'])||parseFloat(t['SL'])||0;
+  var p=parseFloat(t['実取得pips']),sl=Math.abs(parseFloat(t['StopLossPips'])||parseFloat(t['SL'])||0);   // width: a few rows were typed with a minus sign
   if(isFinite(p)&&sl>0)return p/sl;
   var s=t['実リスクリワード'];if(s===''||s==null)s=t.R;      // EA rows carry R
   var r=parseFloat(s);
@@ -5600,7 +5600,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   });
 
   document.getElementById('td-tp').value = t['TP'] || t['TakeProfitPips'] || t['StopProfitPips'] || '';
-  document.getElementById('td-sl').value = t['SL'] || t['StopLossPips'] || '';
+  { const v = parseFloat(t['SL'] || t['StopLossPips']); document.getElementById('td-sl').value = isFinite(v) && v ? String(Math.abs(v)) : ''; }   // width, never negative
   const tdPair=String(t['PairName（元）']||t.PairName||t.Pair||'').toUpperCase();
   const tdIsForex=tdIsForexPair_(t);
   const lotItem=document.getElementById('td-lot')?.closest('.grid-item');

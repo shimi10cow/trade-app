@@ -342,6 +342,7 @@ def manual_trades(rows):
     out = []
     for r in rows or []:
         p, sl, rr = f(r.get('実取得pips')), f(r.get('StopLossPips')), f(r.get('実リスクリワード'))
+        sl = abs(sl) if sl is not None else None          # a few rows hold the SL width with a minus sign
         R = p / sl if p is not None and sl else rr
         rp = f(r.get('ルール準拠pips'))
         out.append(dict(d=str(r.get('EntryDate') or '')[:10].replace('-', '/'), x=str(r.get('ExitDate') or '')[:10].replace('-', '/'),
