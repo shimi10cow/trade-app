@@ -567,7 +567,13 @@ def evaluate(mk, profiles, since=None):
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
                             met=met, uscore=ev.get('_uscore')))
-    return res
+    # 2026-11-23: two 砦 next to each other gave the same alert twice at the same bar -> one per pair, side and bar
+    seen, out = set(), []
+    for a in res:
+        k = (a['side'], str(a['t']), a['timing'])
+        if k not in seen:
+            seen.add(k); out.append(a)
+    return out
 
 
 STAR_DEFAULT = {'zone': float(os.getenv('EA_STAR_ATR') or 2.5), 'n': 3, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 0, 'band': 1}   # = ea_live.js STAR_DEFAULT; band: 砦 as an area
