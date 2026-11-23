@@ -316,8 +316,8 @@
   }
   // 2026-11-22 (user): how the pair tab's ⭐「もうすぐ」 is given, editable here. zone = within how many ATR(H4) of the line;
   // the score of the alerts (line / impulse TL / H1 MA / correction TL / M15 TL) with its own points and total; default: without M15 TL, 3 or more
-  const STAR_DEFAULT = {zone: 2.5, n: 3, line: 1, imp: 2, ma: 1, ctr: 1, m15: 0};
-  const STAR_LBL = [['zone', '線から何 ATR(H4) 以内', 0.1], ['n', '合計 何点以上', 0.5], ['line', '線の点', 0.5], ['imp', '推進TL の点', 0.5], ['ma', 'H1 MA の点', 0.5], ['ctr', '調整TL の点', 0.5], ['m15', 'M15TL の点', 0.5]];
+  const STAR_DEFAULT = {zone: 2.5, n: 3, line: 1, imp: 2, ma: 1, ctr: 1, m15: 0, band: 1};   // band 1: 砦 = from the H4 swing down to the M15 押し安値 that made it
+  const STAR_LBL = [['zone', '線から何 ATR(H4) 以内', 0.1], ['n', '合計 何点以上', 0.5], ['line', '線の点', 0.5], ['imp', '推進TL の点', 0.5], ['ma', 'H1 MA の点', 0.5], ['ctr', '調整TL の点', 0.5], ['m15', 'M15TL の点', 0.5], ['band', '砦を帯で見る（1＝する、0＝しない）', 1]];
   window.eaStarSet = (k, v) => { const a = alertCfg(), x = Number(v); if (!isFinite(x) || x < 0) return; a.star[k] = x; setTimeout(() => saveAlertCfg(a), 0); };   // after the input's own change / blur
   window.eaStarReset = () => { const a = alertCfg(); a.star = clone(STAR_DEFAULT); saveAlertCfg(a); };
   async function saveAlertCfg(a) {

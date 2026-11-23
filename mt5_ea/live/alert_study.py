@@ -16,11 +16,11 @@ import pandas as pd
 
 from mt5_ea.live import alerts
 
-VARIANTS = [('今の線・⭐2.5', 0.0, 2.5), ('エリア・⭐2.5', 0.5, 2.5), ('今の線・⭐3.0', 0.0, 3.0), ('エリア・⭐3.0', 0.5, 3.0)]
+VARIANTS = [('前の形（砦＝線）', 0.0, 2.5, 0), ('砦を帯に', 0.0, 2.5, 1), ('砦を帯に・0.5ATR 抜けで消す', 0.5, 2.5, 1), ('砦を帯に・⭐3.0', 0.0, 3.0, 1)]   # (name, brk, zone, band)
 
 
-def profs_for(brk, timing):
-    return [dict(p, id=p['id'] + timing + str(brk), timing=timing, timings=[timing], brk=brk) for p in alerts.PRESETS]
+def profs_for(brk, timing, band=1):
+    return [dict(p, id=p['id'] + timing + str(brk), timing=timing, timings=[timing], brk=brk, band=band) for p in alerts.PRESETS]
 
 
 def trades_of(manual, keep_days, now):
@@ -66,9 +66,9 @@ def study(b, pairs, days, marks, say=print):
             say(f'  {sym:7s} とばした（{str(ex)[:60]}）'); continue
         end = pd.Timestamp(m.t.iat[-1]); since = end - pd.Timedelta(days=days)
         ms = [x for x in ms if x[0] >= pd.Timestamp(m.t.iat[0]) + pd.Timedelta(days=alerts.DAYS)]   # enough history before it
-        for name, brk, zone in VARIANTS:
-            pr = profs_for(brk, 'turn'); st = {'zone': zone}
-            al = {t: alerts.evaluate(mk, profs_for(brk, t), min([since] + [x[0] - pd.Timedelta(days=3) for x in ms])) for t in ('turn', 'tl15')}
+        for name, brk, zone, band in VARIANTS:
+            pr = profs_for(brk, 'turn', band); st = {'zone': zone, 'band': band}
+            al = {t: alerts.evaluate(mk, profs_for(brk, t, band), min([since] + [x[0] - pd.Timedelta(days=3) for x in ms])) for t in ('turn', 'tl15')}
             for te, side, src in ms:                               # catch
                 lead = None
                 for h in range(0, 49, 2):
@@ -95,7 +95,7 @@ def study(b, pairs, days, marks, say=print):
 
 def summary(R, N, src=None):
     out = []
-    for name, _, _ in VARIANTS:
+    for name, *_ in VARIANTS:
         r = R[(R.variant == name) & ((R.src == src) if src else True)] if len(R) else R; n = N[N.variant == name]
         k = len(r)
         out.append({'形': name, '印': k,

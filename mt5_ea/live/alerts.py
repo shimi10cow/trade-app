@@ -467,6 +467,10 @@ def zone_breaks(mk, prof, scene, s, L, born, lf, t_from):
     if q1 <= q0:
         return []
     d = s * (MC[q0:q1] - L) / A
+    if scene == 'fortress' and float(prof.get('band', 1)):
+        e = fortress_edge(mk, s, L, born)
+        if e is not None:
+            d = np.where(d < 0, d, np.maximum(s * (MC[q0:q1] - e) / A, 0.0))
     left = np.maximum.accumulate(d >= away)
     out, fired, prev = [], False, None
     for j in range(len(d)):
@@ -503,6 +507,10 @@ def star_why(mk, profiles, at, side, star=None):
             if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < 0).any():
                 continue
             q0 = int(np.searchsorted(mk.TM, born)); d = sd * (mk.MC[q0:at + 1] - L) / A
+            if scene == 'fortress' and float(st.get('band', 1)):
+                e = fortress_edge(mk, sd, L, born)
+                if e is not None:
+                    d = np.where(d < 0, d, np.maximum(sd * (mk.MC[q0:at + 1] - e) / A, 0.0))
             if not len(d):
                 continue
             if not (d >= away).any():
@@ -554,7 +562,24 @@ def evaluate(mk, profiles, since=None):
     return res
 
 
-STAR_DEFAULT = {'zone': float(os.getenv('EA_STAR_ATR') or 2.5), 'n': 3, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 0}   # = ea_live.js STAR_DEFAULT
+STAR_DEFAULT = {'zone': float(os.getenv('EA_STAR_ATR') or 2.5), 'n': 3, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 0, 'band': 1}   # = ea_live.js STAR_DEFAULT; band: 砦 as an area
+
+
+def fortress_edge(mk, s, L, born):
+    """2026-11-23 (user): a 砦 is an area, not a line: from the H4 swing that made it down to the M15 押し安値 (for a buy: up to the
+    M15 戻り高値) of the day it was made, where buyers and sellers piled up and price often turns again. = the lowest M15 low (sell)
+    in the 24 hours before the H4 swing bar and that bar itself, within 1.5 ATR(H4) of the line. None when there is none."""
+    ct, kd, pp, bt = mk.P4; kind = 'hi' if s < 0 else 'lo'
+    m = np.nonzero((kd == kind) & np.isclose(pp, L, rtol=0, atol=1e-9) & (ct <= np.datetime64(born)))[0]
+    if not len(m):
+        return None
+    tb = bt[m[-1]]; A = mk.a4(born)
+    c15, k15, p15, b15 = mk.P15
+    w = (k15 == ('lo' if s < 0 else 'hi')) & (b15 >= tb - 24 * HOUR) & (b15 < tb + 4 * HOUR)
+    v = p15[w]; v = v[(s * (v - L) >= 0) & (np.abs(v - L) <= 1.5 * A)]          # below the 砦 for a sell, above it for a buy
+    if not len(v):
+        return None
+    return float(v.min() if s < 0 else v.max())
 
 
 def armed(mk, profiles, zone=None, at=None, star=None):
@@ -584,6 +609,11 @@ def armed(mk, profiles, zone=None, at=None, star=None):
                 continue
             q0 = int(np.searchsorted(mk.TM, born))
             d = sd * (mk.MC[q0:last + 1] - L) / A
+            if scene == 'fortress' and float(st.get('band', 1)):                       # the 砦 as an area: distance to its near edge
+                e = fortress_edge(mk, sd, L, born)
+                if e is not None:
+                    de = sd * (mk.MC[q0:last + 1] - e) / A
+                    d = np.where(d < 0, d, np.maximum(de, 0.0))
             if not len(d) or not (d >= away).any() or d[-1] > zone:                    # never left yet / too far now
                 continue
             out_ = np.nonzero(d > zone)[0]
