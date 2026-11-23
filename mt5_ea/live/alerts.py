@@ -34,7 +34,7 @@ PAIRS = ('EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', '
          'AUDCAD', 'AUDCHF', 'AUDNZD', 'CADCHF', 'EURAUD', 'EURNZD', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF')
 DAYS, WARM = 400, 250
 DAY = np.timedelta64(1, 'D'); HOUR = np.timedelta64(1, 'h'); M15 = np.timedelta64(15, 'm')
-ALERTS_V = 4                  # 2026-11-21: settings version (2 = methods 1 / 2 / 6 / 7 presets); older saved profiles are replaced
+ALERTS_V = 5                  # 2026-11-21: settings version (2 = methods 1 / 2 / 6 / 7 presets); older saved profiles are replaced
 SCENE_JA = {'gateway': '出入口', 'fortress': '砦', 'band': '抵抗体'}
 
 # condition catalog: key -> (label, {param: default}); the app (ea_live.js ALERT_CAT) shows the same keys / labels / params
@@ -69,13 +69,13 @@ CATALOG = {
 
 PRESETS = [   # 2026-11-21 (user): only the trader's own methods 1 / 2 / 6 / 7; the alert comes when entering (M15 Dow turn after the touch);
               # + the trader's score (line 1 + impulse TL 2 + H1 MA 1 + correction TL 1 + M15 TL 1) >= 4 (user: selectable, threshold editable)
-    dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
+    dict(id='m1', name='手法1：日足〇・H4 出入口', on=True, scenes=['gateway'], timing='zone', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
+    dict(id='m2', name='手法2：日足〇・H4 砦', on=True, scenes=['fortress'], timing='zone', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
+    dict(id='m6', name='手法6：日足✕・H4 出入口', on=True, scenes=['gateway'], timing='zone', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
-    dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='turn', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
+    dict(id='m7', name='手法7：日足✕・H4 砦', on=True, scenes=['fortress'], timing='zone', near=0.3, away=1.0, life=30, brk=0.0, pairs=[],
          conds={'h4dir': {}, 'd1ma_x': {'period': 75, 'slope': 10}, 'uscore': {'n': 4, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 1}}),
 ]
 
@@ -432,8 +432,8 @@ def events(mk, prof, since):
         if born + int(lf) * DAY < t_from - 2 * DAY:
             continue
         tms_all = prof.get('timings') or [prof.get('timing') or 'turn']
-        if 'tl15' in tms_all:                   # 2026-11-22: in the zone before the line, on the M15 trendline break
-            out += zone_breaks(mk, prof, scene, s, L, born, lf, t_from)
+        if 'tl15' in tms_all or 'zone' in tms_all:   # 2026-11-22/23: in the ⭐ zone, on the M15 trendline break (zone: or the M15 Dow turn)
+            out += zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn='zone' in tms_all)
         tms = [t for t in tms_all if t in ('turn', 'stm15', 'sth1')]
         if not tms:
             continue
@@ -452,7 +452,7 @@ def events(mk, prof, since):
     return out
 
 
-def zone_breaks(mk, prof, scene, s, L, born, lf, t_from):
+def zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn=False):
     """2026-11-22 (user: his entries were 1-2.6 ATR(H4) before the H4 line, on the M15 trendline break, and the touch-based alert never
     came). Timing 'tl15': price broke out and left the line by `away` ATR(H4), came back within `zone` ATR(H4) of it (the ⭐ zone), and an
     M15 correction trendline (the one the score's M15TL point uses) breaks toward the trade -> one alert per approach (a new approach
@@ -472,20 +472,28 @@ def zone_breaks(mk, prof, scene, s, L, born, lf, t_from):
         if e is not None:
             d = np.where(d < 0, d, np.maximum(s * (MC[q0:q1] - e) / A, 0.0))
     left = np.maximum.accumulate(d >= away)
-    out, fired, prev = [], False, None
+    out, fired, prev, qz, tq = [], False, None, None, None
+    c15, k15, p15, t15 = mk.P15
     for j in range(len(d)):
         q = q0 + j
         inz = bool(left[j]) and -0.4 <= d[j] <= zone
         if not inz:
             if d[j] > zone:
                 fired = False                    # left the zone: the next approach may alert again
-            prev = None; continue
+            prev = None; qz = None; continue
+        if qz is None:
+            qz = q                               # this approach entered the zone here
         if fired or CL[q] + 2 * DAY < t_from:
             continue
         ev = dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]))
         cur = bool(mk.check('ctr15', {}, ev))
-        if cur and prev is False and CL[q] >= t_from:
-            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm='tl15', n=1, tq=CL[q]))
+        hit = 'tl15' if (cur and prev is False) else None
+        if not hit and turn and q > qz:          # the M15 Dow turn toward the trade: close beyond the last M15 swing against it
+            m = (c15 <= CL[q]); hi = np.nonzero(m & (k15 == ('hi' if s > 0 else 'lo')) & (t15 >= TM[qz] - 2 * HOUR))[0]
+            if len(hi) and s * (MC[q] - p15[hi[-1]]) > 0 and s * (MC[q - 1] - p15[hi[-1]]) <= 0:
+                hit = 'turn'
+        if hit and CL[q] >= t_from:
+            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm=hit if not turn else 'zone_' + hit, n=1, tq=CL[q]))
             fired = True
         prev = cur
     return out
@@ -689,7 +697,8 @@ def jst(t):
 
 def text(a):
     dj = '買い' if a['side'] > 0 else '売り'; o = lambda v: '〇' if v else '✕'
-    how = {'near': '線に近づいた', 'turn': '線で反発して M15 がダウ転換', 'stm15': '線で反発して M15 ストキャス', 'sth1': '線で反発して H1 ストキャス'}.get(a['timing'], '')
+    how = {'near': '線に近づいた', 'turn': '線で反発して M15 がダウ転換', 'zone_tl15': '⭐ の範囲で M15 のトレンドライン抜け', 'zone_turn': '⭐ の範囲で M15 がダウ転換',
+           'tl15': '⭐ の範囲で M15 のトレンドライン抜け', 'stm15': '線で反発して M15 ストキャス', 'sth1': '線で反発して H1 ストキャス'}.get(a['timing'], '')
     lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']} {a.get('n', 1)} 回目の戻り（{how}）{('・手法' + a['method']) if a['method'] else ''}",
              f"線 {a['line']:g}・今 {a['price']:g}（{abs(a['price'] - a['line']) / a['atr']:.1f}ATR）",
              f"日足 {o(a['d1'])}・H1 MA75 {o(a['h1'])}・線の山谷 {a['touch']} 個", f"足 {a['jst']}（日本時間）"]

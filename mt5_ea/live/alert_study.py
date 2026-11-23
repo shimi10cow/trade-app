@@ -68,7 +68,7 @@ def study(b, pairs, days, marks, say=print):
         ms = [x for x in ms if x[0] >= pd.Timestamp(m.t.iat[0]) + pd.Timedelta(days=alerts.DAYS)]   # enough history before it
         for name, brk, zone, band in VARIANTS:
             pr = profs_for(brk, 'turn', band); st = {'zone': zone, 'band': band}
-            al = {t: alerts.evaluate(mk, profs_for(brk, t, band), min([since] + [x[0] - pd.Timedelta(days=3) for x in ms])) for t in ('turn', 'tl15')}
+            al = {t: alerts.evaluate(mk, profs_for(brk, t, band), min([since] + [x[0] - pd.Timedelta(days=3) for x in ms])) for t in ('turn', 'zone')}
             for te, side, src in ms:                               # catch
                 lead = None
                 for h in range(0, 49, 2):
@@ -76,7 +76,7 @@ def study(b, pairs, days, marks, say=print):
                     if i > 0 and any(x['side'] == side for x in alerts.armed(mk, pr, at=i, star=st)):
                         lead = h; break
                 near = {t: any(a['side'] == side and abs((pd.Timestamp(a['t']) - te) / pd.Timedelta(hours=1)) <= 24 for a in al[t]) for t in al}
-                rows.append(dict(variant=name, src=src, pair=sym, t=str(te)[:16], side=side, star=lead is not None, starLead=lead, turn=near['turn'], tl15=near['tl15']))
+                rows.append(dict(variant=name, src=src, pair=sym, t=str(te)[:16], side=side, star=lead is not None, starLead=lead, turn=near['turn'], tl15=near['zone']))
             # noise over the period: every 4 hours
             i0 = int(np.searchsorted(mk.CL, np.datetime64(since))); on = 0; eps = 0; prev = set()
             idx = range(max(i0, 1), len(mk.TM), 16)
@@ -88,7 +88,7 @@ def study(b, pairs, days, marks, say=print):
                 continue
             noise.append(dict(variant=name, pair=sym, starOn=on / max(1, len(idx)), starPerWeek=eps / wk,
                               turnPerWeek=sum(1 for a in al['turn'] if pd.Timestamp(a['t']) >= since) / wk,
-                              tl15PerWeek=sum(1 for a in al['tl15'] if pd.Timestamp(a['t']) >= since) / wk))
+                              tl15PerWeek=sum(1 for a in al['zone'] if pd.Timestamp(a['t']) >= since) / wk))
         say(f'  {sym:7s} 済み（印 {len(ms)}）')
     return pd.DataFrame(rows), pd.DataFrame(noise)
 
@@ -99,9 +99,9 @@ def summary(R, N, src=None):
         r = R[(R.variant == name) & ((R.src == src) if src else True)] if len(R) else R; n = N[N.variant == name]
         k = len(r)
         out.append({'形': name, '印': k,
-                    '⭐ が付いていた': f"{r.star.sum()}/{k}" if k else '—', '通知 今の形': f"{r.turn.sum()}/{k}" if k else '—', '通知 新しい形': f"{r.tl15.sum()}/{k}" if k else '—',
+                    '⭐ が付いていた': f"{r.star.sum()}/{k}" if k else '—', '通知 前の形（線に触って転換）': f"{r.turn.sum()}/{k}" if k else '—', '通知 新しい形（⭐ の範囲で TL 抜け・転換）': f"{r.tl15.sum()}/{k}" if k else '—',
                     '⭐ の時間（1 ペア平均）': f"{n.starOn.mean() * 100:.0f}%", '⭐ 週あたり（全ペア）': round(n.starPerWeek.sum(), 1),
-                    '通知 今の形 週あたり': round(n.turnPerWeek.sum(), 1), '通知 新しい形 週あたり': round(n.tl15PerWeek.sum(), 1)})
+                    '通知 前の形 週あたり': round(n.turnPerWeek.sum(), 1), '通知 新しい形 週あたり': round(n.tl15PerWeek.sum(), 1)})
     return pd.DataFrame(out)
 
 
