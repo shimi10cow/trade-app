@@ -392,6 +392,12 @@ def mark_auto(broker, repmarks, log_=print, cfg=None):
                     elif lead is not None:
                         break
                 chk['starLead'] = lead
+                if lead is None:                         # why not: the nearest line's reason at the mark
+                    try:
+                        i = int(np.searchsorted(mk.CL, np.datetime64(te), side='right')) - 1
+                        chk['starWhy'] = alerts.star_why(mk, profs, i, side, star)
+                    except Exception as ex:
+                        chk['starWhy'] = f'（判定できず：{str(ex)[:40]}）'
             out.append(dict(sym=sym, side=side, t=int(l['t1']), p=float(l['p1']), tf=l.get('tf') or '', note=l.get('note') or '', **(c or {}), **chk))
     if out:
         log_(f'  エントリーしたかった所 {len(out)} か所を、手法・点数に分けました')

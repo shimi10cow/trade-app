@@ -431,8 +431,13 @@ def events(mk, prof, since):
     for scene, s, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
         if born + int(lf) * DAY < t_from - 2 * DAY:
             continue
+        tms_all = prof.get('timings') or [prof.get('timing') or 'turn']
+        if 'tl15' in tms_all:                   # 2026-11-22: in the zone before the line, on the M15 trendline break
+            out += zone_breaks(mk, prof, scene, s, L, born, lf, t_from)
+        tms = [t for t in tms_all if t in ('turn', 'stm15', 'sth1')]
+        if not tms:
+            continue
         tch, A = mk.touches(L, s, born, lf, near, away, float(prof.get('brk', 0.0)))
-        tms = [t for t in (prof.get('timings') or [prof.get('timing') or 'turn']) if t in ('turn', 'stm15', 'sth1')] or ['turn']
         for q, n in tch:                        # every return to the line (2026-11-21)
             if mk.CL[q] + 2 * DAY < t_from:
                 continue
@@ -445,6 +450,78 @@ def events(mk, prof, since):
                     continue
                 out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=hit[0], px=hit[1], tm=tm, n=n, tq=mk.CL[q]))
     return out
+
+
+def zone_breaks(mk, prof, scene, s, L, born, lf, t_from):
+    """2026-11-22 (user: his entries were 1-2.6 ATR(H4) before the H4 line, on the M15 trendline break, and the touch-based alert never
+    came). Timing 'tl15': price broke out and left the line by `away` ATR(H4), came back within `zone` ATR(H4) of it (the ⭐ zone), and an
+    M15 correction trendline (the one the score's M15TL point uses) breaks toward the trade -> one alert per approach (a new approach
+    starts after price leaves the zone again). Ends when an H4 close goes through the line or the line's life is over."""
+    away, zone, brk = float(prof.get('away', 1.0)), float(prof.get('zone', 2.5)), float(prof.get('brk', 0.0))
+    A = mk.a4(born); TM, MC, CL = mk.TM, mk.MC, mk.CL
+    q0 = int(np.searchsorted(TM, born)); q1 = min(int(np.searchsorted(TM, born + int(lf) * DAY)), len(TM))
+    k0 = int(np.searchsorted(mk.C4, born, side='right')); k1 = int(np.searchsorted(mk.C4, born + int(lf) * DAY))
+    thr = np.nonzero(s * (np.asarray(mk.cx.c4[k0:k1], float) - L) < -brk * A)[0]
+    if len(thr):
+        q1 = min(q1, int(np.searchsorted(TM, mk.C4[k0 + thr[0]])))
+    if q1 <= q0:
+        return []
+    d = s * (MC[q0:q1] - L) / A
+    left = np.maximum.accumulate(d >= away)
+    out, fired, prev = [], False, None
+    for j in range(len(d)):
+        q = q0 + j
+        inz = bool(left[j]) and -0.4 <= d[j] <= zone
+        if not inz:
+            if d[j] > zone:
+                fired = False                    # left the zone: the next approach may alert again
+            prev = None; continue
+        if fired or CL[q] + 2 * DAY < t_from:
+            continue
+        ev = dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]))
+        cur = bool(mk.check('ctr15', {}, ev))
+        if cur and prev is False and CL[q] >= t_from:
+            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm='tl15', n=1, tq=CL[q]))
+            fired = True
+        prev = cur
+    return out
+
+
+def star_why(mk, profiles, at, side, star=None):
+    """why the ⭐ is not on for `side` at bar `at` (the mark's answer check): the reason of the nearest line of that side"""
+    st = dict(STAR_DEFAULT); st.update({k: v for k, v in (star or {}).items() if k in STAR_DEFAULT}); zone = float(st['zone'])
+    now = mk.CL[at]; best = None
+    for prof in profiles:
+        if not prof.get('on') or (prof.get('pairs') and mk.sym not in prof['pairs']):
+            continue
+        away, life = float(prof.get('away', 1.0)), float(prof.get('life', 30))
+        for scene, sd, L, born, lf in mk.lines(set(prof.get('scenes') or []), life):
+            if sd != side or born > now or born + int(lf) * DAY < now:
+                continue
+            A = mk.a4(born)
+            k0 = int(np.searchsorted(mk.C4, born, side='right')); k1 = int(np.searchsorted(mk.C4, now, side='right'))
+            if (sd * (np.asarray(mk.cx.c4[k0:k1], float) - L) < 0).any():
+                continue
+            q0 = int(np.searchsorted(mk.TM, born)); d = sd * (mk.MC[q0:at + 1] - L) / A
+            if not len(d):
+                continue
+            if not (d >= away).any():
+                why = f'線から一度も {away:g}ATR 離れていない'
+            elif d[-1] > zone:
+                why = f'線から遠い（終値で {d[-1]:.1f}ATR、⭐ は {zone:g} まで）'
+            else:
+                ev = dict(scene=scene, side=sd, L=L, A=A, born=born, te=now, px=float(mk.MC[at]), tm='turn', n=1, tq=now)
+                bad = [CATALOG[k][0] for k, par in (prof.get('conds') or {}).items() if k in CATALOG and k != 'uscore' and not mk.check(k, dict(CATALOG[k][1], **(par or {})), ev)]
+                if bad:
+                    why = '条件：' + '・'.join(bad)
+                elif float(st['n']) > 0 and not mk.check('uscore', {k: float(st[k]) for k in ('n', 'line', 'imp', 'ma', 'ctr', 'm15')}, ev):
+                    why = f"点数が足りない（{ev.get('_uscore', 0):g} 点、⭐ は {float(st['n']):g} 点から）"
+                else:
+                    why = 'M15 の転換がもう出ていた（その後は ⭐ を消す）'
+            dist = abs(d[-1])
+            if best is None or dist < best[0]:
+                best = (dist, f"{SCENE_JA[scene]}：{why}")
+    return best[1] if best else 'その向きの H4 の砦・出入口がない'
 
 
 def evaluate(mk, profiles, since=None):
