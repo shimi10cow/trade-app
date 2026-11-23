@@ -1,11 +1,13 @@
-"""Study of the alert timings before turning one on (2026-11-22, user: "test first how often it rings and how far it runs").
-For every FX pair over the last N days (the M15 history MT5 already keeps): the alerts of the presets (methods 1 / 2 / 6 / 7) with
-  turn = the current one (back within 0.3 ATR(H4) of the H4 line, then the M15 Dow turn)
-  tl15 = the new one   (within 2.5 ATR(H4) of the line after leaving it, on the M15 trendline break)
-and what came after each: stop = the M15 swing of the last 4 hours (+0.1 ATR(H1)), then within 5 days: did +1R / +2R / +3R come before
-the stop, and the largest R before the stop. Read only, no orders.
-  python -m mt5_ea.live.alert_study [--days 540] [--pairs EURUSD,AUDJPY]   -> TradeEA_data/reports/alert_study.csv and a summary."""
+"""How well the ⭐ and the alerts notice the trader's areas (2026-11-23, user: "I only want to know price came into the area; whether
+it runs is the EAs' job"). Two things per variant:
+  catch  - of the trader's 「買いたい所 / 売りたい所」 marks (report chart analysis): was the ⭐ on within 48 h before it, did an alert
+           come within 24 h of it (same side)
+  noise  - over the last `days` days, FX 25 pairs: alerts per week, ⭐ episodes per week and the share of time a ⭐ is on
+Variants: the line as now (any H4 close beyond ends it) / as an area (only an H4 close 0.5 ATR beyond ends it); the ⭐ zone 2.5 / 3.0 ATR;
+the alert timing turn (touch the line, M15 Dow turn) / tl15 (within the zone, M15 trendline break). Read only, no orders.
+  python -m mt5_ea.live.alert_study [--days 90]   -> TradeEA_data/reports/alert_study.csv and a summary"""
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -14,79 +16,95 @@ import pandas as pd
 
 from mt5_ea.live import alerts
 
-
-def outcome(mk, a, k):
-    """a: an alert of evaluate (t, price, side); k: price factor. -> dict(r1, r2, r3, maxR, stop) on the M15 bars after it"""
-    s = a['side']; te = np.datetime64(pd.Timestamp(a['t'])); i = int(np.searchsorted(mk.CL, te, side='right')) - 1
-    if i < 20:
-        return None
-    en = mk.MC[i]; lo, hi = mk.ML[i - 15:i + 1].min(), mk.MH[i - 15:i + 1].max()
-    a1 = float(np.nanmean(mk.MH[i - 15:i + 1] - mk.ML[i - 15:i + 1])) * 2          # ~ ATR(H1)
-    sl = (lo - 0.1 * a1) if s > 0 else (hi + 0.1 * a1); risk = s * (en - sl)
-    if not risk > 0:
-        return None
-    best, stop = 0.0, False
-    for j in range(i + 1, min(i + 1 + 5 * 96, len(mk.MC))):
-        adv = s * ((mk.MH[j] if s > 0 else mk.ML[j]) - en) / risk; bad = s * ((mk.ML[j] if s > 0 else mk.MH[j]) - en) / risk
-        if bad <= -1:
-            stop = True; break
-        best = max(best, adv)
-    return dict(r1=best >= 1, r2=best >= 2, r3=best >= 3, maxR=round(best, 2), stop=stop, riskATR=round(risk / (a['atr'] / k), 2) if a.get('atr') else None)
+VARIANTS = [('今の線・⭐2.5', 0.0, 2.5), ('エリア・⭐2.5', 0.5, 2.5), ('今の線・⭐3.0', 0.0, 3.0), ('エリア・⭐3.0', 0.5, 3.0)]
 
 
-def study(b, pairs, days, say=print):
-    rows = []
-    # 2026-11-23 (user: "look by area"): the same two timings with the line as an area: it ends only when an H4 close is 0.5 ATR(H4)
-    # beyond it (brk 0.5; now any H4 close beyond ends it)
-    T = {'turn': [dict(p, timing='turn', timings=['turn']) for p in alerts.PRESETS],
-         'tl15': [dict(p, id=p['id'] + 'z', timing='tl15', timings=['tl15']) for p in alerts.PRESETS],
-         'turn_area': [dict(p, id=p['id'] + 'a', timing='turn', timings=['turn'], brk=0.5) for p in alerts.PRESETS],
-         'tl15_area': [dict(p, id=p['id'] + 'za', timing='tl15', timings=['tl15'], brk=0.5) for p in alerts.PRESETS]}
-    for sym in pairs:
+def profs_for(brk, timing):
+    return [dict(p, id=p['id'] + timing + str(brk), timing=timing, timings=[timing], brk=brk) for p in alerts.PRESETS]
+
+
+def marks_of(repmarks):
+    from mt5_ea.live.trade_images import jmin_to_server
+    out = {}
+    for sym, v in (repmarks or {}).items():
+        if not str(sym).startswith('PAIR|'):
+            continue
+        for l in v.get('lines') or []:
+            if isinstance(l, dict) and l.get('type') in ('eb', 'es') and not l.get('del'):
+                te = jmin_to_server(l.get('t1'))
+                if te is not None:
+                    out.setdefault(sym[5:], []).append((te, 1 if l['type'] == 'eb' else -1))
+    return out
+
+
+def study(b, pairs, days, marks, say=print):
+    rows, noise = [], []
+    for sym in sorted(set(pairs) | set(marks)):
         try:
-            m = b.bars(sym, days + alerts.DAYS)
+            m = b.bars(sym, days + alerts.DAYS + 5)
             mk = alerts.Market(sym, m.reset_index(drop=True))
         except Exception as ex:
             say(f'  {sym:7s} とばした（{str(ex)[:60]}）'); continue
-        since = pd.Timestamp(m.t.iat[-1]) - pd.Timedelta(days=days)
-        n = {}
-        for name, profs in T.items():
-            for a in alerts.evaluate(mk, profs, since):
-                o = outcome(mk, a, mk.k)
-                if o:
-                    rows.append(dict(pair=sym, timing=name, t=str(a['t'])[:16], side=a['side'], method=a.get('method'), kind=a.get('kind'), **o))
-                    n[name] = n.get(name, 0) + 1
-        say(f"  {sym:7s} 今の形 {n.get('turn', 0)}（エリア {n.get('turn_area', 0)}）回 · 新しい形 {n.get('tl15', 0)}（エリア {n.get('tl15_area', 0)}）回")
-    return pd.DataFrame(rows)
+        end = pd.Timestamp(m.t.iat[-1]); since = end - pd.Timedelta(days=days)
+        ms = marks.get(sym, [])
+        for name, brk, zone in VARIANTS:
+            pr = profs_for(brk, 'turn'); st = {'zone': zone}
+            al = {t: alerts.evaluate(mk, profs_for(brk, t), min([since] + [x[0] - pd.Timedelta(days=3) for x in ms])) for t in ('turn', 'tl15')}
+            for te, side in ms:                                    # catch
+                lead = None
+                for h in range(0, 49, 2):
+                    i = int(np.searchsorted(mk.CL, np.datetime64(te - pd.Timedelta(hours=h)), side='right')) - 1
+                    if i > 0 and any(x['side'] == side for x in alerts.armed(mk, pr, at=i, star=st)):
+                        lead = h; break
+                near = {t: any(a['side'] == side and abs((pd.Timestamp(a['t']) - te) / pd.Timedelta(hours=1)) <= 24 for a in al[t]) for t in al}
+                rows.append(dict(variant=name, pair=sym, t=str(te)[:16], side=side, star=lead is not None, starLead=lead, turn=near['turn'], tl15=near['tl15']))
+            # noise over the period: every 4 hours
+            i0 = int(np.searchsorted(mk.CL, np.datetime64(since))); on = 0; eps = 0; prev = set()
+            idx = range(max(i0, 1), len(mk.TM), 16)
+            for i in idx:
+                cur = {(x['side'], x['line']) for x in alerts.armed(mk, pr, at=i, star=st)}
+                on += bool(cur); eps += len(cur - prev); prev = cur
+            wk = days / 7
+            noise.append(dict(variant=name, pair=sym, starOn=on / max(1, len(idx)), starPerWeek=eps / wk,
+                              turnPerWeek=sum(1 for a in al['turn'] if pd.Timestamp(a['t']) >= since) / wk,
+                              tl15PerWeek=sum(1 for a in al['tl15'] if pd.Timestamp(a['t']) >= since) / wk))
+        say(f'  {sym:7s} 済み（印 {len(ms)}）')
+    return pd.DataFrame(rows), pd.DataFrame(noise)
 
 
-def summary(df, days, npairs):
+def summary(R, N):
     out = []
-    for name, g in df.groupby('timing'):
-        out.append(dict(形={'turn': '今の形（線に触って M15 転換）', 'tl15': '新しい形（2.5ATR 以内で M15 TL 抜け）',
-                          'turn_area': '今の形・線をエリアに（0.5ATR 抜けで消す）', 'tl15_area': '新しい形・線をエリアに（0.5ATR 抜けで消す）'}[name], 回数=len(g),
-                        週あたり_全ペア=round(len(g) / (days / 7), 1), **{'+1R 先に': f"{g.r1.mean() * 100:.0f}%", '+2R 先に': f"{g.r2.mean() * 100:.0f}%",
-                        '+3R 先に': f"{g.r3.mean() * 100:.0f}%", '損切りまでの最大R（中央）': g.maxR.median()}))
+    for name, _, _ in VARIANTS:
+        r = R[R.variant == name] if len(R) else R; n = N[N.variant == name]
+        k = len(r)
+        out.append({'形': name, '印': k,
+                    '⭐ が付いていた': f"{r.star.sum()}/{k}" if k else '—', '通知 今の形': f"{r.turn.sum()}/{k}" if k else '—', '通知 新しい形': f"{r.tl15.sum()}/{k}" if k else '—',
+                    '⭐ の時間（1 ペア平均）': f"{n.starOn.mean() * 100:.0f}%", '⭐ 週あたり（全ペア）': round(n.starPerWeek.sum(), 1),
+                    '通知 今の形 週あたり': round(n.turnPerWeek.sum(), 1), '通知 新しい形 週あたり': round(n.tl15PerWeek.sum(), 1)})
     return pd.DataFrame(out)
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(); ap.add_argument('--days', type=int, default=540); ap.add_argument('--pairs', default='')
+    ap = argparse.ArgumentParser(); ap.add_argument('--days', type=int, default=90); ap.add_argument('--pairs', default='')
     a = ap.parse_args(argv)
+    from mt5_ea.live import gas
     from mt5_ea.live.broker import MT5Broker
     path = os.getenv('EA_ALERT_MT5_PATH') or os.getenv('EA_DEMO_MT5_PATH') or ''
     if path:
         os.environ['EA_MT5_PATH'] = path
     say = lambda x: print(x, flush=True)
+    try:
+        rm = {str(r.get('ID')): {'lines': json.loads(r.get('Lines') or '[]')} for r in (gas.call('eaReportData', {}, timeout=120).get('repmarks') or [])}
+    except Exception as ex:
+        say(f'  印を読めませんでした（{ex}）'); rm = {}
+    marks = marks_of(rm)
     pairs = [p.strip().upper() for p in a.pairs.split(',') if p.strip()] or list(alerts.PAIRS)
-    say(f'通知の形の比べ：直近 {a.days} 日、{len(pairs)} ペア（注文はしません、数分かかります）')
-    df = study(MT5Broker(), pairs, a.days, say)
+    say(f'⭐ と通知の比べ：印 {sum(len(v) for v in marks.values())} か所、うるささは直近 {a.days} 日・{len(pairs)} ペア（注文はしません、10 分ほど）')
+    R, N = study(MT5Broker(), pairs, a.days, marks, say)
     out = Path(os.getenv('EA_DATA_DIR') or Path.home() / 'TradeEA_data') / 'reports'; out.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out / 'alert_study.csv', index=False, encoding='utf-8-sig')
-    if len(df):
-        say('\n' + summary(df, a.days, len(pairs)).to_string(index=False))
-        say('\n新しい形（エリア）の手法ごと：'); say(df[df.timing == 'tl15_area'].groupby('method').agg(回数=('r1', 'size'), r1=('r1', 'mean'), r2=('r2', 'mean'), maxR=('maxR', 'median')).round(2).to_string())
-    say(f'\n保存: {out / "alert_study.csv"}')
+    R.to_csv(out / 'alert_study_marks.csv', index=False, encoding='utf-8-sig'); N.to_csv(out / 'alert_study_noise.csv', index=False, encoding='utf-8-sig')
+    say('\n' + summary(R, N).to_string(index=False))
+    say(f'\n保存: {out / "alert_study_marks.csv"}・{out / "alert_study_noise.csv"}')
 
 
 if __name__ == '__main__':
