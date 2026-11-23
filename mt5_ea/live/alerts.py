@@ -452,6 +452,9 @@ def events(mk, prof, since):
     return out
 
 
+REARM = np.timedelta64(12, 'h')     # in the same approach, another alert only 12 hours after the last one (and on a new signal)
+
+
 def zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn=False):
     """2026-11-22 (user: his entries were 1-2.6 ATR(H4) before the H4 line, on the M15 trendline break, and the touch-based alert never
     came). Timing 'tl15': price broke out and left the line by `away` ATR(H4), came back within `zone` ATR(H4) of it (the ⭐ zone), and an
@@ -472,18 +475,19 @@ def zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn=False):
         if e is not None:
             d = np.where(d < 0, d, np.maximum(s * (MC[q0:q1] - e) / A, 0.0))
     left = np.maximum.accumulate(d >= away)
-    out, fired, prev, qz, tq = [], False, None, None, None
+    out, last_fire, prev, qz, tq = [], None, None, None, None      # 2026-11-23 (user): once more after 12 h if the signal comes again
     c15, k15, p15, t15 = mk.P15
     for j in range(len(d)):
         q = q0 + j
         inz = bool(left[j]) and -0.4 <= d[j] <= zone
         if not inz:
             if d[j] > zone:
-                fired = False                    # left the zone: the next approach may alert again
+                last_fire = None                 # left the zone: the next approach may alert again at once
             prev = None; qz = None; continue
         if qz is None:
             qz = q                               # this approach entered the zone here
-        if fired or CL[q] + 2 * DAY < t_from:
+        if (last_fire is not None and CL[q] < last_fire + REARM) or CL[q] + 2 * DAY < t_from:
+            prev = None if last_fire is not None and CL[q] < last_fire + REARM else prev
             continue
         ev = dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]))
         cur = bool(mk.check('ctr15', {}, ev))
@@ -494,7 +498,7 @@ def zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn=False):
                 hit = 'turn'
         if hit and CL[q] >= t_from:
             out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm=hit if not turn else 'zone_' + hit, n=1, tq=CL[q]))
-            fired = True
+            last_fire = CL[q]; qz = q            # the next one needs a new break / a new turn from here
         prev = cur
     return out
 
