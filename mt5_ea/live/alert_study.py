@@ -36,8 +36,12 @@ def outcome(mk, a, k):
 
 def study(b, pairs, days, say=print):
     rows = []
+    # 2026-11-23 (user: "look by area"): the same two timings with the line as an area: it ends only when an H4 close is 0.5 ATR(H4)
+    # beyond it (brk 0.5; now any H4 close beyond ends it)
     T = {'turn': [dict(p, timing='turn', timings=['turn']) for p in alerts.PRESETS],
-         'tl15': [dict(p, id=p['id'] + 'z', timing='tl15', timings=['tl15']) for p in alerts.PRESETS]}
+         'tl15': [dict(p, id=p['id'] + 'z', timing='tl15', timings=['tl15']) for p in alerts.PRESETS],
+         'turn_area': [dict(p, id=p['id'] + 'a', timing='turn', timings=['turn'], brk=0.5) for p in alerts.PRESETS],
+         'tl15_area': [dict(p, id=p['id'] + 'za', timing='tl15', timings=['tl15'], brk=0.5) for p in alerts.PRESETS]}
     for sym in pairs:
         try:
             m = b.bars(sym, days + alerts.DAYS)
@@ -52,14 +56,15 @@ def study(b, pairs, days, say=print):
                 if o:
                     rows.append(dict(pair=sym, timing=name, t=str(a['t'])[:16], side=a['side'], method=a.get('method'), kind=a.get('kind'), **o))
                     n[name] = n.get(name, 0) + 1
-        say(f"  {sym:7s} 今の形 {n.get('turn', 0)} 回 · 新しい形 {n.get('tl15', 0)} 回")
+        say(f"  {sym:7s} 今の形 {n.get('turn', 0)}（エリア {n.get('turn_area', 0)}）回 · 新しい形 {n.get('tl15', 0)}（エリア {n.get('tl15_area', 0)}）回")
     return pd.DataFrame(rows)
 
 
 def summary(df, days, npairs):
     out = []
     for name, g in df.groupby('timing'):
-        out.append(dict(形={'turn': '今の形（線に触って M15 転換）', 'tl15': '新しい形（2.5ATR 以内で M15 TL 抜け）'}[name], 回数=len(g),
+        out.append(dict(形={'turn': '今の形（線に触って M15 転換）', 'tl15': '新しい形（2.5ATR 以内で M15 TL 抜け）',
+                          'turn_area': '今の形・線をエリアに（0.5ATR 抜けで消す）', 'tl15_area': '新しい形・線をエリアに（0.5ATR 抜けで消す）'}[name], 回数=len(g),
                         週あたり_全ペア=round(len(g) / (days / 7), 1), **{'+1R 先に': f"{g.r1.mean() * 100:.0f}%", '+2R 先に': f"{g.r2.mean() * 100:.0f}%",
                         '+3R 先に': f"{g.r3.mean() * 100:.0f}%", '損切りまでの最大R（中央）': g.maxR.median()}))
     return pd.DataFrame(out)
@@ -80,7 +85,7 @@ def main(argv=None):
     df.to_csv(out / 'alert_study.csv', index=False, encoding='utf-8-sig')
     if len(df):
         say('\n' + summary(df, a.days, len(pairs)).to_string(index=False))
-        say('\n新しい形の手法ごと：'); say(df[df.timing == 'tl15'].groupby('method').agg(回数=('r1', 'size'), r1=('r1', 'mean'), r2=('r2', 'mean'), maxR=('maxR', 'median')).round(2).to_string())
+        say('\n新しい形（エリア）の手法ごと：'); say(df[df.timing == 'tl15_area'].groupby('method').agg(回数=('r1', 'size'), r1=('r1', 'mean'), r2=('r2', 'mean'), maxR=('maxR', 'median')).round(2).to_string())
     say(f'\n保存: {out / "alert_study.csv"}')
 
 
