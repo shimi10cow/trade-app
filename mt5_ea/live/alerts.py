@@ -583,10 +583,41 @@ def evaluate(mk, profiles, since=None):
 STAR_DEFAULT = {'zone': float(os.getenv('EA_STAR_ATR') or 2.5), 'n': 3, 'line': 1, 'imp': 2, 'ma': 1, 'ctr': 1, 'm15': 0, 'band': 1}   # = ea_live.js STAR_DEFAULT; band: 砦 as an area
 
 
+def fortress_gate(mk, s, L, born):
+    """2026-11-24 (user): 「砦のM15」 (手法 3 / 8) = the M15 出入口 of the M15 Dow reversal that made the H4 砦: after the H4 swing bar,
+    the first M15 major reversal toward the trade (a sell: down) before the 砦 is born + 4 h; its broken M15 押し安値 (a buy: 戻り高値),
+    within 1.5 ATR(H4) of the 砦 on the trade side. None when there is none. (As an EA it did not beat the H4 砦 itself: 8 FX pairs
+    2016-2026, the DR@ rule with the line moved there 86 trades -0.04R vs 82 trades +0.95R; it is kept for the ⭐ / alert area only.)"""
+    cache = mk.__dict__.setdefault('_gate', {}); key = (s, round(float(L), 8), str(born))
+    if key in cache:
+        return cache[key]
+    ct, kd, pp, bt = mk.P4; g = None; born = np.datetime64(born)
+    m = np.nonzero((kd == ('hi' if s < 0 else 'lo')) & np.isclose(pp, L, rtol=0, atol=1e-9) & (ct <= born))[0]
+    if len(m):
+        tb = np.datetime64(bt[m[-1]]); A = mk.a4(born); mt = np.asarray(mk.F.m15.t, dtype='datetime64[ns]')
+        for e in mk.F.R15['all_events']:
+            if e.get('machine') != 'major' or e['action'] != 'REVERSAL' or e.get('broken_price') is None:
+                continue
+            t = mt[e['idx']] + M15
+            if t < tb:
+                continue
+            if t > born + 4 * HOUR:
+                break
+            bp = float(e['broken_price'])
+            if (1 if e['to'] == 'up' else -1) == s and s * (bp - L) > 0 and abs(bp - L) <= 1.5 * A:
+                g = bp; break
+    cache[key] = g
+    return g
+
+
 def fortress_edge(mk, s, L, born):
     """2026-11-23 (user): a 砦 is an area, not a line: from the H4 swing that made it down to the M15 押し安値 (for a buy: up to the
-    M15 戻り高値) of the day it was made, where buyers and sellers piled up and price often turns again. = the lowest M15 low (sell)
-    in the 24 hours before the H4 swing bar and that bar itself, within 1.5 ATR(H4) of the line. None when there is none."""
+    M15 戻り高値) of the day it was made, where buyers and sellers piled up and price often turns again.
+    2026-11-24: the 「砦のM15」 (fortress_gate) when there is one; else the lowest M15 low (sell) in the 24 hours before the H4 swing
+    bar and that bar itself, within 1.5 ATR(H4) of the line. None when there is none."""
+    g = fortress_gate(mk, s, L, born)
+    if g is not None:
+        return g
     ct, kd, pp, bt = mk.P4; kind = 'hi' if s < 0 else 'lo'
     m = np.nonzero((kd == kind) & np.isclose(pp, L, rtol=0, atol=1e-9) & (ct <= np.datetime64(born)))[0]
     if not len(m):
@@ -657,8 +688,11 @@ def armed(mk, profiles, zone=None, at=None, star=None):
             d1 = mk.check('d1ma', {'period': 75, 'slope': 10}, ev)
             meth = ('1' if d1 else '6') if scene == 'gateway' else (('2' if d1 else '7') if scene == 'fortress' else '')
             dist = round(float(max(d[-1], 0.0)), 1)
-            out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line, dist=dist,
-                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}（{dist}ATR 乖離）"))
+            g = fortress_gate(mk, sd, L, born) if scene == 'fortress' else None
+            gate = None if g is None else round(g * k, 5 if k == 1.0 else 3)
+            gtx = f"・砦のM15 {gate}" if gate is not None else ''
+            out.append(dict(sym=mk.sym, side=sd, method=meth, kind=SCENE_JA[scene], line=line, dist=dist, gate=gate,
+                            text=f"{'↑' if sd > 0 else '↓'} {('手法' + meth + ' ') if meth else ''}H4{SCENE_JA[scene]} {line}{gtx}（{dist}ATR 乖離）"))
     return out
 
 
