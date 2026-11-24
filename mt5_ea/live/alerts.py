@@ -570,7 +570,8 @@ def evaluate(mk, profiles, since=None):
                             timing=ev.get('tm', 'turn'), n=ev.get('n', 1), touch_t=pd.Timestamp(ev.get('tq', ev['te'])), t=pd.Timestamp(ev['te']), line=round(ev['L'] * k, 6), atr=round(ev['A'] * k, 6),
                             price=round(ev['px'] * k, 6), born=pd.Timestamp(ev['born']), d1=int(bool(d1)), h1=int(bool(mk.check('h1ma', {'period': 75, 'slope': 5}, ev))),
                             touch=int(((mk.P4[0] <= ev['te']) & (mk.P4[0] >= ev['te'] - 90 * DAY) & (np.abs(mk.P4[2] - ev['L']) <= 0.25 * ev['A'])).sum()),
-                            met=met, uscore=ev.get('_uscore')))
+                            met=met, uscore=ev.get('_uscore'),
+                            gate=(lambda g: None if g is None else round(g * k, 6))(fortress_gate(mk, ev['side'], ev['L'], ev['born']) if ev['scene'] == 'fortress' else None)))
     # 2026-11-23: two 砦 next to each other gave the same alert twice at the same bar -> one per pair, side and bar
     seen, out = set(), []
     for a in res:
@@ -740,17 +741,16 @@ def jst(t):
 
 
 def text(a):
-    dj = '買い' if a['side'] > 0 else '売り'; o = lambda v: '〇' if v else '✕'
-    how = {'near': '線に近づいた', 'turn': '線で反発して M15 がダウ転換', 'zone_tl15': '⭐ の範囲で M15 のトレンドライン抜け', 'zone_turn': '⭐ の範囲で M15 がダウ転換',
-           'tl15': '⭐ の範囲で M15 のトレンドライン抜け', 'stm15': '線で反発して M15 ストキャス', 'sth1': '線で反発して H1 ストキャス'}.get(a['timing'], '')
-    lines = [f"🔔 {a['pname']}", f"{a['sym']} {dj}：{a['kind']} {a.get('n', 1)} 回目の戻り（{how}）{('・手法' + a['method']) if a['method'] else ''}",
-             f"線 {a['line']:g}・今 {a['price']:g}（{abs(a['price'] - a['line']) / a['atr']:.1f}ATR）",
-             f"日足 {o(a['d1'])}・H1 MA75 {o(a['h1'])}・線の山谷 {a['touch']} 個", f"足 {a['jst']}（日本時間）"]
-    if a.get('uscore') is not None:
-        lines.append(f"点数 {a['uscore']:g} 点")
-    if a.get('met'):
-        lines.append('条件：' + ' / '.join(a['met'][:8]))
-    return '\n'.join(lines)
+    """2026-11-24 (user): short — which method, what triggered it, the line, the time. No score / condition list."""
+    dj = '買い' if a['side'] > 0 else '売り'; ln = f"H4{a['kind']}"
+    how = {'near': f'{ln}に近づいた', 'turn': f'{ln}で反発して M15 がダウ転換', 'zone_tl15': f'{ln}の範囲で M15 のトレンドライン抜け',
+           'zone_turn': f'{ln}の範囲で M15 がダウ転換', 'tl15': f'{ln}の範囲で M15 のトレンドライン抜け',
+           'stm15': f'{ln}で反発して M15 ストキャス', 'sth1': f'{ln}で反発して H1 ストキャス'}.get(a['timing'], '')
+    head = f"手法{a['method']}（日足{'〇' if a.get('d1') else '✕'}・{ln}）" if a.get('method') else (a.get('pname') or ln)
+    gate = f"・砦のM15 {a['gate']:g}" if a.get('gate') is not None else ''
+    return '\n'.join([f"🔔 {a['sym']} {dj}｜{head}", f"きっかけ：{how}",
+                      f"{ln} {a['line']:g}{gate}・今 {a['price']:g}",
+                      f"{a['jst'][5:].replace('-', '/')}（日本時間）"])
 
 
 def settings_from(r, cur):
