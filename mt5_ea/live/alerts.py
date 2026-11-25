@@ -496,8 +496,10 @@ def zone_breaks(mk, prof, scene, s, L, born, lf, t_from, turn=False):
             m = (c15 <= CL[q]); hi = np.nonzero(m & (k15 == ('hi' if s > 0 else 'lo')) & (t15 >= TM[qz] - 2 * HOUR))[0]
             if len(hi) and s * (MC[q] - p15[hi[-1]]) > 0 and s * (MC[q - 1] - p15[hi[-1]]) <= 0:
                 hit = 'turn'
-        if hit and CL[q] >= t_from:
-            out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm=hit if not turn else 'zone_' + hit, n=1, tq=CL[q]))
+        if hit:      # 2026-11-25 fix: an earlier signal (sent on an earlier bar, before t_from) also starts the 12 h wait; before, live
+                     # only remembered signals inside the current window, so the same line alerted every few hours (GBPCAD 7 times in 20 h)
+            if CL[q] >= t_from:
+                out.append(dict(scene=scene, side=s, L=L, A=A, born=born, te=CL[q], px=float(MC[q]), tm=hit if not turn else 'zone_' + hit, n=1, tq=CL[q]))
             last_fire = CL[q]; qz = q            # the next one needs a new break / a new turn from here
         prev = cur
     return out
@@ -753,6 +755,22 @@ def text(a):
                       f"{a['jst'][5:].replace('-', '/')}（日本時間）"])
 
 
+QUIET_H, QUIET_ATR = 24, 1.0     # 2026-11-25 (user: "the same place alerts again and again")
+
+
+def thin(alerts, last):
+    """one alert per pair, side and place: after an alert, no other one for the same pair and side within QUIET_H hours while the price
+    is within QUIET_ATR ATR(H4) of the last alert's price (other lines / methods / triggers at the same place included).
+    last: {'SYM|side': [time, price, atr]} (updated). -> the alerts to send, oldest first"""
+    out = []
+    for a in sorted(alerts, key=lambda x: pd.Timestamp(x['t'])):
+        key = f"{a['sym']}|{a['side']}"; t = pd.Timestamp(a['t']); p = last.get(key)
+        if p and t - pd.Timestamp(p[0]) < pd.Timedelta(hours=QUIET_H) and abs(a['price'] - p[1]) <= QUIET_ATR * max(p[2], 1e-12):
+            continue
+        last[key] = [str(t), float(a['price']), float(a['atr'])]; out.append(a)
+    return out
+
+
 def settings_from(r, cur):
     s = (r or {}).get('settings') if isinstance(r, dict) else None
     if not isinstance(s, dict):
@@ -825,6 +843,12 @@ def main():
                                 a['jst'] = jst(a['t']); a['id'] = aid; new.append(a)
                         except Exception as ex:
                             logging.warning('%s: %s', sym, ex)
+                n0 = len(new); quiet = [a for a in new]
+                new = thin(new, st.setdefault('last_place', {}))
+                for a in quiet:                        # the skipped ones count as sent (no retry on the next bar)
+                    st['sent'].append(a['id'])
+                if n0 != len(new):
+                    logging.info('%d alerts at a place that alerted within %d h: not sent', n0 - len(new), QUIET_H)
                 try:      # GAS: record the alerts, get the app's settings back
                     r = gas.call('eaAlert', {'alerts': [{k: (str(v) if isinstance(v, pd.Timestamp) else (' / '.join(v) if isinstance(v, list) else v)) for k, v in a.items()} for a in new],
                                              'armed': [{'sym': x['sym'], 'text': x['text']} for x in arm]}, timeout=60)
