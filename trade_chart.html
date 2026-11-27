@@ -13,7 +13,8 @@ body{padding:calc(env(safe-area-inset-top,0px) + 6px) max(10px,env(safe-area-ins
 .top{display:flex;align-items:center;gap:8px;margin-bottom:6px}.top b{font-size:15px}.top .x{margin-left:auto}
 button.t{background:#172033;color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;touch-action:manipulation}
 button.t.on{background:#0e7490;border-color:#22d3ee}button.t:disabled{opacity:.4}
-.chips{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}.info{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}.chips.row{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.chips.row::-webkit-scrollbar{display:none}.chips.row button{flex:0 0 auto}
+details.help{margin-top:8px}details.help summary{font-size:12px;color:var(--mut);cursor:pointer}.info{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut)}
 .up{color:var(--up)}.dn{color:var(--dn)}canvas{width:100%;display:block;background:#0b1220;border:1px solid var(--line);border-radius:10px;touch-action:none}
 .note{font-size:11px;color:var(--dim);line-height:1.6}#msg{font-size:12px;min-height:18px}
 input.n{width:100%;background:#0f172a;color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:7px;font-size:14px}
@@ -21,11 +22,11 @@ input.n{width:100%;background:#0f172a;color:var(--fg);border:1px solid var(--lin
 </style></head><body>
 <div class="top"><b id="ttl">チャート</b><span id="res"></span><button class="t x" onclick="closeMe()">✕ 閉じる</button></div>
 <div class="info" id="info"></div>
-<div class="chips" id="tfbtn"></div><div class="chips" id="drawbtn"></div>
+<div class="chips row" id="tfbtn"></div><div class="chips row" id="drawbtn"></div>
 <canvas id="cv"></canvas>
 <div id="obj"></div>
 <div style="display:flex;justify-content:space-between;gap:8px;margin-top:6px"><span id="msg"></span><span class="note" id="cnt"></span></div>
-<div class="note" style="margin-top:6px">✋ 動かす：何もない所をドラッグでスクロール、線をドラッグで移動、線を押すと ✕（削除）。2 本指で拡大縮小。点線＝EA の線（動かす・消すと記録されます）。引いた線は自動で保存。</div>
+<details class="help"><summary>使い方</summary><div class="note">✋ 動かす：何もない所をドラッグでスクロール、線をドラッグで移動、線を押すと ✕（削除）。トレンドライン・ボックスは端の □ で向き・大きさを変える。2 本指で拡大縮小。道具は 1 回使うと ✋ に戻る。点線＝EA の線（動かす・消すと記録されます）。引いた線は自動で保存。</div></details>
 <script>
 const $ = s => document.querySelector(s), esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const TFC = {D1: '#60a5fa', H4: '#fb923c', H1: '#a78bfa', M15: '#facc15'}, TFN = {D1: '日足', H4: 'H4', H1: 'H1', M15: 'M15'};
@@ -72,8 +73,7 @@ function tfBtns() {
 }
 function drawBtns() {
   const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart();objPanel()">${l}</button>`;
-  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}` +
-    `<button class="t" onclick="undoLine()" ${S.hist.length ? '' : 'disabled'}>↶ 戻る${S.hist.length ? ' (' + S.hist.length + ')' : ''}</button>`;
+  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}<button class="t" onclick="undoLine()" ${S.hist.length ? '' : 'disabled'}>↶ 戻る${S.hist.length ? ' (' + S.hist.length + ')' : ''}</button>${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}`;
   const mine = S.lines.filter(l => !l.del && l.src !== 'ea').length, ea = S.lines.filter(l => l.src === 'ea');
   $('#cnt').textContent = `自分の線 ${mine} · EA ${ea.filter(l => !l.del).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）`;
 }
@@ -119,7 +119,7 @@ function hitDist(l, q) {
 }
 function hitObj(q) { if (!G) return -1; let best = -1, bd = 14; S.lines.forEach((l, k) => { const d = hitDist(l, q); if (d < bd) { bd = d; best = k; } }); return best; }
 function chart() {
-  const cv = $('#cv'); if (!C) return; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = Math.max(280, Math.min(640, Math.round(innerHeight * (innerWidth <= 700 ? 0.58 : 0.66))));
+  const cv = $('#cv'); if (!C) return; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = Math.max(280, Math.min(640, Math.round(innerHeight * (innerWidth <= 700 ? 0.62 : 0.66))));
   cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); G = null;
   const B = C[S.tf], dig = C.dig ?? 5;
   if (!B || !B[0] || !B[0].length) { x.fillStyle = '#94a3b8'; x.font = '12px sans-serif'; x.fillText('この足のデータがありません', 12, 24); return; }
@@ -135,7 +135,7 @@ function chart() {
   G = {i0, bw, T, Y, X, H, W, padR, tx, dig, toP: y => hi - (y - 10) / (H - 34) * (hi - lo), toT: xx => { const fi = xx / bw - 0.5 + i0, k = Math.round(fi); return k <= n - 1 ? T[Math.max(0, k)] : T[n - 1] + (k - (n - 1)) * dt; }};
   x.font = '10px sans-serif'; x.fillStyle = '#64748b';
   for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5; x.fillText(v.toFixed(dig), W - padR + 4, Y(v) + 3); x.strokeStyle = '#162033'; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W - padR, Y(v)); x.stroke(); }
-  const st = Math.max(1, Math.round(80 / bw)); for (let i = i0; i < i1; i += st) x.fillText(tstr(T[i]).slice(5, S.tf === 'D1' ? 10 : 16), X(i) - 20, H - 6);
+  const st = Math.max(1, Math.round(80 / bw)); for (let i = i0; i < i1; i += st) { const xx = X(i) - 22; if (xx < 2 || xx > W - padR - 50) continue; x.fillText(tstr(T[i]).slice(5, S.tf === 'D1' ? 10 : 16), xx, H - 6); }
   for (let i = i0; i < i1; i++) { const up = Cl[i] >= O[i], y1 = Y(Math.max(O[i], Cl[i])), y2 = Y(Math.min(O[i], Cl[i])), w = Math.max(1, bw * 0.7);
     x.strokeStyle = up ? '#e5e7eb' : '#64748b'; x.beginPath(); x.moveTo(X(i), Y(Hh[i])); x.lineTo(X(i), y1); x.moveTo(X(i), y2); x.lineTo(X(i), Y(L[i])); x.stroke();
     if (up) { x.fillStyle = '#0f172a'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); x.strokeRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } else { x.fillStyle = '#64748b'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } }
@@ -145,13 +145,15 @@ function chart() {
   if (S.pend) { x.fillStyle = TFC[S.pend.tf] || '#e2e8f0'; x.beginPath(); x.arc(tx(S.pend.t1), Y(S.pend.p1), 4, 0, 7); x.fill(); }
   // the trade: entry / stop / target / exit levels between entry and exit, the deals as small marks
   const ia = bs(T, C.et), ib = C.xt ? bs(T, C.xt) : i1 - 1;
-  const hl = (v, col, lab) => { if (!v) return; x.strokeStyle = col; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); x.fillStyle = col; x.fillText(lab, X(Math.min(i1 - 1, ib + 3)) + 3, Y(v) + 3); };
+  const hl = (v, col, lab) => { if (!v) return; x.strokeStyle = col; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); tags.push([v, col, lab]); }, tags = [];
   hl(C.sl, '#f87171', '損切り'); hl(C.tp, '#4ade80', '利確'); hl(C.ep, '#e2e8f0', '入り'); hl(C.xp, '#fbbf24', '決済');
   const tri = (i, v, up, col) => { x.fillStyle = col; x.beginPath(); const xx = X(i), yy = Y(v) + (up ? 12 : -12); x.moveTo(xx, yy + (up ? -8 : 8)); x.lineTo(xx - 6, yy + (up ? 4 : -4)); x.lineTo(xx + 6, yy + (up ? 4 : -4)); x.fill(); };
   if (C.ep) tri(ia, C.ep, C.side > 0, C.side > 0 ? '#f43f5e' : '#3b82f6');
   if (C.xt && C.xp) { x.strokeStyle = '#fbbf24'; x.lineWidth = 2; const xx = X(ib), yy = Y(C.xp); x.beginPath(); x.moveTo(xx - 5, yy - 5); x.lineTo(xx + 5, yy + 5); x.moveTo(xx + 5, yy - 5); x.lineTo(xx - 5, yy + 5); x.stroke(); x.lineWidth = 1; }
   (C.deals || []).forEach(d => { if (!d.p) return; const i = bs(T, d.t); if (i < i0 || i >= i1) return; x.fillStyle = String(d.io).toUpperCase().indexOf('OUT') >= 0 ? '#fbbf24' : '#e2e8f0'; x.beginPath(); x.arc(X(i), Y(d.p), 3, 0, 7); x.fill(); });
   x.restore();
+  tags.forEach(([v, col, lab]) => { if (Y(v) < 4 || Y(v) > H - 24) return; const yy = Y(v); x.fillStyle = col; x.fillRect(W - padR + 1, yy - 7, padR - 2, 14);   // the trade's levels: tags on the price axis
+    x.fillStyle = '#0b1220'; x.font = 'bold 10px sans-serif'; x.fillText(lab, W - padR + 4, yy + 4); x.font = '10px sans-serif'; });
   G.delBtn = null;
   if (S.pick >= 0 && S.lines[S.pick] && !S.lines[S.pick].del && S.pickAt) {
     const bx = Math.min(W - padR - 16, Math.max(16, S.pickAt.x + 20)), by = Math.max(16, Math.min(H - 34, S.pickAt.y - 20));
