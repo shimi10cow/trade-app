@@ -6644,8 +6644,8 @@ async function recalculateAllScores() {
 }
 
 // 2026-11-27 (user): the trade as a live chart (trade_chart.html) over the app, to draw / correct trendlines and 抵抗帯 (saved as data)
-function openTradeChart(){
-  var id=window._tdEntryId; if(!id){showToast&&showToast('トレードを保存してから開いてください');return;}
+function openTradeChart(eid){
+  var id=typeof eid==='string'?eid:window._tdEntryId; if(!id){showToast&&showToast('トレードを保存してから開いてください');return;}
   var o=document.getElementById('trade-chart-frame');
   if(!o){o=document.createElement('div');o.id='trade-chart-frame';o.style.cssText='position:fixed;inset:0;z-index:10000;background:#0b1220';document.body.appendChild(o);}
   o.innerHTML='<iframe src="./trade_chart.html#'+encodeURIComponent(id)+'" style="border:0;width:100%;height:100%;display:block" title="トレードのチャート"></iframe>';

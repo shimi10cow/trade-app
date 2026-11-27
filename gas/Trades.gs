@@ -476,6 +476,18 @@ function impNeedImages_(b) {
     out.push({id: String(t.EntryID), pair: pair, direction: t.Direction, entryDate: d(t.EntryDate), entryTime: tm(t.EntryTime), exitDate: d(t.ExitDate), exitTime: tm(t.ExitTime),
       entryPrice: t.EntryPrice, sl: t.InitialSLPrice, tp: t.TakeProfitPrice, exitPrice: t.ExitPrice, needEntry: needEntry, needExit: needExit, needChart: needChart});
   });
+  // 2026-11-27: the EA's trades too (chart data only; their images come from the EA itself). id 'ea:<TradeID>'
+  if (out.length < lim && typeof ealRows_ === 'function') {
+    ealRows_('trades').filter(function (r) { return String(r.EA || '').indexOf('RES:') !== 0 && r.EntryTime; }).reverse().forEach(function (r) {
+      if (out.length >= lim) return;
+      const closed = String(r.Status) === 'CLOSED' && !!r.ExitTime, et = String(r.EntryTime), xt = String(r.ExitTime || '');
+      if (String(r.ChartData || '').trim() && (!closed || r.ChartClosed)) return;
+      if (Date.now() - new Date(et.slice(0, 16).replace(' ', 'T') + ':00+09:00').getTime() > 400 * 864e5) return;
+      out.push({id: 'ea:' + r.TradeID, pair: String(r.Symbol), direction: r.Direction, entryDate: et.slice(0, 10), entryTime: et.slice(11, 16),
+        exitDate: closed ? xt.slice(0, 10) : '', exitTime: closed ? xt.slice(11, 16) : '', entryPrice: r.EntryPrice, sl: r.SLPrice, tp: r.TPPrice,
+        exitPrice: r.ExitPrice, needEntry: false, needExit: false, needChart: true, ea: true});
+    });
+  }
   // every execution of the trade (each entry / exit is marked on its own, not the average)
   if (out.length) {
     const E = execRead_(), byT = {};
@@ -504,12 +516,25 @@ function impSetImages_(b) {
   trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY);
   return {success: true, saved: Object.keys(urls).length};
 }
+/** 2026-11-27: the row a chart belongs to. 'ea:<TradeID>' = an EA trade (EA_Trades; its lines are the report's Lines column), else a
+ *  trade of the app (Entries / Trades; lines in ChartLines). -> {get(k), set(obj), linesKey} */
+function chartRow_(id) {
+  id = String(id || '');
+  if (id.indexOf('ea:') === 0) {
+    const tid = id.slice(3), r = ealRows_('trades').find(function (x) { return String(x.TradeID) === tid; });
+    if (!r) throw new Error('EA trade not found: ' + tid);
+    return {get: function (k) { return r[k]; }, linesKey: 'Lines',
+      set: function (o) { if (o.Lines !== undefined) o.Lines = ealLinesFit_('TRADE|' + tid, '', JSON.parse(o.Lines)); ealWriteRow_('trades', r._row, Object.assign({}, r, o)); }};
+  }
+  const T = trRead_(), t = impFind_(T, id);
+  return {get: function (k) { return t[k]; }, linesKey: 'ChartLines',
+    set: function (o) { trEnsureCols_(T, Object.keys(o)); Object.assign(t, o); trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY); }};
+}
 /** EA PC: the live chart data of one trade (JSON, trade_chart.html) -> a private Drive file (overwritten when made again after the exit). */
 function impSetChart_(b) {
-  const T = trRead_(), t = impFind_(T, b.entryId); trEnsureCols_(T, ['ChartData', 'ChartAt', 'ChartClosed', 'ChartLines']);
-  const bytes = Utilities.base64Decode(String(b.data64 || '')), token = ScriptApp.getOAuthToken();
+  const row = chartRow_(b.entryId), bytes = Utilities.base64Decode(String(b.data64 || '')), token = ScriptApp.getOAuthToken();
   if (!bytes.length) throw new Error('empty chart');
-  let id = String(t.ChartData || '').trim(), ok = false;
+  let id = String(row.get('ChartData') || '').trim(), ok = false;
   if (id) {
     const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files/' + id + '?uploadType=media',
       {method: 'patch', contentType: 'application/json', payload: bytes, headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
@@ -517,7 +542,7 @@ function impSetChart_(b) {
   }
   if (!ok) {
     const bd = 'tc_' + Utilities.getUuid().replace(/-/g, '');
-    const head = '--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: 'tradechart_' + String(b.entryId) + '.json', mimeType: 'application/json'})
+    const head = '--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: 'tradechart_' + String(b.entryId).replace(/[^\w.-]/g, '_') + '.json', mimeType: 'application/json'})
       + '\r\n--' + bd + '\r\nContent-Type: application/json\r\n\r\n';
     const body = Utilities.newBlob(head).getBytes().concat(bytes).concat(Utilities.newBlob('\r\n--' + bd + '--').getBytes());
     const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
@@ -525,25 +550,24 @@ function impSetChart_(b) {
     const j = JSON.parse(r.getContentText() || '{}'); if (!j.id) throw new Error('Drive: ' + r.getContentText().slice(0, 200));
     id = j.id;
   }
-  t.ChartData = id; t.ChartAt = tradesNow_(); if (b.closed) t.ChartClosed = tradesNow_();
-  trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY);
+  const up = {ChartData: id}; if (b.closed) up.ChartClosed = tradesNow_();
+  row.set(up);
   return {success: true, fileId: id};
 }
 /** app (read only): the chart data of one trade and the lines drawn on it. */
 function impGetChart_(b) {
-  const T = trRead_(), t = impFind_(T, b.entryId), id = String(t.ChartData || '').trim();
-  let lines = []; try { lines = JSON.parse(String(t.ChartLines || '[]')) || []; } catch (e) {}
+  const row = chartRow_(b.entryId), id = String(row.get('ChartData') || '').trim();
+  let lines = []; try { lines = JSON.parse(String(row.get(row.linesKey) || '[]')) || []; } catch (e) {}
   if (!id) return {success: true, chart: null, lines: lines};
   const r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', {headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true});
   if (r.getResponseCode() >= 300) throw new Error('drive ' + r.getResponseCode());
   return {success: true, chart: JSON.parse(r.getContentText('UTF-8')), lines: lines};
 }
-/** app: the lines drawn on the trade's chart (trendlines, horizontal lines, boxes; EA lines moved / deleted) -> ChartLines (JSON). */
+/** app: the lines drawn on the trade's chart (trendlines, horizontal lines, boxes, marks; EA lines moved / deleted) -> JSON. */
 function impSetChartLines_(b) {
-  const T = trRead_(), t = impFind_(T, b.entryId); trEnsureCols_(T, ['ChartLines']);
-  const s = JSON.stringify(Array.isArray(b.lines) ? b.lines : []);
+  const row = chartRow_(b.entryId), s = JSON.stringify(Array.isArray(b.lines) ? b.lines : []);
   if (s.length > 45000) throw new Error('線が多すぎます（' + s.length + ' 文字）');
-  t.ChartLines = s; trWrite_(T, t);
+  const o = {}; o[row.linesKey] = s; row.set(o);
   return {success: true};
 }
 /** app (read only): the trend arrows of a draft's entry time, for the detail opened from 記録にする (nothing is recorded). */

@@ -848,6 +848,7 @@
       ${row('ロット', esc(t.Lot) + (t.LotMult && Number(t.LotMult) !== 1 ? '（倍率 ' + esc(t.LotMult) + '）' : '') + (t.Weight && Number(t.Weight) !== 1 ? '（重み ' + esc(t.Weight) + '）' : ''))}
       ${row('リスク', yen(t.RiskJPY))}${row('決済', t.ExitTime ? jst(t.ExitTime) + ' @ ' + esc(t.ExitPrice) : '')}${row('損益', t.Status === 'OPEN' ? '' : yen(t.Profit))}
       ${row('R', t.R !== '' && t.R != null ? Number(t.R).toFixed(2) : '')}${row('入った理由', esc(t.Reason))}${t.Note ? row('EA のメモ', esc(t.Note)) : ''}${row('チケット', esc(t.Ticket))}
+      <button type="button" onclick="openTradeChart('ea:${esc(t.TradeID)}')" style="width:100%;margin-top:12px;padding:11px;border:1px solid #0e7490;border-radius:10px;background:#0b2530;color:#22d3ee;font-size:14px;font-weight:700;cursor:pointer">📈 チャートを開く（線を引いて直せる）</button>
       ${imgs(t)}
       ${markEditor(t, `eaLiveSaveComment('${esc(t.TradeID)}')`, t.CommentAt ? '保存 ' + jst(t.CommentAt) : '', t.Status === 'CLOSED' ? exitEditor(t) : '')}
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid #1e293b">

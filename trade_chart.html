@@ -72,7 +72,7 @@ function tfBtns() {
 }
 function drawBtns() {
   const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart();objPanel()">${l}</button>`;
-  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ 抵抗帯（箱）')}` +
+  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ ボックス')}${b('eb', '▲ 買いたい所')}${b('es', '▼ 売りたい所')}${b('x', '⇢ 決済ライン')}` +
     `<button class="t" onclick="undoLine()" ${S.hist.length ? '' : 'disabled'}>↶ 戻る${S.hist.length ? ' (' + S.hist.length + ')' : ''}</button>`;
   const mine = S.lines.filter(l => !l.del && l.src !== 'ea').length, ea = S.lines.filter(l => l.src === 'ea');
   $('#cnt').textContent = `自分の線 ${mine} · EA ${ea.filter(l => !l.del).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）`;
@@ -86,12 +86,16 @@ const vis = l => l.src !== 'ea' || (SHOWTF[S.tf] || []).includes(l.tf || 'H4');
 function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
 function drawObj(x, l, sel) {
   const {Y, tx, W, padR, dig} = G, R = W - padR;
-  const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : (TFC[l.tf] || '#e2e8f0');
-  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' || l.src === 'ea' ? [7, 4] : []);
+  const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : l.type === 'eb' ? '#f43f5e' : l.type === 'es' ? '#3b82f6' : l.type === 'x' ? '#fbbf24' : (TFC[l.tf] || '#e2e8f0');
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' || l.src === 'ea' ? [7, 4] : l.type === 'x' ? [5, 3] : []);
   const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
   if (l.type === 'h') { const a = l.t1 != null ? Math.max(0, tx(l.t1)) : 0; if (a <= R) { x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); } }
-  else if (l.type === 'ea') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
-    lab(eaName(l) + (l.moved ? '・動かした' : '') + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+  else if (l.type === 'ea' || l.type === 'x') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
+    lab((l.type === 'x' ? '決済 ' + Number(l.p1).toFixed(dig) : eaName(l)) + (l.moved ? '・動かした' : '') + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+  else if (l.type === 'eb' || l.type === 'es') { const up = l.type === 'eb', xx = tx(l.t1), yy = Y(l.p1); x.setLineDash([]); x.beginPath();
+    x.moveTo(xx, yy); x.lineTo(xx - 7, yy + (up ? 12 : -12)); x.lineTo(xx + 7, yy + (up ? 12 : -12)); x.closePath(); x.fill();
+    x.beginPath(); x.setLineDash([2, 3]); x.moveTo(xx + 8, yy); x.lineTo(Math.min(R, xx + 60), yy); x.stroke();
+    lab((up ? '買いたい ' : '売りたい ') + Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), xx + 10, yy + (up ? 24 : -16)); }
   else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
     const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
   else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
@@ -104,7 +108,8 @@ function hitHandle(q) { if (!G || S.pick < 0) return 0; const l = S.lines[S.pick
   const h = handles(l); for (let i = 0; i < 2; i++) if (Math.hypot(q.x - h[i][0], q.y - h[i][1]) <= 14) return i + 1; return 0; }
 function hitDist(l, q) {
   const {Y, tx} = G; if (l.del || !vis(l)) return Infinity;
-  if (l.type === 'h' || l.type === 'ea') return q.x >= (l.t1 != null ? Math.max(0, tx(l.t1)) : 0) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
+  if (l.type === 'eb' || l.type === 'es') return Math.hypot(q.x - tx(l.t1), q.y - Y(l.p1) - (l.type === 'eb' ? 6 : -6));
+  if (l.type === 'h' || l.type === 'ea' || l.type === 'x') return q.x >= (l.t1 != null ? Math.max(0, tx(l.t1)) : 0) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
   const ax0 = tx(l.t1), ay0 = Y(l.p1), bx0 = tx(l.t2), by0 = Y(l.p2);
   if (l.type === 'b') { const inX = q.x >= Math.min(ax0, bx0) - 6 && q.x <= Math.max(ax0, bx0) + 6, inY = q.y >= Math.min(ay0, by0) - 6 && q.y <= Math.max(ay0, by0) + 6;
     return inX && inY ? Math.min(Math.abs(q.x - ax0), Math.abs(q.x - bx0), Math.abs(q.y - ay0), Math.abs(q.y - by0), 6) : Infinity; }
@@ -158,7 +163,7 @@ function chart() {
 function objPanel() {
   const l = S.pick >= 0 ? S.lines[S.pick] : null;
   if (!l || l.del) { $('#obj').innerHTML = ''; return; }
-  const nm = l.src === 'ea' ? 'EA の' + eaName(l) : {h: '水平線', t: 'トレンドライン', b: '抵抗帯（箱）'}[l.type] || '線';
+  const nm = l.src === 'ea' ? 'EA の' + eaName(l) : {h: '水平線', t: 'トレンドライン', b: 'ボックス', eb: '買いたい所', es: '売りたい所', x: '決済ライン'}[l.type] || '線';
   $('#obj').innerHTML = `<div style="margin-top:8px"><span class="note" style="font-weight:700;color:var(--mut)">✏️ 選んだ${esc(nm)}の一言</span>
     <input class="n" maxlength="60" value="${esc(l.note || '')}" placeholder="例：ここは H4 の抵抗帯" oninput="setNote(this.value)"></div>`;
 }
@@ -211,7 +216,7 @@ addEventListener('pagehide', flush); document.addEventListener('visibilitychange
     }
     if (moved && !S.pend) return;
     if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y), base = {tf: S.tf, at: nowJ()};
-    if (S.mode === 'h') { snap(); S.lines.push(Object.assign({type: 'h', t1: tm, p1: pr}, base)); }
+    if (S.mode === 'h' || S.mode === 'x' || S.mode === 'eb' || S.mode === 'es') { snap(); S.lines.push(Object.assign({type: S.mode, t1: tm, p1: pr}, base)); }
     else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = Object.assign({type: S.mode, t1: tm, p1: pr, t2: tm, p2: pr}, base); chart(); return; }
       S.pend.t2 = tm; S.pend.p2 = pr; snap(); S.lines.push(S.pend); S.pend = null; }
     S.pick = S.lines.length - 1; S.pickAt = q; S.mode = 'pan'; drawBtns(); chart(); objPanel(); });

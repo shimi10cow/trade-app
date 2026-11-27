@@ -21,7 +21,8 @@ const EAL_ = {
   daily: ['Date', 'Account', 'Balance', 'Equity', 'Peak', 'DD'],
   trades: ['TradeID', 'Account', 'Source', 'EA', 'Symbol', 'Direction', 'Ticket', 'SignalTime', 'EntryTime', 'EntryPrice', 'SLPrice', 'TPPrice',
            'Lot', 'RiskJPY', 'LotMult', 'Weight', 'Reason', 'Note', 'ExitTime', 'ExitPrice', 'Profit', 'R', 'Status', 'CreatedAt', 'UpdatedAt',
-           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags', 'ExitVerdict', 'ExitTags', 'ExitWantImage', 'Excluded', 'Lines'],   // Lines: lines / boxes drawn in the report (JSON, 2026-11-21)
+           'TargetPrice', 'Spread', 'Slip', 'Comment', 'CommentAt', 'EntryImage', 'ExitImage', 'Verdict', 'Tags', 'ExitVerdict', 'ExitTags', 'ExitWantImage', 'Excluded', 'Lines', 'ChartData', 'ChartClosed'],   // ChartData: Drive id of the live chart data (trade_chart.html, 2026-11-27)
+             // Lines: lines / boxes drawn in the report (JSON, 2026-11-21)
              // Excluded: left out of every result by the trader (2026-11-20; text = when + why, empty = counted)
              // Exit*: the trader's view of the exit (2026-11-13)   // Verdict / Tags: the trader's mark from the app (2026-11-12)   // Comment: the trader's own note from the app (2026-10-30)   // order quality: price when the order was sent, spread then, fill - target (+ = worse)
   log: ['Time', 'Account', 'Level', 'EA', 'Message'],
