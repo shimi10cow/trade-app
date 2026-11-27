@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>トレードのチャート</title>
+<!-- 2026-11-27 (user): a recorded trade as a live chart instead of saved images, to correct the trendlines / 抵抗帯 on it.
+     Opened from the trade detail (app.js openTradeChart, in a full-screen frame) as trade_chart.html#<EntryID>.
+     Data: the PC makes it once an hour (mt5_ea/live/trade_images.chart_data -> GAS eaTradeChart -> a private Drive file);
+     read with eaChartGet, the lines are saved with eaChartLines (Entries 'ChartLines', JSON; the same line format as the report).
+     The drawing code is the report's (mt5_ea/live/report_template.html) for one trade. -->
+<style>
+:root{--bg:#0b1220;--card:#111c31;--line:#1e293b;--line2:#334155;--fg:#e2e8f0;--mut:#94a3b8;--dim:#64748b;--up:#4ade80;--dn:#f87171}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}
+body{padding:calc(env(safe-area-inset-top,0px) + 6px) max(10px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(10px,env(safe-area-inset-left,0px))}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:6px}.top b{font-size:15px}.top .x{margin-left:auto}
+button.t{background:#172033;color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;touch-action:manipulation}
+button.t.on{background:#0e7490;border-color:#22d3ee}button.t:disabled{opacity:.4}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}.info{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mut)}
+.up{color:var(--up)}.dn{color:var(--dn)}canvas{width:100%;display:block;background:#0b1220;border:1px solid var(--line);border-radius:10px;touch-action:none}
+.note{font-size:11px;color:var(--dim);line-height:1.6}#msg{font-size:12px;min-height:18px}
+input.n{width:100%;background:#0f172a;color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:7px;font-size:14px}
+.empty{padding:40px 10px;text-align:center;color:var(--mut);line-height:1.8}
+</style></head><body>
+<div class="top"><b id="ttl">チャート</b><span id="res"></span><button class="t x" onclick="closeMe()">✕ 閉じる</button></div>
+<div class="info" id="info"></div>
+<div class="chips" id="tfbtn"></div><div class="chips" id="drawbtn"></div>
+<canvas id="cv"></canvas>
+<div id="obj"></div>
+<div style="display:flex;justify-content:space-between;gap:8px;margin-top:6px"><span id="msg"></span><span class="note" id="cnt"></span></div>
+<div class="note" style="margin-top:6px">✋ 動かす：何もない所をドラッグでスクロール、線をドラッグで移動、線を押すと ✕（削除）。2 本指で拡大縮小。点線＝EA の線（動かす・消すと記録されます）。引いた線は自動で保存。</div>
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const TFC = {D1: '#60a5fa', H4: '#fb923c', H1: '#a78bfa', M15: '#facc15'}, TFN = {D1: '日足', H4: 'H4', H1: 'H1', M15: 'M15'};
+const EAK = {gateway: ['出入口', ''], fortress: ['砦', ''], band: ['抵抗体', '#e5e7eb'], prot: ['押し安値・戻り高値', ''], tl: ['トレンドライン', ''], cl15: ['調整ライン', '']};
+const SHOWTF = {D1: ['D1'], H4: ['H4'], H1: ['H1', 'H4', 'D1'], M15: ['M15', 'H1', 'H4', 'D1']};
+const tstr = m => { if (m == null) return '—'; const d = new Date(m * 60000); return d.toISOString().slice(0, 16).replace('T', ' '); };
+const nowJ = () => { const d = new Date(Date.now() + 9 * 3600e3); return d.toISOString().slice(0, 16).replace('T', ' '); };
+const eaName = l => l.kind === 'prot' || l.kind === 'fortress' ? TFN[l.tf || 'H4'] + ' 砦' : l.kind === 'gateway' ? TFN[l.tf || 'H4'] + ' 出入口' : l.kind === 'tl' ? TFN[l.tf] + ' トレンドライン' : l.kind === 'cl15' ? 'M15 調整ライン' : (EAK[l.kind] || [''])[0];
+const GAS = (() => { try { return (parent && parent !== window && parent.GAS_URL) || window.GAS_URL || localStorage.getItem('tradeChartGas') || ''; } catch (e) { return window.GAS_URL || ''; } })()
+  || 'https://script.google.com/macros/s/AKfycbyTs-c4RGDRF-Z6CXNH7FJHE7wHBvtQhA7XkdLhncL3ubDBW6cIhbykW6B_rO2Tm83n/exec';
+const KEY = (() => { try { return localStorage.getItem('eaLiveAppKey_v1') || ''; } catch (e) { return ''; } })();
+const ID = decodeURIComponent(location.hash.slice(1));
+const S = {tf: 'M15', view: null, mode: 'pan', pick: -1, pickAt: null, pend: null, hist: [], histTag: '', lines: [], saved: '', saving: 0, err: '', last: '', at: 0};
+let C = null, G = null;
+window.closeMe = () => { flush(); try { if (parent && parent !== window && parent.closeTradeChart) return parent.closeTradeChart(); } catch (e) {} history.length > 1 ? history.back() : window.close(); };
+function msg(t, col) { const m = $('#msg'); m.textContent = t || ''; m.style.color = col || 'var(--mut)'; }
+const call = body => fetch(GAS, {method: 'POST', body: JSON.stringify(Object.assign({key: KEY, entryId: ID}, body))}).then(r => r.json());
+async function load() {
+  if (!ID) return empty('トレードが指定されていません');
+  if (!KEY) return empty('アプリの EA タブで合言葉を入れてから開いてください');
+  msg('読み込み中…');
+  try {
+    const r = await call({action: 'eaChartGet'}); if (!r || r.success === false) throw new Error((r && r.error) || '読み込めませんでした');
+    if (!r.chart) return empty('このトレードのチャートはまだ作られていません。<br>PC の「裁量の通知」の窓が 1 時間ごとに作ります（MT5 にその期間の足がある時だけ）。');
+    C = r.chart; const saved = Array.isArray(r.lines) ? r.lines : [], have = new Set(saved.filter(l => l.eid).map(l => l.eid));
+    (C.ea || []).forEach(e => { const eid = [e.kind, e.tf || 'H4', e.side, e.t, e.p, e.t2 || '', e.p2 || ''].join('|'); if (have.has(eid)) return;
+      if (e.type === 't') saved.push({type: 't', src: 'ea', eid, kind: e.kind, side: e.side, tf: e.tf, t1: e.t, p1: e.p, t2: e.t2, p2: e.p2});
+      else saved.push({type: 'ea', src: 'ea', eid, kind: e.kind, side: e.side, t1: e.t, p1: e.p, tf: e.tf || 'H4'}); });
+    S.lines = saved; S.saved = sig(); msg('');
+    header(); tfBtns(); drawBtns(); chart(); objPanel();
+  } catch (e) { empty('読み込めませんでした：' + esc(e.message)); }
+}
+function empty(h) { $('#cv').style.display = 'none'; $('#tfbtn').innerHTML = ''; $('#drawbtn').innerHTML = ''; $('#obj').innerHTML = `<div class="empty">${h}</div>`; msg(''); }
+const Rof = () => { if (!C || !C.ep || !C.sl || !C.xp || C.ep === C.sl) return null; return C.side * (C.xp - C.ep) / Math.abs(C.ep - C.sl); };
+const fx = v => v == null || !v ? '—' : Number(v).toFixed(C.dig ?? 5);
+function header() {
+  const R = Rof(); $('#ttl').textContent = `${C.pair || C.sym} ${C.side > 0 ? '買い' : '売り'}`;
+  $('#res').innerHTML = R == null ? '' : `<b class="${R > 0 ? 'up' : 'dn'}">${R > 0 ? '+' : ''}${R.toFixed(2)}R</b>`;
+  $('#info').innerHTML = `<span>入り ${tstr(C.et)} @ ${fx(C.ep)}</span><span>損切り ${fx(C.sl)}</span>${C.tp ? `<span>利確 ${fx(C.tp)}</span>` : ''}${C.xt ? `<span>決済 ${tstr(C.xt)} @ ${fx(C.xp)}</span>` : '<span>保有中</span>'}`;
+}
+function tfBtns() {
+  $('#tfbtn').innerHTML = ['D1', 'H4', 'H1', 'M15'].map(k => `<button class="t ${S.tf === k ? 'on' : ''}" onclick="S.tf='${k}';S.view=null;S.pick=-1;tfBtns();chart();objPanel()">${TFN[k]}</button>`).join('') +
+    `<button class="t" onclick="zoom(0.7)">＋</button><button class="t" onclick="zoom(1.4)">－</button><button class="t" onclick="S.view=null;chart()">この取引へ</button>`;
+}
+function drawBtns() {
+  const b = (m, l) => `<button class="t ${S.mode === m ? 'on' : ''}" onclick="S.mode=S.mode==='${m}'?'pan':'${m}';S.pend=null;S.pick=-1;drawBtns();chart();objPanel()">${l}</button>`;
+  $('#drawbtn').innerHTML = `${b('pan', '✋ 動かす')}${b('h', '― 水平線')}${b('t', '／ トレンドライン')}${b('b', '▭ 抵抗帯（箱）')}` +
+    `<button class="t" onclick="undoLine()" ${S.hist.length ? '' : 'disabled'}>↶ 戻る${S.hist.length ? ' (' + S.hist.length + ')' : ''}</button>`;
+  const mine = S.lines.filter(l => !l.del && l.src !== 'ea').length, ea = S.lines.filter(l => l.src === 'ea');
+  $('#cnt').textContent = `自分の線 ${mine} · EA ${ea.filter(l => !l.del).length}（動かした ${ea.filter(l => l.moved && !l.del).length}・消した ${ea.filter(l => l.del).length}）`;
+}
+function snap(tag) { if (tag && S.histTag === tag) return; S.histTag = tag || ''; S.hist.push(JSON.stringify(S.lines)); if (S.hist.length > 50) S.hist.shift(); drawBtns(); }
+window.undoLine = () => { if (!S.hist.length) return; S.lines = JSON.parse(S.hist.pop()); S.histTag = ''; S.pick = -1; S.pend = null; drawBtns(); chart(); objPanel(); };
+function bs(a, v) { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
+function sma(c, n) { const o = new Array(c.length).fill(null); let s = 0; for (let i = 0; i < c.length; i++) { s += c[i]; if (i >= n) s -= c[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
+window.zoom = k => { if (!S.view) return; const c = S.view.i0 + S.view.n / 2; S.view.n = Math.max(20, Math.min(2000, Math.round(S.view.n * k))); S.view.i0 = Math.round(c - S.view.n / 2); chart(); };
+const vis = l => l.src !== 'ea' || (SHOWTF[S.tf] || []).includes(l.tf || 'H4');
+function rayEnd(ax, ay, bx, by) { const R = G.W - G.padR; if (Math.abs(bx - ax) < 0.5) return [bx, by]; const k = (by - ay) / (bx - ax); return [R, ay + k * (R - ax)]; }
+function drawObj(x, l, sel) {
+  const {Y, tx, W, padR, dig} = G, R = W - padR;
+  const col = l.type === 'ea' ? ((EAK[l.kind] || ['', ''])[1] || TFC[l.tf] || '#e2e8f0') : (TFC[l.tf] || '#e2e8f0');
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = sel ? 2.4 : 1.6; x.setLineDash(l.type === 'ea' || l.src === 'ea' ? [7, 4] : []);
+  const lab = (txt, xx, yy) => { x.setLineDash([]); x.fillText(txt, xx, yy); };
+  if (l.type === 'h') { const a = l.t1 != null ? Math.max(0, tx(l.t1)) : 0; if (a <= R) { x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke(); lab(Number(l.p1).toFixed(dig) + (l.note ? ' ' + l.note : ''), R - 64, Y(l.p1) - 3); } }
+  else if (l.type === 'ea') { const a = Math.max(0, tx(l.t1)); x.beginPath(); x.moveTo(a, Y(l.p1)); x.lineTo(R, Y(l.p1)); x.stroke();
+    lab(eaName(l) + (l.moved ? '・動かした' : '') + (l.note ? ' ' + l.note : ''), Math.min(R - 150, a + 4), Y(l.p1) - 3); }
+  else if (l.type === 't' && l.t2 != null) { let ax = tx(l.t1), ay = Y(l.p1), bx = tx(l.t2), by = Y(l.p2); if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
+    const [ex, ey] = rayEnd(ax, ay, bx, by); x.beginPath(); x.moveTo(ax, ay); x.lineTo(ex, ey); x.stroke(); if (l.note) lab(l.note, bx + 4, by - 4); }
+  else if (l.type === 'b' && l.t2 != null) { const a = tx(l.t1), b = tx(l.t2); x.globalAlpha = 0.14; x.fillRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); x.globalAlpha = 1;
+    x.strokeRect(Math.min(a, b), Math.min(Y(l.p1), Y(l.p2)), Math.abs(b - a), Math.abs(Y(l.p2) - Y(l.p1))); if (l.note) lab(l.note, Math.min(a, b) + 3, Math.min(Y(l.p1), Y(l.p2)) + 11); }
+  if (sel && (l.type === 't' || l.type === 'b') && l.t2 != null) handles(l).forEach(([hx, hy]) => { x.setLineDash([]); x.lineWidth = 1.5; x.fillStyle = '#0f172a'; x.strokeStyle = col; x.fillRect(hx - 6, hy - 6, 12, 12); x.strokeRect(hx - 6, hy - 6, 12, 12); });
+  x.setLineDash([]); x.lineWidth = 1;
+}
+const handles = l => [[G.tx(l.t1), G.Y(l.p1)], [G.tx(l.t2), G.Y(l.p2)]];
+function hitHandle(q) { if (!G || S.pick < 0) return 0; const l = S.lines[S.pick]; if (!l || l.del || (l.type !== 't' && l.type !== 'b') || l.t2 == null) return 0;
+  const h = handles(l); for (let i = 0; i < 2; i++) if (Math.hypot(q.x - h[i][0], q.y - h[i][1]) <= 14) return i + 1; return 0; }
+function hitDist(l, q) {
+  const {Y, tx} = G; if (l.del || !vis(l)) return Infinity;
+  if (l.type === 'h' || l.type === 'ea') return q.x >= (l.t1 != null ? Math.max(0, tx(l.t1)) : 0) - 8 ? Math.abs(Y(l.p1) - q.y) : Infinity;
+  const ax0 = tx(l.t1), ay0 = Y(l.p1), bx0 = tx(l.t2), by0 = Y(l.p2);
+  if (l.type === 'b') { const inX = q.x >= Math.min(ax0, bx0) - 6 && q.x <= Math.max(ax0, bx0) + 6, inY = q.y >= Math.min(ay0, by0) - 6 && q.y <= Math.max(ay0, by0) + 6;
+    return inX && inY ? Math.min(Math.abs(q.x - ax0), Math.abs(q.x - bx0), Math.abs(q.y - ay0), Math.abs(q.y - by0), 6) : Infinity; }
+  let ax = ax0, ay = ay0, bx = bx0, by = by0; if (bx < ax) [ax, ay, bx, by] = [bx, by, ax, ay];
+  const [ex, ey] = rayEnd(ax, ay, bx, by), L2 = (ex - ax) ** 2 + (ey - ay) ** 2, u = L2 ? Math.max(0, Math.min(1, ((q.x - ax) * (ex - ax) + (q.y - ay) * (ey - ay)) / L2)) : 0;
+  return Math.hypot(q.x - ax - u * (ex - ax), q.y - ay - u * (ey - ay));
+}
+function hitObj(q) { if (!G) return -1; let best = -1, bd = 14; S.lines.forEach((l, k) => { const d = hitDist(l, q); if (d < bd) { bd = d; best = k; } }); return best; }
+function chart() {
+  const cv = $('#cv'); if (!C) return; const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = Math.max(280, Math.min(640, Math.round(innerHeight * (innerWidth <= 700 ? 0.58 : 0.66))));
+  cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr; const x = cv.getContext('2d'); x.scale(dpr, dpr); x.clearRect(0, 0, W, H); G = null;
+  const B = C[S.tf], dig = C.dig ?? 5;
+  if (!B || !B[0] || !B[0].length) { x.fillStyle = '#94a3b8'; x.font = '12px sans-serif'; x.fillText('この足のデータがありません', 12, 24); return; }
+  const [T, O, Hh, L, Cl] = B, n = T.length, key = S.tf;
+  if (!S.view || S.view.key !== key) { const a = bs(T, C.et), b = C.xt ? bs(T, C.xt) : a, span = Math.max(b - a, 1), want = {M15: innerWidth <= 700 ? 110 : 160, H1: 120, H4: 110, D1: 120}[S.tf], nn = Math.max(want, span + 30);
+    S.view = {key, n: Math.min(nn, n), i0: Math.max(0, a - Math.round((nn - span) * 0.55))}; }
+  S.view.i0 = Math.max(0, Math.min(n - 10, S.view.i0)); const i0 = S.view.i0, i1 = Math.min(n, i0 + S.view.n);
+  let lo = Infinity, hi = -Infinity; for (let i = i0; i < i1; i++) { lo = Math.min(lo, L[i]); hi = Math.max(hi, Hh[i]); }
+  [C.ep, C.sl, C.xp].filter(v => v).forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
+  const pr = (hi - lo) * 0.06 || 1; lo -= pr; hi += pr; const padR = 62, bw = (W - padR) / S.view.n, X = i => (i - i0 + 0.5) * bw, Y = v => 10 + (hi - v) / (hi - lo) * (H - 34);
+  const tx = tm => { const k = bs(T, tm); const f = k > 0 && T[k] > tm ? k - 1 + (tm - T[k - 1]) / Math.max(1, T[k] - T[k - 1]) : k; return X(tm > T[n - 1] ? n - 1 + (tm - T[n - 1]) / Math.max(1, T[n - 1] - T[n - 2]) : f); };
+  const dt = n > 1 ? T[n - 1] - T[n - 2] : 15;
+  G = {i0, bw, T, Y, X, H, W, padR, tx, dig, toP: y => hi - (y - 10) / (H - 34) * (hi - lo), toT: xx => { const fi = xx / bw - 0.5 + i0, k = Math.round(fi); return k <= n - 1 ? T[Math.max(0, k)] : T[n - 1] + (k - (n - 1)) * dt; }};
+  x.font = '10px sans-serif'; x.fillStyle = '#64748b';
+  for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5; x.fillText(v.toFixed(dig), W - padR + 4, Y(v) + 3); x.strokeStyle = '#162033'; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W - padR, Y(v)); x.stroke(); }
+  const st = Math.max(1, Math.round(80 / bw)); for (let i = i0; i < i1; i += st) x.fillText(tstr(T[i]).slice(5, S.tf === 'D1' ? 10 : 16), X(i) - 20, H - 6);
+  for (let i = i0; i < i1; i++) { const up = Cl[i] >= O[i], y1 = Y(Math.max(O[i], Cl[i])), y2 = Y(Math.min(O[i], Cl[i])), w = Math.max(1, bw * 0.7);
+    x.strokeStyle = up ? '#e5e7eb' : '#64748b'; x.beginPath(); x.moveTo(X(i), Y(Hh[i])); x.lineTo(X(i), y1); x.moveTo(X(i), y2); x.lineTo(X(i), Y(L[i])); x.stroke();
+    if (up) { x.fillStyle = '#0f172a'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); x.strokeRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } else { x.fillStyle = '#64748b'; x.fillRect(X(i) - w / 2, y1, w, Math.max(1, y2 - y1)); } }
+  [[20, '#ef4444'], [75, '#22c55e'], [200, '#f472b6']].forEach(([p, col]) => { const m = sma(Cl, p); x.strokeStyle = col; x.lineWidth = 1.3; x.beginPath(); let s0 = false; for (let i = i0; i < i1; i++) if (m[i] != null) { s0 ? x.lineTo(X(i), Y(m[i])) : x.moveTo(X(i), Y(m[i])); s0 = true; } x.stroke(); x.lineWidth = 1; });
+  x.save(); x.beginPath(); x.rect(0, 0, W - padR, H - 20); x.clip();
+  S.lines.forEach((l, k) => { if (!l.del && vis(l)) drawObj(x, l, k === S.pick); });
+  if (S.pend) { x.fillStyle = TFC[S.pend.tf] || '#e2e8f0'; x.beginPath(); x.arc(tx(S.pend.t1), Y(S.pend.p1), 4, 0, 7); x.fill(); }
+  // the trade: entry / stop / target / exit levels between entry and exit, the deals as small marks
+  const ia = bs(T, C.et), ib = C.xt ? bs(T, C.xt) : i1 - 1;
+  const hl = (v, col, lab) => { if (!v) return; x.strokeStyle = col; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(X(Math.max(i0, ia - 3)), Y(v)); x.lineTo(X(Math.min(i1 - 1, ib + 3)), Y(v)); x.stroke(); x.setLineDash([]); x.fillStyle = col; x.fillText(lab, X(Math.min(i1 - 1, ib + 3)) + 3, Y(v) + 3); };
+  hl(C.sl, '#f87171', '損切り'); hl(C.tp, '#4ade80', '利確'); hl(C.ep, '#e2e8f0', '入り'); hl(C.xp, '#fbbf24', '決済');
+  const tri = (i, v, up, col) => { x.fillStyle = col; x.beginPath(); const xx = X(i), yy = Y(v) + (up ? 12 : -12); x.moveTo(xx, yy + (up ? -8 : 8)); x.lineTo(xx - 6, yy + (up ? 4 : -4)); x.lineTo(xx + 6, yy + (up ? 4 : -4)); x.fill(); };
+  if (C.ep) tri(ia, C.ep, C.side > 0, C.side > 0 ? '#f43f5e' : '#3b82f6');
+  if (C.xt && C.xp) { x.strokeStyle = '#fbbf24'; x.lineWidth = 2; const xx = X(ib), yy = Y(C.xp); x.beginPath(); x.moveTo(xx - 5, yy - 5); x.lineTo(xx + 5, yy + 5); x.moveTo(xx + 5, yy - 5); x.lineTo(xx - 5, yy + 5); x.stroke(); x.lineWidth = 1; }
+  (C.deals || []).forEach(d => { if (!d.p) return; const i = bs(T, d.t); if (i < i0 || i >= i1) return; x.fillStyle = String(d.io).toUpperCase().indexOf('OUT') >= 0 ? '#fbbf24' : '#e2e8f0'; x.beginPath(); x.arc(X(i), Y(d.p), 3, 0, 7); x.fill(); });
+  x.restore();
+  G.delBtn = null;
+  if (S.pick >= 0 && S.lines[S.pick] && !S.lines[S.pick].del && S.pickAt) {
+    const bx = Math.min(W - padR - 16, Math.max(16, S.pickAt.x + 20)), by = Math.max(16, Math.min(H - 34, S.pickAt.y - 20));
+    x.fillStyle = '#7f1d1d'; x.strokeStyle = '#f87171'; x.lineWidth = 1.5; x.beginPath(); x.arc(bx, by, 14, 0, 7); x.fill(); x.stroke();
+    x.strokeStyle = '#fff'; x.lineWidth = 2; x.beginPath(); x.moveTo(bx - 5, by - 5); x.lineTo(bx + 5, by + 5); x.moveTo(bx + 5, by - 5); x.lineTo(bx - 5, by + 5); x.stroke(); x.lineWidth = 1;
+    G.delBtn = {x: bx, y: by};
+  }
+}
+function objPanel() {
+  const l = S.pick >= 0 ? S.lines[S.pick] : null;
+  if (!l || l.del) { $('#obj').innerHTML = ''; return; }
+  const nm = l.src === 'ea' ? 'EA の' + eaName(l) : {h: '水平線', t: 'トレンドライン', b: '抵抗帯（箱）'}[l.type] || '線';
+  $('#obj').innerHTML = `<div style="margin-top:8px"><span class="note" style="font-weight:700;color:var(--mut)">✏️ 選んだ${esc(nm)}の一言</span>
+    <input class="n" maxlength="60" value="${esc(l.note || '')}" placeholder="例：ここは H4 の抵抗帯" oninput="setNote(this.value)"></div>`;
+}
+window.setNote = v => { const l = S.lines[S.pick]; if (!l) return; snap('note' + S.pick); l.note = v; l.at2 = nowJ(); chart(); };
+// saving: automatic, 1.5 s after the last change; the EA lines are stored only when moved / deleted / noted (the rest come from the data again)
+const keepLines = () => S.lines.filter(l => l.src !== 'ea' || l.moved || l.del || l.note);
+const sig = () => JSON.stringify(keepLines());
+async function save() {
+  const now = sig(); if (now === S.saved || S.saving) return;
+  S.saving = 1; msg('保存中…');
+  try { const r = await call({action: 'eaChartLines', lines: keepLines()}); if (!r || r.success === false) throw new Error((r && r.error) || '保存できませんでした');
+    S.saved = now; S.err = ''; msg(sig() === now ? '保存しました' : '', 'var(--up)');
+  } catch (e) { S.err = e.message; msg('保存できませんでした（自動でもう一度送ります）：' + e.message, 'var(--dn)'); }
+  S.saving = 0;
+}
+function flush() { if (C && sig() !== S.saved && !S.saving) save(); }
+setInterval(() => { if (!C || S.saving) return; const now = sig(); if (now === S.saved) return;
+  if (now !== S.last) { S.last = now; S.at = Date.now(); if (!S.err) msg('（自動で保存します）'); return; }
+  if (Date.now() - S.at >= (S.err ? 8000 : 1500)) save(); }, 500);
+addEventListener('pagehide', flush); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+// input: ✋ drag empty = scroll, drag a line = move, tap a line = pick (✕ deletes); tools draw one object then go back to ✋
+(function input() {
+  const cv = $('#cv'); let p = null, pinch = null, moved = false, drag = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return {x: e.clientX - r.left, y: e.clientY - r.top}; };
+  cv.addEventListener('pointerdown', e => {
+    if (pinch) return; const q = pos(e); p = {x: e.clientX, y: e.clientY, i0: S.view && S.view.i0, q}; moved = false; drag = null; cv.setPointerCapture(e.pointerId);
+    if (S.mode !== 'pan' || !G) return;
+    if (G.delBtn && Math.hypot(q.x - G.delBtn.x, q.y - G.delBtn.y) <= 17) { p.del = true; return; }
+    const hh = hitHandle(q); if (hh) { drag = {k: S.pick, q, h: hh, o: JSON.parse(JSON.stringify(S.lines[S.pick]))}; return; }
+    const k = hitObj(q); if (k >= 0) drag = {k, q, o: JSON.parse(JSON.stringify(S.lines[k]))};
+  });
+  cv.addEventListener('pointermove', e => { if (!p || !S.view || pinch) return; if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > 4) moved = true; if (!moved) return;
+    const q = pos(e);
+    if (drag && !drag.snapped) { drag.snapped = 1; S.histTag = ''; S.hist.push(JSON.stringify(Object.assign([], S.lines, {[drag.k]: drag.o}))); if (S.hist.length > 50) S.hist.shift(); }
+    if (drag && drag.h && G) { const l = S.lines[drag.k]; if (l.src === 'ea' && !l.moved) { l.moved = 1; l.op = drag.o.p1; l.op2 = drag.o.p2; l.ot1 = drag.o.t1; l.ot2 = drag.o.t2; }
+      l['t' + drag.h] = G.toT(q.x); l['p' + drag.h] = G.toP(q.y); l.at2 = nowJ(); chart(); return; }
+    if (drag && G) { const l = S.lines[drag.k], o = drag.o, dp = G.toP(q.y) - G.toP(drag.q.y), dx = q.x - drag.q.x, sh = tm => G.toT(G.tx(tm) + dx);
+      l.p1 = o.p1 + dp; if (o.p2 != null) l.p2 = o.p2 + dp; if (o.t1 != null) l.t1 = sh(o.t1); if (o.t2 != null) l.t2 = sh(o.t2);
+      if (l.src === 'ea') { l.moved = 1; if (l.op == null) l.op = o.op != null ? o.op : o.p1; if (o.p2 != null && l.op2 == null) l.op2 = o.op2 != null ? o.op2 : o.p2; }
+      l.at2 = nowJ(); S.pick = drag.k; S.pickAt = q; chart(); return; }
+    if (S.mode === 'pan') { const bw = (cv.clientWidth - 62) / S.view.n; S.view.i0 = Math.round(p.i0 - (e.clientX - p.x) / bw); chart(); }
+  });
+  cv.addEventListener('pointerup', e => { const was = p, dr = drag; p = null; drag = null; if (!was || !G || pinch) return; const q = pos(e);
+    if (S.mode === 'pan') {
+      if (dr && dr.snapped) drawBtns();
+      if (was.del) { const l = S.lines[S.pick]; if (l) { snap(); if (l.src === 'ea') l.del = nowJ(); else S.lines.splice(S.pick, 1); } S.pick = -1; drawBtns(); chart(); objPanel(); return; }
+      if (dr) { if (!moved && !dr.h) { S.pick = dr.k; S.pickAt = q; } chart(); objPanel(); return; }
+      if (!moved) { S.pick = -1; chart(); objPanel(); }
+      return;
+    }
+    if (moved && !S.pend) return;
+    if (q.x > G.W - G.padR) return; const tm = G.toT(q.x), pr = G.toP(q.y), base = {tf: S.tf, at: nowJ()};
+    if (S.mode === 'h') { snap(); S.lines.push(Object.assign({type: 'h', t1: tm, p1: pr}, base)); }
+    else if (S.mode === 't' || S.mode === 'b') { if (!S.pend) { S.pend = Object.assign({type: S.mode, t1: tm, p1: pr, t2: tm, p2: pr}, base); chart(); return; }
+      S.pend.t2 = tm; S.pend.p2 = pr; snap(); S.lines.push(S.pend); S.pend = null; }
+    S.pick = S.lines.length - 1; S.pickAt = q; S.mode = 'pan'; drawBtns(); chart(); objPanel(); });
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 0.87); }, {passive: false});
+  cv.addEventListener('touchstart', e => { if (e.touches.length === 2) { pinch = Math.abs(e.touches[0].clientX - e.touches[1].clientX); p = null; drag = null; } }, {passive: true});
+  cv.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { const dd = Math.abs(e.touches[0].clientX - e.touches[1].clientX); if (Math.abs(dd - pinch) > 20) { zoom(dd > pinch ? 0.85 : 1.18); pinch = dd; } } }, {passive: true});
+  cv.addEventListener('touchend', e => { if (e.touches.length < 2) setTimeout(() => pinch = null, 50); });
+})();
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA/.test((e.target || {}).tagName || '')) { e.preventDefault(); undoLine(); } });
+addEventListener('resize', () => chart());
+addEventListener('hashchange', () => location.reload());
+load();
+</script></body></html>

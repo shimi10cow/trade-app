@@ -105,13 +105,81 @@ def images_for(b, t):
     return out
 
 
+CHART_SPAN = {'D1': (400, 30, 600), 'H4': (90, 10, 1200), 'H1': (20, 4, 1500), 'M15': (4, 1, 3000)}   # days before entry, after exit, max bars
+
+
+def chart_data(b, t):
+    """2026-11-27 (user): the trade as a live chart in the app (trade_chart.html), to correct the trendlines / 抵抗帯 on it and keep them
+    as data. {sym, dig, side, et, xt, ep, sl, tp, xp (Japan-time minutes like the report), D1/H4/H1/M15: [T, O, H, L, C], ea: the EA's
+    lines at the entry, deals}. None when the bars are not there."""
+    from mt5_ea.live.report import _tf_arrays, server_to_jst_min
+    sym = APP2SYM.get(str(t['pair']).upper(), str(t['pair']).upper())
+    et, xt = jst_to_server(t['entryDate'], t['entryTime']), (jst_to_server(t['exitDate'], t['exitTime']) if t.get('exitDate') else None)
+    if pd.isna(et):
+        return None
+    xt = None if xt is None or pd.isna(xt) else xt
+    now = pd.Timestamp.now(tz='UTC').tz_localize(None)
+    m = pair_env.bars_any(b, sym, int((now - et) / pd.Timedelta('1D')) + 430)[['t', 'o', 'h', 'l', 'c']]
+    m['t'] = pd.to_datetime(m.t); m = m.set_index('t').sort_index()
+    if not len(m) or m.index.max() < et:
+        return None
+    try:
+        dig = int(b.mt5.symbol_info(b.name(sym)).digits)
+    except Exception:
+        dig = 3 if sym.endswith('JPY') else 5
+    end = xt if xt is not None else now
+    out = dict(sym=sym, pair=t['pair'], dig=dig, side=1 if str(t['direction']).lower().startswith('b') else -1)
+    for tf, rule in (('D1', '1D'), ('H4', '4h'), ('H1', '1h'), ('M15', None)):
+        a, z, mx = CHART_SPAN[tf]
+        x = m[(m.index >= et - pd.Timedelta(days=a)) & (m.index <= end + pd.Timedelta(days=z))]
+        if rule:
+            x = x.resample(rule, label='left', closed='left').agg({'o': 'first', 'h': 'max', 'l': 'min', 'c': 'last'}).dropna()
+        if len(x) > mx:                                   # a long trade: keep the entry side and the exit side
+            ie = int(x.index.searchsorted(et)); keep = max(0, min(ie - mx // 3, len(x) - mx)); x = x.iloc[keep:keep + mx]
+        out[tf] = _tf_arrays(x, dig)
+    tt = server_to_jst_min([et] + ([xt] if xt is not None else []))
+    out['et'] = int(tt[0]); out['xt'] = int(tt[1]) if xt is not None else None
+    for k, f in (('ep', 'entryPrice'), ('sl', 'sl'), ('tp', 'tp'), ('xp', 'exitPrice')):
+        out[k] = num(t.get(f))
+    try:                                                    # the EA's lines as they were at the entry (report format)
+        ls = [l for l in alerts.ea_chart_objects(sym, m[m.index <= et].reset_index().tail(400 * 96).reset_index(drop=True)) if l['kind'] != 'band']
+        t1 = server_to_jst_min([x['t1'] for x in ls]) if ls else []
+        t2 = server_to_jst_min([x['t2'] if x['t2'] is not None else x['t1'] for x in ls]) if ls else []
+        out['ea'] = [dict(type=x['type'], kind=x['kind'], tf=x['tf'], side=x['side'], t=int(a), p=round(x['p1'], dig),
+                          t2=(int(c) if x['type'] == 't' else None), p2=(round(x['p2'], dig) if x['type'] == 't' else None))
+                     for x, a, c in zip(ls, t1, t2) if a > 0 and (x['type'] != 't' or c > 0)]
+    except Exception as ex:
+        logging.info('trade chart %s: no EA lines (%s)', t['id'], ex); out['ea'] = []
+    deals = []
+    for d in t.get('deals') or []:
+        x = pd.to_datetime(str(d.get('t', '')).replace('+09:00', ''), errors='coerce')
+        if not pd.isna(x):
+            deals.append(dict(io=d.get('io'), t=int((x - pd.Timestamp('1970-01-01')) // pd.Timedelta(minutes=1)), p=float(d.get('p') or 0)))
+    out['deals'] = deals
+    return out
+
+
 def run(b, gas, limit=5, dry=False, log=print):
+    import json
     r = gas.call('eaNeedImages', {'limit': limit}, timeout=60)
     ts = (r or {}).get('trades') or []
     done = 0
     for t in ts:
+        if t.get('needChart'):                              # 2026-11-27: the live chart data (its own step: a failure here keeps the images going)
+            try:
+                c = chart_data(b, t)
+                if c is not None:
+                    raw = json.dumps(c, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+                    if dry:
+                        d = Path(os.getenv('EA_DATA_DIR') or Path.home() / 'TradeEA_data') / 'trade_images'; d.mkdir(parents=True, exist_ok=True)
+                        (d / f"{t['id']}_chart.json").write_bytes(raw)
+                    else:
+                        gas.call('eaTradeChart', {'entryId': t['id'], 'closed': bool(c.get('xt')), 'data64': base64.b64encode(raw).decode()}, timeout=180)
+                    log(f"  チャート {t['pair']} {t['entryDate']}（{len(raw) // 1024} KB）")
+            except Exception as ex:
+                logging.warning('trade chart %s: %s', t.get('id'), ex)
         try:
-            imgs = images_for(b, t)
+            imgs = images_for(b, t) if (t.get('needEntry') or t.get('needExit')) else []
             if not imgs:
                 continue
             if dry:

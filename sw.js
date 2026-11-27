@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trade-app-v289';
+const CACHE_NAME = 'trade-app-v290';
 const urlsToCache = [
   './manifest.json',
   './icon-192x192.png',
@@ -30,7 +30,8 @@ self.addEventListener('fetch', event => {
     url.pathname.endsWith('/opendata.js') ||
     url.pathname.endsWith('/mt5_tab.js') ||
     url.pathname.endsWith('/style.css') ||
-    url.pathname.endsWith('/report.html') ||               // the EA report page (2026-11-22): always fresh, never stored
+    url.pathname.endsWith('/report.html') ||
+    url.pathname.endsWith('/trade_chart.html') ||           // a trade's live chart (2026-11-27): always fresh               // the EA report page (2026-11-22): always fresh, never stored
     url.pathname.endsWith('/report_template.html');
 
   if (liveAsset) {

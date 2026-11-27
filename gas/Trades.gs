@@ -463,15 +463,18 @@ function impNeedImages_(b) {
   rows.forEach(function (t) {
     const st = String(t['ステータス']), draft = st === '下書き';
     if (out.length >= lim || (!draft && ['決済', '保有中'].indexOf(st) < 0)) return;
-    if (String(t.Source || '') !== 'MT5' && !String(t.Accounts || '').trim()) return;
     const pair = String(t['PairName（元）'] || t.PairName || '').trim(); if (!pair || !t.EntryDate) return;
-    const needEntry = !String(t.ChartImage || '').trim() && !t.ImgAutoEntry;
-    const needExit = (st === '決済' || draft) && !!t.ExitDate && !String(t['決済チャート'] || '').trim() && !t.ImgAutoExit;
-    if (!needEntry && !needExit) return;
+    const mt5 = String(t.Source || '') === 'MT5' || !!String(t.Accounts || '').trim();
+    const needEntry = mt5 && !String(t.ChartImage || '').trim() && !t.ImgAutoEntry;
+    const needExit = mt5 && (st === '決済' || draft) && !!t.ExitDate && !String(t['決済チャート'] || '').trim() && !t.ImgAutoExit;
+    // 2026-11-27: the live chart data (trade_chart.html) for every trade of the last 400 days, MT5 or hand-written; made again once after the exit
     const d = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy/MM/dd') : String(v || '').slice(0, 10); };
     const tm = function (v) { return v instanceof Date ? Utilities.formatDate(v, 'Asia/Tokyo', 'HH:mm') : String(v || '').slice(0, 5); };
+    const recent = (Date.now() - impEntryMs_({EntryDate: d(t.EntryDate), EntryTime: tm(t.EntryTime)})) < 400 * 864e5;
+    const needChart = recent && (!String(t.ChartData || '').trim() || (!!t.ExitDate && !t.ChartClosed));
+    if (!needEntry && !needExit && !needChart) return;
     out.push({id: String(t.EntryID), pair: pair, direction: t.Direction, entryDate: d(t.EntryDate), entryTime: tm(t.EntryTime), exitDate: d(t.ExitDate), exitTime: tm(t.ExitTime),
-      entryPrice: t.EntryPrice, sl: t.InitialSLPrice, tp: t.TakeProfitPrice, exitPrice: t.ExitPrice, needEntry: needEntry, needExit: needExit});
+      entryPrice: t.EntryPrice, sl: t.InitialSLPrice, tp: t.TakeProfitPrice, exitPrice: t.ExitPrice, needEntry: needEntry, needExit: needExit, needChart: needChart});
   });
   // every execution of the trade (each entry / exit is marked on its own, not the average)
   if (out.length) {
@@ -500,6 +503,48 @@ function impSetImages_(b) {
   if (urls['決済チャート'] || urls['決済チャート2']) t.ImgAutoExit = tradesNow_();
   trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY);
   return {success: true, saved: Object.keys(urls).length};
+}
+/** EA PC: the live chart data of one trade (JSON, trade_chart.html) -> a private Drive file (overwritten when made again after the exit). */
+function impSetChart_(b) {
+  const T = trRead_(), t = impFind_(T, b.entryId); trEnsureCols_(T, ['ChartData', 'ChartAt', 'ChartClosed', 'ChartLines']);
+  const bytes = Utilities.base64Decode(String(b.data64 || '')), token = ScriptApp.getOAuthToken();
+  if (!bytes.length) throw new Error('empty chart');
+  let id = String(t.ChartData || '').trim(), ok = false;
+  if (id) {
+    const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files/' + id + '?uploadType=media',
+      {method: 'patch', contentType: 'application/json', payload: bytes, headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
+    ok = r.getResponseCode() < 300;
+  }
+  if (!ok) {
+    const bd = 'tc_' + Utilities.getUuid().replace(/-/g, '');
+    const head = '--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({name: 'tradechart_' + String(b.entryId) + '.json', mimeType: 'application/json'})
+      + '\r\n--' + bd + '\r\nContent-Type: application/json\r\n\r\n';
+    const body = Utilities.newBlob(head).getBytes().concat(bytes).concat(Utilities.newBlob('\r\n--' + bd + '--').getBytes());
+    const r = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      {method: 'post', contentType: 'multipart/related; boundary=' + bd, payload: body, headers: {Authorization: 'Bearer ' + token}, muteHttpExceptions: true});
+    const j = JSON.parse(r.getContentText() || '{}'); if (!j.id) throw new Error('Drive: ' + r.getContentText().slice(0, 200));
+    id = j.id;
+  }
+  t.ChartData = id; t.ChartAt = tradesNow_(); if (b.closed) t.ChartClosed = tradesNow_();
+  trWrite_(T, t); CacheService.getScriptCache().remove(CACHE_KEY);
+  return {success: true, fileId: id};
+}
+/** app (read only): the chart data of one trade and the lines drawn on it. */
+function impGetChart_(b) {
+  const T = trRead_(), t = impFind_(T, b.entryId), id = String(t.ChartData || '').trim();
+  let lines = []; try { lines = JSON.parse(String(t.ChartLines || '[]')) || []; } catch (e) {}
+  if (!id) return {success: true, chart: null, lines: lines};
+  const r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media', {headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()}, muteHttpExceptions: true});
+  if (r.getResponseCode() >= 300) throw new Error('drive ' + r.getResponseCode());
+  return {success: true, chart: JSON.parse(r.getContentText('UTF-8')), lines: lines};
+}
+/** app: the lines drawn on the trade's chart (trendlines, horizontal lines, boxes; EA lines moved / deleted) -> ChartLines (JSON). */
+function impSetChartLines_(b) {
+  const T = trRead_(), t = impFind_(T, b.entryId); trEnsureCols_(T, ['ChartLines']);
+  const s = JSON.stringify(Array.isArray(b.lines) ? b.lines : []);
+  if (s.length > 45000) throw new Error('線が多すぎます（' + s.length + ' 文字）');
+  t.ChartLines = s; trWrite_(T, t);
+  return {success: true};
 }
 /** app (read only): the trend arrows of a draft's entry time, for the detail opened from 記録にする (nothing is recorded). */
 function impTrend_(b) {

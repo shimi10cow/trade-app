@@ -736,6 +736,7 @@
       <div class="modal-header">
         <div class="modal-title" id="td-title">ポジション詳細</div>
         <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" onclick="openTradeChart()" title="このトレードのチャート（線を引いて直せる）" style="height:32px;border:1px solid #0e7490;border-radius:16px;background:#0b2530;color:#22d3ee;font-size:13px;font-weight:700;cursor:pointer;padding:0 10px;">📈 チャート</button>
           <button type="button" id="td-quality-good" onclick="setTradeQualityDetail('GOOD')" title="よくできたトレード" style="width:32px;height:32px;border:1px solid #334155;border-radius:50%;background:#1e293b;color:#64748b;font-size:19px;font-weight:900;cursor:pointer;padding:0;">○</button>
           <button type="button" id="td-quality-bad" onclick="setTradeQualityDetail('BAD')" title="ダメだったトレード" style="width:32px;height:32px;border:1px solid #334155;border-radius:50%;background:#1e293b;color:#64748b;font-size:19px;font-weight:900;cursor:pointer;padding:0;">×</button>
           <div class="modal-close" onclick="closeTradeDetail()">✕</div>
@@ -1401,7 +1402,7 @@
     </div>
   </div>
 
-  <script src="./app.js?v=20261122p" charset="utf-8"></script>
+  <script src="./app.js?v=20261127a" charset="utf-8"></script>
   <script src="./ea_ideas.js?v=20261113b" charset="utf-8"></script>
   <script src="./opendata.js?v=20261122c" charset="utf-8"></script>
   <script src="./mt5_tab.js?v=20261122g" charset="utf-8"></script>

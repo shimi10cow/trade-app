@@ -5539,6 +5539,7 @@ function openTradeDetail(index, readOnly = false, fromHistory = false) {
   }
 
   document.getElementById('td-index').value = index;
+  window._tdEntryId = t.EntryID;
   document.getElementById('td-title').textContent = `${t['PairName（元）'] || t.PairName || t.Pair} ${t.Direction}`;
   updateDetailQualityButtons(t);
   document.getElementById('td-status').value = t['ステータス'] || '保有中';
@@ -6641,3 +6642,14 @@ async function recalculateAllScores() {
     hideLoader();
   }
 }
+
+// 2026-11-27 (user): the trade as a live chart (trade_chart.html) over the app, to draw / correct trendlines and 抵抗帯 (saved as data)
+function openTradeChart(){
+  var id=window._tdEntryId; if(!id){showToast&&showToast('トレードを保存してから開いてください');return;}
+  var o=document.getElementById('trade-chart-frame');
+  if(!o){o=document.createElement('div');o.id='trade-chart-frame';o.style.cssText='position:fixed;inset:0;z-index:10000;background:#0b1220';document.body.appendChild(o);}
+  o.innerHTML='<iframe src="./trade_chart.html#'+encodeURIComponent(id)+'" style="border:0;width:100%;height:100%;display:block" title="トレードのチャート"></iframe>';
+  o.style.display='block';
+}
+function closeTradeChart(){var o=document.getElementById('trade-chart-frame');if(o){o.style.display='none';o.innerHTML='';}}
+window.GAS_URL=window.GAS_URL||GAS_URL;

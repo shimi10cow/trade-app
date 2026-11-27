@@ -69,8 +69,8 @@ function ealAuth_(body, who) {
   if (String(body.key || '') !== want) throw new Error('bad key');
 }
 
-const EAL_EA_ACTIONS_ = {eaReportUpload: 1, eaNeedImages: 1, eaEntryImages: 1, eaPairEnv: 1, eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1};
-const EAL_APP_ACTIONS_ = {eaImportTrend: 1, eaImportRepair: 1, eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1};
+const EAL_EA_ACTIONS_ = {eaReportUpload: 1, eaNeedImages: 1, eaEntryImages: 1, eaPairEnv: 1, eaAlert: 1, eaReportData: 1, eaTradeImage: 1, eaHeartbeat: 1, eaTradeOpen: 1, eaTradeClose: 1, eaSignal: 1, eaLog: 1, eaResList: 1, eaResFilled: 1, eaImportBatch: 1, eaStop: 1, eaImportSettings: 1, eaTradeChart: 1};
+const EAL_APP_ACTIONS_ = {eaImportTrend: 1, eaImportRepair: 1, eaTradeComment: 1, eaTradeExclude: 1, eaSignalMark: 1, eaGetDashboard: 1, eaSaveConfig: 1, eaGetTrades: 1, eaResSave: 1, eaImportRequest: 1, eaImportStatus: 1, eaImportAdopt: 1, eaImportLink: 1, eaImportSplit: 1, eaImportMerge: 1, eaImportDiscard: 1, eaImportCancel: 1, eaImportSaveSettings: 1, eaImportRestore: 1, eaImportPurge: 1, eaImportUnadopt: 1, eaChartGet: 1, eaChartLines: 1};
 
 /** Router: called from doGet / doPost for every action starting with "ea". */
 function routeEALive_(action, body) {
@@ -93,10 +93,11 @@ function routeEALive_(action, body) {
                 eaImportMerge: b2 => impMerge_(b2), eaImportDiscard: b2 => impDiscard_(b2),
                 eaImportSaveSettings: b2 => impSaveSettings_(b2),
                 eaImportRestore: b2 => impRestore_(b2), eaImportPurge: b2 => impPurge_(b2), eaImportUnadopt: b2 => impUnadopt_(b2),
+                eaTradeChart: b2 => impSetChart_(b2), eaChartGet: b2 => impGetChart_(b2), eaChartLines: b2 => impSetChartLines_(b2),
                 eaImportCancel: () => { PropertiesService.getScriptProperties().deleteProperty('IMPORT_REQUEST'); return {success: true}; }}[action];
     if (/^eaImport/.test(action) && typeof impBatch_ !== 'function') throw new Error('add Trades.gs to the Apps Script project');
     const lock = LockService.getScriptLock();
-    const write = !(action === 'eaNeedImages' || action === 'eaImportTrend' || action === 'eaReportData' || action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus' || action === 'eaImportSettings');
+    const write = !(action === 'eaNeedImages' || action === 'eaImportTrend' || action === 'eaReportData' || action === 'eaGetDashboard' || action === 'eaGetTrades' || action === 'eaResList' || action === 'eaImportStatus' || action === 'eaImportSettings' || action === 'eaChartGet');
     if (write) lock.waitLock(20000);
     try { return fn(body); } finally { if (write) lock.releaseLock(); }
   } catch (e) {
